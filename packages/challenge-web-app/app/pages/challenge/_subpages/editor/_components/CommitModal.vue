@@ -14,6 +14,22 @@ const props = defineProps<{
    uploadDir?: string;
 }>();
 
+/**
+ * 把 WebContainer 内的路径转换成提交快照的键（以 `/` 开头的绝对路径）。
+ *
+ * 必须保留 `project/` 这一级：
+ *   · 调度器把快照原样还原到 live-server 容器的 /app 下；
+ *   · live-server 镜像与题目的 `initCommand`（`npx serve -l 3000 project`）都以
+ *     `project` 子目录为站点根（见 packages/challenge-agents/live-server/Dockerfile）。
+ *
+ * 原实现用 `path.slice(distDir.length)` 把 `project/` 前缀削掉，只有当用户的代码被
+ * 错误地多挂了一层 `project/` 时才恰好还原成 `/project/...`；编辑器修好重复目录后，
+ * 快照会变成 `/index.html`，live-server 在 project 下找不到页面，判题脚本一直等待
+ * 选择器直到 20s 超时。这里改为始终保留完整路径。
+ */
+const toSnapshotPath = (path: string) =>
+   '/' + path.split('/').filter((s) => s && s !== '.').join('/');
+
 const opened = defineModel<boolean>('opened');
 
 const steps = ref<IProgressStep[]>([]);
@@ -100,7 +116,7 @@ const runPackStep = async (distDir: string) => {
          const encoding = acceptedBinaryExtensions.includes(extension)
             ? 'base64'
             : 'utf-8';
-         pathContentMap[path.slice(distDir.length)] =
+         pathContentMap[toSnapshotPath(path)] =
             await instance.fs.readFile(path, encoding);
       }
 
