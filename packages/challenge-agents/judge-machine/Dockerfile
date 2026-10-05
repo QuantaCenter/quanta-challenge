@@ -52,7 +52,17 @@ WORKDIR /app
 
 # 安装依赖并构建（跳过 Playwright 浏览器下载，已全局安装）
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN CI=true pnpm install --force
+# 只安装判题机自身及其依赖闭包。
+#
+# ⚠️ 原先这里是全量 `pnpm install --force`，在本仓库当前状态下**必然构建失败**：
+# 该镜像是 `COPY . /app`（整仓上下文），pnpm 会一并安装 workspace 内的
+# packages/challenge-web-app，从而触发它的 postinstall（`nuxt prepare`）；
+# 而 nuxi prepare 会把 NODE_ENV 视作 production，使 nuxt.config.ts 中的
+# envSecret() 因缺少 ACCESS_TOKEN_SECRET / REFRESH_TOKEN_SECRET 直接抛错：
+#   [配置错误] 生产环境必须设置 ACCESS_TOKEN_SECRET
+# 判题机本体不依赖任何 workspace 包，因此用 --filter 限定安装范围即可绕开，
+# 同时显著减小镜像体积、缩短构建时间。
+RUN CI=true pnpm install --force --filter @challenge/judge-machine-agent...
 RUN pnpm --filter @challenge/judge-machine-agent build
 
 CMD ["node", "packages/challenge-agents/judge-machine/dist/index.js"]

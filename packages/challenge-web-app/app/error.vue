@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { StSpace } from '#components';
+import StSpace from '~/components/st/Space/index.vue';
 import { FingerprintThree } from '@icon-park/vue-next';
 
 const error = useError();

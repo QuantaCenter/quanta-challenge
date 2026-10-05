@@ -12,6 +12,24 @@ const props = defineProps<{
 
 const visible = ref(false);
 
+// 透传给 <input> 的属性。这里刻意把 `type` 摘掉：
+// 模板里既要 v-bind="$attrs" 又要动态决定 type，两者都写 type 就会互相覆盖。
+// 而 mergeProps 的语义是「后者胜」，v-bind="$attrs" 写在 :type 之后会让外部传入的
+// type="password" 顶掉本组件算出来的值 —— 症状就是密码框的"显示/隐藏"按钮点了没反应
+// （注册页正是同时传了 type="password" 和 password，登录页只传 password 所以正常）。
+const inputAttrs = computed(() => {
+   const { type: _ignored, ...rest } = useAttrs();
+   return rest;
+});
+
+// 实际渲染的 type：password 模式由可见性开关控制，其它情况沿用外部传入的 type，
+// 这样 type="number" 之类的输入框不受影响。
+const inputType = computed(() => {
+   if (props.password) return visible.value ? 'text' : 'password';
+   const t = useAttrs().type;
+   return typeof t === 'string' ? t : undefined;
+});
+
 const value = defineModel<string | number>('value');
 const borderClass = computed(() => {
    return props.status === 'error'
@@ -36,8 +54,8 @@ const decreaseValue = () => {
       <slot name="prefix"></slot>
       <input
          v-model="value"
-         :type="password ? (visible ? 'text' : 'password') : ''"
-         v-bind="$attrs"
+         v-bind="inputAttrs"
+         :type="inputType"
          :disabled="disabled"
          :class="[
             'bg-transparent border-none outline-none placeholder:text-accent-300 text-white flex-1',

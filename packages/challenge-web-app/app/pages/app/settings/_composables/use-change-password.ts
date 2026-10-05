@@ -1,4 +1,4 @@
-import { StForm } from '#components';
+import StForm from '~/components/st/Form/index.vue';
 import OneTimePassword from '~/components/OneTimePassword.vue';
 import { useMessage } from '~/components/st/Message/use-message';
 

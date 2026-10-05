@@ -1,5 +1,5 @@
 <script setup lang="tsx">
-import { StSpace } from '#components';
+import StSpace from '~/components/st/Space/index.vue';
 import { $Enums } from '@prisma/client';
 import { useViewTransition } from '~/composables/use-view-transition';
 import Divider from '../_components/Divider.vue';

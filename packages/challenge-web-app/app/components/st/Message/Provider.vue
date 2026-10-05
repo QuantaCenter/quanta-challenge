@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { StMessageItem } from '#components';
+import StMessageItem from './Item.vue';
 import type {
    AddMessageOptions,
    CustomMessage,

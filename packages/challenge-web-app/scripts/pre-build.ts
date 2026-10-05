@@ -48,12 +48,21 @@ const replacePrismaClientPath = async (
 ) => {
    const original = await fs.readFile(filePath, 'utf-8');
 
-   if (!original.includes(`'.prisma/client`)) {
+   // 只有当路径已经指向当前安装位置时，才是真正的「无需处理」。
+   // 不能简单地以「是否已含绝对路径」来跳过：仓库目录被移动/改名后，文件里留着的是
+   // **旧的**绝对路径，若跳过则构建产物会带上失效路径，运行期报：
+   //   Cannot find module '<旧路径>/.prisma/client/default'
+   // （实测症状：页面能打开，但任何走数据库的接口都 500）
+   if (original.includes(`'${replacement}`)) {
       console.log(`ℹ️  Already patched, skip: ${filePath}`);
       return;
    }
 
-   const patched = original.replace(/'\.prisma\/client/g, `'${replacement}`);
+   // 第一次 replace 处理「尚未打过补丁」的形态；
+   // 第二次 replace 处理「已打过补丁但指向旧绝对路径」的形态，使其自愈。
+   const patched = original
+      .replace(/'\.prisma\/client/g, `'${replacement}`)
+      .replace(/'[^']*\/\.prisma\/client/g, `'${replacement}`);
 
    // 保留原文件权限位
    const { mode } = await fs.stat(filePath);

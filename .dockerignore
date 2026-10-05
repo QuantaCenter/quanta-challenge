@@ -37,3 +37,7 @@
 .vscode
 .idea
 .DS_Store
+
+# 本地部署密钥，禁止进入构建上下文（judge-machine Dockerfile 使用 COPY . /app）
+**/.env
+.env
