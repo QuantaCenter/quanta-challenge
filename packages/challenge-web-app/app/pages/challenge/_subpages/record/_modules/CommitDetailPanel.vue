@@ -267,7 +267,7 @@ const StatusIcon = () => {
                         :current-score="detail?.score" />
                   </StSpace>
                   <Divider v-if="showChart" />
-                  <StSpace fill-x direction="vertical" gap="1rem">
+                  <StSpace fill-x direction="vertical" gap="1rem" class="st-selectable">
                      <StSpace align="center" gap="0.25rem">
                         <DocDetail />
                         <span class="st-font-body-bold">判题详情</span>
