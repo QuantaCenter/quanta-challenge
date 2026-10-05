@@ -4,10 +4,64 @@ import { publicProcedure, router } from '../../trpc';
 import z from 'zod';
 import * as serverAuthn from '@simplewebauthn/server';
 import { TRPCError } from '@trpc/server';
+import type { H3Event } from 'h3';
+import { logger } from '~~/lib/logger';
+
+/**
+ * WebAuthn 的 RP ID 与 expectedOrigin 必须和用户实际访问的站点一致，
+ * 否则浏览器在 `navigator.credentials.create()` 阶段就会直接抛
+ * SecurityError / NotAllowedError（请求根本到不了 verifyRegistration）。
+ *
+ * 旧实现把两者写死成 `localhost` / `http://localhost:3000`，只在本地开发可用；
+ * 线上域名是 challenge.quantacenter.com，因此注册必然失败。
+ *
+ * 这里改为：
+ *   1. 优先取请求的 Origin 头（同源 POST 会带上）；
+ *   2. 退回到 runtimeConfig 里的 APP_SERVER；
+ *   3. 再退回到 Host + x-forwarded-proto。
+ * rpID 取 origin 的 hostname，localStorage/HTTPS 两种环境都自洽。
+ */
+const resolveWebAuthnContext = (event: H3Event) => {
+   const config = useRuntimeConfig();
+   const configuredOrigin = String(
+      config.public?.appBaseUrl ?? '',
+   ).replace(/\/+$/, '');
+
+   const originHeader = getHeader(event, 'origin');
+   const referer = getHeader(event, 'referer');
+   const host = getHeader(event, 'host');
+   const proto = getHeader(event, 'x-forwarded-proto') ?? 'https';
+
+   let origin = originHeader || configuredOrigin;
+   if (!origin && referer) {
+      try {
+         origin = new URL(referer).origin;
+      } catch {
+         // ignore malformed referer
+      }
+   }
+   if (!origin && host) {
+      origin = `${proto}://${host}`;
+   }
+   origin = (origin || 'http://localhost:3000').replace(/\/+$/, '');
+
+   let rpID = 'localhost';
+   try {
+      rpID = new URL(origin).hostname;
+   } catch {
+      // ignore malformed origin, keep localhost fallback
+   }
+
+   return { rpID, origin };
+};
+
+/** 把 options 与本次校验上下文一起放进 Redis，验证时复用同一份 rpID/origin。 */
+const WEB_AUTHN_OPTIONS_TTL_SECONDS = 300;
 
 // 注册 WebAuthn 验证器
 const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    const { userId } = ctx.user;
+   const { rpID, origin } = resolveWebAuthnContext(ctx.event);
 
    const user = await prisma.user.findUniqueOrThrow({
       where: {
@@ -17,15 +71,11 @@ const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
          WebAuthnCredential: true,
       },
    });
-   await prisma.user.update({
-      where: { id: userId },
-      data: { email: user.email },
-   });
 
    const options = await serverAuthn.generateRegistrationOptions({
-      rpID: 'localhost',
+      rpID,
       rpName: 'Quanta Challenge',
-      userName: user.name!,
+      userName: user.name || user.email,
       attestationType: 'none',
       excludeCredentials: user.WebAuthnCredential.map((cred) => ({
          id: cred.id,
@@ -33,7 +83,12 @@ const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    });
 
    const redis = useRedis();
-   await redis.set('webauthn:register:' + userId, JSON.stringify(options));
+   await redis.set(
+      'webauthn:register:' + userId,
+      JSON.stringify({ options, rpID, origin }),
+      'EX',
+      WEB_AUTHN_OPTIONS_TTL_SECONDS,
+   );
 
    return options;
 });
@@ -50,8 +105,8 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       const { userId } = ctx.user;
 
       const redis = useRedis();
-      const optionsJSON = await redis.get('webauthn:register:' + userId);
-      if (!optionsJSON) {
+      const storedJSON = await redis.get('webauthn:register:' + userId);
+      if (!storedJSON) {
          throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'No registration options found',
@@ -59,18 +114,41 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       }
       redis.del('webauthn:register:' + userId);
 
+      const stored = JSON.parse(storedJSON);
+      // 兼容旧格式（历史数据里直接存了 options 本体）
       const options: serverAuthn.PublicKeyCredentialCreationOptionsJSON =
-         JSON.parse(optionsJSON);
+         stored.options ?? stored;
+      const fallback = resolveWebAuthnContext(ctx.event);
+      const rpID: string = stored.rpID ?? fallback.rpID;
+      const origin: string = stored.origin ?? fallback.origin;
 
-      const verification = await serverAuthn.verifyRegistrationResponse({
-         response: input as any,
-         expectedChallenge: options.challenge,
-         expectedOrigin: 'http://localhost:3000',
-         expectedRPID: 'localhost',
-      });
+      let verification: Awaited<
+         ReturnType<typeof serverAuthn.verifyRegistrationResponse>
+      >;
+      try {
+         verification = await serverAuthn.verifyRegistrationResponse({
+            response: input as any,
+            expectedChallenge: options.challenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID,
+         });
+      } catch (error) {
+         logger.error(
+            { error, userId, rpID, origin, traceId: ctx.traceId },
+            'WebAuthn registration verification threw',
+         );
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: 'WebAuthn registration verification failed',
+         });
+      }
 
       const { registrationInfo } = verification;
       if (!verification.verified || !registrationInfo) {
+         logger.warn(
+            { userId, rpID, origin, traceId: ctx.traceId },
+            'WebAuthn registration verification returned verified=false',
+         );
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'WebAuthn registration verification failed',
@@ -114,8 +192,9 @@ const AuthenticateAuthnSchema = z.object({
 
 const authenticateAuthnProcedure = publicProcedure
    .input(AuthenticateAuthnSchema)
-   .mutation(async ({ input }) => {
+   .mutation(async ({ input, ctx }) => {
       const { email } = input;
+      const { rpID, origin } = resolveWebAuthnContext(ctx.event);
 
       const user = await prisma.user.findUniqueOrThrow({
          where: { email },
@@ -130,7 +209,7 @@ const authenticateAuthnProcedure = publicProcedure
       }
 
       const options = await serverAuthn.generateAuthenticationOptions({
-         rpID: 'localhost',
+         rpID,
          allowCredentials: user.WebAuthnCredential.map((cred) => ({
             id: cred.id,
             transports: (cred.transport?.split(';') ||
@@ -142,7 +221,9 @@ const authenticateAuthnProcedure = publicProcedure
       const redis = useRedis();
       await redis.set(
          'webauthn:authenticate:' + email,
-         JSON.stringify(options),
+         JSON.stringify({ options, rpID, origin }),
+         'EX',
+         WEB_AUTHN_OPTIONS_TTL_SECONDS,
       );
 
       return options;
@@ -162,8 +243,8 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
    .mutation(async ({ input, ctx }) => {
       const redis = useRedis();
       const { accessResponse, email } = input;
-      const optionsJSON = await redis.get('webauthn:authenticate:' + email);
-      if (!optionsJSON) {
+      const storedJSON = await redis.get('webauthn:authenticate:' + email);
+      if (!storedJSON) {
          throw new TRPCError({
             code: 'NOT_FOUND',
             message: 'No authentication options found',
@@ -171,8 +252,12 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
       }
       redis.del('webauthn:authenticate:' + email);
 
+      const stored = JSON.parse(storedJSON);
       const options: serverAuthn.PublicKeyCredentialRequestOptionsJSON =
-         JSON.parse(optionsJSON);
+         stored.options ?? stored;
+      const fallback = resolveWebAuthnContext(ctx.event);
+      const rpID: string = stored.rpID ?? fallback.rpID;
+      const origin: string = stored.origin ?? fallback.origin;
 
       const credential = await prisma.webAuthnCredential.findFirstOrThrow({
          where: {
@@ -180,25 +265,52 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
          },
       });
 
-      const verification = await serverAuthn.verifyAuthenticationResponse({
-         response: accessResponse as any,
-         expectedChallenge: options.challenge,
-         expectedOrigin: 'http://localhost:3000',
-         expectedRPID: 'localhost',
-         requireUserVerification: true,
-         credential: {
-            id: credential.id,
-            publicKey: Buffer.from(credential.publicKey, 'base64'),
-            counter: credential.counter,
-         },
-      });
-
-      if (!verification.verified) {
+      let verification: Awaited<
+         ReturnType<typeof serverAuthn.verifyAuthenticationResponse>
+      >;
+      try {
+         verification = await serverAuthn.verifyAuthenticationResponse({
+            response: accessResponse as any,
+            expectedChallenge: options.challenge,
+            expectedOrigin: origin,
+            expectedRPID: rpID,
+            requireUserVerification: true,
+            credential: {
+               id: credential.id,
+               publicKey: Buffer.from(credential.publicKey, 'base64'),
+               counter: credential.counter,
+            },
+         });
+      } catch (error) {
+         logger.error(
+            { error, email, rpID, origin, traceId: ctx.traceId },
+            'WebAuthn authentication verification threw',
+         );
          throw new TRPCError({
             code: 'UNAUTHORIZED',
             message: 'WebAuthn authentication verification failed',
          });
       }
+
+      if (!verification.verified) {
+         logger.warn(
+            { email, rpID, origin, traceId: ctx.traceId },
+            'WebAuthn authentication verification returned verified=false',
+         );
+         throw new TRPCError({
+            code: 'UNAUTHORIZED',
+            message: 'WebAuthn authentication verification failed',
+         });
+      }
+
+      // 更新签名计数器，帮助识别克隆的验证器
+      await prisma.webAuthnCredential.update({
+         where: { id: credential.id },
+         data: {
+            counter: verification.authenticationInfo.newCounter,
+            lastUsed: new Date(),
+         },
+      });
 
       const user = await prisma.user.findUniqueOrThrow({
          where: { email },
