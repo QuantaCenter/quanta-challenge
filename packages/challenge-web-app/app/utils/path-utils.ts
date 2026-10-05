@@ -192,6 +192,30 @@ export function validatePath(path: string): true | string {
 }
 
 /**
+ * 将项目文件路径归一化为 WebContainer 挂载路径（始终以 /project 开头）。
+ *
+ * 题库里的历史数据存在两种写法：
+ *   · 相对项目根的路径（旧数据）：index.html
+ *   · 已带项目根目录的路径（新数据）：/project/index.html
+ *
+ * 编辑器统一按 /project/... 挂载。若直接拼接 `/project/${path}`，第二种数据会变成
+ * /project//project/...（界面上表现为 project/project 两层目录，且启动命令 `serve project`
+ * 会把内层 project 当成一个子目录列出来）。这里做幂等归一化，两种写法都落到 /project/...。
+ *
+ * @example
+ * toProjectMountPath('index.html')           // '/project/index.html'
+ * toProjectMountPath('/project/index.html')  // '/project/index.html'
+ * toProjectMountPath('project/index.html')   // '/project/index.html'
+ */
+export function toProjectMountPath(path: string): string {
+   const normalized = normalizePath(path);
+   if (normalized === '/project' || normalized.startsWith('/project/')) {
+      return normalized;
+   }
+   return joinPath('/project', normalized);
+}
+
+/**
  * 规范化路径内容映射（pathContentMap）
  * 确保所有 key 都是规范化的路径格式
  * @param pathContentMap 原始路径内容映射

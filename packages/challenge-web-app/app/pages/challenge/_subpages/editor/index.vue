@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { buildFileSystemTree } from '~/utils/fs-tree';
-import { normalizePath, getParentPath, splitPath } from '~/utils/path-utils';
+import {
+   normalizePath,
+   getParentPath,
+   splitPath,
+   toProjectMountPath,
+} from '~/utils/path-utils';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import FileManagerPanel from './_modules/FileManagerPanel.vue';
 import CodeEditorPanel from './_modules/CodeEditorPanel.vue';
@@ -70,7 +75,9 @@ const getProject = async () => {
    });
    pathContentMap.value = {};
    result.FileSystem[0]!.files.forEach((file) => {
-      pathContentMap.value![`/project/${file.path}`] = {
+      // 历史数据里 file.path 可能是相对路径，也可能已经带 /project 前缀。
+      // 统一归一化到 /project/...，否则会出现 project/project/... 两层目录。
+      pathContentMap.value![toProjectMountPath(file.path)] = {
          content: file.content,
          vid: file.vid,
       };

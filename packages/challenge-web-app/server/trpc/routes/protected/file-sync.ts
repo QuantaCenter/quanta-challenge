@@ -34,6 +34,27 @@ const SyncFileChangesSchema = z.object({
    changes: z.array(ChangeSchema),
 });
 
+const PROJECT_ROOT_PATH = '/project';
+
+/**
+ * 把数据库里的虚拟文件路径归一化为 `/project/...`。
+ *
+ * 历史数据同时存在两种写法：相对路径 `index.html` 与已带项目根的
+ * `/project/index.html`。同步时客户端只会发 `/project/...`，若不做归一化，
+ * 第二种写法会被拼成 `/project//project/...` 而匹配不上，导致每次编辑都
+ * 新建一条重复记录（旧记录残留），文件树里出现 project/project 两层。
+ */
+const toProjectPath = (path: string): string => {
+   const normalized = `/${path}`.replace(/\/+/g, '/').replace(/\/+$/, '');
+   if (
+      normalized === PROJECT_ROOT_PATH ||
+      normalized.startsWith(`${PROJECT_ROOT_PATH}/`)
+   ) {
+      return normalized;
+   }
+   return `${PROJECT_ROOT_PATH}${normalized}`;
+};
+
 /**
  * 同步文件变更到服务器
  * 处理文件的创建、修改、移动和删除操作
@@ -91,7 +112,7 @@ const syncFileChangesProcedure = protectedProcedure
             const fileSystemId = project.FileSystem[0].fsid;
             const existingFiles = new Map(
                project.FileSystem[0].files.map((f) => [
-                  `/project/${f.path}`,
+                  toProjectPath(f.path),
                   f,
                ]),
             );
@@ -151,19 +172,16 @@ const syncFileChangesProcedure = protectedProcedure
                      // 移动/重命名文件
                      const file = existingFiles.get(change.oldPath);
 
-                     // 移动文件夹
+                     // 移动文件
                      if (file) {
-                        // 提取新路径（移除 /project/ 前缀）
-                        const newPath = change.newPath.replace(
-                           /^\/project\//,
-                           '',
-                        );
+                        // 统一存为 /project/... 形式
+                        const newPath = toProjectPath(change.newPath);
                         await tx.virtualFiles.update({
                            where: { vid: file.vid },
                            data: { path: newPath },
                         });
                         existingFiles.delete(change.oldPath);
-                        existingFiles.set(change.newPath, {
+                        existingFiles.set(newPath, {
                            ...file,
                            path: newPath,
                         });
@@ -192,17 +210,14 @@ const syncFileChangesProcedure = protectedProcedure
                               oldFolderPrefix.length,
                            );
                            const updatedPath = newFolderPrefix + relativePath;
-                           const newDbPath = updatedPath.replace(
-                              /^\/project\//,
-                              '',
-                           );
+                           const newDbPath = toProjectPath(updatedPath);
 
                            await tx.virtualFiles.update({
                               where: { vid: fileData.vid },
                               data: { path: newDbPath },
                            });
                            existingFiles.delete(filePath);
-                           existingFiles.set(updatedPath, {
+                           existingFiles.set(newDbPath, {
                               ...fileData,
                               path: newDbPath,
                            });
@@ -229,7 +244,7 @@ const syncFileChangesProcedure = protectedProcedure
                         });
                      } else {
                         // 如果文件不存在，创建它
-                        const newPath = change.path.replace(/^\/project\//, '');
+                        const newPath = toProjectPath(change.path);
                         const newFile = await tx.virtualFiles.create({
                            data: {
                               path: newPath,
@@ -238,7 +253,7 @@ const syncFileChangesProcedure = protectedProcedure
                               fileSystemFsid: fileSystemId,
                            },
                         });
-                        existingFiles.set(change.path, newFile);
+                        existingFiles.set(newPath, newFile);
                      }
                      break;
                   }
@@ -247,7 +262,7 @@ const syncFileChangesProcedure = protectedProcedure
                      // 创建新文件
                      const existingFile = existingFiles.get(change.path);
                      if (!existingFile) {
-                        const newPath = change.path.replace(/^\/project\//, '');
+                        const newPath = toProjectPath(change.path);
                         const newFile = await tx.virtualFiles.create({
                            data: {
                               path: newPath,
@@ -256,7 +271,7 @@ const syncFileChangesProcedure = protectedProcedure
                               fileSystemFsid: fileSystemId,
                            },
                         });
-                        existingFiles.set(change.path, newFile);
+                        existingFiles.set(newPath, newFile);
                      } else {
                         // 如果文件已存在，更新内容
                         await tx.virtualFiles.update({
