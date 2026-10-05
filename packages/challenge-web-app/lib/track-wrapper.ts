@@ -103,7 +103,12 @@ export class TrackWrapper {
          const data = Array.isArray(args[0]?.data)
             ? args[0].data[0]
             : args[0]?.data;
-         affectedPaths = this._trackAffectedPaths(method, table, data);
+         // createMany({ data: [] }) 时 data[0] 是 undefined。
+         // 这里不能直接传给 _trackAffectedPaths：Object.entries(undefined) 会抛
+         // "Cannot convert undefined or null to object"（空排行榜的定时任务就死在这）。
+         affectedPaths = data
+            ? this._trackAffectedPaths(method, table, data)
+            : [];
       } else if (/^upsert.*/.test(method)) {
          affectedPaths = this._trackAffectedPaths(method, table, args[0]);
       } else if (/^delete.*/.test(method)) {
@@ -133,6 +138,12 @@ export class TrackWrapper {
       args: any,
       affectedPaths: AffectedPath[] = []
    ) {
+      // 兜底：对象为空/非对象时直接返回，避免 Object.entries 抛异常。
+      // 触发场景：createMany / updateMany 传入空数组、或某些可选 data 缺省。
+      if (args === null || args === undefined || typeof args !== 'object') {
+         return affectedPaths;
+      }
+
       Object.entries(args).forEach(([field, value]) => {
          if (this._operations.has(field)) {
             this._trackAffectedPaths(field, table, value, affectedPaths);
