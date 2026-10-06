@@ -156,6 +156,9 @@ curl -i -X POST "$WEBHOOK_URL" -H 'Content-Type: application/json' \
 
 ## 参考实现（部署机侧，Node ≥ 20，无依赖）
 
+> 本仓库里已有可直接部署的实现：`ci/deploy-webhook.mjs`（systemd 服务 + 安装/联调/站点脚本，见 `ci/README.md`）。
+> 下面是同一契约的最小示例，便于理解行为。
+
 ```js
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';

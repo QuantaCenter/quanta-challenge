@@ -9,6 +9,8 @@ on:
       - '**/*.md'
       - 'docs/**'
       - '.github/copilot-instructions.md'
+      # 部署机侧脚本，不进镜像
+      - 'ci/**'
   workflow_dispatch:
     inputs:
       images:

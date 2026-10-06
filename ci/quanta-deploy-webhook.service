@@ -1,0 +1,22 @@
+[Unit]
+Description=Quanta Challenge deploy webhook (CI 镜像发布触发)
+Documentation=https://github.com/QuantaCenter/quanta-challenge/blob/main/docs/IMAGE_WEBHOOK.md
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=__REPO_DIR__
+EnvironmentFile=__SECRET_FILE__
+Environment=REPO_DIR=__REPO_DIR__
+Environment=DEPLOY_HOOK_DIR=__REPO_DIR__/ci
+Environment=STATE_FILE=/var/lib/quanta-deploy/state.json
+Environment=LOG_FILE=/var/log/quanta-deploy-webhook.log
+ExecStart=__NODE__ __REPO_DIR__/ci/deploy-webhook.mjs
+Restart=always
+RestartSec=3
+# 不要加 NoNewPrivileges/PrivateTmp：本机 node 是 snap 包，收尾会起不来
+
+[Install]
+WantedBy=multi-user.target
