@@ -106,26 +106,27 @@ X-Quanta-Signature: sha256=<signature>
 
 | 状态码 | 含义 | CI 侧行为 |
 | --- | --- | --- |
-| `200` / `202` | 已接受（202 表示异步执行中） | 视为成功；响应体原样打印到日志 |
+| `200` | 部署已成功完成（同步等待结束） | 视为成功；响应体原样打印到日志 |
 | `200` + `{"skipped":"already deployed"}` | 幂等命中，无需动作 | 视为成功 |
 | `400` | 报文格式错误 | 流水线失败（配置问题，需人工修） |
 | `403` | 签名/时间戳无效 | 流水线失败 |
 | `429` | 正在部署中 | 流水线失败；本次发布未生效，需手动重放 |
+| `500` | 部署失败（可能已回滚，也可能回滚失败） | 流水线失败；响应体含 `status`（`failed`/`rolled-back`/`rollback-failed`）与 `error` |
 | `5xx` / 超时 | 部署机异常 | 流水线失败 |
 
-CI 侧的超时是 **15 秒**（`AbortSignal.timeout`），所以端点必须**先回 202 再异步拉取**：
-`docker pull` 大镜像可能几分钟，不能阻塞响应。
+端点**同步执行部署**，做完才回包，所以 CI 侧超时（现在 15 分钟）必须大于 `docker pull` 的最长耗时，
+不能再用「先回 202 再异步拉」的写法——那样失败只有在部署机日志里才看得到。
 
 ## 部署机侧应该做什么
 
 1. 校验签名与时间戳（见上）。
 2. 幂等：记录已部署的 `commit` / `delivery`，命中则跳过。
-3. 立即返回 `202`，然后异步执行：
+3. 同步执行部署，完成后回包（成功 `200`，失败 `5xx`）：
    - `service` 非空的镜像：`docker compose -f <compose> pull <service...>`，成功后
      `docker compose -f <compose> up -d <service...>`（只动变化的服务，别重启全栈）；
    - `service` 为空的镜像：`docker pull <image>@<digest>` 预拉。
 4. 加并发锁（`busy` 标记）避免两次发布重叠执行；重叠时返回 `429`。
-5. 失败要**告警**：CI 已经认为"部署机收到就算完成"，拉取/重启失败只能在部署机侧暴露。
+5. 失败要**告警**并让调用方知道：回 `5xx`，响应体里带上失败/回滚状态，别默默吞掉。
 
 ## 本地联调
 
@@ -218,8 +219,7 @@ createServer((req, res) => {
       }
       if (busy) return json(429, { error: 'deploy in progress' });
 
-      // 先回 202 再慢慢拉：CI 侧 15 秒就超时了
-      json(202, { accepted: true, tag: payload.tag });
+      // 同步等部署完成再回包：成功 200、失败 5xx
       busy = true;
       try {
          const services = payload.images.map((i) => i.service).filter(Boolean);

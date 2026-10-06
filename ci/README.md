@@ -37,7 +37,7 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 2. 幂等：`delivery` 一致，或 `commit` 一致**且本次 `images[]` 里的 digest 都已在记录里** → `200 {"skipped":"already deployed"}`；正在部署中 → `429`。
    不用 `commit` 单独做幂等键：同一个 commit 可以分批发布（`images[]` 只含本次重建的镜像，
    比如先 `-f images=live-server` 再 `-f images=web-app`），只按 commit 判会把后一批错当成已部署。
-3. **先回 `202` 再异步执行**（CI 侧 15s 超时，`docker pull` 可能更久）。
+3. **同步执行完再回包**：成功 `200`，失败（含已回滚 / 回滚失败）`5xx`，CI 据此判定发布是否真正生效。
 4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.nju.edu.cn` → `ghcr.dockerproxy.net` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）。
 5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health` 做健康检查。
@@ -54,16 +54,15 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 ```bash
 systemctl status quanta-deploy-webhook
 curl -s 127.0.0.1:19000/health                     # 不带密钥也只看得到状态，无敏感字段
-sudo bash ci/test-webhook.sh --skipped             # 幂等重放
-sudo bash ci/test-webhook.sh                       # 假 digest：验证失败路径与回滚不误伤在跑容器
-sudo bash ci/test-webhook.sh --bad-sig             # 期望 403
 ```
 
-服务端所有等待（HTTP 收发、拉取 20s 无进度、健康探测、compose up）上限均为 20s，没有更长的等待窗口。
+服务端超时：`docker pull` 的静默上限为 **8 分钟**（`PULL_IDLE_MS`；judge-machine 这类 2.46GB 镜像
+冷拉时实测会出现 40s+ 完全无输出，按 20s 判会被误杀），其余等待（HTTP 收发、健康探测、compose up）
+上限为 20s。因为回包要等部署结束，nginx 与 CI 客户端超时都放到 8 分钟以上（nginx 900s，CI 15 分钟）。
 
 ## 手动重放
 
-CI 侧超时（15s）或部署机故障导致漏发时，用同一次发布的报文重放即可，key 从
+CI 侧超时（现在 15 分钟）或部署机故障导致漏发时，用同一次发布的报文重放即可，key 从
 GitHub Actions 日志里取：
 
 ```bash

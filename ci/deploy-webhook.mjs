@@ -6,8 +6,11 @@
  * 契约：docs/IMAGE_WEBHOOK.md（签名、幂等、状态码）。
  * 无第三方依赖，Node >= 20。
  *
- * 超时：所有等待（HTTP 收发、拉取无进度、健康探测、compose up）上限均为 20s，
- *       见 IDLE_MS。大镜像只要持续有进度就不会被中断，卡住 20s 即判失败。
+ * 超时：拉取的静默上限是 8 分钟（PULL_IDLE_MS）——judge-machine 这类 2.46GB 镜像冷拉时
+ *       实测会出现 40s+ 完全无输出，原来统一按 20s 判会被误杀；
+ *       其余等待（HTTP 收发、健康探测、compose up）仍为 20s（IDLE_MS）。
+ *
+ * 部署同步执行：成功回 200，失败（含已回滚 / 回滚失败）回 5xx，调用方据此判定发布是否真正生效。
  */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -15,7 +18,8 @@ import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync, copyFileSync, appendFileSync, chmodSync } from 'node:fs';
 import { dirname, join, isAbsolute } from 'node:path';
 
-const IDLE_MS = 20_000; // 全场唯一超时上限
+const IDLE_MS = 20_000; // 普通操作（inspect/tag/compose up/健康探测/HTTP 收发）的静默上限
+const PULL_IDLE_MS = 8 * 60_000; // docker pull 的静默上限：大镜像冷拉会长时间无输出，给足 8 分钟
 const SKEW_S = 300; // 时间戳窗口（防重放，非超时）
 const MAX_BODY = 1 << 20;
 
@@ -104,7 +108,7 @@ const pullByDigest = async ({ image, digest, name }) => {
    if (!image.startsWith('ghcr.io/')) sources.push(`${image}@${digest}`); // 非 ghcr 镜像直连
    for (const ref of sources) {
       try {
-         await docker(['pull', ref]);
+         await docker(['pull', ref], { idleMs: PULL_IDLE_MS });
          const id = await docker(['image', 'inspect', '--format', '{{.Id}}', ref]);
          log(`[pull] ${name} ok via ${ref.split('@')[0]} ${id.slice(0, 19)}`);
          return id;
@@ -187,6 +191,7 @@ const deploy = async (payload) => {
       const history = [{ tag: payload.tag, commit: payload.commit, at: new Date().toISOString(), status: 'ok', images: payload.images.map((i) => i.name) }, ...(state.history || [])].slice(0, 20);
       writeState({ ...state, delivery: payload.delivery, commit: payload.commit, tag: payload.tag, at: new Date().toISOString(), status: 'ok', refs, appRef: refs['challenge-web-app'] || state.appRef || '', deployedDigests, history });
       log(`[deploy] 成功 ${payload.tag} ${payload.commit.slice(0, 7)}（${targets.map((t) => t.service).join(',')}）`);
+      return { ok: true, status: 'ok' };
    } catch (error) {
       log(`[deploy] 失败：${error.message}，开始回滚`);
       const restored = {};
@@ -216,6 +221,7 @@ const deploy = async (payload) => {
       const history = [{ tag: payload.tag, commit: payload.commit, at: new Date().toISOString(), status, error: error.message }, ...(state.history || [])].slice(0, 20);
       writeState({ ...state, status, history });
       await alert(`[quanta-challenge] 部署 ${payload.tag} 失败（${status}）：${error.message}`);
+      return { ok: false, status, error: error.message };
    }
 };
 
@@ -228,6 +234,7 @@ const verify = (timestamp, rawBody, header) => {
 };
 
 const json = (res, code, payload) => {
+   if (res.writableEnded || res.destroyed) return; // 调用方可能已超时断开，直接忽略
    res.writeHead(code, { 'content-type': 'application/json' });
    res.end(JSON.stringify(payload));
 };
@@ -278,9 +285,14 @@ const server = createServer((req, res) => {
       if (busy) return json(res, 429, { error: 'deploy in progress', tag: cur.tag || '' });
 
       busy = true;
-      json(res, 202, { accepted: true, tag: payload.tag, commit: payload.commit });
       log(`[hook] 接受 ${payload.tag} ${payload.commit.slice(0, 7)} images=${payload.images.map((i) => i.name).join(',')}`);
-      deploy(payload).finally(() => { busy = false; });
+      // 同步等待部署结束再回包：成功 200、失败（含已回滚）500，CI 据此判定发布是否生效
+      deploy(payload)
+         .then((r) => (r.ok
+            ? json(res, 200, { ok: true, status: r.status, tag: payload.tag, commit: payload.commit })
+            : json(res, 500, { ok: false, status: r.status, error: r.error, tag: payload.tag, commit: payload.commit })))
+         .catch((e) => json(res, 500, { ok: false, status: 'failed', error: e.message }))
+         .finally(() => { busy = false; });
    });
 });
 

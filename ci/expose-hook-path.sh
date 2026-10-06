@@ -13,13 +13,16 @@ CONF=$PROXY_DIR/deploy-webhook.conf
 cat > "$CONF" <<'EOF'
 # 部署 webhook：CI 镜像发布回调（契约 docs/IMAGE_WEBHOOK.md）
 # 鉴权靠 HMAC-SHA256 签名 + 时间戳窗口，方法只放行 POST
+# 部署是同步的：webhook 拉镜像最长 8 分钟，这里故意设成 900s（>8 分钟），
+# 保证 nginx 不会在 webhook 回包前把连接截断（不要改成 480s/20s）。
 location = /hooks/images {
     if ($request_method != POST) { return 405; }
     proxy_pass http://127.0.0.1:19000;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
-    proxy_read_timeout 20s;
-    proxy_send_timeout 20s;
+    proxy_connect_timeout 10s;
+    proxy_send_timeout 900s;
+    proxy_read_timeout 900s;
 }
 EOF
 

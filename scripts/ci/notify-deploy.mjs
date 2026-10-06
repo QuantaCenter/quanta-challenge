@@ -116,7 +116,8 @@ const response = await fetch(process.env.WEBHOOK_URL, {
    method: 'POST',
    headers,
    body,
-   signal: AbortSignal.timeout(15_000),
+   // webhook 同步等部署完成（拉镜像最长 8 分钟）才回包，客户端要给足余量
+   signal: AbortSignal.timeout(15 * 60_000),
 }).catch((error) => {
    console.error(`请求失败: ${error.message}`);
    process.exit(1);
