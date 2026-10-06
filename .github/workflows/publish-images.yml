@@ -1,29 +1,10 @@
 name: Publish images
 
-# 多镜像按需构建 + 发布。
-#
-# 触发方式：
-#   - push 到 main（即「每次合入」）：由 scripts/ci/detect-changed-images.mjs 判定
-#     这次改动影响了哪几个镜像，只构建这几个；
-#   - 手动派发：可以指定单个/多个镜像，或 all 全量重建。
-#
-# 三个 job 的分工（这是本文件最重要的设计）：
-#   detect  —— 判定要建哪些镜像，输出 matrix
-#   build   —— matrix 并行构建，**只推 sha-<短哈希> 标签**；失败互不阻塞（fail-fast: false）
-#   release —— 全部成功后**一次性**移动所有镜像的 latest 指针，并**只触发一次**远程拉取
-#
-# 为什么把 latest 和远程触发器单独放到 release：
-#   1. 去重：远程拉取只能触发一次，若每个包各自触发就会重复（用户明确要求避免）。放在
-#      单个非 matrix 的 job 里，天然只跑一次。
-#   2. 一致性：矩阵里某个镜像构建失败时，latest 指针不移动、也不通知远程——否则线上会拉到
-#      「一半新一半旧」的镜像组。
 on:
   push:
     branches:
       - main
-    # 纯文档改动不会影响镜像内容，连判定都不用跑。注意：这里跳过的是「根本不用构建」
-    # 的触发，真正的按需判定在 detect job 里（脚本按各 Dockerfile 的 COPY 列表判定）。
-    # workflow 文件本身不在排除范围内 —— 改 CI 就该跑一次验证它。
+    # 纯文档改动不会影响镜像内容
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -64,7 +45,6 @@ jobs:
       - name: Detect
         id: detect
         env:
-          # push 事件才有 before；手动派发时为空 -> 脚本按「全量」处理（或按 --only 指定）
           BASE: ${{ github.event.before }}
           ONLY: ${{ inputs.images }}
         run: |
@@ -85,10 +65,8 @@ jobs:
     timeout-minutes: 120
     permissions:
       contents: read
-      # 推 GHCR 需要；缺了会在 push 阶段报 denied
       packages: write
     strategy:
-      # 某个镜像失败不影响其它镜像继续构建，最后统一看结果
       fail-fast: false
       matrix: ${{ fromJSON(needs.detect.outputs.matrix) }}
     steps:
@@ -98,7 +76,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # GHCR 用 Actions 内置的 GITHUB_TOKEN 认证，不需要额外配置 secret
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -106,7 +83,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # 只推 sha 标签，latest 由 release job 统一移动（原因见文件头注释）
       - name: Build & push ${{ matrix.short }} (${{ needs.detect.outputs.tag }})
         id: build
         uses: docker/build-push-action@v6
@@ -120,18 +96,10 @@ jobs:
             org.opencontainers.image.description=Quanta Challenge ${{ matrix.title }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-          # 每个镜像一份独立缓存（scope 按镜像名区分），否则 4 个镜像会互相冲掉缓存。
-          #
-          # 用 mode=min 而不是 max：4 个 Dockerfile 都是单阶段构建，最终镜像的层就是全部
-          # 构建层，min 已覆盖；而 max 会把中间态也导出，4 个镜像共用 Actions Cache 的
-          # 10GB 额度时很容易互相驱逐，反而更慢。
           cache-from: type=gha,scope=${{ matrix.short }}
           cache-to: type=gha,scope=${{ matrix.short }},mode=min
-          # 关掉 provenance attestation：减少额外的 attestation manifest，
-          # 让镜像保持单 manifest，老版本 docker / 部分拉取工具兼容性更好
           provenance: false
 
-      # 从 registry 回读，证明"真的推上去了"而不只是"构建成功"
       - name: Verify pushed image
         run: |
           docker buildx imagetools inspect "${{ matrix.image }}:${{ needs.detect.outputs.tag }}"
@@ -146,11 +114,6 @@ jobs:
   release:
     name: Publish latest & notify (once)
     needs: [detect, build]
-    # 只要判定过要构建就进入本 job（用于在构建失败时给出明确提示），
-    # 但真正移动 latest / 通知远程只在整个 matrix 成功后执行。
-    #
-    # 关键：这里是**单个非 matrix job**，整个矩阵结束后只跑一次 ——
-    # 因此本次无论重建了 1 个还是 4 个镜像，远程拉取都只会被触发一次，不会重复触发。
     if: always() && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -177,7 +140,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # imagetools create 是在 registry 侧新增指向同一 manifest 的标签引用，不重传层
       - name: Move latest pointers
         if: steps.gate.outputs.ok == 'true'
         env:
@@ -191,8 +153,6 @@ jobs:
             echo "::endgroup::"
           done <<< "$IMAGES"
 
-      # 取每个镜像在 registry 上的 digest：通知里带上 digest，服务端即可按
-      # <image>@sha256:... 精确拉取（比拉 :latest 更明确，重放/回滚时不会拉错版本）
       - name: Collect pushed digests
         if: steps.gate.outputs.ok == 'true'
         env:
@@ -207,19 +167,12 @@ jobs:
           done <<< "$IMAGES"
           cat /tmp/images.txt
 
-      # ---- 远程拉取触发：整个工作流**唯一**的通知出口 ----
-      #
-      # 所在 job 不是 matrix，所以「本次重建 N 个镜像」也只会走到这里一次 —— 这就是
-      # 避免重复触发的机制，后续改动请勿把它挪进 build 的 matrix。
-      # 实现见 scripts/ci/notify-deploy.mjs，报文与签名契约见 docs/IMAGE_WEBHOOK.md。
       - name: Checkout (for notify script)
         if: steps.gate.outputs.ok == 'true'
         uses: actions/checkout@v4
         with:
-          # 只需要脚本本身，不必拉全仓历史
           sparse-checkout: scripts/ci
 
-      # 未配置 secret 时只打一条 notice 就跳过，让服务端尚未就绪时流水线不会被卡红
       - name: Trigger remote pull (once)
         if: steps.gate.outputs.ok == 'true'
         env:
