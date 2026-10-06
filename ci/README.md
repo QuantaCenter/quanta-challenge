@@ -35,7 +35,9 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 ## 行为
 
 1. 校验 `sha256(HMAC(secret, "<timestamp>.<raw body>"))`（常量时间比较）+ 时间戳窗口 ±300s + `X-Quanta-Event`。
-2. 幂等：`delivery` 或 `commit` 与上次成功部署一致 → `200 {"skipped":"already deployed"}`；正在部署中 → `429`。
+2. 幂等：`delivery` 一致，或 `commit` 一致**且本次 `images[]` 里的 digest 都已在记录里** → `200 {"skipped":"already deployed"}`；正在部署中 → `429`。
+   不用 `commit` 单独做幂等键：同一个 commit 可以分批发布（`images[]` 只含本次重建的镜像，
+   比如先 `-f images=live-server` 再 `-f images=web-app`），只按 commit 判会把后一批错当成已部署。
 3. **先回 `202` 再异步执行**（CI 侧 15s 超时，`docker pull` 可能更久）。
 4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.nju.edu.cn` → `ghcr.dockerproxy.net` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）。

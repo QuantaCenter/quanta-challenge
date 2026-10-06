@@ -182,8 +182,10 @@ const deploy = async (payload) => {
 
       const state = readState();
       if (targets.some((t) => SERVICES[t.service].refVar)) upsertEnvVar(CFG.envFile, 'WEB_APP_REF', refs['challenge-web-app']);
+      // 记下这批镜像的 digest，供下次幂等判断
+      const deployedDigests = { ...(state.deployedDigests || {}), ...Object.fromEntries(payload.images.map((i) => [i.name, i.digest])) };
       const history = [{ tag: payload.tag, commit: payload.commit, at: new Date().toISOString(), status: 'ok', images: payload.images.map((i) => i.name) }, ...(state.history || [])].slice(0, 20);
-      writeState({ ...state, delivery: payload.delivery, commit: payload.commit, tag: payload.tag, at: new Date().toISOString(), status: 'ok', refs, appRef: refs['challenge-web-app'] || state.appRef || '', history });
+      writeState({ ...state, delivery: payload.delivery, commit: payload.commit, tag: payload.tag, at: new Date().toISOString(), status: 'ok', refs, appRef: refs['challenge-web-app'] || state.appRef || '', deployedDigests, history });
       log(`[deploy] 成功 ${payload.tag} ${payload.commit.slice(0, 7)}（${targets.map((t) => t.service).join(',')}）`);
    } catch (error) {
       log(`[deploy] 失败：${error.message}，开始回滚`);
@@ -267,7 +269,12 @@ const server = createServer((req, res) => {
       if (!payload.delivery || !payload.commit || !Array.isArray(payload.images) || payload.images.length === 0) return json(res, 400, { error: 'missing fields' });
 
       const cur = readState();
-      if (cur.delivery === payload.delivery || cur.commit === payload.commit) return json(res, 200, { skipped: 'already deployed', tag: cur.tag || payload.tag });
+      const known = cur.deployedDigests || {};
+      // 幂等键落在镜像 digest 上：同一个 commit 可以分批发布（images[] 只含本次重建的镜像），
+      // 只按 commit 判会把手动补跑的那批错当成「已部署」而直接跳过
+      if (cur.delivery === payload.delivery || (cur.commit === payload.commit && payload.images.every((i) => known[i.name] === i.digest))) {
+         return json(res, 200, { skipped: 'already deployed', tag: cur.tag || payload.tag });
+      }
       if (busy) return json(res, 429, { error: 'deploy in progress', tag: cur.tag || '' });
 
       busy = true;
