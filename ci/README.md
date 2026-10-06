@@ -11,7 +11,6 @@ CI 把镜像推到 GHCR 后回调本目录的 webhook，由它拉镜像、重启
 | `deploy-webhook.mjs` | webhook 服务本体（Node ≥ 20，无第三方依赖） |
 | `quanta-deploy-webhook.service` | systemd 单元模板（安装脚本会替换路径） |
 | `install.sh` | 安装/更新服务、生成密钥、给 compose override 注入 `WEB_APP_REF` |
-| `test-webhook.sh` | 本地联调：合法签名 / 幂等重放 / 错误签名 |
 | `expose-hook-path.sh` | 把端点挂到既有站点的 `/hooks/images`（1Panel 的 `proxy/*.conf`） |
 
 ## 部署
