@@ -1,0 +1,227 @@
+name: Publish images
+
+# 多镜像按需构建 + 发布。
+#
+# 触发方式：
+#   - push 到 main（即「每次合入」）：由 scripts/ci/detect-changed-images.mjs 判定
+#     这次改动影响了哪几个镜像，只构建这几个；
+#   - 手动派发：可以指定单个/多个镜像，或 all 全量重建。
+#
+# 三个 job 的分工（这是本文件最重要的设计）：
+#   detect  —— 判定要建哪些镜像，输出 matrix
+#   build   —— matrix 并行构建，**只推 sha-<短哈希> 标签**；失败互不阻塞（fail-fast: false）
+#   release —— 全部成功后**一次性**移动所有镜像的 latest 指针，并**只触发一次**远程拉取
+#
+# 为什么把 latest 和远程触发器单独放到 release：
+#   1. 去重：远程拉取只能触发一次，若每个包各自触发就会重复（用户明确要求避免）。放在
+#      单个非 matrix 的 job 里，天然只跑一次。
+#   2. 一致性：矩阵里某个镜像构建失败时，latest 指针不移动、也不通知远程——否则线上会拉到
+#      「一半新一半旧」的镜像组。
+on:
+  push:
+    branches:
+      - main
+    # 纯文档改动不会影响镜像内容，连判定都不用跑。注意：这里跳过的是「根本不用构建」
+    # 的触发，真正的按需判定在 detect job 里（脚本按各 Dockerfile 的 COPY 列表判定）。
+    # workflow 文件本身不在排除范围内 —— 改 CI 就该跑一次验证它。
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.github/copilot-instructions.md'
+  workflow_dispatch:
+    inputs:
+      images:
+        description: '要构建的镜像：all 或逗号分隔（web-app,judge-scheduler,judge-machine,live-server）'
+        required: false
+        default: 'all'
+        type: string
+
+# 同一分支连推多次时取消上一次未跑完的发布，避免旧提交的产物后到覆盖新产物
+concurrency:
+  group: publish-images-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  detect:
+    name: Detect changed images
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.detect.outputs.matrix }}
+      any: ${{ steps.detect.outputs.any }}
+      images: ${{ steps.detect.outputs.images }}
+      list: ${{ steps.detect.outputs.list }}
+      tag: ${{ steps.detect.outputs.tag }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # 判定要 diff 基线提交与本次提交，浅克隆拿不到历史
+          fetch-depth: 0
+
+      - name: Detect
+        id: detect
+        env:
+          # push 事件才有 before；手动派发时为空 -> 脚本按「全量」处理（或按 --only 指定）
+          BASE: ${{ github.event.before }}
+          ONLY: ${{ inputs.images }}
+        run: |
+          ARGS=(--base "$BASE" --head "$GITHUB_SHA" --repo "$GITHUB_REPOSITORY")
+          [ -n "$ONLY" ] && ARGS+=(--only "$ONLY")
+          node scripts/ci/detect-changed-images.mjs "${ARGS[@]}" \
+            --github-output "$GITHUB_OUTPUT" --report detect-report.md
+
+      - name: Report
+        if: always()
+        run: cat detect-report.md >> "$GITHUB_STEP_SUMMARY"
+
+  build:
+    name: Build ${{ matrix.short }}
+    needs: detect
+    if: needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      # 推 GHCR 需要；缺了会在 push 阶段报 denied
+      packages: write
+    strategy:
+      # 某个镜像失败不影响其它镜像继续构建，最后统一看结果
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.detect.outputs.matrix) }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # GHCR 用 Actions 内置的 GITHUB_TOKEN 认证，不需要额外配置 secret
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 只推 sha 标签，latest 由 release job 统一移动（原因见文件头注释）
+      - name: Build & push ${{ matrix.short }} (${{ needs.detect.outputs.tag }})
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ matrix.image }}:${{ needs.detect.outputs.tag }}
+          labels: |
+            org.opencontainers.image.title=${{ matrix.short }}
+            org.opencontainers.image.description=Quanta Challenge ${{ matrix.title }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          # 每个镜像一份独立缓存（scope 按镜像名区分），否则 4 个镜像会互相冲掉缓存。
+          #
+          # 用 mode=min 而不是 max：4 个 Dockerfile 都是单阶段构建，最终镜像的层就是全部
+          # 构建层，min 已覆盖；而 max 会把中间态也导出，4 个镜像共用 Actions Cache 的
+          # 10GB 额度时很容易互相驱逐，反而更慢。
+          cache-from: type=gha,scope=${{ matrix.short }}
+          cache-to: type=gha,scope=${{ matrix.short }},mode=min
+          # 关掉 provenance attestation：减少额外的 attestation manifest，
+          # 让镜像保持单 manifest，老版本 docker / 部分拉取工具兼容性更好
+          provenance: false
+
+      # 从 registry 回读，证明"真的推上去了"而不只是"构建成功"
+      - name: Verify pushed image
+        run: |
+          docker buildx imagetools inspect "${{ matrix.image }}:${{ needs.detect.outputs.tag }}"
+          {
+            echo "#### ${{ matrix.title }} —— 已推送 \`${{ matrix.image }}:${{ needs.detect.outputs.tag }}\`"
+            echo ""
+            echo '```'
+            docker buildx imagetools inspect "${{ matrix.image }}:${{ needs.detect.outputs.tag }}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    name: Publish latest & notify (once)
+    needs: [detect, build]
+    # 只要判定过要构建就进入本 job（用于在构建失败时给出明确提示），
+    # 但真正移动 latest / 通知远程只在整个 matrix 成功后执行。
+    #
+    # 关键：这里是**单个非 matrix job**，整个矩阵结束后只跑一次 ——
+    # 因此本次无论重建了 1 个还是 4 个镜像，远程拉取都只会被触发一次，不会重复触发。
+    if: always() && needs.detect.outputs.any == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Gate on build result
+        id: gate
+        run: |
+          if [ "${{ needs.build.result }}" = "success" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+            echo "本次重建的镜像全部构建成功：${{ needs.detect.outputs.list }}"
+          else
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::存在构建失败的镜像，latest 指针不移动、远程拉取不触发（避免发布半成品镜像组）"
+          fi
+
+      - name: Log in to GHCR
+        if: steps.gate.outputs.ok == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # imagetools create 是在 registry 侧新增指向同一 manifest 的标签引用，不重传层
+      - name: Move latest pointers
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          IMAGES: ${{ needs.detect.outputs.images }}
+          TAG: ${{ needs.detect.outputs.tag }}
+        run: |
+          while IFS= read -r image; do
+            [ -n "$image" ] || continue
+            echo "::group::$image:latest -> $TAG"
+            docker buildx imagetools create -t "$image:latest" "$image:$TAG"
+            echo "::endgroup::"
+          done <<< "$IMAGES"
+
+      # ---- 远程拉取触发：占位，尚未实现 ----
+      #
+      # 这个 step 是**整个工作流里唯一的通知出口**，且它所在的 release job 不是 matrix，
+      # 所以「重建 N 个镜像」也只会走到这里一次。后续实现远程触发时请保持这个位置，
+      # 不要挪进 build 的 matrix 里。
+      #
+      # 实现时大致是（需要先在仓库里配一个 secrets.DEPLOY_WEBHOOK）：
+      #   curl -fsS -X POST "$DEPLOY_WEBHOOK" \
+      #     -H 'Content-Type: application/json' \
+      #     -d "{\"tag\":\"$TAG\",\"images\":[$(echo "$IMAGES" | paste -sd, - | sed 's/[^,]*/"&"/g')]}"
+      - name: Trigger remote pull (placeholder)
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          IMAGES: ${{ needs.detect.outputs.images }}
+          TAG: ${{ needs.detect.outputs.tag }}
+        run: |
+          echo "::notice title=远程拉取（占位，尚未实现）::应触发 1 次，标签 $TAG，涉及镜像：$(echo "$IMAGES" | paste -sd, -)"
+          {
+            echo ""
+            echo "### 发布完成（含 1 次远程拉取占位）"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 本次重建 | \`${{ needs.detect.outputs.list }}\` |"
+            echo "| 标签 | \`latest\`、\`$TAG\` |"
+            echo "| 提交 | \`${{ github.sha }}\` |"
+            echo ""
+            echo '```'
+            while IFS= read -r image; do
+              [ -n "$image" ] || continue
+              echo "docker pull $image:$TAG"
+            done <<< "$IMAGES"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
