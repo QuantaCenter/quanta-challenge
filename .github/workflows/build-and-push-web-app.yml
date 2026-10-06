@@ -5,7 +5,8 @@ on:
   push:
     branches:
       - main
-    # 纯文档改动不会影响镜像内容，跳过以免白烧构建额度
+    # 纯文档改动不会影响镜像内容，跳过以免白烧构建额度。注意：workflow 文件本身
+    # 不在排除范围内 —— 改 CI 就该跑一次验证它。
     paths-ignore:
       - '**/*.md'
       - 'docs/**'
@@ -15,9 +16,8 @@ on:
 # 构建上下文必须是仓库根目录：Dockerfile 会 COPY packages/{challenge-web-app,challenge-agents,shared,database}
 # 以及根 package.json / pnpm-lock.yaml / pnpm-workspace.yaml（路径必须与 lockfile 的 importer 键一致）。
 env:
-  REGISTRY: crpi-wz55upmk5eyo7jab.cn-shenzhen.personal.cr.aliyuncs.com
-  IMAGE_NAME: quanta-challenge/quanta-challenge
   DOCKERFILE: packages/challenge-web-app/Dockerfile
+  REGISTRY: ghcr.io
 
 # 同一分支连推多次时取消上一次未跑完的构建，避免旧提交的镜像后到覆盖新镜像
 concurrency:
@@ -30,26 +30,38 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
+      # 推 GHCR 需要的权限；缺了会在 push 阶段报 denied
+      packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # GHCR 的仓库路径必须全小写，而 github.repository 保留原始大小写
+      # （本仓库是 QuantaCenter/quanta-challenge，直接用会 push 失败），
+      # 因此显式转小写：ghcr.io/quantacenter/quanta-challenge
+      - name: Resolve image name
+        run: echo "IMAGE=${REGISTRY}/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Aliyun Container Registry
+      # GHCR 用 Actions 内置的 GITHUB_TOKEN 认证，不需要额外配置 secret。
+      # 注意：镜像默认是 private，部署机拉取前要么把它设为 public
+      # （Packages → 包页面 → Package settings → Change visibility），
+      # 要么在部署机上用 PAT 执行 docker login ghcr.io。
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.ACR_USERNAME }}
-          password: ${{ secrets.ACR_PASSWORD }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags & labels)
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.IMAGE }}
           # latest 供生产直接拉取，sha-<短哈希> 用于精确回滚到某次提交
           tags: |
             type=raw,value=latest
@@ -70,12 +82,14 @@ jobs:
           # 层缓存放在 Actions Cache，重复构建时 pnpm install / nuxi prepare 可直接复用
           cache-from: type=gha,scope=web-app
           cache-to: type=gha,scope=web-app,mode=max
+          # 关掉 provenance attestation：减少一个额外的 attestation manifest，
+          # 让镜像保持单 manifest，老版本 docker / 部分拉取工具兼容性更好
           provenance: false
 
       - name: Summary
         run: |
           {
-            echo "### challenge-web-app 已推送"
+            echo "### challenge-web-app 已推送到 GHCR"
             echo ""
             echo "| 项目 | 值 |"
             echo "| --- | --- |"
