@@ -1,9 +1,8 @@
-import { IStoreService } from '../../utils/store';
 import prisma from '../../utils/prisma';
 import { JudgeJob } from './types';
 import z from 'zod';
 import { JudgeSuccessResultSchema } from '@challenge/judge-machine-agent/schemas';
-import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
+import type { Prisma } from '@prisma/client';
 
 export const getProblemInfoByRecordId = async (judgeRecordId: number) => {
    const result = await prisma.judgeRecords.findUniqueOrThrow({
@@ -47,68 +46,70 @@ export const getTemplateJudgeRecordCacheFiles = async (problemId: number) => {
    return cacheFiles;
 };
 
-export const saveFirstScreen = async (options: {
-   store: IStoreService;
-   firstScreen: Buffer;
-   problemId: number;
-}) => {
-   const { store, firstScreen, problemId } = options;
-   const fileId = await store.save(firstScreen, 'screenshot.png');
-   const fileName = `${fileId}.png`;
+export const saveFirstScreen = async (
+   tx: Prisma.TransactionClient,
+   options: {
+      fileId: string;
+      fileName: string;
+      hash: string;
+      problemId: number;
+   }
+) => {
+   const { fileId, fileName, hash, problemId } = options;
 
-   const hash = await generateThumbhashFromBuffer(firstScreen);
-
-   await prisma.$transaction(async (tx) => {
-      const { id: imageId } = await tx.image.create({
-         data: {
-            id: fileId,
-            name: fileName,
-            thumbhash: hash,
-         },
-         select: { id: true },
-      });
-      await tx.problemDefaultCovers.create({
-         data: {
-            imageId,
-            problemId,
-         },
-      });
+   const { id: imageId } = await tx.image.create({
+      data: {
+         id: fileId,
+         name: fileName,
+         thumbhash: hash,
+      },
+      select: { id: true },
+   });
+   await tx.problemDefaultCovers.create({
+      data: {
+         imageId,
+         problemId,
+      },
    });
 };
 
-export const createShadowFiles = async (options: {
-   job: JudgeJob;
-   storedBufferRecords: Record<string, string>;
-}) => {
+export const createShadowFiles = async (
+   tx: Prisma.TransactionClient,
+   options: {
+      job: JudgeJob;
+      storedBufferRecords: Record<string, string>;
+   }
+) => {
    const { job, storedBufferRecords } = options;
 
-   await prisma.$transaction(async (tx) => {
-      const images = Object.entries(storedBufferRecords).map(([_, name]) => ({
-         id: name.split('.').shift(),
-         name,
-      }));
+   const images = Object.entries(storedBufferRecords).map(([_, name]) => ({
+      id: name.split('.').shift(),
+      name,
+   }));
 
-      await tx.image.createMany({
-         data: images,
-      });
+   await tx.image.createMany({
+      data: images,
+   });
 
-      await tx.shadowFile.createMany({
-         data: images.map((image) => ({
-            judgeRecordId: job.data.judgeRecordId,
-            type: 'image',
-            imageId: image.id,
-         })),
-      });
+   await tx.shadowFile.createMany({
+      data: images.map((image) => ({
+         judgeRecordId: job.data.judgeRecordId,
+         type: 'image',
+         imageId: image.id,
+      })),
    });
 };
 
-export const saveSuccessRecord = async (options: {
-   result: z.infer<typeof JudgeSuccessResultSchema>;
-   pendingTime: number;
-   startTime: number;
-   job: JudgeJob;
-   storedBufferRecords: Record<string, string>;
-}) => {
+export const saveSuccessRecord = async (
+   tx: Prisma.TransactionClient,
+   options: {
+      result: z.infer<typeof JudgeSuccessResultSchema>;
+      pendingTime: number;
+      startTime: number;
+      job: JudgeJob;
+      storedBufferRecords: Record<string, string>;
+   }
+) => {
    const { result, pendingTime, startTime, job, storedBufferRecords } = options;
 
    // 将结果中的文件 buffer 替换为存储的 URL
@@ -124,7 +125,7 @@ export const saveSuccessRecord = async (options: {
    }));
 
    // 更新数据库记录
-   await prisma.judgeRecords.update({
+   await tx.judgeRecords.update({
       where: { id: job.data.judgeRecordId },
       data: {
          pendingTime,

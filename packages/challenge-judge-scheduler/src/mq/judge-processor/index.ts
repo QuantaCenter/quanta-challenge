@@ -10,6 +10,8 @@ import path from 'path';
 import { LocalStoreService } from '../../utils/local-store';
 import { delay } from '../../utils/wait';
 import { ignoreError } from '../../utils/ignore-error';
+import prisma from '../../utils/prisma';
+import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import * as db from './db';
 import { JudgeJob } from './types';
 
@@ -81,10 +83,17 @@ const processResult = async (
       job.data.judgeRecordId
    );
 
-   // 储存首屏截图
-   if (job.data.mode === 'audit' && result.firstScreen) {
-      const { firstScreen } = result;
-      await db.saveFirstScreen({ store, firstScreen, problemId });
+   let firstScreen: { fileId: string; fileName: string; hash: string } | null =
+      null;
+   const firstScreenBuffer =
+      job.data.mode === 'audit' ? result.firstScreen : undefined;
+   if (firstScreenBuffer) {
+      const fileId = await store.save(firstScreenBuffer, 'screenshot.png');
+      firstScreen = {
+         fileId,
+         fileName: `${fileId}.png`,
+         hash: await generateThumbhashFromBuffer(firstScreenBuffer),
+      };
    }
 
    // 扁平化产生的文件记录
@@ -101,17 +110,23 @@ const processResult = async (
       })
    );
 
-   // 创建影子文件
-   await db.createShadowFiles({ job, storedBufferRecords });
-
-   // 将结果中的文件 buffer 替换为存储的 URL，更新数据库记录
-   await db.saveSuccessRecord({
-      result,
-      pendingTime,
-      startTime,
-      job,
-      storedBufferRecords,
-   });
+   await prisma.$transaction(
+      async (tx) => {
+         if (firstScreen) {
+            await db.saveFirstScreen(tx, { ...firstScreen, problemId });
+         }
+         await db.createShadowFiles(tx, { job, storedBufferRecords });
+         // 将结果中的文件 buffer 替换为存储的 URL，更新数据库记录
+         await db.saveSuccessRecord(tx, {
+            result,
+            pendingTime,
+            startTime,
+            job,
+            storedBufferRecords,
+         });
+      },
+      { timeout: 10_000, maxWait: 5_000 }
+   );
 
    // 返回是否通过审核
    const allPass = result.results.every((item) => item.status === 'pass');
