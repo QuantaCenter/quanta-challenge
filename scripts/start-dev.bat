@@ -2,8 +2,9 @@
 setlocal
 title Quanta Challenge Dev
 
+REM 脚本已移入 scripts\，仓库根目录是其上一级；
 REM 允许通过环境变量覆盖仓库根目录，避免把某个人的绝对路径写死在脚本里
-if "%QUANTA_ROOT%"=="" set "QUANTA_ROOT=%~dp0"
+if "%QUANTA_ROOT%"=="" set "QUANTA_ROOT=%~dp0.."
 if "%QUANTA_ROOT:~-1%"=="\" set "QUANTA_ROOT=%QUANTA_ROOT:~0,-1%"
 
 echo ============================================
