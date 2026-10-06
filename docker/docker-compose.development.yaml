@@ -25,6 +25,10 @@ services:
       # Web 应用内嵌调度器代码，判题时会构建 Live Server 容器，
       # 同样需要 TEMP_DIR 指向与宿主机共享的目录（原因见调度器服务段）。
       - TEMP_DIR=/app/tmp
+      # 运行时密钥：镜像构建期不再读取（原因见 server/plugins/validate-secrets.ts）。
+      # 本地可写入仓库根目录的 .env，由 docker compose 读取。
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET（可写入仓库根目录 .env）}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET（可写入仓库根目录 .env）}
     depends_on:
       - challenge-judge-scheduler
       - redis

@@ -22,6 +22,10 @@ services:
       # Web 应用内嵌了调度器代码，判题时会构建 Live Server 容器，
       # 因此同样需要 TEMP_DIR 指向与宿主机共享的目录（原因见调度器服务段的说明）。
       - TEMP_DIR=/app/tmp
+      # 运行时密钥：镜像构建期不再读取（原因见 server/plugins/validate-secrets.ts）。
+      # 必须由部署环境注入；缺失时 Web 容器启动即报错退出，不会静默使用空密钥。
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET}
     depends_on:
       - challenge-judge-scheduler
       - redis

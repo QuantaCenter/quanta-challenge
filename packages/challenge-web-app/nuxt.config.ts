@@ -19,8 +19,19 @@ const envInt = (key: string, fallback: number) =>
  * 背景：accessToken / refreshToken 原先都有硬编码兜底值（'default_access_token_secret'）。
  * 这些值在源码里公开可见，一旦部署时漏配环境变量，任何拿到源码的人都能用它签发
  * 合法 token，从而冒充任意用户（含管理员）。这类"静默降级"比直接启动失败危险得多，
- * 因此这里在**生产环境**下强制要求配置，缺失就立刻抛错终止启动，
- * 把问题暴露在部署阶段而不是留到线上。
+ * 因此这里在**生产环境**下拒绝静默降级。
+ *
+ * 但拒绝的时机在**服务启动时**，不在构建期（原先写在这里的 throw 是错的）：
+ *
+ * 理由：`nuxi prepare` / `nuxt build` 会被 Nuxt CLI 统一置为 NODE_ENV=production，
+ * 构建期抛错会直接拦死**所有**镜像构建（症状见 Dockerfile:62）：
+ *   ERROR [配置错误] 生产环境必须设置 ACCESS_TOKEN_SECRET。
+ * 而构建机本就不该持有运行时密钥 —— 唯一能让构建通过的写法是把密钥用 --build-arg
+ * 送进构建环境，再被 runtimeConfig 烤进镜像层，任何人都能 `docker save` 提出来，
+ * 恰好与本函数「避免密钥静默降级」的初衷相反。
+ *
+ * 所以构建期一律返回空串放行，校验挪到 server/plugins/validate-secrets.ts：
+ * 镜像里不含任何密钥，漏配时容器在启动的第一时间报错退出。
  *
  * 开发环境仍保留兜底值，保证 `pnpm dev` 开箱可用。
  */
@@ -28,13 +39,7 @@ const envSecret = (key: string) => {
    const value = process.env[key];
    if (value) return value;
 
-   if (process.env.NODE_ENV === 'production') {
-      throw new Error(
-         `[配置错误] 生产环境必须设置 ${key}。` +
-            `该密钥用于签发登录凭证，缺失时若回退到内置默认值，` +
-            `任何人都能伪造任意用户的登录态。`,
-      );
-   }
+   if (process.env.NODE_ENV === 'production') return '';
 
    return `dev_only_${key}`;
 };
