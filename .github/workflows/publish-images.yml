@@ -191,26 +191,57 @@ jobs:
             echo "::endgroup::"
           done <<< "$IMAGES"
 
-      # ---- 远程拉取触发：占位，尚未实现 ----
-      #
-      # 这个 step 是**整个工作流里唯一的通知出口**，且它所在的 release job 不是 matrix，
-      # 所以「重建 N 个镜像」也只会走到这里一次。后续实现远程触发时请保持这个位置，
-      # 不要挪进 build 的 matrix 里。
-      #
-      # 实现时大致是（需要先在仓库里配一个 secrets.DEPLOY_WEBHOOK）：
-      #   curl -fsS -X POST "$DEPLOY_WEBHOOK" \
-      #     -H 'Content-Type: application/json' \
-      #     -d "{\"tag\":\"$TAG\",\"images\":[$(echo "$IMAGES" | paste -sd, - | sed 's/[^,]*/"&"/g')]}"
-      - name: Trigger remote pull (placeholder)
+      # 取每个镜像在 registry 上的 digest：通知里带上 digest，服务端即可按
+      # <image>@sha256:... 精确拉取（比拉 :latest 更明确，重放/回滚时不会拉错版本）
+      - name: Collect pushed digests
         if: steps.gate.outputs.ok == 'true'
         env:
           IMAGES: ${{ needs.detect.outputs.images }}
           TAG: ${{ needs.detect.outputs.tag }}
         run: |
-          echo "::notice title=远程拉取（占位，尚未实现）::应触发 1 次，标签 $TAG，涉及镜像：$(echo "$IMAGES" | paste -sd, -)"
+          : > /tmp/images.txt
+          while IFS= read -r image; do
+            [ -n "$image" ] || continue
+            digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$image:$TAG")
+            echo "${image##*/quanta-challenge-}|$image|$digest" >> /tmp/images.txt
+          done <<< "$IMAGES"
+          cat /tmp/images.txt
+
+      # ---- 远程拉取触发：整个工作流**唯一**的通知出口 ----
+      #
+      # 所在 job 不是 matrix，所以「本次重建 N 个镜像」也只会走到这里一次 —— 这就是
+      # 避免重复触发的机制，后续改动请勿把它挪进 build 的 matrix。
+      # 实现见 scripts/ci/notify-deploy.mjs，报文与签名契约见 docs/IMAGE_WEBHOOK.md。
+      - name: Checkout (for notify script)
+        if: steps.gate.outputs.ok == 'true'
+        uses: actions/checkout@v4
+        with:
+          # 只需要脚本本身，不必拉全仓历史
+          sparse-checkout: scripts/ci
+
+      # 未配置 secret 时只打一条 notice 就跳过，让服务端尚未就绪时流水线不会被卡红
+      - name: Trigger remote pull (once)
+        if: steps.gate.outputs.ok == 'true'
+        env:
+          WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
+          WEBHOOK_SECRET: ${{ secrets.DEPLOY_WEBHOOK_SECRET }}
+          TAG: ${{ needs.detect.outputs.tag }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ] || [ -z "$WEBHOOK_SECRET" ]; then
+            echo "::notice title=远程拉取::未配置 DEPLOY_WEBHOOK_URL / DEPLOY_WEBHOOK_SECRET，本次跳过触发；契约见 docs/IMAGE_WEBHOOK.md"
+            exit 0
+          fi
+          node scripts/ci/notify-deploy.mjs --images-file /tmp/images.txt --tag "$TAG"
+
+      - name: Summary
+        if: always() && steps.gate.outputs.ok == 'true'
+        env:
+          IMAGES: ${{ needs.detect.outputs.images }}
+          TAG: ${{ needs.detect.outputs.tag }}
+        run: |
           {
             echo ""
-            echo "### 发布完成（含 1 次远程拉取占位）"
+            echo "### 发布完成"
             echo ""
             echo "| 项目 | 值 |"
             echo "| --- | --- |"
