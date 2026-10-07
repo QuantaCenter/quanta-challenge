@@ -10,6 +10,12 @@ const props = defineProps<{
    modelValue?: string;
    /** 已签到的日期列表（当天有签到即视为当天完成），格式 YYYY-MM-DD */
    checkedDates?: string[];
+   /**
+    * 业务口径的「今天」，格式 YYYY-MM-DD。
+    * 由父级传入服务端的业务日期，避免 SSR（容器时区）与浏览器本地时区不一致时，
+    * 两端对「今天」和「未来日期」的判断不同。
+    */
+   today?: string;
 }>();
 
 const emit = defineEmits<{
@@ -27,9 +33,9 @@ const goNextDay = () => {
    offset.value += 1;
 };
 
-const selectedDate = computed(
-   () => props.modelValue ?? dayjs().format('YYYY-MM-DD')
-);
+const todayKey = computed(() => props.today ?? dayjs().format('YYYY-MM-DD'));
+
+const selectedDate = computed(() => props.modelValue ?? todayKey.value);
 
 const checkedDates = computed(() => new Set(props.checkedDates ?? []));
 
@@ -45,7 +51,7 @@ const dayClass = (day: DayItem) => {
 };
 
 const recent7days = computed(() => {
-   const today = dayjs().startOf('day');
+   const today = dayjs(todayKey.value).startOf('day');
    const days = new Array<DayItem>();
    for (let i = -3; i <= 3; i++) {
       const date = today.add(i + offset.value, 'day');

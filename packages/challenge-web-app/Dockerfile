@@ -13,11 +13,24 @@ ARG NPM_REGISTRY="https://registry.npmjs.org/"
 
 WORKDIR /app
 
-# 安装 openssl 与 node-gyp 所需的编译工具链
+# 安装 openssl 与 node-gyp 所需的编译工具链。
+#
+# 额外装 tzdata：基础镜像 node:24-slim 默认没有 zoneinfo，不装的话下面
+# `ENV TZ=Asia/Shanghai` 无法解析，Node 会静默退回 UTC。
+# DEBIAN_FRONTEND=noninteractive 避免 tzdata 安装时弹交互式地区选择而卡住构建。
 RUN if [ -n "$APT_MIRROR" ]; then \
        sed -i "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list.d/debian.sources; \
     fi && \
-    apt-get update && apt-get install -y openssl libssl3 python3 make g++ && rm -rf /var/lib/apt/lists/*
+    apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y openssl libssl3 python3 make g++ tzdata && rm -rf /var/lib/apt/lists/*
+
+# 业务时区。
+#
+# 容器默认是 UTC，而 SSR 会用「容器本地时区」执行组件里的 `new Date()` /
+# `dayjs()`（问候语、日历今日高亮等）。钉死成业务时区后，SSR 与水合后
+# （用户多为 CST）的判断才一致，日志时间戳也符合团队习惯。
+# 注意：每日一题的业务日期仍由 server/utils/daily-date.ts 显式 .tz() 计算，
+# 不依赖这个环境变量，此处只是兜底统一全部本地时间语义。
+ENV TZ=Asia/Shanghai
 
 # 复制 package.json 和 pnpm-lock.yaml
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./

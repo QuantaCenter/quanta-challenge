@@ -17,11 +17,16 @@ const username = computed(
    () => authStore.user?.displayName || authStore.user?.name || '用户',
 );
 
-const greeting = computed(() => {
+// 问候语取决于「用户本地时间」。SSR 此时跑在容器时区，与浏览器本地时区
+// 未必一致，服务端直接算会在水合时产生文案跳变/不匹配。这里先用中性文案
+// 渲染，挂载后在客户端按真实本地时间计算。
+const greeting = ref('你好');
+
+onMounted(() => {
    const hour = new Date().getHours();
-   if (hour >= 5 && hour < 12) return '☀️ 早上好';
-   if (hour >= 12 && hour < 18) return '🌤 下午好';
-   return '🌙 晚上好';
+   if (hour >= 5 && hour < 12) greeting.value = '☀️ 早上好';
+   else if (hour >= 12 && hour < 18) greeting.value = '🌤 下午好';
+   else greeting.value = '🌙 晚上好';
 });
 </script>
 
