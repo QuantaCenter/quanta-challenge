@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ListTwo, Tag } from '@icon-park/vue-next';
+import { GoldMedalTwo, ListTwo, Tag } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -26,6 +26,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/tag',
       icon: Tag,
       iconColor: '#FE4E4E',
+   },
+   {
+      title: '成就管理',
+      description: '查看平台上的成就，了解成就的分数与创建时间',
+      url: '/app/manage/achievement',
+      icon: GoldMedalTwo,
+      iconColor: '#F59E0B',
    },
 ];
 </script>

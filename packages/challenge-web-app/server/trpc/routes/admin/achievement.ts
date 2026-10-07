@@ -143,6 +143,143 @@ const requestDepDataLoaderProcedure = protectedAdminProcedure
       return newLoader;
    });
 
+const getAllAchievementsProcedure = protectedAdminProcedure.query(
+   async () => {
+      const achievements = await prisma.achievement.findMany({
+         select: {
+            id: true,
+            name: true,
+            description: true,
+            score: true,
+            createdAt: true,
+            badgeImage: {
+               select: {
+                  name: true,
+               },
+            },
+         },
+         orderBy: {
+            id: 'asc',
+         },
+      });
+
+      return achievements.map((achievement) => ({
+         id: achievement.id,
+         name: achievement.name,
+         description: achievement.description,
+         score: achievement.score,
+         createdAt: achievement.createdAt,
+         badgeUrl: `/api/static/${achievement.badgeImage.name}`,
+      }));
+   },
+);
+
+const GetAchievementDetailSchema = z.object({
+   id: z.number().int().positive(),
+});
+
+const getAchievementDetailProcedure = protectedAdminProcedure
+   .input(GetAchievementDetailSchema)
+   .query(async ({ input }) => {
+      const achievement = await prisma.achievement.findUnique({
+         where: { id: input.id },
+         select: {
+            id: true,
+            name: true,
+            description: true,
+            score: true,
+            createdAt: true,
+            badgeImage: {
+               select: {
+                  name: true,
+               },
+            },
+            author: {
+               select: {
+                  name: true,
+                  displayName: true,
+               },
+            },
+            CheckinAchievement: {
+               select: {
+                  achievementId: true,
+               },
+            },
+            AchievementValidateScript: {
+               select: {
+                  script: true,
+               },
+            },
+            AchievementDependencyData: {
+               select: {
+                  achievementDepDataLoader: {
+                     select: {
+                        id: true,
+                        name: true,
+                        description: true,
+                        type: true,
+                        isList: true,
+                     },
+                  },
+               },
+            },
+            AchievementPreAchievement: {
+               select: {
+                  preAchievement: {
+                     select: {
+                        id: true,
+                        name: true,
+                        badgeImage: {
+                           select: {
+                              name: true,
+                           },
+                        },
+                     },
+                  },
+               },
+            },
+            _count: {
+               select: {
+                  UserAchievement: true,
+               },
+            },
+         },
+      });
+
+      if (!achievement) {
+         throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: '成就不存在',
+         });
+      }
+
+      return {
+         id: achievement.id,
+         name: achievement.name,
+         description: achievement.description,
+         score: achievement.score,
+         createdAt: achievement.createdAt,
+         badgeUrl: `/api/static/${achievement.badgeImage.name}`,
+         authorName:
+            achievement.author?.displayName ?? achievement.author?.name ?? null,
+         isCheckinAchievement: !!achievement.CheckinAchievement,
+         checkScript: achievement.AchievementValidateScript?.script ?? null,
+         dependencyData: achievement.AchievementDependencyData.map((item) => ({
+            id: item.achievementDepDataLoader.id,
+            name: item.achievementDepDataLoader.name,
+            description: item.achievementDepDataLoader.description,
+            type: item.achievementDepDataLoader.type,
+            isList: item.achievementDepDataLoader.isList,
+         })),
+         preAchievements: achievement.AchievementPreAchievement.map((item) => ({
+            id: item.preAchievement.id,
+            name: item.preAchievement.name,
+            badgeUrl: `/api/static/${item.preAchievement.badgeImage.name}`,
+         })),
+         achievedUserCount: achievement._count.UserAchievement,
+      };
+   });
+
 const CreateAchievementSchema = z.object({
    name: z.string().min(1).max(50),
    description: z.string().min(1).max(255),
@@ -266,9 +403,11 @@ const createAchievementProcedure = protectedAdminProcedure
                      })),
                   },
                },
-               CheckinAchievement: {
-                  create: {},
-               },
+               // 只有显式勾选「是否为签到成就」时才建立签到关系，
+               // 否则所有成就都会被 getCurrentCheckinAchievement 当成签到成就。
+               ...(input.isCheckinAchievement
+                  ? { CheckinAchievement: { create: {} } }
+                  : {}),
                AchievementPreAchievement: {
                   createMany: {
                      data: input.preAchievements.map((id) => ({
@@ -295,5 +434,7 @@ const createAchievementProcedure = protectedAdminProcedure
 export const achievementRouter = router({
    getAllDepDataLoaders: getAllDepDataLoadersProcedure,
    requestDepDataLoader: requestDepDataLoaderProcedure,
+   getAllAchievements: getAllAchievementsProcedure,
+   getAchievementDetail: getAchievementDetailProcedure,
    createAchievement: createAchievementProcedure,
 });
