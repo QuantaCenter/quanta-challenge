@@ -1,30 +1,25 @@
 <script setup lang="ts">
-import { GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import { ListTwo } from '@icon-park/vue-next';
+import type { Component } from 'vue';
 
-useSeoMeta({ title: '发布流程 - Quanta Challenge' });
+useSeoMeta({ title: '管理流程 - Quanta Challenge' });
 
-const options = [
+type ProcessOption = {
+   title: string;
+   description: string;
+   url: string;
+   icon: Component;
+   iconColor: string;
+};
+
+const options: ProcessOption[] = [
    {
-      title: '发布题目',
-      description: '创建一个新的判题流程，并配置题目的基本信息',
-      url: '/app/publish/problem',
-      icon: TableReport,
-      iconColor: '#C1EF3F',
+      title: '题目管理',
+      description: '管理已发布的题目，查看与编辑题目信息',
+      url: '/app/publish/problem/mine',
+      icon: ListTwo,
+      iconColor: '#38BDF8',
    },
-   {
-      title: '创建成就',
-      description: '创建一个新的成就，并配置成就的基本信息',
-      url: '/app/publish/achievement',
-      icon: GoldMedalTwo,
-      iconColor: '#F59E0B',
-   },
-   {
-      title: '标签管理',
-      description: '创建新标签或管理已有题目标签',
-      url: '/app/publish/edit-tag',
-      icon: Tag,
-      iconColor: '#FE4E4E',
-   }
 ];
 </script>
 
@@ -34,7 +29,7 @@ const options = [
          direction="vertical"
          gap="1.5rem"
          class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布流程</h1>
+         <h1 class="st-font-hero-bold">管理流程</h1>
 
          <StSpace direction="vertical" gap="1.5rem" fill-x>
             <NuxtLink

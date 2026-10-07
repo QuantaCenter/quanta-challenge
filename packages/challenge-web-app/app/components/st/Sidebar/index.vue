@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
-   Avatar,
+   User,
+   CategoryManagement,
    DashboardTwo,
    Ranking,
    SettingTwo,
@@ -49,6 +50,11 @@ const role = computed(() => authStore.user?.role ?? 'USER');
                   <UploadTwo />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
+            <StSidebarSidePopper v-if="role !== 'USER'" content="管理">
+               <StSidebarNavigationButton to="/app/manage">
+                  <CategoryManagement />
+               </StSidebarNavigationButton>
+            </StSidebarSidePopper>
             <StSidebarSidePopper content="成就">
                <StSidebarNavigationButton to="/app/achievements">
                   <Trophy />
@@ -61,7 +67,7 @@ const role = computed(() => authStore.user?.role ?? 'USER');
             </StSidebarSidePopper>
          </StSpace>
          <StSidebarNavigationButton to="/app/space">
-            <Avatar />
+            <User />
          </StSidebarNavigationButton>
       </StSpace>
    </aside>
