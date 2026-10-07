@@ -20,21 +20,24 @@ const hasEntries = (snapshot?: Record<string, string>) =>
 
 /**
  * 题目提交表单的公共字段（upload 与 reupload 共用同一套）。
+ *
+ * 文案统一用中文、并说清"该怎么办"：这些消息会被 tRPC 的 errorFormatter 拼成一句
+ * 直接显示在发布页的提示里（服务端只读 error.message，不再甩 Zod 的 JSON）。
  */
 const uploadShape = {
-   title: z.string().min(1, 'Title is required'),
-   detail: z.string().min(1, 'Detail is required'),
-   tagIds: z.number().array().min(1, 'At least one tag is required'),
-   judgeScript: z.string().nonempty('Judge script is required'),
-   difficulty: z.enum(difficulties, { error: 'Invalid difficulty level' }),
-   totalScore: z.number().min(1, 'Total score must be at least 1'),
+   title: z.string().min(1, '题目名称不能为空'),
+   detail: z.string().min(1, '题目描述不能为空'),
+   tagIds: z.number().array().min(1, '至少选择 1 个标签'),
+   judgeScript: z.string().nonempty('判题脚本不能为空'),
+   difficulty: z.enum(difficulties, { error: '难度不合法' }),
+   totalScore: z.number().min(1, '总分必须大于 0'),
    answerTemplateSnapshot: z.record(
       z.string(),
       z.string(),
-      'Invalid answer template snapshot'
+      '答题模板快照不合法'
    ),
    referenceAnswerSnapshot: z
-      .record(z.string(), z.string(), 'Invalid reference answer snapshot')
+      .record(z.string(), z.string(), '参考答案快照不合法')
       .optional(),
    coverMode: z.enum(['default', 'custom']),
    coverImageId: z.string().optional(),
@@ -43,7 +46,7 @@ const uploadShape = {
    buildCommand: z.string().optional(),
    // 打包上传路径是判题容器的站点根目录，空串会让判题直接找不到页面。
    // 表单侧本来就有"必填"规则，这里补上服务端校验，避免空串被静默写进库。
-   judgeUploadPath: z.string().min(1, 'Judge upload path is required'),
+   judgeUploadPath: z.string().min(1, '必须填写打包上传路径'),
 };
 
 /**
@@ -64,7 +67,7 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          {
-            error: 'Reference answer snapshot is required when cover mode is default',
+            error: '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）',
          }
       )
       .refine(
@@ -73,7 +76,7 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                ? Boolean(data.coverImageId)
                : true;
          },
-         { error: 'Cover image id is required when cover mode is custom' }
+         { error: '自定义封面时必须选择一张封面图片' }
       );
 
 /** 上传新题目 */
