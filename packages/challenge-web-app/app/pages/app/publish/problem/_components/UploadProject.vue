@@ -14,6 +14,17 @@ const directory = ref<IDirectory>();
 const fileSystemItems = ref<IFileSystemItem[]>([]);
 const projectFs = defineModel<Record<string, string>>('projectFs');
 
+/**
+ * 是否真的选了东西。
+ *
+ * 不能直接写 `v-if="!projectFs"`：**空对象 {} 在 JS 里是 truthy**，
+ * 而调用方（发布/重新发布页）会把 `referenceAnswer` 初始化成 `{}`，
+ * 于是组件会走"已选择"分支，渲染出一棵空目录树 + 一个「取消选择」按钮。
+ */
+const hasProjectFs = computed(
+   () => Object.keys(projectFs.value ?? {}).length > 0
+);
+
 const walkDirectory = () => {
    if (!directory.value) {
       fileSystemItems.value = [];
@@ -74,12 +85,19 @@ const handleRemoveFile = () => {
 // 从 projectFs 重建 FileSystemItem[]
 // 使用统一的工具函数
 const restoreFileSystemItem = () => {
-   if (!projectFs.value) return;
+   // 空对象/undefined 都视为"没选"
+   if (!hasProjectFs.value) {
+      fileSystemItems.value = [];
+      return;
+   }
 
-   const { rootNodes } = buildFileSystemTree(projectFs.value);
+   const { rootNodes } = buildFileSystemTree(projectFs.value!);
    fileSystemItems.value = rootNodes;
 };
-restoreFileSystemItem();
+// 必须 watch 而不是只在 setup 里调一次：
+// 编辑（重新发布）场景下 projectFs 是**异步**回填的（父组件 onMounted 里请求详情），
+// 只调一次的话，回填完的答案模板也不会显示出来。
+watch(projectFs, restoreFileSystemItem, { immediate: true, deep: true });
 </script>
 
 <template>
@@ -95,7 +113,7 @@ restoreFileSystemItem();
          'flex items-center justify-center',
       ]">
       <StDropUploader
-         v-if="!projectFs"
+         v-if="!hasProjectFs"
          :ignores="{ directories: props.ignoreDirectories }"
          :placeholder="props.placeholder"
          type="folder"

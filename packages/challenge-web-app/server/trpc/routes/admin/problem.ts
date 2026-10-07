@@ -1,6 +1,6 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
-import { UploadSchema } from '../../schemas/publish-schema';
+import { ReuploadSchema, UploadSchema } from '../../schemas/publish-schema';
 import { router } from '../../trpc';
 import { IFile, projectService } from '../../services/project';
 import z from 'zod';
@@ -471,6 +471,12 @@ const getDetailProcedure = protectedAdminProcedure
             totalScore: true,
             status: true,
             createdAt: true,
+            // 这四个字段原先没有 select —— 于是"编辑/重新发布"页拿不到值，
+            // 界面上显示为空；而提交时会原样回传，等于把库里的值清空（数据丢失）。
+            bootCommand: true,
+            initCommand: true,
+            buildCommand: true,
+            judgeUploadPath: true,
             tags: {
                select: {
                   tid: true,
@@ -517,12 +523,8 @@ const getDetailProcedure = protectedAdminProcedure
    });
 
 // 创建一个新的模板工程
-const ReuploadSchema = z
-   .object({
-      baseId: z.number('Base Problem ID must be a number').int(),
-   })
-   .extend(UploadSchema.shape);
-
+// 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套
+// 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
 const reuploadProcedure = protectedAdminProcedure
    .input(ReuploadSchema)
    .mutation(async ({ ctx, input }) => {

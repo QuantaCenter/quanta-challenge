@@ -54,6 +54,13 @@ const fetchProblemDetail = async () => {
    draft.value.answerTemplate = {};
    draft.value.referenceAnswer = {};
 
+   // 这四个"运行期配置"必须一起回填：提交时会把它们原样发回去，
+   // 不回填就等于把库里已有的值清空（换句话说是"编辑一次丢一次配置"）。
+   draft.value.bootCommand = problem.bootCommand ?? '';
+   draft.value.initCommand = problem.initCommand ?? '';
+   draft.value.buildCommand = problem.buildCommand ?? '';
+   draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
+
    const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
    for (const file of files) {
       // 统一规范化路径为前置 / 格式
