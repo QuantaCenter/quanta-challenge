@@ -13,6 +13,9 @@
       "./thumbhash/client": {
          "import": "./service/thumbhash/client.ts"
       },
+      "./thumbhash/data-url": {
+         "import": "./service/thumbhash/data-url.ts"
+      },
       "./utils": {
          "import": "./utils/url.ts"
       },

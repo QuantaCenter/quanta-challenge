@@ -16,6 +16,7 @@ const difficultyTextMap = {
 <template>
    <StProblemCard
       :cover-image-name="problem.coverImageName"
+      :cover-image-thumbhash="problem.coverImageThumbhash"
       class="!bg-accent-500">
       <StSpace
          direction="vertical"

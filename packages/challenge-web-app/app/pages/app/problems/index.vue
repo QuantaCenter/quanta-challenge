@@ -178,7 +178,8 @@ const { data: problems, refresh } = useAsyncData('getPublicProblems', () =>
                   :href="`/challenge/editor/${problem.pid}`">
                   <StProblemCard
                      class="w-[14.5rem] h-fit"
-                     :cover-image-name="problem.imageName">
+                     :cover-image-name="problem.imageName"
+                     :cover-image-thumbhash="problem.imageHash">
                      <StProblemCardTitle :title="problem.title ?? '匿名题目'" />
                      <StProblemCardTags :tags="problem.tags ?? []" />
                      <StProblemCardDivider />

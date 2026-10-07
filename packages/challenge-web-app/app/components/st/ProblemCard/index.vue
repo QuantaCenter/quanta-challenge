@@ -5,6 +5,8 @@ const props = defineProps<{
    // 允许 null：后端在题目没有封面时返回 null（而不是伪造的 'unknown' 文件名），
    // 此时 imageSrc 为空串，StImage 会走到下面的 #fallback 占位图标。
    coverImageName?: string | null;
+   // 封面的 thumbhash，用于在原图加载完成前渲染低清占位图
+   coverImageThumbhash?: string | null;
    imgHeight?: string;
 }>();
 
@@ -21,6 +23,7 @@ const imageSrc = computed(() =>
       class="p-2 rounded-xl bg-accent-600 border hover:border-secondary/50 cursor-pointer border-transparent transition-all">
       <StImage
          :src="imageSrc"
+         :thumbhash="props.coverImageThumbhash"
          :height="props.imgHeight || '9.76rem'"
          alt="Cover Image">
          <template #fallback="{ style }">

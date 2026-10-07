@@ -410,6 +410,7 @@ const listProcedure = protectedAdminProcedure
                      select: {
                         name: true,
                         id: true,
+                        thumbhash: true,
                      },
                   },
                   ProblemDefaultCover: {
@@ -418,6 +419,7 @@ const listProcedure = protectedAdminProcedure
                            select: {
                               id: true,
                               name: true,
+                              thumbhash: true,
                            },
                         },
                      },
@@ -438,6 +440,9 @@ const listProcedure = protectedAdminProcedure
             imageName:
                problem.CoverImage?.name ||
                problem.ProblemDefaultCover[0]?.image.name,
+            imageHash:
+               problem.CoverImage?.thumbhash ||
+               problem.ProblemDefaultCover[0]?.image.thumbhash,
          }));
    });
 

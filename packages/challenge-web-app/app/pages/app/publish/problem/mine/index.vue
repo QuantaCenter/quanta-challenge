@@ -203,7 +203,8 @@ const showEmptyStatus = computed(() => {
                   :to="`/app/publish/problem/detail/${problem.pid}`">
                   <StProblemCard
                      class="w-[14.5rem] h-fit"
-                     :cover-image-name="problem.imageName">
+                     :cover-image-name="problem.imageName"
+                     :cover-image-thumbhash="problem.imageHash">
                      <StProblemCardTitle :title="problem.title" />
                      <StProblemCardTags :tags="problem.tags" />
                      <StProblemCardDivider />
