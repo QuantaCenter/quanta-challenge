@@ -9,6 +9,7 @@ import {
    Left,
    Right,
    LoadingFour,
+   Ghost,
 } from '@icon-park/vue-next';
 import { useScroll, useResizeObserver, watchDebounced } from '@vueuse/core';
 import { PassRate, Score, Difficulty } from './_components/CardInfo';
@@ -227,12 +228,15 @@ const {
          </StSkeleton>
          <div
             v-if="problems.length > 0"
-            class="shrink-0 w-full h-[3.5rem] flex items-center justify-center gap-2 text-sm text-accent-400">
+            class="shrink-0 w-full h-[3.5rem] flex items-center justify-center gap-2 text-sm text-accent-400 ">
             <template v-if="loadingMore">
-               <LoadingFour class="animate-spin text-lg" />
-               <span>加载中…</span>
+               <LoadingFour class="animate-spin -translate-x-4" theme="outline" size="0.875rem" />
+               <span>加载中...</span>
             </template>
-            <span v-else-if="allLoaded">没有更多题目了</span>
+            <StSpace v-else-if="allLoaded" align="center" gap="0.4em" class="-translate-x-4">
+                <Ghost theme="outline" size="1rem" />
+                没有更多题目了～
+            </StSpace>
          </div>
          <!-- 触底加载哨兵 -->
          <div ref="sentinelRef" class="shrink-0 w-full h-[1px]"></div>
