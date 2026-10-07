@@ -1,7 +1,7 @@
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import { getLevel, getLevelScore } from '../../../../app/utils/level';
+import { getLevelProgress } from '../../../../app/utils/level';
 
 const getCurrentCheckinAchievementProcedure = protectedProcedure.query(
    async ({ ctx }) => {
@@ -212,10 +212,8 @@ const getAchievementStatsProcedure = protectedProcedure.query(
          }),
       ]);
 
-      const level = getLevel(userScore?.score ?? 0);
-      const expInCurrentLevel = getLevelScore(level);
-      const expToNextLevel = getLevelScore(level + 1);
-      const expProgress = expInCurrentLevel / getLevelScore(level + 1);
+      const { level, expInCurrentLevel, expToNextLevel, expProgress } =
+         getLevelProgress(userScore?.score ?? 0);
 
       return {
          totalCount,
