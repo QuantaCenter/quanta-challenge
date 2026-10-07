@@ -14,12 +14,13 @@ const { data: globalRankData, error } = await useAsyncData(
 
 const statistics = computed(() => {
    if (!globalRankData.value) {
-      return { score: 0, rank: 0, beatRatio: 0 };
+      return { score: 0, rank: 0, beatRatio: 0, total: 0 };
    }
    return {
       score: globalRankData.value.selfRanking.score,
       rank: globalRankData.value.selfRanking.rank,
       beatRatio: globalRankData.value.selfRanking.aheadRate,
+      total: globalRankData.value.selfRanking.total,
    };
 });
 const rankings = computed(() => globalRankData.value?.rankingIntervals ?? null);
@@ -37,12 +38,17 @@ const beatRadio = computed(() => {
    return (statistics.value.beatRatio * 100).toFixed(0) + '%';
 });
 
+// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数）。
+// 相比「除以昨天的名次」，以总人数为分母对大小榜单都可比，
+// 也不会因为名次靠前而放大成百分之几百。
 const increaseRatio = computed(() => {
-   if (!trends.value) return 0;
-   const [lastRank, currRank] = trends.value.slice(-2) as [number, number];
-   const delta = lastRank - currRank;
-   const ratio = (delta / lastRank) * 100;
-   return isNaN(ratio) ? 0 : ratio;
+   const total = statistics.value.total;
+   if (!trends.value || trends.value.trends.length < 2 || total <= 0) return 0;
+   const [lastRank, currRank] = trends.value.trends.slice(-2) as [
+      number,
+      number,
+   ];
+   return (lastRank - currRank) / total;
 });
 
 const increaseRatioText = computed(() => {
@@ -134,7 +140,7 @@ const increaseRatioText = computed(() => {
             </StSpace>
             <StSpace fill-x class="flex-1" align="center">
                <StLineChart
-                  :data="trends ?? []"
+                  :data="trends?.trends ?? []"
                   :class="[
                      'h-16 my-6',
                      increaseRatio >= 0 ? 'text-secondary' : 'text-primary',

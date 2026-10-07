@@ -3,17 +3,17 @@ import { TrendingDown, TrendingUp } from '@icon-park/vue-next';
 
 const { $trpc } = useNuxtApp();
 
-const { data: trends, pending } = useAsyncData<number[]>(
+const { data: trendData, pending } = useAsyncData(
    'getMyRankingTrends',
    () => $trpc.protected.rank.getMyRankingTrends.query()
 );
 
+// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数），与仪表盘口径一致。
 const increaseRatio = computed(() => {
-   if (!trends.value || trends.value.length < 2) return 0;
-   const [lastRank, currRank] = trends.value.slice(-2) as [number, number];
-   const delta = lastRank - currRank;
-   const ratio = (delta / lastRank) * 100;
-   return isNaN(ratio) ? 0 : ratio;
+   const data = trendData.value;
+   if (!data || data.trends.length < 2 || data.total <= 0) return 0;
+   const [lastRank, currRank] = data.trends.slice(-2) as [number, number];
+   return (lastRank - currRank) / data.total;
 });
 
 const increaseRatioText = computed(() => {
@@ -63,7 +63,7 @@ const increaseRatioText = computed(() => {
       <StSpace v-else fill-x class="flex-1" align="center">
          <StLineChart
             v-if="!pending"
-            :data="trends ?? []"
+            :data="trendData?.trends ?? []"
             :class="[
                'h-16 my-6',
                increaseRatio >= 0 ? 'text-secondary' : 'text-primary',
