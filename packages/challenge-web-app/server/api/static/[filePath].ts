@@ -2,7 +2,8 @@
 import { createReadStream } from 'fs';
 import { join, resolve, sep, extname } from 'path';
 import { readFile, stat } from 'fs/promises';
-import { sendStream, createError, getRouterParam } from 'h3';
+import { sendStream, createError, getRouterParam, setHeader } from 'h3';
+import { lookup } from 'mime-types';
 import { resolveLocalStorePath } from '@challenge/shared/store';
 
 /**
@@ -68,6 +69,20 @@ export default defineEventHandler(async (event) => {
          throw new Error('not a file');
       }
       await readFile(fullPath);
+
+      /**
+       * 必须显式下发 Content-Type。
+       *
+       * nuxt-security 会给所有响应加上 `X-Content-Type-Options: nosniff`，而浏览器
+       * **从不嗅探 SVG**（规范要求 SVG 只能是 `image/svg+xml`）—— 于是 PNG/JPEG 因为有
+       * 魔数还能侥幸显示，而成就徽章这类 SVG 在 `<img>` 里一律渲染成"裂图"。
+       * 用扩展名查表即可（mime-types 已是本包依赖）。
+       */
+      const contentType = lookup(fullPath);
+      if (contentType) {
+         setHeader(event, 'content-type', contentType);
+      }
+
       return sendStream(event, createReadStream(fullPath));
    } catch {
       throw createError({ statusCode: 404, statusMessage: 'File not found' });
