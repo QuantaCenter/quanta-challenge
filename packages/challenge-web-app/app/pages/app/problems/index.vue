@@ -205,7 +205,8 @@ const {
                   <StProblemCard
                      class="w-[14.5rem] h-fit"
                      :cover-image-name="problem.imageName"
-                     :cover-image-thumbhash="problem.imageHash">
+                     :cover-image-thumbhash="problem.imageHash"
+                     :cover-image-thumbhash-url="problem.imageThumbhashUrl">
                      <StProblemCardTitle :title="problem.title ?? '匿名题目'" />
                      <StProblemCardTags :tags="problem.tags ?? []" />
                      <StProblemCardDivider />

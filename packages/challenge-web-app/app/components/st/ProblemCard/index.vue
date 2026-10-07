@@ -5,6 +5,8 @@ const props = defineProps<{
    coverImageName?: string | null;
    // 封面的 thumbhash，用于在原图加载完成前渲染低清占位图
    coverImageThumbhash?: string | null;
+   // 服务端带缓存在 SSR 阶段渲染好的占位图 data URL（优先于上面的原始 hash）
+   coverImageThumbhashUrl?: string | null;
    imgHeight?: string;
 }>();
 
@@ -22,6 +24,7 @@ const imageSrc = computed(() =>
       <StImage
          :src="imageSrc"
          :thumbhash="props.coverImageThumbhash"
+         :thumbhash-url="props.coverImageThumbhashUrl"
          :height="props.imgHeight || '9.76rem'"
          width="100%"
          alt="Cover Image">

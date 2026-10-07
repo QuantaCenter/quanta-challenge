@@ -1,4 +1,5 @@
 import prisma from '~~/lib/prisma';
+import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { publicProcedure, router } from '../../trpc';
 import z from 'zod';
 
@@ -91,7 +92,7 @@ const getAllPublicProblems = publicProcedure
          nextCursor = problems.pop()!.id;
       }
 
-      const items = problems.map((p) => {
+      const rawItems = problems.map((p) => {
          const passCount = p.CurrentProblem?.JudgeStatus?.passedCount ?? 0;
          const totalCount = p.CurrentProblem?.JudgeStatus?.totalCount ?? 0;
          const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
@@ -114,6 +115,16 @@ const getAllPublicProblems = publicProcedure
             JudgeStatus: undefined,
          };
       });
+
+      // 在服务端把 thumbhash 解码为 data URL（带 Redis 缓存），
+      // 这样 SSR 首帧就能直接拿到占位图，无需客户端再次解码。
+      const imageThumbhashUrls = await renderThumbhashDataUrls(
+         rawItems.map((item) => item.imageHash),
+      );
+      const items = rawItems.map((item, index) => ({
+         ...item,
+         imageThumbhashUrl: imageThumbhashUrls[index],
+      }));
 
       return { items, nextCursor };
    });

@@ -6,6 +6,11 @@ const props = defineProps<{
    src: string;
    /** base64 编码的 thumbhash，用于在原图下载期间渲染占位图 */
    thumbhash?: string | null;
+   /**
+    * 服务端预先渲染好的占位图 data URL。
+    * 传了就直接使用，避免在浏览器里重复解码（SSR hydration 后无需重算）。
+    */
+   thumbhashUrl?: string | null;
    alt?: string;
    object?: 'cover' | 'contain' | 'fill' | 'none' | 'scale-down';
    width?: string | number;
@@ -15,8 +20,14 @@ const props = defineProps<{
 
 const errorLoading = ref(props.src === '' ? true : false);
 
-const thumbhashUrl = computed(() =>
-   props.thumbhash ? thumbhashToDataUrl(props.thumbhash) : ''
+// 优先使用服务端带缓存渲染好的 data URL，否则退回到客户端实时解码
+const resolvedThumbhashUrl = computed(() => {
+   if (props.thumbhashUrl) return props.thumbhashUrl;
+   return props.thumbhash ? thumbhashToDataUrl(props.thumbhash) : '';
+});
+// 是否具备可渲染的占位图（原始 hash 或服务端 data URL 任一存在即可）
+const hasThumbhash = computed(
+   () => !!props.thumbhash || !!props.thumbhashUrl
 );
 // 原图是否已完整加载；加载完成前不挂载 src，避免浏览器边下边显示
 const imageReady = ref(false);
@@ -107,13 +118,13 @@ onBeforeUnmount(() => {
 <template>
    <!-- 有 thumbhash：占位图在下、原图在上，原图加载完成后渐显 -->
    <div
-      v-if="thumbhash && !errorLoading"
+      v-if="hasThumbhash && !errorLoading"
       class="relative"
       :style="style"
       v-bind="$attrs">
       <img
-         v-if="thumbhashUrl"
-         :src="thumbhashUrl"
+         v-if="resolvedThumbhashUrl"
+         :src="resolvedThumbhashUrl"
          aria-hidden="true"
          draggable="false"
          class="absolute inset-0 h-full w-full rounded-lg"

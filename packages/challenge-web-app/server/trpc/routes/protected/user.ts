@@ -6,6 +6,7 @@ import z from 'zod';
 import path from 'path';
 import { TRPCError } from '@trpc/server';
 import { logger } from '~~/lib/logger';
+import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 
 // 获取用户信息
 const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -404,7 +405,7 @@ const getRecentProblemsProcedure = protectedProcedure
          },
       });
 
-      return recentSubmissions.map((submission) => {
+      const rawProblems = recentSubmissions.map((submission) => {
          const p = submission.problem;
          const passCount = p.JudgeStatus?.passedCount ?? 0;
          const totalCount = p.JudgeStatus?.totalCount ?? 0;
@@ -426,6 +427,15 @@ const getRecentProblemsProcedure = protectedProcedure
             JudgeStatus: undefined,
          };
       });
+
+      // 服务端带缓存地把 thumbhash 渲染为 data URL，供 SSR 首帧直接使用
+      const imageThumbhashUrls = await renderThumbhashDataUrls(
+         rawProblems.map((problem) => problem.imageHash),
+      );
+      return rawProblems.map((problem, index) => ({
+         ...problem,
+         imageThumbhashUrl: imageThumbhashUrls[index],
+      }));
    });
 
 // 修改密码

@@ -8,6 +8,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import { DefaultArgs } from '@prisma/client/runtime/library';
 import { useStore } from '../../store';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
+import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 
 type TX = Omit<
@@ -432,7 +433,7 @@ const listProcedure = protectedAdminProcedure
          },
       });
 
-      return baseProblems
+      const rawProblems = baseProblems
          .map((base) => base.CurrentProblem)
          .filter((problem) => problem !== null)
          .map((problem) => ({
@@ -444,6 +445,15 @@ const listProcedure = protectedAdminProcedure
                problem.CoverImage?.thumbhash ||
                problem.ProblemDefaultCover[0]?.image.thumbhash,
          }));
+
+      // 服务端带缓存地把 thumbhash 渲染为 data URL，供 SSR 首帧直接使用
+      const imageThumbhashUrls = await renderThumbhashDataUrls(
+         rawProblems.map((problem) => problem.imageHash),
+      );
+      return rawProblems.map((problem, index) => ({
+         ...problem,
+         imageThumbhashUrl: imageThumbhashUrls[index],
+      }));
    });
 
 // 获取问题的详细信息，用于重新发布

@@ -2,6 +2,7 @@ import z from 'zod';
 import { TRPCError } from '@trpc/server';
 import dayjs from 'dayjs';
 import prisma from '~~/lib/prisma';
+import { renderThumbhashDataUrl } from '~~/server/utils/thumbhash';
 import { publicProcedure, router } from '../../trpc';
 import { dailyService } from '../../services/daily';
 
@@ -30,7 +31,7 @@ const findBaseProblemById = (id: number) =>
 
 type BaseProblemRecord = Awaited<ReturnType<typeof findBaseProblemById>>;
 
-const formatDailyProblem = (baseProblem: BaseProblemRecord) => {
+const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
    const dailyProblem = baseProblem.CurrentProblem;
    if (!dailyProblem) {
       return null;
@@ -41,6 +42,7 @@ const formatDailyProblem = (baseProblem: BaseProblemRecord) => {
 
    const image =
       dailyProblem.CoverImage ?? dailyProblem.ProblemDefaultCover?.[0]?.image;
+   const coverImageThumbhash = image?.thumbhash ?? null;
 
    return {
       pid: dailyProblem.pid,
@@ -50,7 +52,9 @@ const formatDailyProblem = (baseProblem: BaseProblemRecord) => {
       totalScore: dailyProblem.totalScore,
       passRate: passRate,
       coverImageName: image?.name ?? null,
-      coverImageThumbhash: image?.thumbhash ?? null,
+      coverImageThumbhash,
+      // 服务端带缓存地渲染占位图，SSR 首帧即可见
+      coverImageThumbhashUrl: await renderThumbhashDataUrl(coverImageThumbhash),
    };
 };
 
@@ -85,11 +89,11 @@ const getDailyProblemProcedure = publicProcedure
             select: { baseProblem: { select: problemQuery } },
          });
          if (result) {
-            return formatDailyProblem(result.baseProblem);
+            return await formatDailyProblem(result.baseProblem);
          }
 
          const id = await dailyService.selectDailyProblem();
-         return formatDailyProblem(await findBaseProblemById(id));
+         return await formatDailyProblem(await findBaseProblemById(id));
       }
 
       // 往日：仅查询已存在的记录，不存在则视为当日无题目
@@ -98,7 +102,7 @@ const getDailyProblemProcedure = publicProcedure
          select: { baseProblem: { select: problemQuery } },
       });
 
-      return result ? formatDailyProblem(result.baseProblem) : null;
+      return result ? await formatDailyProblem(result.baseProblem) : null;
    });
 
 export const dailyRouter = router({
