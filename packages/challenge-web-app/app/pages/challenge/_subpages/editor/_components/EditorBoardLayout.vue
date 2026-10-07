@@ -209,9 +209,12 @@ watch(
             class="pointer-events-none absolute inset-0 z-30 rounded-xl border-2 border-primary" />
 
          <!--
-            拖拽条：贴在板块顶部的一条 8px 窄条（悬停板块时出现 ⠿ 标记）。
+            拖拽把手：贴在板块顶部、居中显示的细横条（悬停板块时才出现）。
             刻意做得又扁又靠边——每个板块的顶部左上角/右上角都有自己的按钮或标签页，
             放大到 20px 见方的把手会挡住它们（代码编辑器第一个标签页就是这么被挡的）。
+            视觉上不再用 ⠿⠿ 点阵：一条 3px 圆角短横线更像"把手"，也不会抢视线；
+            拖动中把手变主色，给出"正在搬运这个板块"的反馈（不做整块变暗——
+            那会连 Monaco / xterm / 预览 iframe 一起变淡，反而看不清）。
          -->
          <div
             :draggable="!layoutStore.locked"
@@ -220,7 +223,7 @@ watch(
                   ? '布局已锁定'
                   : `拖动这里把「${BOARD_LABEL[id]}」移到另一个板块的位置`
             "
-            class="absolute inset-x-0 top-0 z-20 h-2 flex items-start justify-center"
+            class="absolute inset-x-0 top-0 z-20 flex h-3 items-start justify-center"
             :class="
                layoutStore.locked
                   ? 'cursor-not-allowed'
@@ -229,8 +232,18 @@ watch(
             @dragstart="handleDragStart($event, id)"
             @dragend="handleDragEnd">
             <span
-               class="rounded-b-md bg-accent-600/90 px-2 text-[0.65rem] leading-[0.8rem] text-accent-100 opacity-0 group-hover/board:opacity-100 transition-opacity">
-               ⠿⠿
+               v-if="!layoutStore.locked"
+               class="flex items-center justify-center rounded-b-lg border border-t-0 bg-accent-600/90 px-2.5 py-[0.3rem] shadow-sm transition-all duration-150"
+               :class="
+                  draggingBoard === id
+                     ? 'border-primary/70 opacity-100'
+                     : 'border-accent-500/60 opacity-0 group-hover/board:opacity-100 hover:opacity-100'
+               ">
+               <span
+                  class="block h-[3px] w-7 rounded-full transition-colors duration-150"
+                  :class="
+                     draggingBoard === id ? 'bg-primary' : 'bg-accent-200/70'
+                  " />
             </span>
          </div>
       </div>
