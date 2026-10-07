@@ -32,11 +32,20 @@ const useAuthStore = defineStore('auth', () => {
       try {
          const result = await trpc.auth.login.getUser.query();
          if (result.user) {
-            user.value = transformObjectFields(
-               result.user,
-               ['createdAt', 'updatedAt', 'lastLogin'],
-               (value: any) => new Date(value)
-            );
+            const rawUser = result.user;
+            user.value = {
+               ...transformObjectFields(
+                  rawUser,
+                  ['createdAt', 'updatedAt', 'lastLogin'],
+                  (value: any) => new Date(value)
+               ),
+               // lastActiveAt 允许为空（迁移前的老用户从没记录过），不能跟着上面
+               // 一起批量转换——transformObjectFields 会把 null 交给 new Date()
+               // 变成 1970，"从未活跃"会显示成 1970-01-01。
+               lastActiveAt: rawUser.lastActiveAt
+                  ? new Date(rawUser.lastActiveAt)
+                  : null,
+            };
             return true;
          }
          return false;

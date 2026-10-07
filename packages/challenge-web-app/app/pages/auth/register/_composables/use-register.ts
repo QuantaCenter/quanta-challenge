@@ -46,6 +46,8 @@ export const useRegister = () => {
             createdAt: new Date(),
             updatedAt: new Date(),
             lastLogin: new Date(),
+            // 刚注册完就已经在用了，活跃时间从此刻算起
+            lastActiveAt: new Date(),
             imageId: null,
             role: 'USER',
             score: 0,

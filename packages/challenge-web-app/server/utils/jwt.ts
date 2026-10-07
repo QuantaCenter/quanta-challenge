@@ -1,5 +1,6 @@
 import { UserRole } from '@prisma/client';
 import jwt from 'jsonwebtoken';
+import prisma from '~~/lib/prisma';
 
 export interface ITokenPayload {
    userId: string;
@@ -47,7 +48,15 @@ export const generateTokens = (payload: ITokenPayload) => {
 /**
  * 滑动续签 token
  */
-export const renewTokens = (refreshToken: string) => {
+/**
+ * 滑动续签 token
+ *
+ * 角色以**数据库**为准，而不是直接沿用旧 refresh token 里的角色：
+ * 否则管理员被降权/删号后，只要还在用应用（access token 一过期就来续签），
+ * 就会把旧角色一直续签下去，“切换权限”事实上永远不生效。
+ * 代价是每次续签多一次主键查询（每人约 15 分钟一次，可接受）。
+ */
+export const renewTokens = async (refreshToken: string) => {
    const refreshSecret = runtimeSecret(
       'REFRESH_TOKEN_SECRET',
       useRuntimeConfig().secret.refreshToken,
@@ -55,8 +64,17 @@ export const renewTokens = (refreshToken: string) => {
 
    try {
       const payload = jwt.verify(refreshToken, refreshSecret) as ITokenPayload;
+
+      const user = await prisma.user.findUnique({
+         where: { id: payload.userId },
+         select: { role: true },
+      });
+      if (!user) {
+         throw new Error('User no longer exists');
+      }
+
       return generateTokens({
-         role: payload.role,
+         role: user.role,
          userId: payload.userId,
       });
    } catch (error) {

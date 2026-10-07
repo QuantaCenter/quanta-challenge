@@ -37,6 +37,9 @@ export const useEmailLogin = () => {
             lastLogin: new Date(result.user.lastLogin),
             createdAt: new Date(result.user.createdAt),
             updatedAt: new Date(result.user.updatedAt),
+            lastActiveAt: result.user.lastActiveAt
+               ? new Date(result.user.lastActiveAt)
+               : null,
          };
          getCallback('success').forEach((cb) => cb());
       } catch (error) {

@@ -10,7 +10,7 @@ export default defineEventHandler(async (event) => {
    }
 
    try {
-      const tokens = renewTokens(refreshToken);
+      const tokens = await renewTokens(refreshToken);
 
       // 设置新的 cookie
       const opt = {

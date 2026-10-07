@@ -9,16 +9,20 @@ datasource db {
 
 // 用户表
 model User {
-  id          String   @id @default(cuid())
-  role        UserRole @default(USER)
-  name        String   @unique
-  email       String?  @unique
-  displayName String?
-  imageId     String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lastLogin   DateTime @default(now())
-  score       Int      @default(0)
+  id           String    @id @default(cuid())
+  role         UserRole  @default(USER)
+  name         String    @unique
+  email        String?   @unique
+  displayName  String?
+  imageId      String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastLogin    DateTime  @default(now())
+  /// 最近一次「有活动」的时间：登录之外的浏览、提交、做题等都会刷新它。
+  /// 由 tRPC 中间件 server/trpc/middlewares/track-active.ts 写入（按用户节流）。
+  /// 允许为空：迁移前的历史用户没有值。
+  lastActiveAt DateTime?
+  score        Int       @default(0)
 
   avatar                    Image?                      @relation(fields: [imageId], references: [id])
   auths                     Auth[]

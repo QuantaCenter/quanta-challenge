@@ -3,10 +3,12 @@ import { achievementRouter } from './achievement';
 import { imageRouter } from './image';
 import { problemRouter } from './problem';
 import { tagRouter } from './tag';
+import { userRouter } from './user';
 
 export const adminRouter = router({
    problem: problemRouter,
    tag: tagRouter,
    image: imageRouter,
    achievement: achievementRouter,
+   user: userRouter,
 });
