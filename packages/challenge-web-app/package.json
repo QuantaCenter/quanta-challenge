@@ -16,9 +16,10 @@
       "typecheck:server": "nuxt prepare && tsc --noEmit -p tsconfig.typecheck.server.json",
       "typecheck:app": "nuxt prepare && vue-tsc --noEmit -p tsconfig.typecheck.app.json",
       "postinstall": "nuxt prepare",
-      "prisma:migrate:dev": "prisma migrate dev --schema=./prisma/schema.prisma",
-      "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
-      "prisma:update": "prisma migrate dev --schema=./prisma/schema.prisma && prisma generate --schema=./prisma/schema.prisma",
+      "prisma:migrate:dev": "pnpm --filter @challenge/database prisma:migrate",
+      "prisma:migrate:deploy": "pnpm --filter @challenge/database prisma:migrate:deploy",
+      "prisma:generate": "pnpm --filter @challenge/database prisma:generate",
+      "prisma:update": "pnpm --filter @challenge/database prisma:update",
       "docker:build": "docker build -t challenge-web-app -f ./Dockerfile ../.."
    },
    "dependencies": {

@@ -200,6 +200,10 @@ pnpm prisma:update  # 执行迁移 + 生成客户端 + 更新映射
 
 > ⚠️ **重要**: 切勿直接运行 `prisma migrate`，必须使用 `prisma:update` 以确保类型映射同步更新。
 
+> 部署时不需要手工迁移：web 容器与判题调度器容器启动时都会先执行
+> `prisma migrate deploy`（幂等、带 advisory lock，同时跑也安全），
+> 详见 `packages/challenge-web-app/scripts/docker-entrypoint.sh`。
+
 ### 添加新的 tRPC 端点
 
 1. 在 `packages/challenge-web-app/server/trpc/routes/` 下创建路由文件

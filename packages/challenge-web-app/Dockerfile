@@ -75,6 +75,11 @@ RUN pnpm prisma:generate
 # @loancrate/prisma-schema-parser。
 ENV NODE_ENV=production
 
-# 运行数据库种子脚本，然后启动应用
+# 运行数据库种子脚本，然后启动应用。
+#
+# ⚠️ 迁移也在这里跑（脚本第一步）。原因：调度器容器虽然也会跑 migrate deploy，
+# 但两个容器是同时起的（compose 的 depends_on 是 list 形式，只等容器启动），
+# web 可能在 schema 还是旧版本时就开始服务请求。`migrate deploy` 幂等且带
+# advisory lock，两边同时跑是安全的。完整说明见 scripts/docker-entrypoint.sh。
 WORKDIR /app/packages/challenge-web-app
-CMD ["sh", "-c", "node scripts/prisma-seed.ts && node .output/server/index.mjs"]
+CMD ["sh", "/app/packages/challenge-web-app/scripts/docker-entrypoint.sh"]
