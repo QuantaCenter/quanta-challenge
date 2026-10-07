@@ -4,7 +4,12 @@ import Divider from './_components/Divider.vue';
 import DifficultyFilter from './_components/DifficultyFilter.vue';
 import ProblemSearchInput from './_components/ProblemSearchInput.vue';
 import { useViewTransition } from '~/composables/use-view-transition';
-import { ThreeHexagons, Left, Right } from '@icon-park/vue-next';
+import {
+   ThreeHexagons,
+   Left,
+   Right,
+   LoadingFour,
+} from '@icon-park/vue-next';
 import { useScroll, useResizeObserver, watchDebounced } from '@vueuse/core';
 import { PassRate, Score, Difficulty } from './_components/CardInfo';
 
@@ -66,13 +71,31 @@ watchDebounced(
    { debounce: 300 },
 );
 
-const { data: problems, refresh } = useAsyncData('getPublicProblems', () =>
-   $trpc.public.problem.listPublicProblems.query({
-      tids: selectedTags.value,
-      difficulty: selectedDifficulty.value || undefined,
-      keyword: searchKeyword.value || undefined,
-   }),
-);
+// 当前筛选条件（不含游标），每次请求时实时读取
+const currentFilters = () => ({
+   tids: selectedTags.value,
+   difficulty: selectedDifficulty.value || undefined,
+   keyword: searchKeyword.value || undefined,
+});
+
+// 游标分页 + 触底加载，见 ~/composables/use-infinite-list.ts
+const {
+   items: problems,
+   status: problemsStatus,
+   loadingMore,
+   allLoaded,
+   refresh,
+   sentinelRef,
+} = useInfiniteList({
+   key: 'getPublicProblems',
+   pageSize: 12,
+   fetchPage: (cursor, limit) =>
+      $trpc.public.problem.listPublicProblems.query({
+         ...currentFilters(),
+         cursor,
+         limit,
+      }),
+});
 </script>
 
 <template>
@@ -154,7 +177,9 @@ const { data: problems, refresh } = useAsyncData('getPublicProblems', () =>
             </StSpace>
          </StSkeleton>
          <Divider />
-         <StSkeleton :loading="!problems" class="w-full h-full">
+         <StSkeleton
+            :loading="problemsStatus === 'pending' && problems.length === 0"
+            class="w-full h-full">
             <template #loading>
                <StGrid fill :cols="4" gap="1.25rem">
                   <StSkeletonItem
@@ -165,7 +190,7 @@ const { data: problems, refresh } = useAsyncData('getPublicProblems', () =>
                </StGrid>
             </template>
             <StEmptyStatus
-               v-if="!problems?.length"
+               v-if="!problems.length"
                content="暂无题目"
                class="!w-[61.75rem] pb-32 mt-[5rem]" />
             <StGrid v-else fill :cols="4" gap="1.25rem">
@@ -200,6 +225,17 @@ const { data: problems, refresh } = useAsyncData('getPublicProblems', () =>
                </a>
             </StGrid>
          </StSkeleton>
+         <div
+            v-if="problems.length > 0"
+            class="shrink-0 w-full h-[3.5rem] flex items-center justify-center gap-2 text-sm text-accent-400">
+            <template v-if="loadingMore">
+               <LoadingFour class="animate-spin text-lg" />
+               <span>加载中…</span>
+            </template>
+            <span v-else-if="allLoaded">没有更多题目了</span>
+         </div>
+         <!-- 触底加载哨兵 -->
+         <div ref="sentinelRef" class="shrink-0 w-full h-[1px]"></div>
          <StSpacer fill flex no-shrink height="1rem" />
       </StSpace>
    </StSpace>
