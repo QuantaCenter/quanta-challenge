@@ -6,7 +6,7 @@ defineProps<IDateIndicatorProps>();
 
 <template>
    <div
-      class="relative flex flex-col gap-1 items-center px-[0.375rem] pt-2 pb-3 rounded-lg w-[2.0625rem]"
+      class="relative flex flex-col gap-1 items-center px-[0.375rem] pt-2 pb-3 rounded-lg w-[2.0625rem] transition-colors"
       :class="{
          'bg-secondary': triggered,
       }">

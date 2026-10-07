@@ -6,6 +6,7 @@ import {
    FireTwo,
    Round,
 } from '@icon-park/vue-next';
+import dayjs from 'dayjs';
 import DailyChallengeSkeleton from '../_skeletons/DailyChallengeSkeleton.vue';
 import ProblemCard from '../_components/ProblemCard.vue';
 import CheckinInfoSkeleton from '../_skeletons/CheckinInfoSkeleton.vue';
@@ -13,13 +14,21 @@ import { useMessage } from '~/components/st/Message/use-message';
 
 const { $trpc } = useNuxtApp();
 
-export type DailyProblem = Awaited<
-   ReturnType<typeof $trpc.public.daily.getProblem.query>
+export type DailyProblem = NonNullable<
+   Awaited<ReturnType<typeof $trpc.public.daily.getProblem.query>>
 >;
 
-const { data: dailyProblem, error: dailyProblemError } = useAsyncData(
+// 当前查看的日期，默认为今天（YYYY-MM-DD）
+const selectedDate = ref(dayjs().format('YYYY-MM-DD'));
+
+const {
+   data: dailyProblem,
+   error: dailyProblemError,
+   pending: isDailyProblemPending,
+} = useAsyncData(
    'daily-problem',
-   () => $trpc.public.daily.getProblem.query()
+   () => $trpc.public.daily.getProblem.query({ date: selectedDate.value }),
+   { watch: [selectedDate], dedupe: 'cancel' }
 );
 
 const { data: continueCheckinCounts } = useAsyncData(
@@ -84,18 +93,32 @@ const handleCheckin = async () => {
    <StCard :icon="Calendar" class="h-full" title="每日一题">
       <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5">
          <StSpace direction="vertical" gap="1rem" class="w-full h-full">
-            <StDateIndicator class="w-full" />
+            <StDateIndicator v-model="selectedDate" class="w-full" />
             <div class="flex flex-1 min-h-0 overflow-hidden w-full relative">
-               <StSkeleton :loading="!dailyProblem" class="h-[21.3125rem]">
+               <StSkeleton
+                  :loading="isDailyProblemPending"
+                  class="h-[21.3125rem]">
                   <template #loading>
                      <DailyChallengeSkeleton class="absolute" />
                   </template>
                   <a
+                     v-if="dailyProblem"
                      class="w-full"
-                     :href="`/challenge/editor/${dailyProblem!.pid}`"
+                     :href="`/challenge/editor/${dailyProblem.pid}`"
                      target="_blank">
-                     <ProblemCard :problem="dailyProblem!" />
+                     <ProblemCard :problem="dailyProblem" />
                   </a>
+                  <StSpace
+                     v-else
+                     fill
+                     direction="vertical"
+                     gap="0.75rem"
+                     align="center"
+                     justify="center"
+                     class="text-accent-400 min-h-[18.3125rem]">
+                     <CalendarThree size="2.5rem" :strokeWidth="2" />
+                     <div class="st-font-body-normal">当日暂无题目</div>
+                  </StSpace>
                </StSkeleton>
             </div>
          </StSpace>
