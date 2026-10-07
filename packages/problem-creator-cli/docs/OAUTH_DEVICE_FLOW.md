@@ -1,6 +1,6 @@
 # 设备码授权（OAuth 2.0 Device Authorization Grant）
 
-`qpc login --device` 的实现说明。协议遵循 **RFC 8628**，客户端与授权服务器都在本仓库内。
+`qpc login`（默认流程，等价于 `qpc login --device`）的实现说明。协议遵循 **RFC 8628**，客户端与授权服务器都在本仓库内。
 
 ## 为什么选设备码，而不是 loopback 重定向
 

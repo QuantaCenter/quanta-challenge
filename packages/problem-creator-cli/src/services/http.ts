@@ -1,5 +1,6 @@
 import { ApiError, isAbortError, NetworkError } from '../core/errors';
 import type { Logger } from '../core/logger';
+import { CLI_VERSION } from '../version';
 import type { CookieJar } from './credentials';
 
 export type FetchLike = (
@@ -73,7 +74,7 @@ export class HttpClient {
    private headers(extra: Record<string, string> = {}): Record<string, string> {
       const headers: Record<string, string> = {
          accept: 'application/json',
-         'user-agent': `qpc/0.1.0 (quanta-problem-creator)`,
+         'user-agent': `qpc/${CLI_VERSION} (quanta-problem-creator)`,
          ...extra,
       };
 

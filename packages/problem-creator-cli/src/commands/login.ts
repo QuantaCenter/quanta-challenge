@@ -32,20 +32,36 @@ export const registerLoginCommand = (registry: CommandRegistry): void => {
       .description(
          '登录并保存会话凭据（默认 ~/.config/quanta/credentials.json）',
       )
-      .option('--email <email>', '账号邮箱（也可用 QUANTA_EMAIL）')
-      .option('--password-stdin', '从标准输入读取密码（推荐用于 CI）')
+      .option(
+         '--email <email>',
+         '账号邮箱（显式走密码登录；也可用 QUANTA_EMAIL）',
+      )
+      .option(
+         '--password-stdin',
+         '从标准输入读取密码（显式走密码登录，推荐用于 CI）',
+      )
       .option('--show', '只显示当前登录状态，不做登录')
       .option('--logout', '删除本地凭据')
-      .option('--device', '用设备码在浏览器里授权登录（推荐；无需输入密码）')
+      .option('--device', '用设备码在浏览器里授权登录（默认行为）')
       .option(
          '--no-browser',
-         '配合 --device：只打印地址和验证码，不自动打开浏览器',
+         '设备码流程下只打印地址与验证码，不自动打开浏览器',
       )
       .action(async (options: LoginOptions) => {
          const ctx = await context();
          await runLogin(ctx, options);
       });
 };
+
+/**
+ * 密码登录是**显式**选项：默认走设备码。
+ *
+ * 只有给了 `--email` / `--password-stdin` 才认为用户要密码流程；
+ * 环境变量（QUANTA_EMAIL / QUANTA_PASSWORD）只是这些参数的值来源，
+ * 不单独切换流程——否则 CI 里残留的环境变量会意外改变本地交互行为。
+ */
+const wantsPasswordFlow = (options: LoginOptions): boolean =>
+   Boolean(options.email || options.passwordStdin);
 
 export const runLogin = async (
    ctx: CommandContext,
@@ -59,11 +75,6 @@ export const runLogin = async (
             : `本地没有凭据：${ctx.credentialsFile}`,
       );
       if (ctx.logger.json) ctx.logger.result({ loggedOut: true, removed });
-      return;
-   }
-
-   if (options.device) {
-      await runDeviceLogin(ctx, options);
       return;
    }
 
@@ -95,6 +106,12 @@ export const runLogin = async (
             hasSession: ctx.client.hasSession,
          });
       }
+      return;
+   }
+
+   // 默认设备码：--device 显式指定，或没给任何密码登录参数时都走它
+   if (options.device || !wantsPasswordFlow(options)) {
+      await runDeviceLogin(ctx, options);
       return;
    }
 
@@ -143,7 +160,7 @@ export const runLogin = async (
 };
 
 /**
- * 设备码登录（RFC 8628）。
+ * 设备码登录（RFC 8628）—— `qpc login` 的默认流程。
  *
  * 流程：申请验证码 → 浏览器授权 → 轮询换 token → 写入凭据文件。
  * 相比邮箱密码登录：

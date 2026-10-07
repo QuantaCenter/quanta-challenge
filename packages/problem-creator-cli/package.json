@@ -1,6 +1,6 @@
 {
    "name": "@challenge/problem-creator-cli",
-   "version": "0.2.0",
+   "version": "1.0.0",
    "private": true,
    "description": "Quanta 出题工具链：脚手架、离线预检、上传与发布（qpc）",
    "license": "ISC",

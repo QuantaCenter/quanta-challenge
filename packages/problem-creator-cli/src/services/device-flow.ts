@@ -12,6 +12,7 @@ import {
 import { CliError, PrecheckError } from '../core/errors';
 import type { Logger } from '../core/logger';
 import { sleep } from '../utils/async';
+import { CLI_VERSION } from '../version';
 
 export interface DeviceFlowOptions {
    baseUrl: string;
@@ -63,7 +64,7 @@ const postForm = async (
             // 但这里按规范发送，避免依赖服务端的宽松解析。
             'content-type': 'application/x-www-form-urlencoded',
             accept: 'application/json',
-            'user-agent': 'qpc/0.1.0 (quanta-problem-creator)',
+            'user-agent': `qpc/${CLI_VERSION} (quanta-problem-creator)`,
          },
          body: new URLSearchParams(body).toString(),
          signal,
@@ -132,7 +133,7 @@ export const createDeviceFlow = (options: DeviceFlowOptions): DeviceFlow => {
       for (;;) {
          if (Date.now() >= deadline) {
             throw new CliError('设备授权码已过期', {
-               hint: '重新执行 `qpc login --device` 会生成新的验证码。',
+               hint: '重新执行 `qpc login` 会生成新的验证码。',
             });
          }
 
@@ -184,11 +185,11 @@ export const createDeviceFlow = (options: DeviceFlowOptions): DeviceFlow => {
             );
          } else if (error === DEVICE_FLOW_ERRORS.accessDenied) {
             throw new PrecheckError('授权被拒绝', {
-               hint: '你在确认页点击了拒绝；重新执行 `qpc login --device` 可再试一次。',
+               hint: '你在确认页点击了拒绝；重新执行 `qpc login` 可再试一次。',
             });
          } else if (error === DEVICE_FLOW_ERRORS.expiredToken) {
             throw new CliError('设备授权码已失效（可能已被使用）', {
-               hint: '重新执行 `qpc login --device`。',
+               hint: '重新执行 `qpc login`。',
             });
          } else {
             throw new CliError(

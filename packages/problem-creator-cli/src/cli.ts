@@ -6,12 +6,7 @@ import { toCliError } from './core/errors';
 import { EXIT } from './core/exit-codes';
 import { createLogger } from './core/logger';
 import { type CliRuntime, createProcessRuntime } from './core/runtime';
-import {
-   CLI_DESCRIPTION,
-   CLI_NAME,
-   CLI_REPOSITORY_HINT,
-   CLI_VERSION,
-} from './version';
+import { CLI_DESCRIPTION, CLI_NAME, CLI_VERSION } from './version';
 
 /**
  * 创建命令树。
@@ -44,7 +39,6 @@ export const createProgram = (runtime: CliRuntime): Command => {
       .option('--verbose', '输出调试信息')
       .option('--no-color', '禁用彩色输出')
       .option('-y, --yes', '跳过交互确认（CI 必给）')
-      .addHelpText('after', `\n${CLI_REPOSITORY_HINT}`)
       .showHelpAfterError('（用 `qpc --help` 查看全部用法）')
       .configureOutput({
          writeOut: (chunk) => runtime.stdout(chunk),

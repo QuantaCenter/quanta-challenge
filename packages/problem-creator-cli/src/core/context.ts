@@ -54,7 +54,8 @@ const resolveColor = (options: GlobalOptions, runtime: CliRuntime): boolean => {
  * 组装一次命令执行所需的全部上下文。
  *
  * 优先级：命令行参数 > 环境变量 > 凭据文件 > 内置默认值。
- * 反过来（凭据覆盖 --api）会出现"明明传了 --api 却连到旧地址"的经典事故。
+ * 反过来（凭据覆盖 --api / QUANTA_API_URL）会出现"明明指定了新地址却连到上次登录的老地址"的经典事故；
+ * 凭据里的 apiUrl 只在没有任何显式地址时作为回落。
  */
 export const createCommandContext = async (
    options: GlobalOptions,
@@ -80,10 +81,12 @@ export const createCommandContext = async (
    const credentialsFile = credentialsPath(env.configDir);
    const stored = await readCredentials(credentialsFile);
 
-   const apiUrl = (options.api ?? stored.apiUrl ?? env.apiUrl).replace(
-      /\/+$/,
-      '',
-   );
+   const apiUrl = (
+      options.api ??
+      env.apiUrlFromEnv ??
+      stored.apiUrl ??
+      env.apiUrl
+   ).replace(/\/+$/, '');
    const credentials: Credentials = {
       ...stored,
       apiUrl,

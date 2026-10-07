@@ -3,7 +3,14 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
-## [Unreleased]
+## [1.0.0] - 2026-10-07
+
+### Changed
+
+- `qpc login` 默认改为设备码授权（等价于原来的 `qpc login --device`）：
+  不带参数直接申请验证码并打开浏览器。密码登录需显式给 `--email` 或
+  `--password-stdin`（`QUANTA_EMAIL` / `QUANTA_PASSWORD` 仅作为取值来源，
+  不再单独切换流程）。`--show` / `--logout` 行为不变。
 
 ### Removed
 
@@ -12,6 +19,12 @@
   `qpc doctor` 的调度器健康检查，以及 `src/services/judge-api.ts`。
   生产环境下调度器无法从出题人机器直连，而判题脚本归一化（`/code/extract`）
   本就由服务端在 `upload` 时完成，CLI 现在只依赖 Web 应用。
+
+### Fixed
+
+- 显式设置的 `--api` / `QUANTA_API_URL` 之前会被凭据文件里记住的地址
+  （通常是上次登录的 `http://localhost:3000`）覆盖，导致"设了生产地址却一直
+  连本地"。现在优先级为 `--api` > `QUANTA_API_URL` > 凭据文件 > 默认值。
 
 ## [0.2.0] - 2026-10-07
 

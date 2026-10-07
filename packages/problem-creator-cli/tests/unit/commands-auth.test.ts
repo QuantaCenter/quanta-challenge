@@ -173,6 +173,32 @@ describe('qpc login --device（设备码流程）', () => {
       expect(stored.cookies.refresh).toBe('refresh-from-device');
    });
 
+   it('不传任何参数时默认走设备码流程', async () => {
+      const api = createFakeApi(
+         deviceRoutes(() => ({
+            body: {
+               access_token: 'at',
+               refresh_token: 'rt',
+               token_type: 'Bearer',
+               expires_in: 900,
+               scope: 'problem:write',
+            },
+         })),
+      );
+      const { ctx, harness } = await createTestContext({
+         cwd: exampleDir(),
+         env: { QUANTA_CONFIG_DIR: CONFIG_DIR },
+         fetch: api.fetch,
+      });
+
+      await runLogin(ctx, { noBrowser: true });
+
+      expect(api.count('POST', '/api/oauth/device/authorize')).toBe(1);
+      // 默认行为下不能去碰密码登录接口
+      expect(api.count('POST', '/api/trpc/auth.login.email')).toBe(0);
+      expect(harness.out()).toContain('已登录');
+   });
+
    it('用户拒绝时立即失败，不再轮询', async () => {
       const api = createFakeApi(
          deviceRoutes(() => ({

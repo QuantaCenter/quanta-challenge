@@ -29,7 +29,7 @@ node packages/problem-creator-cli/dist/index.js --help
 qpc init my-problem --name "购物车合计" --difficulty easy
 cd my-problem
 qpc check                       # 毫秒级：判题脚本 / 快照 / 分值 / 运行配置
-qpc login --device              # 浏览器里授权登录（无需输入密码）
+qpc login                       # 默认设备码授权（浏览器里确认，无需密码）
 qpc upload --wait               # 上传并等待审计（约 20 秒，出检查点明细）
 qpc publish 123                 # 审计通过后发布（123 是 upload 返回的 pid）
 ```
@@ -43,7 +43,7 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 | `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
-| `qpc login` | 登录并保存凭据；**`--device` 用设备码在浏览器授权（推荐）**；`--show` 查看状态，`--logout` 删除凭据 | 否 |
+| `qpc login` | 登录并保存凭据；**默认走设备码授权**，密码登录用 `--email` / `--password-stdin`；`--show` 查看状态，`--logout` 删除凭据 | 否 |
 | `qpc doctor` | 自检：Node 版本、凭据文件权限、API 可达性、登录角色 | 否 |
 
 全局参数（所有命令通用）：
@@ -138,10 +138,10 @@ $ qpc check
 
 三种方式，按推荐程度排序：
 
-### 1. 设备码授权（推荐，无需输入密码）
+### 1. 设备码授权（默认，无需输入密码）
 
 ```bash
-qpc login --device
+qpc login              # 不带任何参数即设备码；--device 仍可显式指定
 ```
 
 ```
@@ -161,15 +161,19 @@ qpc login --device
 - 密码不经过 CLI（由浏览器在正规登录页处理），也不进 shell history。
 - 验证码 **10 分钟**有效，输错超过 **5 次**会作废会话（RFC 8628 §5.1 的爆破防护）。
 - 页面上会显示待授权的**账号与应用**，并列出即将授予的**权限**；必须显式点"同意"。
-- 无浏览器环境（SSH/跳板机）：`qpc login --device --no-browser`，
+- 无浏览器环境（SSH/跳板机）：`qpc login --no-browser`，
   然后在**任意设备**的浏览器里打开打印出的地址并输入验证码。
 
-### 2. 邮箱 + 密码
+### 2. 邮箱 + 密码（显式指定）
 
 ```bash
-qpc login                       # 交互式，密码不回显
-echo "$PASSWORD" | qpc login --password-stdin   # CI（推荐用管道而非参数）
+qpc login --email you@example.com               # 交互式，密码不回显
+echo "$PASSWORD" | qpc login --email you@example.com --password-stdin   # CI
 ```
+
+> 只有给了 `--email` / `--password-stdin` 才会走密码登录；
+> `QUANTA_EMAIL` / `QUANTA_PASSWORD` 只是这两个参数的取值来源，
+> 单独存在时不会改变默认（设备码）行为。
 
 ### 3. 直接注入令牌（适合一次性脚本）
 
