@@ -221,6 +221,12 @@ export default defineNuxtConfig({
 
    nitro: {
       externals: {
+         // dayjs 的 package.json 没有 exports 字段，只声明了 main。Nitro 默认把它
+         // 作为 external 原样留在产物里（.output/server/node_modules），而产物中的
+         // 裸导入 `dayjs/plugin/utc` 在 Node 24 ESM 下不会自动补 .js，启动即报
+         // ERR_MODULE_NOT_FOUND 并退出。内联后由构建期解析，不再漏到运行时。
+         // 注意：matcher 是 id.startsWith('dayjs')，plugin/* 子路径会一并内联。
+         inline: ['dayjs'],
          external: ['@prisma/client', '.prisma/client'],
       },
       devProxy: { host: '127.0.0.1' },
