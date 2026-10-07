@@ -14,6 +14,7 @@ import PreviewPanel from './_modules/PreviewPanel.vue';
 import { useWebContainer } from '../../_composables/use-web-container';
 import DetailWindow from './_components/DetailWindow.vue';
 import CommitModal from './_components/CommitModal.vue';
+import EditorBoardLayout from './_components/EditorBoardLayout.vue';
 import { useCommands } from '../../_composables/use-commands/index';
 import { useFileChangeSync } from './_composables/use-file-change-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
@@ -517,11 +518,14 @@ useSeoMeta({
          :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
-         <StSplitPanel
-            direction="horizontal"
-            class="size-full"
-            :start-percent="23">
-            <template #start>
+         <!--
+            三个板块（资源管理器 / 代码编辑器+终端 / 实时预览）由 EditorBoardLayout 承载：
+            · 拖动板块左上角的把手到另一个板块位置即可**换位**（顺序持久化）
+            · 拖动板块之间的分隔条调整宽度（宽度跟着板块走）
+            板块内容通过具名插槽传进去，因此 ref / props 都留在本页，组件不会被重挂。
+         -->
+         <EditorBoardLayout>
+            <template #board-files>
                <FileManagerPanel
                   :dir-loader="dirLoader"
                   :file-loader="fileLoader"
@@ -535,42 +539,38 @@ useSeoMeta({
                   @add-file="handleAddFile"
                   @add-folder="handleAddFolder" />
             </template>
-            <template #end>
+
+            <template #board-code>
                <StSplitPanel
-                  direction="horizontal"
+                  direction="vertical"
                   class="size-full"
-                  :start-percent="55">
+                  storage-key="editor.code-terminal"
+                  :start-percent="65">
                   <template #start>
-                     <StSplitPanel
-                        direction="vertical"
-                        class="size-full"
-                        :start-percent="65">
-                        <template #start>
-                           <CodeEditorPanel
-                              ref="code-editor"
-                              v-model:current-file-path="selectedFilePath"
-                              :get-wc-instance="getInstance"
-                              :default-fs="pathContentMap" />
-                        </template>
-                        <template #end="panelMethods">
-                           <TerminalPanel
-                              ref="terminal"
-                              v-bind="panelMethods"
-                              @add-terminal="addTerminal" />
-                        </template>
-                     </StSplitPanel>
+                     <CodeEditorPanel
+                        ref="code-editor"
+                        v-model:current-file-path="selectedFilePath"
+                        :get-wc-instance="getInstance"
+                        :default-fs="pathContentMap" />
                   </template>
-                  <template #end>
-                     <PreviewPanel
-                        :steps="steps"
-                        :current-step="currentStep"
-                        :preview-url="previewUrl"
-                        :host-name="hostName"
-                        :unsupported-reason="unsupportedReason" />
+                  <template #end="panelMethods">
+                     <TerminalPanel
+                        ref="terminal"
+                        v-bind="panelMethods"
+                        @add-terminal="addTerminal" />
                   </template>
                </StSplitPanel>
             </template>
-         </StSplitPanel>
+
+            <template #board-preview>
+               <PreviewPanel
+                  :steps="steps"
+                  :current-step="currentStep"
+                  :preview-url="previewUrl"
+                  :host-name="hostName"
+                  :unsupported-reason="unsupportedReason" />
+            </template>
+         </EditorBoardLayout>
       </StSpace>
    </StSpace>
 </template>

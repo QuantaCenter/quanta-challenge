@@ -7,7 +7,10 @@ const props = defineProps<{ id: number }>();
 
 <template>
    <StSpace fill center>
-      <StSplitPanel direction="horizontal" :start-percent="25">
+      <StSplitPanel
+         direction="horizontal"
+         storage-key="record.list-detail"
+         :start-percent="25">
          <template #start>
             <CommitRecordsPanel :id="props.id" />
          </template>

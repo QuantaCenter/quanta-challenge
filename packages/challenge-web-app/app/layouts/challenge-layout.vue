@@ -17,6 +17,9 @@ const toggleDetailWindow = () => {
    store.detailWindowOpened = !store.detailWindowOpened;
 };
 
+/** 侧边栏「布局」菜单的开关 */
+const layoutMenuOpened = ref(false);
+
 /**
  * 提交事件。
  *
@@ -149,7 +152,9 @@ const avatarUrl = computed(() => {
 
                   <TimerWidget :toolbar="true" />
 
-                  <StMiniSidebarButton name="布局">
+                  <StMiniSidebarButton
+                     name="布局"
+                     @click="layoutMenuOpened = true">
                      <LayoutFour class="text-[1.1rem]" />
                   </StMiniSidebarButton>
                </StSpace>
@@ -184,6 +189,9 @@ const avatarUrl = computed(() => {
 
          <!-- 对话框覆盖层 -->
          <DialogOverlay />
+
+         <!-- 布局设置（面板比例 / 锁定 / 恢复默认） -->
+         <ChallengeLayoutMenu v-model:opened="layoutMenuOpened" />
       </div>
    </StMessageProvider>
 </template>
