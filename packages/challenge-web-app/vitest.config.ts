@@ -39,5 +39,9 @@ export default defineConfig({
       environment: 'node',
       // 这些 spec 都是纯单测（prisma 一律 mock / 代理），不需要真实数据库
       include: ['{app,server,lib}/**/*.{test,spec}.ts'],
+      // 只跑测试目录里的 spec；fixture（redis 替身）不匹配 *.spec.ts，不会被当测试收集
+      exclude: ['**/node_modules/**', '**/.nuxt/**', '**/.output/**', '**/dist/**'],
+      // 设备授权用例含真实计时（轮询间隔累加），默认 5s 会误报超时
+      testTimeout: 15_000,
    },
 });

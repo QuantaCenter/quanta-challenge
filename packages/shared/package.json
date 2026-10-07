@@ -27,6 +27,9 @@
       },
       "./openapi": {
          "import": "./service/openapi/sign.ts"
+      },
+      "./oauth": {
+         "import": "./service/oauth/device-flow.ts"
       }
    },
    "main": "index.js",
