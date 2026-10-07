@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import {
+   Avatar,
    DashboardTwo,
-   Plus,
    Ranking,
    SettingTwo,
    TableReport,
@@ -60,8 +60,8 @@ const role = computed(() => authStore.user?.role ?? 'USER');
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
          </StSpace>
-         <StSidebarNavigationButton to="#">
-            <Plus />
+         <StSidebarNavigationButton to="/app/space">
+            <Avatar />
          </StSidebarNavigationButton>
       </StSpace>
    </aside>
