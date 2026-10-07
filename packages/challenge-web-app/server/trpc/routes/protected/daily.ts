@@ -2,9 +2,14 @@ import z from 'zod';
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import dayjs from 'dayjs';
 import { TRPCError } from '@trpc/server';
 import { dailyService } from '../../services/daily';
+import {
+   fromDailyDate,
+   getDailyDateKey,
+   secondsUntilNextDailyDay,
+   toDailyDate,
+} from '~~/server/utils/daily-date';
 
 function hasDailyCheckin(userId: string, date: Date) {
    return prisma.dailyCheckin.findFirst({
@@ -14,7 +19,7 @@ function hasDailyCheckin(userId: string, date: Date) {
 
 const hasCheckedinProcedure = protectedProcedure.query(async ({ ctx }) => {
    const { userId } = ctx.user;
-   const today = dayjs().startOf('day').toDate();
+   const today = toDailyDate(getDailyDateKey());
    const checkin = await hasDailyCheckin(userId, today);
    return !!checkin;
 });
@@ -47,7 +52,7 @@ const hasCompletedDailyProblemProcedure = protectedProcedure.query(
 
 const dailyCheckinProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    const { userId } = ctx.user;
-   const today = dayjs().startOf('day').toDate();
+   const today = toDailyDate(getDailyDateKey());
 
    const hasCheckin = await hasDailyCheckin(userId, today);
    if (hasCheckin) {
@@ -109,13 +114,12 @@ const continuesCheckinCountProcedure = protectedProcedure.query(
 
       const count = await dailyService.countContinuesCheckin(userId);
 
-      // 缓存到 0 点
-      const tomorrow = dayjs().add(1, 'day').startOf('day');
+      // 缓存到业务日次日 0 点，避免跨天后仍然回上一次的连签天数。
       await redis.set(
          cacheKey,
          count.toString(),
          'EX',
-         tomorrow.diff(dayjs(), 'second')
+         secondsUntilNextDailyDay()
       );
 
       return count;
@@ -137,24 +141,22 @@ const getCheckedinDatesProcedure = protectedProcedure
    .input(GetCheckedinDatesSchema)
    .query(async ({ ctx, input }) => {
       const { userId } = ctx.user;
-      const start = dayjs(input.startDate).startOf('day');
-      const end = dayjs(input.endDate).endOf('day');
+      const start = toDailyDate(input.startDate);
+      const end = toDailyDate(input.endDate);
 
-      if (end.isBefore(start, 'day')) {
+      if (end < start) {
          return [];
       }
 
       const checkins = await prisma.dailyCheckin.findMany({
          where: {
             userId,
-            date: { gte: start.toDate(), lte: end.toDate() },
+            date: { gte: start, lte: end },
          },
          select: { date: true },
       });
 
-      return checkins.map((checkin) =>
-         dayjs(checkin.date).format('YYYY-MM-DD')
-      );
+      return checkins.map((checkin) => fromDailyDate(checkin.date));
    });
 
 export const dailyRouter = router({

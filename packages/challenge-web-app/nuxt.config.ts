@@ -108,6 +108,9 @@ export default defineNuxtConfig({
             'dayjs',
             'dayjs/plugin/duration',
             'dayjs/plugin/relativeTime',
+            // 服务端每日一题的时区计算用到，避免运行时再触发一次预构建
+            'dayjs/plugin/utc',
+            'dayjs/plugin/timezone',
             'dayjs/locale/zh-cn',
             '@trpc/client',
             '@trpc/server',

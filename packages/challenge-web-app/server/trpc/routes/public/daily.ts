@@ -1,8 +1,12 @@
 import z from 'zod';
 import { TRPCError } from '@trpc/server';
-import dayjs from 'dayjs';
 import prisma from '~~/lib/prisma';
 import { renderThumbhashDataUrl } from '~~/server/utils/thumbhash';
+import {
+   getDailyDateKey,
+   isValidDateKey,
+   toDailyDate,
+} from '~~/server/utils/daily-date';
 import { publicProcedure, router } from '../../trpc';
 import { dailyService } from '../../services/daily';
 
@@ -72,10 +76,17 @@ const getDailyProblemSchema = z
 const getDailyProblemProcedure = publicProcedure
    .input(getDailyProblemSchema)
    .query(async ({ input }) => {
-      const today = dayjs().startOf('day');
-      const targetDate = input?.date ? dayjs(input.date).startOf('day') : today;
+      const todayKey = getDailyDateKey();
+      const targetKey = input?.date ?? todayKey;
 
-      if (targetDate.isAfter(today, 'day')) {
+      if (!isValidDateKey(targetKey)) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '日期格式应为 YYYY-MM-DD',
+         });
+      }
+
+      if (targetKey > todayKey) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: '不能查询未来日期的每日一题',
@@ -83,9 +94,9 @@ const getDailyProblemProcedure = publicProcedure
       }
 
       // 今日：查不到记录时自动抽取并落库
-      if (targetDate.isSame(today, 'day')) {
+      if (targetKey === todayKey) {
          const result = await prisma.dailyProblem.findFirst({
-            where: { date: today.toDate() },
+            where: { date: toDailyDate(targetKey) },
             select: { baseProblem: { select: problemQuery } },
          });
          if (result) {
@@ -98,7 +109,7 @@ const getDailyProblemProcedure = publicProcedure
 
       // 往日：仅查询已存在的记录，不存在则视为当日无题目
       const result = await prisma.dailyProblem.findFirst({
-         where: { date: targetDate.toDate() },
+         where: { date: toDailyDate(targetKey) },
          select: { baseProblem: { select: problemQuery } },
       });
 
