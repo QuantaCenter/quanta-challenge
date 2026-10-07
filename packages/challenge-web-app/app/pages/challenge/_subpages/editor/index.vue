@@ -6,6 +6,7 @@ import {
    splitPath,
    toProjectMountPath,
 } from '~/utils/path-utils';
+import { toSeoText } from '~/utils/seo-text';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import FileManagerPanel from './_modules/FileManagerPanel.vue';
 import CodeEditorPanel from './_modules/CodeEditorPanel.vue';
@@ -495,11 +496,20 @@ const steps = [
 ];
 
 // seo enhancement
+//
+// 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。
+// unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段
+// HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器
+// 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
+const seoDescription = computed(() =>
+   toSeoText(problem.value?.detail).slice(0, 100)
+);
+
 useSeoMeta({
    title: `#${props.id} ${problem.value?.title} - Quanta Challenge`,
-   description: problem.value?.detail.slice(0, 100),
+   description: seoDescription,
    ogTitle: `#${props.id} ${problem.value?.title} - Quanta Challenge`,
-   ogDescription: problem.value?.detail.slice(0, 100),
+   ogDescription: seoDescription,
    ogImage: `${appBaseUrl}/api/static/${problem.value?.coverImageName}`,
    ogUrl: `${appBaseUrl}/challenge/${props.id}`,
    ogSiteName: 'Quanta Challenge',
