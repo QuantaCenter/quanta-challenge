@@ -19,8 +19,10 @@ const props = defineProps<{
  *
  * 必须保留 `project/` 这一级：
  *   · 调度器把快照原样还原到 live-server 容器的 /app 下；
- *   · live-server 镜像与题目的 `initCommand`（`npx serve -l 3000 project`）都以
- *     `project` 子目录为站点根（见 packages/challenge-agents/live-server/Dockerfile）。
+ *   · live-server 镜像与题目的 `initCommand`（`npx -y serve@14.2.6 -l 3000 project`，
+ *     锁版本 + 免交互写法；见 docs/PROBLEM_AUTHORING.md 坑 11：**不要加 `--no-clipboard`**，
+ *     加了 WebContainer 会起不来）
+ *     都以 `project` 子目录为站点根（见 packages/challenge-agents/live-server/Dockerfile）。
  *
  * 原实现用 `path.slice(distDir.length)` 把 `project/` 前缀削掉，只有当用户的代码被
  * 错误地多挂了一层 `project/` 时才恰好还原成 `/project/...`；编辑器修好重复目录后，

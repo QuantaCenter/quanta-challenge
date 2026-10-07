@@ -33,6 +33,9 @@
   13. WebContainer boot 命令阻塞提交 — npx serve -l 3000 长驻进程不退出，process.exit 永久等待，hasProjectInitialized
   永远 false，提交按钮禁用。解决：启动命令留空，改用初始化命令跑 shell
   14. 预览显示目录列表 — serve 从 workspace 根目录启动，文件在 /project/ 子目录。解决：npx serve -l 3000 project
+      （以上是当时的历史记录。现行写法是 npx -y serve@14.2.6 -l 3000 project —— 锁死版本号 + 免去手动确认，
+       真机验证可用。注意**不要加 --no-clipboard**：一次性加了三样的那一版让在线开发容器
+       直接起不来，详见 docs/PROBLEM_AUTHORING.md 坑 11 的真机验证表）
   15. NODE_OPTIONS 语法 Windows 不兼容 — 单引号赋值语法在 cmd 中报错。需用 set 或者干脆不加（16GB 内存够用）
   16. 僵尸进程占端口 — 多次 taskkill 残留 Node 进程，新实例监听成功但不响应，curl 超时。解决：netstat -ano | findstr
   :3000 + 手动 taskkill /PID

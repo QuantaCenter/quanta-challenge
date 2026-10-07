@@ -167,8 +167,34 @@ curl -I http://localhost:3000/api/static/<name>
 ### 🟠 坑 11：`initCommand` 必须让站点根目录 = 上传目录
 
 `judgeUploadPath=project` + 快照键为 `/project/...` → 页面在 `<mount>/project/index.html`。
-因此启动命令必须是 `npx serve -l 3000 project` 而不是 `npx serve -l 3000`
-（后者把 `<mount>` 当根，找不到 index.html，判题脚本一直等选择器直到超时）。
+因此启动命令必须是 `npx -y serve@14.2.6 -l 3000 project`，三个部分都不能省：
+
+- **站点根目录参数 `project`** —— 写成 `npx serve -l 3000` 会把 `<mount>` 当根，
+  找不到 index.html，判题脚本一直等选择器直到超时。
+- **`serve@14.2.6`（锁版本）** —— 写成 `npx serve` 每次都会解析 npm 的 `latest`：
+  上游一发新版，学生端预览行为就会无声变化（而判题镜像里的 live-server 不跟着变），
+  也就是"环境漂移"。
+- **`-y`（免交互）** —— npx 首次需要下载 `serve` 时会问 `Ok to proceed? (y)`，而这条
+  命令是写进 WebContainer 的 `sh` 会话里执行的，没有人替它回答 → 环境初始化卡住。
+
+### ⚠️ 这条命令必须真机验证，且一次只加一个参数
+
+这条命令跑在 WebContainer 里（见 `app/pages/challenge/_subpages/editor/index.vue` 的
+`runProject`）。**本地、CI、单测都测不到它**——它们不跑 WebContainer。真机验证记录：
+
+| 写法 | 结果 |
+|---|---|
+| `npx serve -l 3000 project` | ✅ 可用（原始写法，未锁版本） |
+| `npx serve@14.2.6 -l 3000 project` | ✅ 可用（＋锁版本） |
+| `npx -y serve@14.2.6 -l 3000 project` | ✅ 可用（**现行写法**：＋免交互，2026-10-07 真机确认） |
+| `npx -y serve@14.2.6 -l 3000 project --no-clipboard` | ❌ **在线开发容器直接起不来**；改回后立刻恢复。这一版是**一次性加了三样**，而锁版本与 `-y` 之后都已单独验证可用，因此嫌疑集中在 `--no-clipboard`（但它本来就没必要，不要再试） |
+
+**规矩**：任何改动都要**一次只加一个参数**，在真实浏览器里确认预览能起来，再推广到
+其它题目。上表中失败的那一版曾一次性改掉 9 道题，导致所有题目的开发容器同时起不来。
+
+> `Cannot copy server address to clipboard: ... xsel ...` 那条报错是**无害噪声**
+> （`serve` 在服务器已监听之后才去写剪贴板，失败只影响一行日志），
+> 不要为了消掉它去加 `--no-clipboard` —— 上面那一版失败的写法里就有它。
 
 ### 🟡 坑 12：判题机长跑会劣化
 
@@ -252,7 +278,7 @@ const arr = await redis.zrevrange(key, 0, -1, 'WITHSCORES');
 - [ ] 所有 `page.click` 都已确认目标按钮在当下是**启用**状态，或已改用合成事件
 - [ ] 断言消息包含"期望 vs 实际"
 - [ ] 快照键统一为 `/project/...`，`judgeUploadPath = 'project'`
-- [ ] `initCommand = 'npx serve -l 3000 project'`
+- [ ] `initCommand = 'npx -y serve@14.2.6 -l 3000 project'`（锁版本 + 免交互；**不要加** `--no-clipboard`，见坑 11 的真机验证表）
 - [ ] `totalScore` = 各检查点分值之和
 - [ ] `tagIds` 用**已存在的** tag id（当前库里只有 `1 = Vue3`）
 - [ ] `coverMode: 'default'` 时必须提供 `referenceAnswerSnapshot`
