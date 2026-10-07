@@ -100,7 +100,6 @@ describe('qpc CLI 骨架', () => {
       const api = createFakeApi({
          'GET /api/trpc/auth.login.getUser': () =>
             trpcError('Required authentication', { status: 401 }),
-         'GET /health': () => ({ body: { ok: true } }),
       });
       const dir = await createTempDir();
       const { harness, exit } = run(['doctor'], { cwd: dir, fetch: api.fetch });

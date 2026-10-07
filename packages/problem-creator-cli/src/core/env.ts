@@ -1,14 +1,12 @@
 import { resolveConfigDir } from '../services/credentials';
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
-export const DEFAULT_JUDGE_URL = 'http://localhost:1888';
 export const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
 /** 5 MiB：与任务快照的实际体量匹配，超过基本意味着把构建产物打进去了 */
 export const DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 
 export interface EnvConfig {
    apiUrl: string;
-   judgeUrl: string;
    token: string | undefined;
    timeoutMs: number;
    maxUploadBytes: number;
@@ -29,7 +27,6 @@ export const resolveEnvConfig = (
    env: NodeJS.ProcessEnv = process.env,
 ): EnvConfig => ({
    apiUrl: env.QUANTA_API_URL?.trim() || DEFAULT_API_URL,
-   judgeUrl: env.QUANTA_JUDGE_URL?.trim() || DEFAULT_JUDGE_URL,
    token: env.QUANTA_TOKEN?.trim() || undefined,
    timeoutMs: parsePositiveInt(
       env.QUANTA_HTTP_TIMEOUT,

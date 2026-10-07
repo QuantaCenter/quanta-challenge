@@ -14,7 +14,6 @@ import type { CliRuntime } from './runtime';
 /** 全局参数（root command），子命令通过 optsWithGlobals() 取到 */
 export interface GlobalOptions {
    api?: string;
-   judge?: string;
    token?: string;
    cwd?: string;
    json?: boolean;
@@ -85,8 +84,6 @@ export const createCommandContext = async (
       /\/+$/,
       '',
    );
-   const judgeUrl = (options.judge ?? env.judgeUrl).replace(/\/+$/, '');
-
    const credentials: Credentials = {
       ...stored,
       apiUrl,
@@ -122,7 +119,7 @@ export const createCommandContext = async (
       runtime,
       logger,
       cwd,
-      env: { ...env, apiUrl, judgeUrl },
+      env: { ...env, apiUrl },
       credentialsFile,
       credentials,
       client,

@@ -11,7 +11,7 @@
 
 ```
 commands ──▶ domain      （纯业务规则，无 IO 之外依赖）
-    │    └─▶ services    （HTTP / tRPC / 凭据 / judge）
+    │    └─▶ services    （HTTP / tRPC / 凭据）
     └──────▶ ui          （渲染报告：人类可读 + JSON）
                 │
 core（context / logger / errors / runtime / env）与 utils 被所有层使用
@@ -76,8 +76,9 @@ GET /api/trpc/admin.problem.getAuditDetail 轮询
 3. 需要真实内容时，用**相同下标**从原串切片，再解析字符串/数字字面量。
 
 已知边界（写在这里而不是假装没有）：跨行正则里含未配对括号的极端写法、
-动态生成的判题脚本无法分析。这两类问题都能被服务端的 `/code/extract` 兜住，
-所以 `qpc check --judge` 提供"真的让调度器编译一次"的选项。
+动态生成的判题脚本无法分析。这两类问题都能被服务端的 `/code/extract` 兜住：
+`qpc upload` 时服务端会再编译一次，脚本不合格会在上传阶段直接返回 400。
+CLI 因此不再直连调度器（生产环境下出题人机器也连不上）。
 
 ## 四点五、登录方式：为什么是设备码
 

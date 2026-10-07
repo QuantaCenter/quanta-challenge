@@ -29,7 +29,6 @@ node packages/problem-creator-cli/dist/index.js --help
 qpc init my-problem --name "购物车合计" --difficulty easy
 cd my-problem
 qpc check                       # 毫秒级：判题脚本 / 快照 / 分值 / 运行配置
-qpc check --judge               # 再让判题调度器编译一次脚本（需要调度器在跑）
 qpc login --device              # 浏览器里授权登录（无需输入密码）
 qpc upload --wait               # 上传并等待审计（约 20 秒，出检查点明细）
 qpc publish 123                 # 审计通过后发布（123 是 upload 返回的 pid）
@@ -40,18 +39,17 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 | 命令 | 作用 | 需要登录 |
 |---|---|---|
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
-| `qpc check [dir]` | 离线预检；`--strict` 让警告也失败，`--judge` 额外做服务端编译验证 | 否 |
+| `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
 | `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
 | `qpc login` | 登录并保存凭据；**`--device` 用设备码在浏览器授权（推荐）**；`--show` 查看状态，`--logout` 删除凭据 | 否 |
-| `qpc doctor` | 自检：Node 版本、凭据文件权限、API 可达性、登录角色、判题调度器 | 否 |
+| `qpc doctor` | 自检：Node 版本、凭据文件权限、API 可达性、登录角色 | 否 |
 
 全局参数（所有命令通用）：
 
 ```
 --api <url>     Web 应用地址（默认 QUANTA_API_URL 或 http://localhost:3000）
---judge <url>   判题调度器地址（默认 QUANTA_JUDGE_URL 或 http://localhost:1888）
 --token <token> 直接使用访问令牌（默认 QUANTA_TOKEN，不会落盘）
 --cwd <dir>     指定题目根目录（解析顺序：--cwd > INIT_CWD > 进程 cwd）
 --json          输出机器可读 JSON（stdout 只有一份结果，日志走 stderr）

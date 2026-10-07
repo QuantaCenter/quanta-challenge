@@ -3,6 +3,16 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+### Removed
+
+- 移除 CLI 直连判题调度器的能力：删除全局参数 `--judge`、环境变量
+  `QUANTA_JUDGE_URL` 与 `DEFAULT_JUDGE_URL`、`qpc check --judge`、
+  `qpc doctor` 的调度器健康检查，以及 `src/services/judge-api.ts`。
+  生产环境下调度器无法从出题人机器直连，而判题脚本归一化（`/code/extract`）
+  本就由服务端在 `upload` 时完成，CLI 现在只依赖 Web 应用。
+
 ## [0.2.0] - 2026-10-07
 
 ### Added

@@ -237,7 +237,6 @@ const result = await $trpc.protected.myEndpoint.query();
 ```bash
 pnpm qpc init my-problem --name "购物车合计"   # 生成题目骨架
 pnpm qpc check my-problem                      # 毫秒级预检（判题脚本/快照/分值）
-pnpm qpc check my-problem --judge              # 再让调度器编译一次判题脚本
 pnpm qpc login --device                        # 浏览器里授权登录（无需输入密码）
 pnpm qpc upload my-problem --wait              # 上传并打印审计的检查点明细
 pnpm qpc publish <pid>                         # 审计通过后发布

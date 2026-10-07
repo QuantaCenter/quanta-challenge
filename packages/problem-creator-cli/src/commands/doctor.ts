@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import type { CommandContext } from '../core/context';
 import { ApiError, CliError } from '../core/errors';
 import { DEFAULT_CONFIG_FILES } from '../domain/problem-config';
-import { createJudgeApi } from '../services/judge-api';
 import { describeTokenExpiry } from '../utils/jwt';
 import type { CommandRegistry } from './registry';
 import { summarizeUser } from './support';
@@ -27,7 +26,7 @@ export const registerDoctorCommand = (registry: CommandRegistry): void => {
 
    program
       .command('doctor')
-      .description('自检：运行环境、API 可达性、登录状态、判题调度器')
+      .description('自检：运行环境、API 可达性、登录状态')
       .action(async () => {
          const ctx = await context();
          await runDoctor(ctx);
@@ -44,7 +43,6 @@ export const runDoctor = async (ctx: CommandContext): Promise<void> => {
 
    results.push(await checkApiReachable(ctx));
    results.push(await checkSession(ctx));
-   results.push(await checkJudgeServer(ctx));
 
    const configFile = DEFAULT_CONFIG_FILES.map((name) =>
       existsSync(join(ctx.cwd, name)),
@@ -78,7 +76,6 @@ export const runDoctor = async (ctx: CommandContext): Promise<void> => {
          ok: failures.length === 0,
          checks: results,
          apiUrl: ctx.env.apiUrl,
-         judgeUrl: ctx.env.judgeUrl,
          credentialsFile: ctx.credentialsFile,
       });
    }
@@ -196,24 +193,4 @@ const checkSession = async (ctx: CommandContext): Promise<CheckResult> => {
          fix: 'qpc login（凭据可能已过期或被服务端密钥轮换失效）',
       };
    }
-};
-
-const checkJudgeServer = async (ctx: CommandContext): Promise<CheckResult> => {
-   const api = createJudgeApi({
-      baseUrl: ctx.env.judgeUrl,
-      fetch: ctx.runtime.fetch,
-      timeoutMs: 5_000,
-      signal: ctx.runtime.signal,
-   });
-   const healthy = await api.ping();
-   return {
-      name: '判题调度器',
-      status: healthy ? 'ok' : 'warn',
-      detail: healthy
-         ? `${ctx.env.judgeUrl} /health`
-         : `${ctx.env.judgeUrl} 不可达`,
-      fix: healthy
-         ? undefined
-         : '启动调度器（docker compose up -d）；只跑 qpc check 的话可以忽略这一项',
-   };
 };

@@ -236,7 +236,6 @@ describe('qpc doctor', () => {
                   role: 'ADMIN',
                },
             }),
-         'GET /health': () => ({ body: { status: 'ok' } }),
       });
       const { ctx, harness } = await createTestContext({
          cwd: exampleDir(),
@@ -248,7 +247,6 @@ describe('qpc doctor', () => {
       await runDoctor(ctx);
 
       expect(harness.out()).toContain('全部检查通过');
-      expect(harness.out()).toContain('判题调度器');
    });
 
    it('API 不可达时失败并给出启动建议', async () => {
@@ -268,7 +266,6 @@ describe('qpc doctor', () => {
       const api = createFakeApi({
          'GET /api/trpc/auth.login.getUser': () =>
             trpcError('Required authentication', { status: 401 }),
-         'GET /health': () => ({ body: { status: 'ok' } }),
       });
       const { ctx, harness } = await createTestContext({
          cwd: exampleDir(),

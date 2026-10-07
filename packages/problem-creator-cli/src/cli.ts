@@ -32,10 +32,6 @@ export const createProgram = (runtime: CliRuntime): Command => {
          'Web 应用地址（默认 QUANTA_API_URL 或 http://localhost:3000）',
       )
       .option(
-         '--judge <url>',
-         '判题调度器地址（默认 QUANTA_JUDGE_URL 或 http://localhost:1888）',
-      )
-      .option(
          '--token <token>',
          '直接使用访问令牌（默认 QUANTA_TOKEN；不会写入凭据文件）',
       )
@@ -68,7 +64,6 @@ export const createProgram = (runtime: CliRuntime): Command => {
       const colorExplicit = program.getOptionValueSource('color') === 'cli';
       return {
          api: asString(options.api),
-         judge: asString(options.judge),
          token: asString(options.token),
          cwd: asString(options.cwd),
          json: Boolean(options.json),
