@@ -93,7 +93,15 @@ export class AchievementObserver {
       achievementId: number,
       injectVars?: Record<string, any>,
    ) {
-      const userId = await this._useUserId();
+      // 优先采用调用方显式传入的 userId。
+      //
+      // 判题完成这类**非用户请求**路径（Nitro webhook，没有 tRPC 中间件建立的
+      // requestContext）里 `_useUserId()` 拿不到人，调用方会用
+      // `manualMarkDirty(paths, { userId })` 把用户带进来。若这里不采用它：
+      //   1) 加载器的 `__ctx.userId` 注入不到值，SQL 直接报
+      //      `missing FROM-clause entry for table "__ctx"`；
+      //   2) 发分监听器收到 userId 为空会立刻 return，成就永远不会落库。
+      const userId = injectVars?.userId ?? (await this._useUserId());
       if (this._affectedAchIds.size === 0) {
          const flushJob = () => {
             const affectedAchIds = Array.from(this._affectedAchIds);
@@ -206,7 +214,16 @@ export class AchievementObserver {
          async (injector) => {
             const vars = await injector();
             injectVars ??= {};
-            vars && typeof vars === 'object' && Object.assign(injectVars, vars);
+            if (vars && typeof vars === 'object') {
+               // 只合并**有值**的键。
+               //
+               // 注入器在无请求上下文时会返回 `{ userId: undefined, ... }`，
+               // 直接 `Object.assign` 会把调用方显式传入的 userId 覆盖掉，
+               // 于是 `__ctx.userId` 又变回缺失 —— 判题完成路径就是这么被绕过去的。
+               for (const [key, value] of Object.entries(vars)) {
+                  if (value !== undefined) injectVars[key] = value;
+               }
+            }
          },
       );
       await Promise.all(injectPromises);
@@ -271,10 +288,13 @@ export class AchievementObserver {
          result = this._queryCache.get(queryId!);
       } else {
          const sqlWithCtx = this._injectCtxIntoSql(context, sql);
-         const temp = (await this._executeQuery(sqlWithCtx)) as {
-            __data: any;
-         }[];
-         result = temp.map((item) => item.__data);
+         // 直接使用 $queryRawUnsafe 返回的行对象。
+         //
+         // 历史注意：6c8abd5 曾把这里改成 `temp.map((item) => item.__data)`，但
+         // _executeQuery 就是原生 prisma.$queryRawUnsafe（@challenge/database 导出的
+         // 是 PrismaClient，全仓库没有任何地方产生 __data 字段），于是每个查询结果都
+         // 变成 [undefined]，成就依赖数据全线失效。这里恢复「原样返回行」的契约。
+         result = await this._executeQuery(sqlWithCtx);
          if (queryId) {
             this._queryCache.set(queryId, result);
             this._dirtyQueries.delete(queryId);
@@ -442,25 +462,36 @@ export class AchievementObserver {
             injectVars,
          );
 
-         let parser: Function;
-         switch (loader.type) {
-            case 'NUMERIC':
-               parser = (val: any) => Number(val);
-               break;
-            case 'BOOLEAN':
-               parser = (val: any) => Boolean(val);
-               break;
-            case 'TEXT':
-               parser = (val: any) => String(val);
-               break;
-            default:
-               parser = (val: any) => val;
-         }
+         /**
+          * 依赖数据加载器的 SQL 约定：结果列必须别名为 `value`，且每个加载器只取这一列
+          * （既有加载器、发布页模板与本文件的全部测试都遵循该约定）。
+          *
+          * 空结果的默认值同样是契约的一部分：
+          *   NUMERIC -> 0，BOOLEAN -> false，TEXT -> ''
+          *
+          * 注意不能把整行对象直接交给类型转换函数：Number({ value: 15 }) 是 NaN，
+          * 这正是 6c8abd5 重构后所有成就判定读到 NaN / undefined、进度恒为 0 的原因。
+          */
+         const normalize = (raw: unknown) => {
+            switch (loader.type) {
+               case 'NUMERIC':
+                  return Number(raw ?? 0);
+               case 'BOOLEAN':
+                  return Boolean(raw ?? false);
+               case 'TEXT':
+                  return String(raw ?? '');
+               default:
+                  return raw;
+            }
+         };
 
-         const parsedResult = result.map((item) => parser(item));
+         const pickValue = (row: any) =>
+            row && typeof row === 'object' ? row.value : row;
+
+         const values = result.map((row) => normalize(pickValue(row)));
          const transformedResult = loader.isList
-            ? parsedResult
-            : parsedResult[0];
+            ? values
+            : (values[0] ?? normalize(undefined));
 
          return {
             name: loader.name,
@@ -477,10 +508,15 @@ export class AchievementObserver {
       );
 
       const defineCheckFunc = (fn: Function) => fn;
-      const checkScript = `${script.replace(
-         'export default ',
-         'const check = ',
-      )}; check(depData);`;
+      // 校验脚本在库里通常以 ESM 片段保存（发布页模板见
+      // app/pages/app/publish/achievement/_drawers/ScriptEditingDrawer.vue：
+      // `export default defineCheckFunc((props) => {...})`）。
+      // 这里必须用**锚定**的正则替换：原先的 `script.replace('export default ', ...)`
+      // 是任意位置替换，脚本体里的字符串/注释只要出现同样字样就会被破坏。
+      // 同时兼容没有 `export default` 的裸函数写法（直接当作表达式赋给 check），
+      // 否则脚本会在 vm 里以 "check is not defined" 失败。
+      const scriptBody = script.replace(/^\s*export\s+default\s+/, '');
+      const checkScript = `const check = ${scriptBody}; check(depData);`;
       try {
          const vm = new VM({
             timeout: 1000,

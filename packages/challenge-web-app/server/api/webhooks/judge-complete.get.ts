@@ -3,6 +3,8 @@ import z from 'zod';
 import { rankService } from '~~/server/trpc/services/rank';
 import { logger } from '~~/lib/logger';
 import { notificationService } from '~~/server/trpc/services/notificatoin';
+import { observer } from '~~/server/trpc/services/achievement';
+import type { ValidPath } from '~~/lib/track-wrapper';
 
 const JudgeCompleteSchema = z.object({
    recordId: z
@@ -86,6 +88,21 @@ export default defineEventHandler(async (event) => {
       content: `您的提交（记录 ID: ${recordId}）已判题完成，结果：${result}，得分：${score} 分。`,
       userId: userId,
    });
+
+   /**
+    * 触发成就判定。
+    *
+    * 为什么必须在这里补一刀：判题结果的 `result / score` 是**判题调度器用自己的
+    * Prisma 客户端直接写库**的（packages/challenge-judge-scheduler/src/mq/
+    * judge-processor/db.ts），Web 端的 TrackWrapper 根本看不到那次写入，
+    * 因此成就观察者不会因为"判题完成"而收到任何通知。结果是「首战告捷」这类
+    * 依赖 result=success 的成就只能在学生**下一次提交**时才被顺带判定。
+    *
+    * 这里显式把 judge_records 标脏，并通过 injectVars 带上 userId ——
+    * 本路由是 server-to-server webhook，没有 tRPC 请求上下文，
+    * 不显式传的话加载器里的 `__ctx.userId` 取不到值。
+    */
+   observer.manualMarkDirty(['judge_records'] as ValidPath[], { userId });
 
    logger.info(
       {

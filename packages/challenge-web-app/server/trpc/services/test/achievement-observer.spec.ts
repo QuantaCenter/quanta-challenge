@@ -2,9 +2,27 @@ import { test, expect, describe, beforeEach, vi } from 'vitest';
 import { TRPCError } from '@trpc/server';
 
 // Mock prisma
+//
+// 注意：这里必须把观察者会用到的模型方法一次性补齐并给出**默认可解析**的实现。
+// AchievementObserver 的构造器内部会 fire-and-forget 地调用 rebuildDepTree()，
+// 而该方法第一件事就是 prisma.achievement.findMany(...)。早先的 mock 只提供了
+// $queryRawUnsafe，于是每个用例都会甩出一条
+//   TypeError: default.achievement.findMany is not a function
+// 的 unhandled rejection（整份测试最终以 "Errors 59" 收场），
+// 并且该异步重建还会和用例里显式的 rebuildDepTree() 竞争。
 vi.mock('@challenge/database', () => ({
    default: {
       $queryRawUnsafe: vi.fn(),
+      achievement: {
+         findMany: vi.fn().mockResolvedValue([]),
+         findUnique: vi.fn().mockResolvedValue(null),
+      },
+      achievementPreAchievement: {
+         findMany: vi.fn().mockResolvedValue([]),
+      },
+      userAchievement: {
+         findUnique: vi.fn().mockResolvedValue(null),
+      },
    },
 }));
 
@@ -17,8 +35,19 @@ const mockPrisma = prisma as any;
 describe('AchievementObserver', () => {
    let observer: AchievementObserver;
 
-   beforeEach(() => {
+   // AchievementObserver 的构造器会 fire-and-forget 调用 rebuildDepTree()，
+   // 而该方法第一步就是 prisma.achievement.findMany(...)。所以每个用例都重建一份完整
+   // mock，并等这次重建落地，否则：
+   //   1) 未补齐模型的用例会抛出 unhandled rejection
+   //      （TypeError: default.achievement.findMany is not a function）；
+   //   2) 构造器内的异步重建会与该用例内显式的 rebuildDepTree() 竞争，造成偶发失败。
+   beforeEach(async () => {
+      mockPrisma.achievement = {
+         findMany: vi.fn().mockResolvedValue([]),
+         findUnique: vi.fn().mockResolvedValue(null),
+      };
       observer = new AchievementObserver(() => null);
+      await new Promise((resolve) => setTimeout(resolve, 0));
       vi.clearAllMocks();
    });
 
@@ -653,10 +682,10 @@ describe('AchievementObserver', () => {
 
    describe('triggerCheckAchievement', () => {
       beforeEach(() => {
-         // Add findUnique mock
-         (mockPrisma as any).achievement = {
-            findUnique: vi.fn(),
-         };
+         // 只重置用到的部分，**不要**整体替换 achievement 对象：
+         // 丢掉 findMany 会让后续用例的构造器在 rebuildDepTree() 里再次抛异常。
+         (mockPrisma as any).achievement.findUnique.mockResolvedValue(null);
+         (mockPrisma as any).achievement.findMany.mockResolvedValue([]);
       });
 
       test('should execute achievement check and return true when condition is met', async () => {
@@ -684,7 +713,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 0.75 });
+         expect(result).toStrictEqual({ achieved: true, progress: 0.75, score: 0 });
          expect(
             (mockPrisma as any).achievement.findUnique
          ).toHaveBeenCalledWith({
@@ -703,10 +732,12 @@ describe('AchievementObserver', () => {
                            name: true,
                            type: true,
                            sql: true,
+                           isList: true,
                         },
                      },
                   },
                },
+               score: true,
             },
          });
       });
@@ -736,7 +767,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: false, progress: 0.5 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0.5, score: 0 });
       });
 
       test('should throw error when achievement validation script is not set', async () => {
@@ -792,7 +823,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: false, progress: 0.8 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0.8, score: 0 });
          expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledTimes(2);
       });
 
@@ -821,7 +852,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 1 });
+         expect(result).toStrictEqual({ achieved: true, progress: 1, score: 0 });
       });
 
       test('should handle TEXT type data loader', async () => {
@@ -849,7 +880,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 1 });
+         expect(result).toStrictEqual({ achieved: true, progress: 1, score: 0 });
       });
 
       test('should handle empty result from data loader', async () => {
@@ -877,7 +908,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: false, progress: 0 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0, score: 0 });
       });
 
       test('should use default values when loader returns no data', async () => {
@@ -923,7 +954,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 1 });
+         expect(result).toStrictEqual({ achieved: true, progress: 1, score: 0 });
       });
 
       test('should throw error when script execution fails', async () => {
@@ -986,7 +1017,7 @@ describe('AchievementObserver', () => {
             injectVars
          );
 
-         expect(result).toStrictEqual({ achieved: false, progress: 0.4 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0.4, score: 0 });
          expect(mockPrisma.$queryRawUnsafe).toHaveBeenCalledWith(
             expect.stringContaining("SELECT 'user123' AS userId")
          );
@@ -1039,7 +1070,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 1 });
+         expect(result).toStrictEqual({ achieved: true, progress: 1, score: 0 });
       });
 
       test('should emit check event with achievement result', async () => {
@@ -1072,7 +1103,7 @@ describe('AchievementObserver', () => {
 
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: false, progress: 0.2 },
+            { achieved: false, progress: 0.2, score: 0 },
             undefined,
             undefined
          );
@@ -1111,7 +1142,7 @@ describe('AchievementObserver', () => {
 
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: false, progress: 0.4 },
+            { achieved: false, progress: 0.4, score: 0 },
             undefined,
             injectVars
          );
@@ -1204,7 +1235,7 @@ describe('AchievementObserver', () => {
          );
          mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ value: 0 }]);
          let result = await observer.triggerCheckAchievement(1);
-         expect(result).toStrictEqual({ achieved: false, progress: 0 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0, score: 0 });
 
          // Test with value 1 (truthy) using a different loader id to avoid cache
          const mockAchievement2 = {
@@ -1228,7 +1259,7 @@ describe('AchievementObserver', () => {
          );
          mockPrisma.$queryRawUnsafe.mockResolvedValueOnce([{ value: 1 }]);
          result = await observer.triggerCheckAchievement(2); // Different achievement id
-         expect(result).toStrictEqual({ achieved: false, progress: 0 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0, score: 0 });
       });
 
       test('should handle undefined script return value', async () => {
@@ -1255,13 +1286,13 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: false, progress: 0 });
+         expect(result).toStrictEqual({ achieved: false, progress: 0, score: 0 });
       });
 
       test('should handle achievement with no dependency data', async () => {
          const mockAchievement = {
             AchievementValidateScript: {
-               script: '(depData) => ({ achieved: true, progress: 1 })',
+               script: '(depData) => ({ achieved: true, progress: 1, score: 0 })',
             },
             AchievementDependencyData: [],
          };
@@ -1272,7 +1303,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: true, progress: 1 });
+         expect(result).toStrictEqual({ achieved: true, progress: 1, score: 0 });
          expect(mockPrisma.$queryRawUnsafe).not.toHaveBeenCalled();
       });
 
@@ -1292,7 +1323,7 @@ describe('AchievementObserver', () => {
 
          const result = await observer.triggerCheckAchievement(1);
 
-         expect(result).toStrictEqual({ achieved: false, progress: 1 });
+         expect(result).toStrictEqual({ achieved: false, progress: 1, score: 0 });
       });
 
       test('should timeout long-running scripts', async () => {
@@ -1426,7 +1457,7 @@ describe('AchievementObserver', () => {
 
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: false, progress: 0.2 },
+            { achieved: false, progress: 0.2, score: 0 },
             undefined,
             undefined
          );
@@ -1489,7 +1520,7 @@ describe('AchievementObserver', () => {
 
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: true, progress: 1 },
+            { achieved: true, progress: 1, score: 0 },
             undefined,
             undefined
          );
@@ -1584,13 +1615,13 @@ describe('AchievementObserver', () => {
          expect(checkListener).toHaveBeenCalledTimes(2);
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: false, progress: 0.4 },
+            { achieved: false, progress: 0.4, score: 0 },
             undefined,
             undefined
          );
          expect(checkListener).toHaveBeenCalledWith(
             2,
-            { achieved: false, progress: 0.8 },
+            { achieved: false, progress: 0.8, score: 0 },
             undefined,
             undefined
          );
@@ -1598,7 +1629,7 @@ describe('AchievementObserver', () => {
          observer.removeListener('check', checkListener);
       });
 
-      test('should pass injectVars to achievement check when provided', async () => {
+      test('injectVars 里的 userId 会被当作本次判定的用户（判题完成路径依赖它）', async () => {
          // Setup dependency tree
          const mockAchievements = [
             {
@@ -1651,10 +1682,13 @@ describe('AchievementObserver', () => {
          // Wait for microtask to complete
          await new Promise((resolve) => setTimeout(resolve, 0));
 
+         // 注意第三个参数：injectVars.userId 必须被当成"这次判定属于谁"。
+         // 判题完成 webhook 里没有请求上下文（_useUserId() 拿不到人），只能靠它把
+         // 用户带进来；若仍传出 undefined，发分监听器会立刻 return，成就永不落库。
          expect(checkListener).toHaveBeenCalledWith(
             1,
-            { achieved: false, progress: 0.4 },
-            undefined,
+            { achieved: false, progress: 0.4, score: 0 },
+            'user123',
             injectVars
          );
 
@@ -1777,7 +1811,7 @@ describe('AchievementObserver', () => {
          expect(checkListener).toHaveBeenCalledTimes(1);
          expect(checkListener).toHaveBeenCalledWith(
             999,
-            { achieved: false, progress: 0.4 },
+            { achieved: false, progress: 0.4, score: 0 },
             undefined,
             undefined
          );
