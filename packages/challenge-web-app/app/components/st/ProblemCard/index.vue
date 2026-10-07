@@ -25,6 +25,7 @@ const imageSrc = computed(() =>
          :src="imageSrc"
          :thumbhash="props.coverImageThumbhash"
          :height="props.imgHeight || '9.76rem'"
+         width="100%"
          alt="Cover Image">
          <template #fallback="{ style }">
             <StSpace

@@ -15,8 +15,9 @@ const props = defineProps<{
 
 const errorLoading = ref(props.src === '' ? true : false);
 
-// 使用 thumbhash 渲染出的占位图（客户端）
-const thumbhashUrl = ref('');
+const thumbhashUrl = computed(() =>
+   props.thumbhash ? thumbhashToDataUrl(props.thumbhash) : ''
+);
 // 原图是否已完整加载；加载完成前不挂载 src，避免浏览器边下边显示
 const imageReady = ref(false);
 
@@ -36,35 +37,13 @@ const objectClass = computed(() => ({
    'object-scale-down': props.object === 'scale-down',
 }));
 
-/**
- * 生成 thumbhash 占位图。
- * 只在客户端执行，服务端渲染时不产出占位图。
- */
-const renderThumbhash = () => {
-   if (!import.meta.client) return;
-   thumbhashUrl.value = props.thumbhash
-      ? thumbhashToDataUrl(props.thumbhash)
-      : '';
-};
-
 let loadToken = 0;
 
-/**
- * 等浏览器真正绘制过一帧（两层 rAF 保证当前状态已经上屏）。
- *
- * 为什么必须等：如果在同一帧里就把 imageReady 置为 true，会同时踩两个坑 ——
- * 1) 占位图还没上屏就被原图覆盖，看起来「占位图和原图同时出现」；
- * 2) opacity 没有「旧值已绘制」这一帧作为起点，CSS 过渡不会触发，变成硬切。
- */
 const nextPaint = () =>
    new Promise<void>((resolve) => {
       requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
    });
 
-/**
- * 预先用 Image 对象把原图完整加载，加载完成后再挂载到 <img> 上渲染。
- * 这样不会出现「边下边显示」的渐进式图片，也能和 thumbhash 占位图做交叉淡入。
- */
 const loadImage = async () => {
    if (!import.meta.client) return;
 
@@ -109,22 +88,13 @@ const loadImage = async () => {
 };
 
 onMounted(() => {
-   renderThumbhash();
    void loadImage();
 });
 
 watch(
    () => props.src,
    () => {
-      renderThumbhash();
       void loadImage();
-   }
-);
-
-watch(
-   () => props.thumbhash,
-   () => {
-      renderThumbhash();
    }
 );
 
