@@ -12,12 +12,24 @@ defineProps<IDateIndicatorProps>();
       }">
       <div
          class="text-[0.625rem]"
-         :class="[triggered ? 'text-accent-500' : 'text-accent-300']">
+         :class="[
+            triggered
+               ? 'text-accent-500'
+               : future
+                 ? 'text-accent-400/70'
+                 : 'text-accent-300',
+         ]">
          {{ dateText }}
       </div>
       <div
          class="font-family-manrope font-bold leading-[80%]"
-         :class="[triggered ? 'text-accent-700' : 'text-white']">
+         :class="[
+            triggered
+               ? 'text-accent-700'
+               : future
+                 ? 'text-white/50'
+                 : 'text-white',
+         ]">
          {{ dateNumber }}
       </div>
       <div

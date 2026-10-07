@@ -3,4 +3,5 @@ export interface IDateIndicatorProps {
    dateNumber: number | string;
    triggered?: boolean;
    checked?: boolean;
+   future?: boolean;
 }
