@@ -19,12 +19,12 @@ const options = [
       iconColor: '#F59E0B',
    },
    {
-      title: '标签管理',
-      description: '创建新标签或管理已有题目标签',
-      url: '/app/publish/edit-tag',
+      title: '创建标签',
+      description: '创建新的题目标签，并为标签配置颜色与图标',
+      url: '/app/publish/create-tag',
       icon: Tag,
       iconColor: '#FE4E4E',
-   }
+   },
 ];
 </script>
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ISelectOption } from '~/components/st/Select/type';
-import TagEditingDrawer from '../_drawers/TagEditingDrawer.vue';
+import TagEditingDrawer from '~/components/tag/TagEditingDrawer.vue';
 import { Plus, RobotOne } from '@icon-park/vue-next';
 
 const { $trpc } = useNuxtApp();
@@ -56,7 +56,7 @@ watch(tagSelectOpened, async (opened) => {
 
 const tagEditing = ref(false);
 
-const onTagCreated = async () => {
+const onTagSaved = async () => {
    tagEditing.value = false;
    tagSelectOpened.value = true;
    tagOptions.value = await fetchTags();
@@ -64,7 +64,7 @@ const onTagCreated = async () => {
 </script>
 
 <template>
-   <TagEditingDrawer v-model:opened="tagEditing" @created="onTagCreated" />
+   <TagEditingDrawer v-model:opened="tagEditing" @saved="onTagSaved" />
    <StSelect
       v-model:value="tags"
       v-model:opened="tagSelectOpened"

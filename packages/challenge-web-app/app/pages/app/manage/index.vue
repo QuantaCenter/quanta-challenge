@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ListTwo } from '@icon-park/vue-next';
+import { ListTwo, Tag } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -19,6 +19,13 @@ const options: ProcessOption[] = [
       url: '/app/publish/problem/mine',
       icon: ListTwo,
       iconColor: '#38BDF8',
+   },
+   {
+      title: '标签管理',
+      description: '查看并管理已有的题目标签',
+      url: '/app/manage/tag',
+      icon: Tag,
+      iconColor: '#FE4E4E',
    },
 ];
 </script>
