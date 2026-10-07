@@ -19,6 +19,9 @@
       "./utils": {
          "import": "./utils/url.ts"
       },
+      "./utils/local-store-path": {
+         "import": "./utils/local-store-path.ts"
+      },
       "./config": {
          "import": "./configs/search-config.ts"
       },
