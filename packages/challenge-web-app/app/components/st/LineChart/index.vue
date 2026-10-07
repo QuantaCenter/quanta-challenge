@@ -37,7 +37,7 @@ const path = computed(() => {
    const stepX = width.value / (props.data.length - 1);
    const points = props.data.map((value, index) => {
       const x = index * stepX;
-      const y = height.value - ((value - minData) / range) * height.value;
+      const y = height.value - (((value - minData) / range) * 0.8 + 0.1) * height.value;
       return `${x},${y}`;
    });
 

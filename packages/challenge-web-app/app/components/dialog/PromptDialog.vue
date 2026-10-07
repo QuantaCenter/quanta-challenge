@@ -56,12 +56,12 @@ onMounted(() => {
       class="bg-accent-600 rounded-lg shadow-2xl w-full max-w-md p-6 border border-accent-500">
       <h2
          v-if="options.title"
-         class="st-font-third-normal text-accent-100 mb-2">
+         class="st-font-body-bold text-white mb-2">
          {{ options.title }}
       </h2>
       <p
          v-if="options.description"
-         class="st-font-body-normal text-accent-200 mb-4">
+         class="st-font-body-normal text-accent-300 mb-4">
          {{ options.description }}
       </p>
 
