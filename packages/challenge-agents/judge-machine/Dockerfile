@@ -39,9 +39,12 @@ RUN npm config set registry ${NPM_REGISTRY}
 
 # 安装 Playwright 系统依赖（通过 npm 的 playwright 包）
 # 版本与 package.json 中的 playwright 依赖保持一致
+#
+# 这里直接用**全局安装好的** `playwright` 命令，不要写成 `npx playwright`：
+# npx 在找不到本地依赖时会去 npm 取 `latest`，等于把锁好的版本又放开了（版本漂移）。
 RUN npm install -g playwright@1.54.1 && \
-    npx playwright install-deps chromium && \
-    npx playwright install chromium
+    playwright install-deps chromium && \
+    playwright install chromium
 
 # 安装 pnpm
 RUN npm install -g pnpm@9.15.9

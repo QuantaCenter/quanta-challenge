@@ -31,7 +31,10 @@ services:
       - redis
       - postgres
     volumes:
-      - qtc_app_storage:/app/packages/web/local_store # Persist local storage
+      # 注意路径必须是 `packages/challenge-web-app`（不是重命名前的 `packages/web`）：
+      # 代码里 resolveLocalStorePath() 解析出的就是这里，挂错路径会让上传的图片/徽章
+      # 落在容器可写层——重启即丢，而且 web 与调度器两个容器互相看不见对方写的文件。
+      - qtc_app_storage:/app/packages/challenge-web-app/local_store # Persist local storage
       - /app/tmp:/app/tmp
 
   challenge-judge-scheduler:
@@ -79,7 +82,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock # Docker outside of Docker
       # 与 Web 应用共用同一个 local_store。缺失时调度器写进容器内临时目录，
       # 判题生成的题目封面在 Web 端全部 404，且容器重启即丢。
-      - qtc_app_storage:/app/packages/web/local_store
+      - qtc_app_storage:/app/packages/challenge-web-app/local_store
       # 判题快照目录，必须与 TEMP_DIR 的绝对路径一致（原因见上方说明）
       - /app/tmp:/app/tmp
 

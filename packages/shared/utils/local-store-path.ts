@@ -22,7 +22,7 @@ import path from 'path';
  * ## 目录布局
  *
  * 标准目录固定在 `packages/challenge-web-app/local_store`，原因是生产环境
- * `docker-compose.yaml` 给 Web 应用挂载的卷就在 `/app/packages/web/local_store`，
+ * `docker-compose.yaml` 给 Web 应用挂载的卷就在 `/app/packages/challenge-web-app/local_store`，
  * 保持同一处可以避免再出现"容器里读、容器外写"的分裂。
  */
 
@@ -50,7 +50,7 @@ let warned = false;
  * 返回 local_store 的绝对路径。
  *
  * 规则（刻意收紧，避免再次出现双目录）：
- * 1. `LOCAL_STORE_PATH` 是绝对路径 -> 用它（容器部署的正确做法，例如 /app/packages/web/local_store）
+ * 1. `LOCAL_STORE_PATH` 是绝对路径 -> 用它（容器部署的正确做法，例如 /app/packages/challenge-web-app/local_store）
  * 2. 未配置、或配的是相对路径 -> **一律使用规范目录**，并在相对路径会指向别处时打印警告
  *
  * 第 2 条是刻意不兼容旧行为的：过去相对路径会按 cwd 解析，而那正是 bug 的来源。
