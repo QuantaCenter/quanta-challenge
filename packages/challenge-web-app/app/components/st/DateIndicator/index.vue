@@ -8,10 +8,13 @@ type DayItem = IDateIndicatorProps & { date: string };
 const props = defineProps<{
    /** 当前选中的日期，格式 YYYY-MM-DD */
    modelValue?: string;
+   /** 已签到的日期列表（当天有签到即视为当天完成），格式 YYYY-MM-DD */
+   checkedDates?: string[];
 }>();
 
 const emit = defineEmits<{
    'update:modelValue': [value: string];
+   'range-change': [range: { start: string; end: string }];
 }>();
 
 const offset = ref(0);
@@ -27,6 +30,8 @@ const goNextDay = () => {
 const selectedDate = computed(
    () => props.modelValue ?? dayjs().format('YYYY-MM-DD')
 );
+
+const checkedDates = computed(() => new Set(props.checkedDates ?? []));
 
 const selectDay = (day: DayItem) => {
    if (day.future) return;
@@ -53,12 +58,24 @@ const recent7days = computed(() => {
             .toUpperCase(),
          dateNumber: date.date(),
          triggered: dateString === selectedDate.value,
-         checked: date.isSame(today.subtract(1, 'day'), 'day'),
+         checked: checkedDates.value.has(dateString),
          future: date.isAfter(today, 'day'),
       });
    }
    return days;
 });
+
+// 可见日期区间变化时通知父级，用于按需拉取完成状态
+watch(
+   recent7days,
+   (days) => {
+      const first = days[0];
+      const last = days[days.length - 1];
+      if (!first || !last) return;
+      emit('range-change', { start: first.date, end: last.date });
+   },
+   { immediate: true }
+);
 </script>
 
 <template>

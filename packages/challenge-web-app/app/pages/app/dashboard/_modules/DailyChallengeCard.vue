@@ -31,6 +31,32 @@ const {
    { watch: [selectedDate], dedupe: 'cancel' }
 );
 
+// 日历当前可见的日期区间，默认与日历初始窗口（今天前后各三天）保持一致
+const visibleRange = ref({
+   start: dayjs().subtract(3, 'day').format('YYYY-MM-DD'),
+   end: dayjs().add(3, 'day').format('YYYY-MM-DD'),
+});
+
+const handleRangeChange = (range: { start: string; end: string }) => {
+   if (
+      range.start === visibleRange.value.start &&
+      range.end === visibleRange.value.end
+   ) {
+      return;
+   }
+   visibleRange.value = range;
+};
+
+const { data: checkedinDates } = useAsyncData(
+   'checkedin-dates',
+   () =>
+      $trpc.protected.daily.getCheckedinDates.query({
+         startDate: visibleRange.value.start,
+         endDate: visibleRange.value.end,
+      }),
+   { watch: [visibleRange], default: () => [] as string[] }
+);
+
 const { data: continueCheckinCounts } = useAsyncData(
    'continue-checkin-counts',
    () => $trpc.protected.daily.continuesCheckinCount.query(),
@@ -93,7 +119,11 @@ const handleCheckin = async () => {
    <StCard :icon="Calendar" class="h-full" title="每日一题">
       <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5">
          <StSpace direction="vertical" gap="1rem" class="w-full h-full">
-            <StDateIndicator v-model="selectedDate" class="w-full" />
+            <StDateIndicator
+               v-model="selectedDate"
+               :checked-dates="checkedinDates ?? []"
+               class="w-full"
+               @range-change="handleRangeChange" />
             <div class="flex flex-1 min-h-0 overflow-hidden w-full relative">
                <StSkeleton
                   :loading="isDailyProblemPending"

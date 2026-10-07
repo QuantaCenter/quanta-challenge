@@ -1,3 +1,4 @@
+import z from 'zod';
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
@@ -121,9 +122,45 @@ const continuesCheckinCountProcedure = protectedProcedure.query(
    }
 );
 
+const GetCheckedinDatesSchema = z.object({
+   startDate: z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD'),
+   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, '日期格式应为 YYYY-MM-DD'),
+});
+
+/**
+ * 查询指定日期区间内，用户已签到的日期列表。
+ * 签到的前提是当天已完成当日每日一题，因此直接以签到记录作为「当天完成」的标记。
+ */
+const getCheckedinDatesProcedure = protectedProcedure
+   .input(GetCheckedinDatesSchema)
+   .query(async ({ ctx, input }) => {
+      const { userId } = ctx.user;
+      const start = dayjs(input.startDate).startOf('day');
+      const end = dayjs(input.endDate).endOf('day');
+
+      if (end.isBefore(start, 'day')) {
+         return [];
+      }
+
+      const checkins = await prisma.dailyCheckin.findMany({
+         where: {
+            userId,
+            date: { gte: start.toDate(), lte: end.toDate() },
+         },
+         select: { date: true },
+      });
+
+      return checkins.map((checkin) =>
+         dayjs(checkin.date).format('YYYY-MM-DD')
+      );
+   });
+
 export const dailyRouter = router({
    checkin: dailyCheckinProcedure,
    hasCheckedin: hasCheckedinProcedure,
    hasCompletedDailyProblem: hasCompletedDailyProblemProcedure,
    continuesCheckinCount: continuesCheckinCountProcedure,
+   getCheckedinDates: getCheckedinDatesProcedure,
 });
