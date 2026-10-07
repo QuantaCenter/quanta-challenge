@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Lock } from '@icon-park/vue-next';
+import type { ITableColumn } from '~/components/st/Table/type';
 import type { IRanking } from '../_types';
-import RankTableSkeleton from '../_skeletons/rank-table-skeleton.vue';
 
 useSeoMeta({
    title: '排行榜 - Quanta Challenge',
@@ -12,101 +12,107 @@ defineProps<{
    data: IRanking[];
    loading: boolean;
 }>();
+
+const columns: ITableColumn[] = [
+   {
+      key: 'rank',
+      title: '排名',
+      width: '6rem',
+      cellAlign: 'center',
+      skeletonClass: 'size-[2.25rem] rounded-full mx-auto',
+   },
+   { key: 'userName', title: '用户', skeletonClass: 'h-5 w-[12rem] rounded-md' },
+   {
+      key: 'score',
+      title: '分数',
+      width: '6rem',
+      skeletonClass: 'h-5 w-[4.7rem] rounded-md',
+   },
+   {
+      key: 'correctRate',
+      title: '正确率',
+      width: '6rem',
+      skeletonClass: 'h-5 w-[5rem] rounded-md',
+   },
+   {
+      key: 'submissions',
+      title: '提交次数',
+      width: '6rem',
+      cellAlign: 'center',
+      skeletonClass: 'h-5 w-[5rem] rounded-md mx-auto',
+   },
+];
 </script>
 
 <template>
    <StSpace class="w-[48rem]">
-      <table class="!border-separate border-spacing-0 w-full table-fixed">
-         <colgroup>
-            <col style="width: 6rem" />
-            <col style="width: auto" />
-            <col style="width: 6rem" />
-            <col style="width: 6rem" />
-            <col style="width: 6rem" />
-         </colgroup>
+      <StTable
+         :columns="columns"
+         :rows="data"
+         :loading="loading"
+         row-key="userId"
+         :skeleton-count="50">
+         <template #cell-rank="{ row }">
+            <div
+               class="flex items-center justify-center font-bold size-[2.25rem] rounded-full text-sm font-family-manrope"
+               :class="{
+                  'bg-[#FFBE31] text-accent-700': row.rank === 1,
+                  'bg-[#CACACA] text-accent-700': row.rank === 2,
+                  'bg-[#9E5C38] text-white': row.rank === 3,
+                  'bg-accent-500 text-white': row.rank > 3,
+               }">
+               {{ row.rank }}
+            </div>
+         </template>
 
-         <thead class="sticky top-[5.75rem]">
-            <tr class="text-accent-700 text-nowrap whitespace-nowrap text-left">
-               <th
-                  class="bg-secondary pl-6 pr-3 py-[0.625rem] rounded-l-lg z-[10000]">
-                  排名
-               </th>
-               <th class="bg-secondary pr-3 py-[0.625rem]">用户</th>
-               <th class="bg-secondary pr-3 py-[0.625rem]">分数</th>
-               <th class="bg-secondary pr-3 py-[0.625rem]">正确率</th>
-               <th class="bg-secondary pr-6 py-[0.625rem] rounded-r-lg">
-                  提交次数
-               </th>
-            </tr>
-         </thead>
-         <tbody v-if="loading">
-            <RankTableSkeleton />
-         </tbody>
-         <tbody v-else>
-            <template v-if="data.length > 0">
-               <tr
-                  v-for="item in data"
-                  :key="item.userId"
-                  class="text-left even:bg-accent-600">
-                  <td
-                     class="pl-6 pr-3 py-4 text-white rounded-l-lg text-center">
-                     <div
-                        class="flex items-center justify-center font-bold size-[2.25rem] rounded-full text-sm font-family-manrope"
-                        :class="{
-                           'bg-[#FFBE31] text-accent-700': item.rank === 1,
-                           'bg-[#CACACA] text-accent-700': item.rank === 2,
-                           'bg-[#9E5C38] text-white': item.rank === 3,
-                           'bg-accent-500 text-white': item.rank > 3,
-                        }">
-                        {{ item.rank }}
-                     </div>
-                  </td>
-                  <td class="pr-3 py-4 flex items-center gap-3">
-                     <StImage
-                        lazy
-                        :src="item.imageUrl"
-                        alt="avatar"
-                        width="2.25rem"
-                        height="2.25rem"
-                        object="cover"
-                        class="rounded-lg" />
-                     <NuxtLink
-                        :to="`/app/space/${item.uid}`"
-                        class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all">
-                        {{ item.userName }}
-                     </NuxtLink>
-                  </td>
-                  <td
-                     class="pr-3 py-4 text-white text-left font-family-manrope font-bold">
-                     {{ item.score }}
-                  </td>
-                  <td class="pr-3 py-4 text-white font-family-manrope">
-                     {{ item.correctRate.toFixed(2) }}%
-                  </td>
-                  <td
-                     class="pr-6 py-4 text-white rounded-r-lg font-family-manrope text-center">
-                     {{ item.submissions }}
-                  </td>
-               </tr>
-            </template>
+         <template #cell-userName="{ row }">
+            <div class="flex items-center gap-3">
+               <StImage
+                  lazy
+                  :src="row.imageUrl"
+                  alt="avatar"
+                  width="2.25rem"
+                  height="2.25rem"
+                  object="cover"
+                  class="rounded-lg" />
+               <NuxtLink
+                  :to="`/app/space/${row.uid}`"
+                  class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all">
+                  {{ row.userName }}
+               </NuxtLink>
+            </div>
+         </template>
 
-            <template v-else>
-               <tr>
-                  <td colspan="5">
-                     <StSpace
-                        fill
-                        direction="vertical"
-                        gap="0.75rem"
-                        align="center"
-                        justify="center"
-                        class="text-accent-400 my-[20vh]">
-                        <Lock size="2.625rem" />
-                        <div class="st-font-body-normal">排名未解锁</div>
-                     </StSpace>
-                  </td>
-               </tr>
-            </template>
-         </tbody>
-      </table>
+         <template #cell-score="{ row }">
+            <span class="text-white font-family-manrope font-bold">
+               {{ row.score }}
+            </span>
+         </template>
+
+         <template #cell-correctRate="{ row }">
+            <span class="text-white font-family-manrope">
+               {{ row.correctRate.toFixed(2) }}%
+            </span>
+         </template>
+
+         <template #cell-submissions="{ row }">
+            <span class="text-white font-family-manrope">
+               {{ row.submissions }}
+            </span>
+         </template>
+
+         <template #empty>
+            <StSpace
+               fill
+               direction="vertical"
+               gap="0.75rem"
+               align="center"
+               justify="center"
+               class="text-accent-400 my-[20vh]">
+               <Lock size="2.625rem" />
+               <div class="st-font-body-normal">排名未解锁</div>
+            </StSpace>
+         </template>
+      </StTable>
    </StSpace>
 </template>

@@ -2,14 +2,27 @@
 import { Box, Delete, Edit, Tag } from '@icon-park/vue-next';
 import { dialog } from '~/composables/use-dialog';
 import { useMessage } from '~/components/st/Message/use-message';
+import type { ITableColumn } from '~/components/st/Table/type';
 import { logger } from '~~/lib/logger';
 import TagEditingDrawer, {
    type ITagEditingTarget,
 } from '~/components/tag/TagEditingDrawer.vue';
-import TagTableSkeleton from './_skeletons/TagTableSkeleton.vue';
 import { textColorOn } from './_utils/color';
 
 useSeoMeta({ title: '标签管理 - Quanta Challenge' });
+
+const columns: ITableColumn[] = [
+   {
+      key: 'icon',
+      title: '图标',
+      width: '5rem',
+      skeletonClass: 'size-[2.25rem] rounded-lg',
+   },
+   { key: 'label', title: '标签名', width: '10rem' },
+   { key: 'description', title: '描述', skeletonClass: 'h-5 w-[12rem] rounded-md' },
+   { key: 'color', title: '颜色', width: '8.5rem' },
+   { key: 'action', title: '操作', width: '7rem', align: 'center' },
+];
 
 const { $trpc } = useNuxtApp();
 const message = useMessage();
@@ -118,111 +131,88 @@ const deleteTag = async (tid: number) => {
             </span>
          </StSpace>
 
-         <table class="!border-separate border-spacing-0 w-full table-fixed">
-            <colgroup>
-               <col style="width: 5rem" />
-               <col style="width: 10rem" />
-               <col style="width: auto" />
-               <col style="width: 8.5rem" />
-               <col style="width: 7rem" />
-            </colgroup>
+         <StTable
+            :columns="columns"
+            :rows="tagOptions"
+            :loading="pending"
+            row-key="value"
+            :skeleton-count="5">
+            <template #cell-icon="{ row }">
+               <div
+                  class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
+                  <img
+                     v-if="row.imageUrl"
+                     class="size-[1.75rem] object-contain"
+                     :src="row.imageUrl"
+                     :alt="`${row.label} 标签图标`" />
+                  <Box v-else class="text-accent-400" />
+               </div>
+            </template>
 
-            <thead class="sticky top-[5.75rem]">
-               <tr class="text-accent-700 text-nowrap whitespace-nowrap text-left">
-                  <th class="bg-secondary pl-6 pr-3 py-[0.625rem] rounded-l-lg z-[10000]">
-                     图标
-                  </th>
-                  <th class="bg-secondary pr-3 py-[0.625rem]">标签名</th>
-                  <th class="bg-secondary pr-3 py-[0.625rem]">描述</th>
-                  <th class="bg-secondary pr-3 py-[0.625rem]">颜色</th>
-                  <th class="bg-secondary pr-6 py-[0.625rem] rounded-r-lg text-center">
-                     操作
-                  </th>
-               </tr>
-            </thead>
+            <template #cell-label="{ row }">
+               <div class="st-font-body-bold text-white truncate">
+                  {{ row.label }}
+               </div>
+            </template>
 
-            <tbody v-if="pending">
-               <TagTableSkeleton />
-            </tbody>
+            <template #cell-description="{ row }">
+               <div class="st-font-body-normal text-accent-300 truncate">
+                  {{ row.description || '暂无描述' }}
+               </div>
+            </template>
 
-            <tbody v-else>
-               <template v-if="tagOptions.length > 0">
-                  <tr
-                     v-for="tag in tagOptions"
-                     :key="tag.value"
-                     class="text-left even:bg-accent-600">
-                     <td class="pl-6 pr-3 py-4 rounded-l-lg">
-                        <div
-                           class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
-                           <img
-                              v-if="tag.imageUrl"
-                              class="size-[1.75rem] object-contain"
-                              :src="tag.imageUrl"
-                              :alt="`${tag.label} 标签图标`" />
-                           <Box v-else class="text-accent-400" />
-                        </div>
-                     </td>
-                     <td class="pr-3 py-4 overflow-hidden">
-                        <div class="st-font-body-bold text-white truncate">
-                           {{ tag.label }}
-                        </div>
-                     </td>
-                     <td class="pr-3 py-4 overflow-hidden">
-                        <div class="st-font-body-normal text-accent-300 truncate">
-                           {{ tag.description || '暂无描述' }}
-                        </div>
-                     </td>
-                     <td class="pr-3 py-4">
-                        <span
-                           class="inline-flex items-center justify-center px-3 py-1 rounded-md font-mono st-font-tooltip"
-                           :style="{
-                              backgroundColor: tag.color,
-                              color: textColorOn(tag.color),
-                           }">
-                           {{ tag.color }}
-                        </span>
-                     </td>
-                     <td class="pr-6 py-4">
-                        <StSpace align="center" justify="center" gap="1.25rem">
-                           <button
-                              type="button"
-                              title="编辑标签"
-                              aria-label="编辑标签"
-                              class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer"
-                              @click="editTag(tag)">
-                              <Edit class="text-[1.25rem]" />
-                           </button>
-                           <button
-                              type="button"
-                              title="删除标签"
-                              aria-label="删除标签"
-                              class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-error active:scale-95 transition-all cursor-pointer"
-                              @click="deleteTag(tag.value)">
-                              <Delete class="text-[1.25rem]" />
-                           </button>
-                        </StSpace>
-                     </td>
-                  </tr>
-               </template>
+            <template #cell-color="{ row }">
+               <span
+                  class="inline-flex items-center justify-center px-3 py-1 rounded-md font-mono st-font-tooltip"
+                  :style="{
+                     backgroundColor: row.color,
+                     color: textColorOn(row.color),
+                  }">
+                  {{ row.color }}
+               </span>
+            </template>
 
-               <template v-else>
-                  <tr>
-                     <td colspan="5">
-                        <StSpace
-                           fill
-                           direction="vertical"
-                           gap="0.75rem"
-                           align="center"
-                           justify="center"
-                           class="text-accent-400 my-[20vh]">
-                           <Tag size="2.625rem" />
-                           <div class="st-font-body-normal">暂无标签</div>
-                        </StSpace>
-                     </td>
-                  </tr>
-               </template>
-            </tbody>
-         </table>
+            <template #cell-action="{ row }">
+               <StSpace align="center" justify="center" gap="1.25rem">
+                  <button
+                     type="button"
+                     title="编辑标签"
+                     aria-label="编辑标签"
+                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer"
+                     @click="editTag(row)">
+                     <Edit class="text-[1.25rem]" />
+                  </button>
+                  <button
+                     type="button"
+                     title="删除标签"
+                     aria-label="删除标签"
+                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-error active:scale-95 transition-all cursor-pointer"
+                     @click="deleteTag(row.value)">
+                     <Delete class="text-[1.25rem]" />
+                  </button>
+               </StSpace>
+            </template>
+
+            <template #skeleton-action="{ itemClass }">
+               <StSpace align="center" justify="center" gap="1.25rem">
+                  <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
+                  <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
+               </StSpace>
+            </template>
+
+            <template #empty>
+               <StSpace
+                  fill
+                  direction="vertical"
+                  gap="0.75rem"
+                  align="center"
+                  justify="center"
+                  class="text-accent-400 my-[20vh]">
+                  <Tag size="2.625rem" />
+                  <div class="st-font-body-normal">暂无标签</div>
+               </StSpace>
+            </template>
+         </StTable>
       </StSpace>
 
       <TagEditingDrawer
