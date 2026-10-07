@@ -1,0 +1,12 @@
+{
+   "extends": "./tsconfig.json",
+   "compilerOptions": {
+      "paths": {
+         "@challenge/problem-creator-cli": ["./src/program.ts"]
+      }
+   },
+   "include": ["examples"],
+   // exclude 是「整体替换」而不是追加：不在这里覆盖，父配置里的 examples
+   // 会继续生效，于是 include 与 exclude 抵消 → TS18003（见仓库 QUALITY_BASELINE.md）。
+   "exclude": ["dist", "node_modules"]
+}

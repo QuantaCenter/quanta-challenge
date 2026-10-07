@@ -1,0 +1,56 @@
+{
+   "name": "@challenge/problem-creator-cli",
+   "version": "0.2.0",
+   "private": true,
+   "description": "Quanta 出题工具链：脚手架、离线预检、上传与发布（qpc）",
+   "license": "ISC",
+   "type": "module",
+   "engines": {
+      "node": ">=20.11"
+   },
+   "bin": {
+      "qpc": "./dist/index.js"
+   },
+   "main": "./dist/program.js",
+   "types": "./dist/program.d.ts",
+   "exports": {
+      ".": {
+         "types": "./dist/program.d.ts",
+         "import": "./dist/program.js"
+      },
+      "./package.json": "./package.json"
+   },
+   "files": [
+      "dist",
+      "README.md"
+   ],
+   "scripts": {
+      "dev": "tsx src/index.ts",
+      "build": "tsup",
+      "start": "node dist/index.js",
+      "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.examples.json",
+      "lint": "biome check .",
+      "lint:fix": "biome check --write .",
+      "format": "biome format --write .",
+      "test": "vitest run",
+      "test:watch": "vitest",
+      "test:coverage": "vitest run --coverage",
+      "verify": "pnpm lint && pnpm typecheck && pnpm test && pnpm build"
+   },
+   "dependencies": {
+      "@challenge/shared": "workspace:^",
+      "commander": "^14.0.1",
+      "jiti": "^2.5.1",
+      "picocolors": "^1.1.1",
+      "zod": "^4.0.5"
+   },
+   "devDependencies": {
+      "@biomejs/biome": "^2.5.15",
+      "@types/node": "^24.0.14",
+      "@vitest/coverage-v8": "^3.2.7",
+      "tsup": "^8.5.1",
+      "tsx": "^4.7.1",
+      "typescript": "^5.8.3",
+      "vitest": "^3.2.7"
+   }
+}

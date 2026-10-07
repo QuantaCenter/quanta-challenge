@@ -98,6 +98,13 @@ quanta-challenge/
 │   ├── database/                    # 数据库层
 │   │   ├── prisma/                  # Prisma Schema
 │   │   └── index.ts                 # 数据库客户端导出
+│   ├── problem-creator-cli/         # 出题工具链 CLI（qpc）
+│   │   ├── src/
+│   │   │   ├── commands/            # init / check / upload / status / publish / login / doctor
+│   │   │   ├── domain/              # 配置 schema、判题脚本静态分析、快照、预检规则
+│   │   │   └── services/            # admin tRPC、judge API、凭据
+│   │   ├── examples/hello-total/    # 示例题目（也是 e2e fixture）
+│   │   └── README.md                # 用法与规则说明
 │   └── shared/                      # 共享工具库
 │       ├── configs/                 # 共享配置
 │       ├── service/                 # 共享服务
@@ -218,9 +225,32 @@ const result = await $trpc.protected.myEndpoint.query();
 ### 代码规范
 
 - 使用 TypeScript 严格模式
-- 遵循 ESLint 和 Prettier 配置
+- 遵循 ESLint 和 Prettier 配置（`problem-creator-cli` 使用 Biome，配置见包内 `biome.json`）
 - 组件命名采用 PascalCase
 - 组合式函数以 `use` 前缀命名
+
+### 出题（problem-creator-cli）
+
+出题流程已工具化为 `qpc`（脚手架 → 离线预检 → 上传 → 等审计 → 发布）。
+在仓库根目录直接调用（`pnpm qpc` 等价于包内 `pnpm dev`，相对路径按仓库根解析）：
+
+```bash
+pnpm qpc init my-problem --name "购物车合计"   # 生成题目骨架
+pnpm qpc check my-problem                      # 毫秒级预检（判题脚本/快照/分值）
+pnpm qpc check my-problem --judge              # 再让调度器编译一次判题脚本
+pnpm qpc login --device                        # 浏览器里授权登录（无需输入密码）
+pnpm qpc upload my-problem --wait              # 上传并打印审计的检查点明细
+pnpm qpc publish <pid>                         # 审计通过后发布
+```
+
+登录用 OAuth 2.0 设备授权流程（RFC 8628）：CLI 打印验证码并打开
+`/auth/device`，你在页面上核对验证码、确认授权范围后点“同意”，
+终端即完成登录。密码不经过 CLI。无浏览器环境加 `--no-browser` 手动完成。
+协议细节与排查步骤见 `packages/problem-creator-cli/docs/OAUTH_DEVICE_FLOW.md`。
+
+预检覆盖 `docs/PROBLEM_AUTHORING.md` 里所有可静态判定的坑（例如检查点忘记 `return`
+分数会判 0 分、`page.click` 打到 disabled 按钮会卡 30 秒）。
+用法与规则编号见 `packages/problem-creator-cli/README.md` 与其中的 `docs/RULES.md`。
 
 ## 部署说明
 

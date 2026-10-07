@@ -1,0 +1,84 @@
+name: problem-creator-cli
+
+# 只在本包（或依赖图）变化时跑，避免每次改前端都触发一遍出题工具的 CI。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/problem-creator-cli/**'
+      - '.github/workflows/problem-creator-cli.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'packages/problem-creator-cli/**'
+      - '.github/workflows/problem-creator-cli.yml'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: problem-creator-cli-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    # 全部命令都在包目录里跑，pnpm 会按 workspace 解析依赖
+    working-directory: packages/problem-creator-cli
+
+jobs:
+  verify:
+    name: lint / typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint (biome)
+        run: pnpm lint
+
+      - name: Typecheck (tsc, 含 examples)
+        run: pnpm typecheck
+
+      - name: Test (vitest)
+        run: pnpm test
+
+      - name: Build (tsup)
+        run: pnpm build
+
+      # 构建产物的冒烟测试：npm bin 与 jiti 加载 .ts 配置这两条路径
+      # 在 tsup 改变输出布局时最容易悄悄坏掉，必须在 CI 里真的跑一次。
+      - name: Smoke test built CLI
+        run: |
+          node dist/index.js --version
+          node dist/index.js check examples/hello-total
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### problem-creator-cli"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 结果 | \`${{ job.status }}\` |"
+            echo "| node | \`$(node --version)\` |"
+            echo "| pnpm | \`$(pnpm --version)\` |"
+            echo ""
+            echo "本地复现：\`cd packages/problem-creator-cli && pnpm verify\`"
+          } >> "$GITHUB_STEP_SUMMARY"

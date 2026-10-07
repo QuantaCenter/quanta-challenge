@@ -1,0 +1,18 @@
+# 构建产物与缓存
+dist/
+coverage/
+*.tsbuildinfo
+.turbo/
+
+# 本地临时目录（预检时展开的快照、下载的审计产物等）
+.tmp/
+tmp/
+
+# 本地凭据：绝对不能进版本库（由 `qpc login` 写入 ~/.config/quanta，这里只是兜底）
+.quanta/
+
+# 编辑器
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

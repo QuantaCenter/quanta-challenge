@@ -10,7 +10,8 @@
       "docker:up:dev": "docker-compose -f docker/docker-compose.development.yaml up -d",
       "docker:down:dev": "docker-compose -f docker/docker-compose.development.yaml down",
       "typecheck": "pnpm -r --no-bail typecheck",
-      "smoke": "pnpm --filter @challenge/app smoke"
+      "smoke": "pnpm --filter @challenge/app smoke",
+      "qpc": "pnpm --filter @challenge/problem-creator-cli dev"
    },
    "peerDependencies": {
       "typescript": "^5.0.0"
