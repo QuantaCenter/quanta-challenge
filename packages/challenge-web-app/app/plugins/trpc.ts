@@ -286,8 +286,12 @@ export default defineNuxtPlugin(() => {
                }
 
                // 客户端显示 5xx 服务器错误提示
+               // 必须读**克隆体**：直接 await res.text() 会把响应体消费掉，
+               // tRPC 之后再去 res.json() 只会抛
+               // "Failed to execute 'json' on 'Response': body stream already read"，
+               // 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
                if (res.status >= 500 && !isServer) {
-                  showServerError(await res.text());
+                  showServerError(await res.clone().text());
                }
 
                return res;
