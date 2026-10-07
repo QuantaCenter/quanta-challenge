@@ -1,4 +1,3 @@
-import { useLocalStorage } from '@vueuse/core';
 import { moveBoard, normalizeBoardLayout } from '~/utils/board-layout';
 
 /** 做题页的三个板块 */
@@ -17,6 +16,23 @@ export const EDITOR_BOARD_DEFAULT_ORDER: EditorBoardId[] = [
  */
 export const EDITOR_BOARD_DEFAULT_SIZES: number[] = [23, 42, 35];
 
+/** 布局持久化用的 cookie 名 */
+const LAYOUT_COOKIE = 'challenge-layout';
+
+type StoredLayout = {
+   panelSizes: Record<string, number>;
+   locked: boolean;
+   order: string[];
+   sizes: number[];
+};
+
+const defaultLayout = (): StoredLayout => ({
+   panelSizes: {},
+   locked: false,
+   order: [...EDITOR_BOARD_DEFAULT_ORDER],
+   sizes: [...EDITOR_BOARD_DEFAULT_SIZES],
+});
+
 /**
  * 做题页的面板布局状态。
  *
@@ -24,31 +40,36 @@ export const EDITOR_BOARD_DEFAULT_SIZES: number[] = [23, 42, 35];
  * 刷新页面就回到写死的 `start-percent`；侧边栏那个「布局」按钮也没有接任何逻辑。
  * 这里把它收成单一数据源并持久化，同时给「重置布局」提供一个明确入口。
  *
- * 复用 @vueuse 的 useLocalStorage（同一套机制已用于编辑器字号 editor-config），
- * 它自带 SSR 保护，服务端渲染时不会去碰 window。
+ * **为什么用 cookie 而不是 localStorage**：
+ * localStorage 在服务端读不到 —— SSR 只能渲染默认布局，客户端首次渲染却用用户自定义布局，
+ * 于是水合不一致，页面上表现为"所有栏目先按默认排布，然后突然闪成自定义样式"。
+ * cookie 服务端能读到，SSR 与客户端首次渲染拿到同一份数据，闪烁随之消失。
  */
 export const useLayoutStore = defineStore('layout', () => {
+   const stored = useCookie<StoredLayout>(LAYOUT_COOKIE, {
+      default: defaultLayout,
+      maxAge: 60 * 60 * 24 * 365,
+      sameSite: 'lax',
+      // 纯前端偏好，不需要 httpOnly（客户端要读写），也不能加密（SSR 要读内容）
+   });
+
+   const layout = computed<StoredLayout>(() => stored.value ?? defaultLayout());
+
+   const write = (patch: Partial<StoredLayout>) => {
+      stored.value = { ...layout.value, ...patch };
+   };
+
    /** 通用分隔条比例：storageKey -> start 侧百分比（SplitPanel 用） */
-   const panelSizes = useLocalStorage<Record<string, number>>(
-      'challenge-panel-sizes',
-      {}
-   );
+   const panelSizes = computed(() => layout.value.panelSizes ?? {});
 
    /** 全局锁定：锁住后所有面板分隔条不可拖动（防误触） */
-   const locked = useLocalStorage<boolean>('challenge-panel-locked', false);
-
-   /** 做题页三个板块的排列（持久化；读过之后一律经 normalize 校正） */
-   const editorBoardOrderRaw = useLocalStorage<string[]>(
-      'challenge-editor-board-order',
-      [...EDITOR_BOARD_DEFAULT_ORDER]
-   );
-   const editorBoardSizesRaw = useLocalStorage<number[]>(
-      'challenge-editor-board-sizes',
-      [...EDITOR_BOARD_DEFAULT_SIZES]
-   );
+   const locked = computed({
+      get: () => layout.value.locked ?? false,
+      set: (value: boolean) => write({ locked: value }),
+   });
 
    const editorBoardLayout = computed(() =>
-      normalizeBoardLayout(editorBoardOrderRaw.value, editorBoardSizesRaw.value, {
+      normalizeBoardLayout(layout.value.order, layout.value.sizes, {
          order: [...EDITOR_BOARD_DEFAULT_ORDER],
          sizes: [...EDITOR_BOARD_DEFAULT_SIZES],
       })
@@ -74,7 +95,7 @@ export const useLayoutStore = defineStore('layout', () => {
 
    const setPanelSize = (key: string | undefined, percent: number) => {
       if (!key || !Number.isFinite(percent)) return;
-      panelSizes.value = { ...(panelSizes.value ?? {}), [key]: percent };
+      write({ panelSizes: { ...panelSizes.value, [key]: percent } });
    };
 
    /** 拖动某个板块到另一个板块的位置（宽度跟着板块走） */
@@ -82,29 +103,26 @@ export const useLayoutStore = defineStore('layout', () => {
       const { order, sizes } = editorBoardLayout.value;
       const next = moveBoard(order, sizes, from, to);
 
-      editorBoardOrderRaw.value = next.order;
-      editorBoardSizesRaw.value = next.sizes;
+      write({ order: next.order, sizes: next.sizes });
    };
 
    /** 拖动分隔条后按视觉顺序写回三个板块的宽度 */
    const setEditorBoardSizes = (sizes: number[]) => {
-      editorBoardSizesRaw.value = [...sizes];
+      write({ sizes: [...sizes] });
    };
 
    /** 清掉所有已保存的布局：面板比例、板块排列与宽度，并通知各面板丢弃临时值 */
    const resetLayout = () => {
-      panelSizes.value = {};
-      editorBoardOrderRaw.value = [...EDITOR_BOARD_DEFAULT_ORDER];
-      editorBoardSizesRaw.value = [...EDITOR_BOARD_DEFAULT_SIZES];
+      write(defaultLayout());
       resetToken.value += 1;
    };
 
    const setLocked = (state: boolean) => {
-      locked.value = state;
+      write({ locked: state });
    };
 
    const toggleLocked = () => {
-      locked.value = !locked.value;
+      write({ locked: !locked.value });
    };
 
    return {
