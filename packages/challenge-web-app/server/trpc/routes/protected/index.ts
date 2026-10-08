@@ -1,5 +1,6 @@
 import { router } from '../../trpc';
 import { achievementRouter } from './achievement';
+import { cloudFunctionRouter } from './cloud-function';
 import { dailyRouter } from './daily';
 import { dashboardRouter } from './dashboard';
 import { problemRouter } from './problem';
@@ -21,4 +22,5 @@ export const protectedRouter = router({
    fileSync: fileSyncRouter,
    notification: notificationRouter,
    verify: verifyRoute,
+   cloudFunction: cloudFunctionRouter,
 });

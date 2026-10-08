@@ -140,9 +140,9 @@ export default defineNuxtConfig({
       xssValidator: false,
       rateLimiter: false,
 
-      // 关闭 CSP nonce（nuxt-security 默认是 true）。
-      //
-      // 开启时，40-cspSsrNonce 插件会用
+      corsHandler: false,
+
+
       //   /<style([^>]*?)>/gi、/<script([^>]*?)>/gi、/<link([^>]*?)>/gi
       // 对**整段 HTML 字符串**做盲替换，把 nonce="…" 插进去——属性值内部也照插。
       // 而题面 markdown 里出现 `<style>` 是常态（CSS 题尤甚），于是：
@@ -268,6 +268,11 @@ export default defineNuxtConfig({
       },
       judge: {
          serverUrl: env('JUDGE_SERVER', 'http://localhost:1888'),
+      },
+      cloudFunction: {
+         serverUrl: env('CF_SERVER', 'http://localhost:1890'),
+         keyId: env('CF_INTERNAL_KEY_ID', 'web-app'),
+         secret: process.env.CF_INTERNAL_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev_only_cloud_function_web_app'),
       },
       rank: {
          problemCacheTTL: envInt('PROBLEM_RANKING_CACHE_TTL', 3600),
