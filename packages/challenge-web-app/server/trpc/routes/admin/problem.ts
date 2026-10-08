@@ -48,6 +48,7 @@ const handleCreateVersion = async (options: {
          initCommand: input.initCommand,
          buildCommand: input.buildCommand,
          judgeUploadPath: input.judgeUploadPath,
+         enableCloudFunction: input.enableCloudFunction ?? false,
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,
@@ -487,6 +488,7 @@ const getDetailProcedure = protectedAdminProcedure
             initCommand: true,
             buildCommand: true,
             judgeUploadPath: true,
+            enableCloudFunction: true,
             tags: {
                select: {
                   tid: true,

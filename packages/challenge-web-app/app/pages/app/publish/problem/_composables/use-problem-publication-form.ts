@@ -16,6 +16,11 @@ const coverModeOptions: ISlideRadioGroupOption[] = [
    { label: '自定义封面', value: 'custom', color: '#FA7C0E' },
 ];
 
+export const cloudFunctionOptions: ISlideRadioGroupOption[] = [
+   { label: '不使用云函数', value: false, color: '#FA7C0E' },
+   { label: '使用云函数', value: true, color: '#C267FF' },
+];
+
 export const useProblemPublicationForm = (storageName: string) => {
    const formdata = useLocalStorage(storageName, {
       title: '',
@@ -37,6 +42,7 @@ export const useProblemPublicationForm = (storageName: string) => {
       initCommand: '',
       buildCommand: '',
       judgeUploadPath: '',
+      enableCloudFunction: false,
    });
    const draft = useDebounce(formdata, 200);
 
@@ -78,6 +84,12 @@ export const useProblemPublicationForm = (storageName: string) => {
          required: true,
          validator(value) {
             return value !== undefined;
+         },
+      },
+      {
+         field: 'enableCloudFunction',
+         validator(value) {
+            return typeof value === 'boolean';
          },
       },
       {
@@ -124,5 +136,6 @@ export const useProblemPublicationForm = (storageName: string) => {
       rules,
       difficultyOptions,
       coverModeOptions,
+      cloudFunctionOptions,
    };
 };

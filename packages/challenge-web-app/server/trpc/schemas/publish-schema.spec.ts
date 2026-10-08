@@ -86,4 +86,22 @@ describe('UploadSchema / ReuploadSchema', () => {
       };
       expect(UploadSchema.safeParse(withoutCommands).success).toBe(true);
    });
+
+   test('是否使用云函数：可省略（默认不使用），但传了就必须是布尔值', () => {
+      expect(UploadSchema.safeParse(valid).success).toBe(true);
+      expect(
+         UploadSchema.safeParse({ ...valid, enableCloudFunction: true })
+            .success
+      ).toBe(true);
+      expect(
+         ReuploadSchema.safeParse({
+            ...validReupload,
+            enableCloudFunction: false,
+         }).success
+      ).toBe(true);
+      expect(
+         UploadSchema.safeParse({ ...valid, enableCloudFunction: 'yes' })
+            .success
+      ).toBe(false);
+   });
 });

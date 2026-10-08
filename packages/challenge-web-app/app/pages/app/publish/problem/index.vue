@@ -5,7 +5,10 @@ import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
 import type { StForm } from '#components';
-import { useProblemPublicationForm } from './_composables/use-problem-publication-form';
+import {
+   useProblemPublicationForm,
+   cloudFunctionOptions,
+} from './_composables/use-problem-publication-form';
 import { UploadTwo } from '@icon-park/vue-next';
 import { normalizePath, joinPath } from '~/utils/path-utils';
 import { useMessage } from '~/components/st/Message/use-message';
@@ -29,6 +32,13 @@ if (route.query.fromId) {
 const { $trpc } = useNuxtApp();
 const { draft, coverModeOptions, difficultyOptions, formKey, rules } =
    useProblemPublicationForm(storageName);
+
+const enableCloudFunction = computed<boolean>({
+   get: () => draft.value.enableCloudFunction === true,
+   set: (value) => {
+      draft.value.enableCloudFunction = value;
+   },
+});
 
 const imageName = ref('');
 const imageUrl = computed(() => {
@@ -54,12 +64,11 @@ const fetchProblemDetail = async () => {
    draft.value.answerTemplate = {};
    draft.value.referenceAnswer = {};
 
-   // 这四个"运行期配置"必须一起回填：提交时会把它们原样发回去，
-   // 不回填就等于把库里已有的值清空（换句话说是"编辑一次丢一次配置"）。
    draft.value.bootCommand = problem.bootCommand ?? '';
    draft.value.initCommand = problem.initCommand ?? '';
    draft.value.buildCommand = problem.buildCommand ?? '';
    draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
+   draft.value.enableCloudFunction = problem.enableCloudFunction ?? false;
 
    const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
    for (const file of files) {
@@ -106,6 +115,7 @@ const handleSubmit = async () => {
          buildCommand: draft.value.buildCommand,
          initCommand: draft.value.initCommand,
          judgeUploadPath: draft.value.judgeUploadPath,
+         enableCloudFunction: draft.value.enableCloudFunction ?? false,
       });
    };
    submitLoading.value = true;
@@ -182,6 +192,15 @@ const handleSubmit = async () => {
                   <StSlideRadioGroup
                      v-model:value="draft.difficulty"
                      :options="difficultyOptions" />
+               </StFormItem>
+               <StFormItem
+                  name="enableCloudFunction"
+                  label="是否使用云函数"
+                  error-message="请选择是否使用云函数"
+                  required>
+                  <StSlideRadioGroup
+                     v-model:value="enableCloudFunction"
+                     :options="cloudFunctionOptions" />
                </StFormItem>
                <StFormItem name="cover" label="封面图片" required>
                   <StSlideRadioGroup
