@@ -50,7 +50,23 @@ pnpm typecheck:app        # 只跑 app 侧（vue-tsc）
 | `challenge-web-app`（app） | `vue-tsc -p tsconfig.typecheck.app.json` | `app/**`、`*.vue` | 0 错误 |
 | `challenge-judge-scheduler` | `tsc --noEmit` | 全部 | 0 错误 |
 | `challenge-agents/judge-machine` | `tsc --noEmit` | 全部 | 0 错误 |
+| `challenge-cloud-function` | `tsc --noEmit` | 全部 | 0 错误 |
 | `database`、`shared`、`live-server` | **未接入** | — | 无独立 tsconfig |
+
+### 云函数系统（challenge-cloud-function）
+
+```powershell
+cd packages/challenge-cloud-function
+pnpm typecheck          # tsc：0 错误
+pnpm test               # vitest：29 个单测（签名 / 密钥 / 编译器 / 沙箱 / KV 策略）
+pnpm build              # 产物含 dist/index.js 与 dist/runtime/worker.js 两个入口
+
+# 端到端（需要本机 PostgreSQL + Redis，会自动应用迁移并清理测试数据）
+npx tsx scripts/e2e.ts   # 期望最后输出 ✅ E2E PASSED
+```
+
+端到端覆盖：健康检查、创建/发布/调用、**KV 用户隔离**、**nonce 防重放**、**判题密钥白名单**。
+本地开发模式（HTTP 由 `@hono/vite-dev-server` 提供，:1890）另行验证可启动并响应 `/healthz`。
 
 ### ⚠️ 不要在 dev server 运行时跑 typecheck
 `nuxt prepare`（typecheck 的第一步）会重写 `.nuxt/`，而 dev server 正持有其中的文件。
