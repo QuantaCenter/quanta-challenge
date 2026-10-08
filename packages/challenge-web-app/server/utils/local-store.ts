@@ -16,7 +16,7 @@ export class LocalStore implements IStore {
       const fileId = crypto.randomUUID();
       const extension = path.extname(name);
       const filePath = path.join(this.storePath, `${fileId}${extension}`);
-      await fs.writeFile(filePath, buffer);
+      await fs.writeFile(filePath, buffer as unknown as Uint8Array);
       return fileId;
    }
 
