@@ -201,6 +201,7 @@ model Problems {
   initCommand     String?
   buildCommand    String?
   judgeUploadPath String
+  enableCloudFunction Boolean @default(false)
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
@@ -686,4 +687,81 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notifications")
+}
+
+model CloudFunction {
+  id               String   @id @default(cuid())
+  name             String   @unique
+  description      String   @default("")
+  enabled          Boolean  @default(true)
+  kvUserIsolated   Boolean  @default(true)
+  timeoutMs        Int      @default(5000)
+  maxResponseBytes Int      @default(262144)
+  activeVersionId  String?  @unique
+  createdBy        String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  activeVersion CloudFunctionVersion?  @relation("activeVersion", fields: [activeVersionId], references: [id])
+  versions      CloudFunctionVersion[] @relation("versions")
+  apiKeys       CloudFunctionApiKey[]
+
+  @@map("cloud_functions")
+}
+
+model CloudFunctionVersion {
+  id           String   @id @default(cuid())
+  functionId   String
+  version      Int
+  source       String
+  compiledCode String
+  sourceHash   String
+  createdBy    String
+  createdAt    DateTime @default(now())
+
+  function  CloudFunction  @relation("versions", fields: [functionId], references: [id], onDelete: Cascade)
+  activeFor CloudFunction? @relation("activeVersion")
+
+  @@unique([functionId, version])
+  @@map("cloud_function_versions")
+}
+
+model CloudFunctionApiKey {
+  id               String    @id @default(cuid())
+  keyId            String    @unique
+  name             String
+  scopes           String[]
+  enabled          Boolean   @default(true)
+  allowedFunctions String[]  @default([])
+  masterVersion    Int       @default(1)
+  createdBy        String
+  lastUsedAt       DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  cloudFunctionId  String?
+
+  cloudFunction CloudFunction? @relation(fields: [cloudFunctionId], references: [id])
+
+  @@map("cloud_function_api_keys")
+}
+
+/// 调用记录（审计 + 排障），由清理任务按保留期删除。
+model CloudFunctionInvocation {
+  id          String   @id @default(cuid())
+  functionId  String
+  versionId   String
+  callerType  String
+  callerKeyId String?
+  userId      String?
+  status      String
+  errorCode   String?
+  durationMs  Int
+  inputBytes  Int      @default(0)
+  outputBytes Int      @default(0)
+  traceId     String?
+  createdAt   DateTime @default(now())
+
+  @@index([functionId, createdAt])
+  @@index([userId, createdAt])
+  @@map("cloud_function_invocations")
 }
