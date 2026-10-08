@@ -103,11 +103,11 @@ const getAllPublicProblems = publicProcedure
             // 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。
             imageName:
                p.CurrentProblem?.CoverImage?.name ||
-               p.CurrentProblem?.ProblemDefaultCover[0].image?.name ||
+               p.CurrentProblem?.ProblemDefaultCover?.[0]?.image?.name ||
                null,
             imageHash:
                p.CurrentProblem?.CoverImage?.thumbhash ||
-               p.CurrentProblem?.ProblemDefaultCover[0].image?.thumbhash ||
+               p.CurrentProblem?.ProblemDefaultCover?.[0]?.image?.thumbhash ||
                null,
             passRate,
             CoverImage: undefined,
