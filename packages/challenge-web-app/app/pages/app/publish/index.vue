@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import { Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
@@ -24,6 +24,13 @@ const options = [
       url: '/app/publish/create-tag',
       icon: Tag,
       iconColor: '#FE4E4E',
+   },
+   {
+      title: '发布云函数',
+      description: '发布可被成员与内部服务通过 HTTP 调用的 JS/TS 云函数',
+      url: '/app/publish/cloud-function',
+      icon: Code,
+      iconColor: '#C267FF',
    },
 ];
 </script>

@@ -15,6 +15,8 @@ export const useEditorStore = defineStore('editor', () => {
    /** 启动流程是否已经开始（用于区分"进行中"与"从未触发"） */
    const initStarted = ref(false);
 
+   const cloudFunctionEnabled = ref(false);
+
    /** 提交按钮是否可用 */
    const canCommit = computed(() => hasProjectInitialized.value);
 
@@ -35,6 +37,7 @@ export const useEditorStore = defineStore('editor', () => {
       hasProjectInitialized,
       initFailureReason,
       initStarted,
+      cloudFunctionEnabled,
       canCommit,
       commitBlockedReason,
    };

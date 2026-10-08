@@ -152,6 +152,10 @@ const avatarUrl = computed(() => {
 
                   <TimerWidget :toolbar="true" />
 
+                  <CloudFunctionTokenWidget
+                     v-if="store.cloudFunctionEnabled"
+                     :toolbar="true" />
+
                   <StMiniSidebarButton
                      name="布局"
                      @click="layoutMenuOpened = true">

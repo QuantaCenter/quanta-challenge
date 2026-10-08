@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { GoldMedalTwo, Peoples, TableReport, Tag } from '@icon-park/vue-next';
+import { Code, GoldMedalTwo, Peoples, TableReport, Tag } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -40,6 +40,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/member',
       icon: Peoples,
       iconColor: '#38BDF8',
+   },
+   {
+      title: '云函数管理',
+      description: '管理云函数的启停、版本与调用凭证（API Key）',
+      url: '/app/manage/cloud-function',
+      icon: Code,
+      iconColor: '#C267FF',
    },
 ];
 </script>

@@ -1,0 +1,111 @@
+/**
+ * 云函数运行期上下文（ctx）类型声明。
+ *
+ * 通过 `useSimpleEditor` 的 `imports` 注入 Monaco（见 SourceEditingDrawer），
+ * 为编辑器提供补全与类型检查。**没有顶层 import/export，因此是全局声明**，
+ * 用户源码里直接写 `ctx: CloudFunctionContext` 即可，无需 import。
+ *
+ * 与 `packages/challenge-cloud-function/src/runtime/worker.ts` 里构造的 ctx 保持同步：
+ * 改了那边记得回来改这里。
+ */
+
+/** 触发本次调用的用户；匿名调用时为 null。 */
+interface CloudFunctionUser {
+   id: string;
+   name: string;
+   /** 角色；SUPER_ADMIN 拥有全部权限 */
+   role: 'USER' | 'ADMIN' | 'SUPER_ADMIN';
+}
+
+/** `kv.set` 的可选参数。 */
+interface CloudFunctionKvSetOptions {
+   /**
+    * 过期时间（秒）。不传则用平台默认值（见服务端 config.kv.defaultTtlSeconds），
+    * 超过上限会被截断到上限。
+    */
+   ttlSeconds?: number;
+}
+
+/**
+ * 云函数的 KV 存储。
+ *
+ * 当函数开启了「KV 按用户隔离」时，key 会自动带上当前用户的前缀，不同用户互不可见；
+ * 关闭隔离时同一函数的所有调用者共享一份空间。
+ */
+interface CloudFunctionKv {
+   /** 读取；不存在返回 null。值按 JSON 反序列化。 */
+   get<T = unknown>(key: string): Promise<T | null>;
+   /** 写入（值会被 JSON 序列化）。 */
+   set(
+      key: string,
+      value: unknown,
+      options?: CloudFunctionKvSetOptions,
+   ): Promise<void>;
+   /** 删除；返回是否删除成功（key 本来就不存在时为 false）。 */
+   del(key: string): Promise<boolean>;
+   /** 是否存在。 */
+   has(key: string): Promise<boolean>;
+   /** 自增（key 不存在时从 0 开始）；返回自增后的值。 */
+   incr(key: string, by?: number): Promise<number>;
+   /** 设置过期时间；返回是否设置成功。 */
+   expire(key: string, ttlSeconds: number): Promise<boolean>;
+   /** 剩余存活秒数；-1 表示永不过期，-2 表示 key 不存在。 */
+   ttl(key: string): Promise<number>;
+   /** 按通配符列出 key（默认 `*`）。 */
+   keys(pattern?: string): Promise<string[]>;
+   /** 批量读取，顺序与入参 keys 对应。 */
+   mget<T = unknown>(keys: string[]): Promise<(T | null)[]>;
+   /** 批量写入。 */
+   mset(
+      entries: { key: string; value: unknown; ttlSeconds?: number }[],
+   ): Promise<void>;
+   /** 清空当前隔离域内的全部 key；返回删除的数量。 */
+   clear(): Promise<number>;
+}
+
+/** 日志；会随调用结果回传，方便在平台上排查。 */
+interface CloudFunctionLog {
+   debug(message: unknown, data?: unknown): void;
+   info(message: unknown, data?: unknown): void;
+   warn(message: unknown, data?: unknown): void;
+   error(message: unknown, data?: unknown): void;
+}
+
+/**
+ * 云函数的运行期上下文，函数签名的默认参数类型：
+ *
+ * ```ts
+ * export default async function (ctx: CloudFunctionContext) {
+ *    const { input, user, kv, log } = ctx;
+ *    ...
+ * }
+ * ```
+ *
+ * `input` 是调用方定义的动态数据，默认为 `any`（否则像 `input.action` 这种访问
+ * 会被 TS 拦下）。想要精确类型可以传入泛型：
+ *
+ * ```ts
+ * export default async function (ctx: CloudFunctionContext<{ action: string }>) {
+ *    ctx.input.action; // string
+ * }
+ * ```
+ */
+interface CloudFunctionContext<TInput = any> {
+   /** 调用方传入的 input 参数。 */
+   input: TInput;
+   /** 当前登录用户；匿名调用（如内部服务触发）时为 null。 */
+   user: CloudFunctionUser | null;
+   /** 按用户隔离的 KV 存储。 */
+   kv: CloudFunctionKv;
+   /** 日志。 */
+   log: CloudFunctionLog;
+   /** 当前函数信息（名称与生效版本号）。 */
+   fn: { name: string; version: number };
+   /** 断言存在登录用户并返回；否则抛错（等价于手写 if (!user) throw ...）。 */
+   requireUser(): CloudFunctionUser;
+   /**
+    * 断言 input 是「对象」且包含指定字段，返回该对象；否则抛错。
+    * @example const { orderId } = ctx.requireInput<{ orderId: string }>(['orderId']);
+    */
+   requireInput<T = Record<string, any>>(requiredKeys: string[]): T;
+}

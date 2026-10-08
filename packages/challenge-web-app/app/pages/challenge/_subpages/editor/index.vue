@@ -416,6 +416,14 @@ const { data: problem } = await useAsyncData(
 const loaded = (() => { let r; const p = new Promise<void>(res => { r = res; }); return { promise: p, resolve: r! }; })();
 watch(problem, () => problem.value && loaded.resolve(), { immediate: true });
 
+watch(
+   problem,
+   (value) => {
+      editorStore.cloudFunctionEnabled = !!value?.enableCloudFunction;
+   },
+   { immediate: true },
+);
+
 const appBaseUrl = useRuntimeConfig().public.appBaseUrl;
 
 // command for right-click menu

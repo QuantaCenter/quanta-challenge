@@ -5,6 +5,7 @@ export interface IUseSimpleEditorOptions {
    language?: string;
    options?: monaco.editor.IStandaloneEditorConstructionOptions;
    imports?: string[];
+   containerRef?: string;
 }
 
 type EditorReadyCallback = (
@@ -44,7 +45,7 @@ const setEnvironment = () => {
 export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
    let monacoInstance: typeof import('monaco-editor') | null = null;
-   const containerKey = 'container-key';
+   const containerKey = options.containerRef ?? 'container-key';
    const container = useTemplateRef<HTMLElement>(containerKey);
 
    const editorReadyCallbacks = new Set<EditorReadyCallback>();
