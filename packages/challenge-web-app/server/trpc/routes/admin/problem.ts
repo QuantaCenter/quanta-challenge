@@ -271,19 +271,15 @@ const getAuditDetailProcedure = protectedAdminProcedure
                select: {
                   id: true,
                   currentPid: true,
+                  authorId: true,
                },
             },
          },
       });
 
       const templateJudgeRecord = result.TemplateJudgeRecord[0]?.judgeRecord;
-      if (!templateJudgeRecord) {
-         throw new TRPCError({
-            code: 'NOT_FOUND',
-            message: 'No template judge record found for this problem',
-         });
-      }
-      if (templateJudgeRecord.userId !== userId) {
+      const ownerId = templateJudgeRecord?.userId ?? result.BaseProblem.authorId;
+      if (ownerId !== userId) {
          throw new TRPCError({
             code: 'FORBIDDEN',
             message: 'You do not have permission to access this problem',
