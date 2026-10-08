@@ -28,6 +28,9 @@
       "./openapi": {
          "import": "./service/openapi/sign.ts"
       },
+      "./cloud-function": {
+         "import": "./service/cloud-function/sign.ts"
+      },
       "./oauth": {
          "import": "./service/oauth/device-flow.ts"
       }
