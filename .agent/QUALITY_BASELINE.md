@@ -57,13 +57,16 @@ pnpm typecheck:app        # 只跑 app 侧（vue-tsc）
 
 ```powershell
 cd packages/challenge-cloud-function
-pnpm typecheck          # tsc：0 错误
+pnpm typecheck          # tsc：0 错误（前置：pnpm --filter @challenge/database prisma:generate）
 pnpm test               # vitest：29 个单测（签名 / 密钥 / 编译器 / 沙箱 / KV 策略）
 pnpm build              # 产物含 dist/index.js 与 dist/runtime/worker.js 两个入口
 
 # 端到端（需要本机 PostgreSQL + Redis，会自动应用迁移并清理测试数据）
 npx tsx scripts/e2e.ts   # 期望最后输出 ✅ E2E PASSED
 ```
+
+前三步已在 CI 里跑：`.github/workflows/cloud-function.yml`（仅在本包/`prisma`/`shared/service/cloud-function`
+变化时触发），断言两个入口产物存在；`e2e.ts` 需要 PostgreSQL + Redis，暂未进 CI。
 
 端到端覆盖：健康检查、创建/发布/调用、**KV 用户隔离**、**nonce 防重放**、**判题密钥白名单**。
 本地开发模式（HTTP 由 `@hono/vite-dev-server` 提供，:1890）另行验证可启动并响应 `/healthz`。

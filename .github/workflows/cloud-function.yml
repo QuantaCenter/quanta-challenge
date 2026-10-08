@@ -1,0 +1,98 @@
+name: cloud-function
+
+# 云函数服务的验证：typecheck / 单测 / 构建。
+#
+# 沙箱（Worker + node:vm）的编译与执行真的在这里跑：executor.spec 会用 esbuild 把
+# src/runtime/worker.ts 编译成临时 bundle 再执行（含死循环硬超时、OOM、KV 策略等用例），
+# 因此这个包没有"改坏了要到部署时才发现"的死角。
+#
+# 只在本包或它的依赖变化时触发，避免每次改前端都跑一遍。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/challenge-cloud-function/**'
+      - 'packages/database/prisma/**'
+      - 'packages/shared/service/cloud-function/**'
+      - 'packages/shared/package.json'
+      - '.github/workflows/cloud-function.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'packages/challenge-cloud-function/**'
+      - 'packages/database/prisma/**'
+      - 'packages/shared/service/cloud-function/**'
+      - 'packages/shared/package.json'
+      - '.github/workflows/cloud-function.yml'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: cloud-function-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: packages/challenge-cloud-function
+
+jobs:
+  verify:
+    name: typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # tsc 要解析 @challenge/database 导出的 Prisma 类型，而 client 是生成物，
+      # 不在版本库里（Dockerfile 里同样是先跑这一步再 build）。
+      - name: Generate Prisma client
+        working-directory: packages/database
+        run: pnpm prisma:generate
+
+      - name: Typecheck (tsc)
+        run: pnpm typecheck
+
+      - name: Test (vitest, 含沙箱编译与执行)
+        run: pnpm test
+
+      - name: Build (vite)
+        run: pnpm build
+
+      # 构建产物是两个入口，缺一个都会在容器启动时才暴露，这里直接断言。
+      - name: Verify build output
+        run: |
+          test -f dist/index.js
+          test -f dist/runtime/worker.js
+          ls -l dist/index.js dist/runtime/worker.js
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### cloud-function"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 结果 | \`${{ job.status }}\` |"
+            echo "| node | \`$(node --version)\` |"
+            echo "| pnpm | \`$(pnpm --version)\` |"
+            echo ""
+            echo "本地复现：\`pnpm --filter @challenge/database prisma:generate && cd packages/challenge-cloud-function && pnpm typecheck && pnpm test && pnpm build\`"
+          } >> "$GITHUB_STEP_SUMMARY"
