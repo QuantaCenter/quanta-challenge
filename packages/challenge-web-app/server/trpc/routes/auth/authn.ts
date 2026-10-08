@@ -75,7 +75,7 @@ const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    const options = await serverAuthn.generateRegistrationOptions({
       rpID,
       rpName: 'Quanta Challenge',
-      userName: user.name || user.email,
+      userName: user.name || user.email || user.id,
       attestationType: 'none',
       excludeCredentials: user.WebAuthnCredential.map((cred) => ({
          id: cred.id,
@@ -277,7 +277,9 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
             requireUserVerification: true,
             credential: {
                id: credential.id,
-               publicKey: Buffer.from(credential.publicKey, 'base64'),
+               publicKey: new Uint8Array(
+                  Buffer.from(credential.publicKey, 'base64'),
+               ),
                counter: credential.counter,
             },
          });
