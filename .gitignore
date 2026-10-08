@@ -181,6 +181,8 @@ dist
 # private
 .tasks
 
+.pi/
+
 # 判题运行产物
 # 调度器与 Web 应用共用 local_store；两边都忽略，避免把二进制图片写进版本库。
 local_store/
