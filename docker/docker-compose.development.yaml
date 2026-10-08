@@ -29,8 +29,14 @@ services:
       # 本地可写入仓库根目录的 .env，由 docker compose 读取。
       - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET（可写入仓库根目录 .env）}
       - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET（可写入仓库根目录 .env）}
+      # 云函数服务：站点以内部密钥自动认证。开发环境默认值与云函数服务的
+      # CF_INTERNAL_KEYS.web-app 一致，开箱可用。
+      - CF_SERVER=http://challenge-cloud-function:1890
+      - CF_INTERNAL_KEY_ID=web-app
+      - CF_INTERNAL_SECRET=${CF_WEBAPP_SECRET:-dev_only_cloud_function_web_app}
     depends_on:
       - challenge-judge-scheduler
+      - challenge-cloud-function
       - redis
       - postgres
     volumes:
@@ -55,6 +61,10 @@ services:
       # 调度器在容器里，容器内的 localhost 指向自身，必须走 host.docker.internal
       # 才能连到宿主机上映射出来的判题机端口 1889。
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
+      # 云函数服务：判题侧内部密钥自动认证，受 CF_JUDGE_ALLOWED_FUNCTIONS 白名单约束。
+      - CF_SERVER=http://challenge-cloud-function:1890
+      - CF_INTERNAL_KEY_ID=judge
+      - CF_INTERNAL_SECRET=${CF_JUDGE_SECRET:-dev_only_cloud_function_judge}
       # 判题快照目录：必须是容器与宿主机都能解析的同一路径。
       # 调度器把快照写到本地后，会把该路径作为 bind mount 的 Source 交给宿主机的
       # Docker daemon —— daemon 按宿主机文件系统解析，容器私有路径必然失败：
@@ -73,6 +83,25 @@ services:
       # （判题首屏截图）Web 端 /api/static 读不到，所有封面都 404。
       - qtc_app_storage:/app/packages/challenge-web-app/local_store
       - /app/tmp:/app/tmp
+
+  challenge-cloud-function:
+    build:
+      context: ../
+      dockerfile: packages/challenge-cloud-function/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=1890
+      - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
+      - REDIS_HOST=redis
+      # 开发默认值与 web-app / 调度器侧的 CF_INTERNAL_SECRET 一致，开箱可用。
+      - CF_INTERNAL_KEYS=${CF_INTERNAL_KEYS:-{"web-app":"dev_only_cloud_function_web_app","judge":"dev_only_cloud_function_judge"}}
+      - CF_MASTER_SECRETS=${CF_MASTER_SECRETS:-{"1":"dev_only_cloud_function_master"}}
+      - CF_JUDGE_ALLOWED_FUNCTIONS=${CF_JUDGE_ALLOWED_FUNCTIONS:-}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quanta-challenge-network
 
   challenge-judge-machine-agent:
     build:

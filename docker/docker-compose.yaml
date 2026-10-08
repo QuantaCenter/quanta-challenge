@@ -10,30 +10,25 @@ services:
     ports:
       - "3000:3000"
     environment:
-      # 变量名必须与 nuxt.config.ts 中 process.env 读取的名称一致（原先的 NUXT_* 名称均未生效）
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
       - APP_SERVER=${APP_SERVER:?请设置 APP_SERVER，例如 https://your-domain.example}
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888
-      # 生产环境不允许使用内置默认口令，必须显式提供
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:?请设置 SUPER_ADMIN_ACCOUNT}
       - SUPER_PASSWORD=${SUPER_ADMIN_PASSWORD:?请设置 SUPER_ADMIN_PASSWORD}
       - SUPER_EMAIL=${SUPER_ADMIN_EMAIL:-${SUPER_ADMIN_ACCOUNT}@super.admin}
-      # Web 应用内嵌了调度器代码，判题时会构建 Live Server 容器，
-      # 因此同样需要 TEMP_DIR 指向与宿主机共享的目录（原因见调度器服务段的说明）。
       - TEMP_DIR=/app/tmp
-      # 运行时密钥：镜像构建期不再读取（原因见 server/plugins/validate-secrets.ts）。
-      # 必须由部署环境注入；缺失时 Web 容器启动即报错退出，不会静默使用空密钥。
       - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET}
       - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET}
+      - CF_SERVER=http://challenge-cloud-function:1890
+      - CF_INTERNAL_KEY_ID=web-app
+      - CF_INTERNAL_SECRET=${CF_WEBAPP_SECRET:?请设置 CF_WEBAPP_SECRET}
     depends_on:
       - challenge-judge-scheduler
+      - challenge-cloud-function
       - redis
       - postgres
     volumes:
-      # 注意路径必须是 `packages/challenge-web-app`（不是重命名前的 `packages/web`）：
-      # 代码里 resolveLocalStorePath() 解析出的就是这里，挂错路径会让上传的图片/徽章
-      # 落在容器可写层——重启即丢，而且 web 与调度器两个容器互相看不见对方写的文件。
       - qtc_app_storage:/app/packages/challenge-web-app/local_store # Persist local storage
       - /app/tmp:/app/tmp
 
@@ -47,28 +42,12 @@ services:
       - PORT=1888
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
-      # 判题完成后回调 Web 应用，缺失时会指向自身的 localhost:3000 导致回调静默失败
       - APP_SERVER_URL=http://challenge-web-app:3000
-      # 回调签名密钥：必须与 challenge-web-app 的 OPENAPI_WEBHOOK_SECRET 完全一致。
-      # 不一致时 Web 端中间件返回 403，分数/统计/排行榜/通知全部静默不更新。
       - OPENAPI_WEBHOOK_SECRET=${OPENAPI_WEBHOOK_SECRET:?请设置 OPENAPI_WEBHOOK_SECRET}
-      # 调度器在容器里，容器内的 localhost 指向自身，必须走 host.docker.internal
-      # 才能连到宿主机上映射出来的判题机端口 1889。
-      # 缺失时 init() 会静默卡在 connectWebSocket，调度器既不监听 1888 也不报错。
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
-      # 判题快照（tmp）目录。
-      #
-      # ⚠️ 这个路径必须是「容器内」与「Docker daemon 所在的宿主机」都指向同一份数据的
-      # 同一绝对路径。原因：调度器把快照写到本地后，会把这个路径作为 bind mount 的
-      # Source 交给宿主机的 Docker daemon，而 **daemon 是按宿主机文件系统解析该路径的**。
-      #
-      # 因此这里用「宿主机目录 : 容器内同一个绝对路径」的形式（/app/tmp:/app/tmp）。
-      # 若改用命名卷（qtc_judge_tmp:/app/tmp），在 Linux 上同样可行；但在
-      # Docker Desktop(Windows/macOS) 上，daemon 运行于独立虚拟机，无法解析容器私有
-      # 路径，会持续报：
-      #   invalid mount config for type "bind": bind source path does not exist
-      # 用同路径的宿主目录绑定在两类平台上都更稳。
-      # 目录不存在时请先创建：mkdir -p /app/tmp
+      - CF_SERVER=http://challenge-cloud-function:1890
+      - CF_INTERNAL_KEY_ID=judge
+      - CF_INTERNAL_SECRET=${CF_JUDGE_SECRET:?请设置 CF_JUDGE_SECRET}
       - TEMP_DIR=/app/tmp
     extra_hosts:
       # Linux 上 host.docker.internal 默认不存在，需要显式注入 host-gateway
@@ -80,11 +59,26 @@ services:
       - quanta-challenge-network
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Docker outside of Docker
-      # 与 Web 应用共用同一个 local_store。缺失时调度器写进容器内临时目录，
-      # 判题生成的题目封面在 Web 端全部 404，且容器重启即丢。
       - qtc_app_storage:/app/packages/challenge-web-app/local_store
-      # 判题快照目录，必须与 TEMP_DIR 的绝对路径一致（原因见上方说明）
       - /app/tmp:/app/tmp
+
+  challenge-cloud-function:
+    build:
+      context: ../
+      dockerfile: packages/challenge-cloud-function/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=1890
+      - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
+      - REDIS_HOST=redis
+      - CF_INTERNAL_KEYS=${CF_INTERNAL_KEYS:?请设置 CF_INTERNAL_KEYS（JSON，例如 {"web-app":"…","judge":"…"}）}
+      - CF_MASTER_SECRETS=${CF_MASTER_SECRETS:?请设置 CF_MASTER_SECRETS（JSON，例如 {"1":"…"}）}
+      - CF_JUDGE_ALLOWED_FUNCTIONS=${CF_JUDGE_ALLOWED_FUNCTIONS:-}
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - quanta-challenge-network
 
   challenge-judge-machine-agent:
     build:
