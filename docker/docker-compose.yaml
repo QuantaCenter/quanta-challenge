@@ -66,6 +66,13 @@ services:
     build:
       context: ../
       dockerfile: packages/challenge-cloud-function/Dockerfile
+    networks:
+      - quanta-challenge-network
+    ports:
+      # 只绑回环：部署机上的 webhook 用 http://127.0.0.1:1890/healthz 做健康探测
+      # （与调度器的 1888 同理）。服务本身只需被 compose 网络内的 web-app /
+      # 调度器访问，不要暴露到 0.0.0.0。
+      - "127.0.0.1:1890:1890"
     environment:
       - NODE_ENV=production
       - PORT=1890
@@ -77,8 +84,6 @@ services:
     depends_on:
       - redis
       - postgres
-    networks:
-      - quanta-challenge-network
 
   challenge-judge-machine-agent:
     build:

@@ -21,15 +21,17 @@ import { readFileSync } from 'node:fs';
 /**
  * 镜像 → docker compose 服务名的映射。
  *
- * 注意只有前两个是默认 compose profile 里的服务；judge-machine 跑在宿主机（端口 1889），
- * live-server 镜像是调度器在判题时按需构建的，两者都不由 `docker compose up` 管理，
- * 因此 service 为 null，服务端自行决定怎么处理（预拉镜像 / 重启宿主机进程）。
+ * 注意只有 web-app / judge-scheduler / cloud-function 是默认 compose profile 里的服务；
+ * judge-machine 跑在宿主机（端口 1889），live-server 镜像是调度器在判题时按需构建的，
+ * 两者都不由 `docker compose up` 管理，因此 service 为 null，服务端自行决定怎么处理
+ * （预拉镜像 / 重启宿主机进程）。
  */
 const COMPOSE_SERVICE = {
    'web-app': 'challenge-web-app',
    'judge-scheduler': 'challenge-judge-scheduler',
    'judge-machine': null,
    'live-server': null,
+   'cloud-function': 'challenge-cloud-function',
 };
 
 const args = process.argv.slice(2);

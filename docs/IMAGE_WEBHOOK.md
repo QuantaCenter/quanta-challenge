@@ -75,6 +75,7 @@ X-Quanta-Signature: sha256=<hex>           # 见下一节
 | --- | --- | --- |
 | `web-app` | `challenge-web-app` | compose 服务，`docker compose pull/up` 即可 |
 | `judge-scheduler` | `challenge-judge-scheduler` | 同上 |
+| `cloud-function` | `challenge-cloud-function` | 同上。首发会先跑 `prisma migrate deploy`，部署机侧健康探测窗口放宽到 60s |
 | `judge-machine` | `null` | 跑在宿主机（端口 1889），不在默认 compose profile 里，部署机自行处理（如预拉镜像 + 重启宿主机进程） |
 | `live-server` | `null` | 该镜像是调度器判题时按需构建的，通常只需预拉到本地即可 |
 

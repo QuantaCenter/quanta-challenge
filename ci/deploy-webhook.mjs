@@ -43,6 +43,16 @@ const CFG = {
 const SERVICES = {
    'challenge-web-app': { refVar: 'WEB_APP_REF', health: env.HEALTH_WEB_APP || 'http://127.0.0.1:3000/', codes: [200, 302, 401, 403] },
    'challenge-judge-scheduler': { refVar: '', health: env.HEALTH_JUDGE_SCHEDULER || 'http://127.0.0.1:1888/health', codes: [200] },
+   // 云函数服务与调度器同理：compose 里没有 image:，按正在用的标签重打。
+   // 健康检查端点由服务自己提供（/healthz 不验签，会实际 ping Redis 与 Postgres，
+   // 依赖不可用时返回 503）；它的容器启动时先跑 prisma migrate deploy，
+   // 因此健康探测窗口给到 60s，不能用默认的 20s。
+   'challenge-cloud-function': {
+      refVar: '',
+      health: env.HEALTH_CLOUD_FUNCTION || 'http://127.0.0.1:1890/healthz',
+      codes: [200],
+      healthDeadlineMs: 60_000,
+   },
 };
 
 const log = (msg) => {
@@ -127,8 +137,8 @@ const snapshot = async (service) => {
 };
 
 const waitHealthy = async (service) => {
-   const { health, codes } = SERVICES[service];
-   const deadline = Date.now() + IDLE_MS;
+   const { health, codes, healthDeadlineMs } = SERVICES[service];
+   const deadline = Date.now() + (healthDeadlineMs ?? IDLE_MS);
    let last = '';
    while (Date.now() < deadline) {
       try {

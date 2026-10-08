@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: '要构建的镜像：all 或逗号分隔（web-app,judge-scheduler,judge-machine,live-server）'
+        description: '要构建的镜像：all 或逗号分隔（web-app,judge-scheduler,judge-machine,live-server,cloud-function）'
         required: false
         default: 'all'
         type: string

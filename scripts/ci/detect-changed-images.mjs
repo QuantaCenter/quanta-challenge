@@ -3,7 +3,7 @@
  * 判定「这次改动需要重建哪些镜像」。
  *
  * 为什么单独写成脚本而不是塞进 workflow 的 run 里：
- * 判定规则要和 4 个 Dockerfile 的 COPY 列表严格对应，属于容易写错、且错了很隐蔽
+ * 判定规则要和各镜像 Dockerfile 的 COPY 列表严格对应，属于容易写错、且错了很隐蔽
  * （少建一个镜像 → 线上跑着旧代码；多建 → 白烧十几分钟构建时间）的逻辑。
  * 放在仓库里可以用真实提交区间在本地反复验证：见文件末尾的「本地自测」。
  *
@@ -76,6 +76,18 @@ const IMAGES = [
       // 该 Dockerfile 只有 `npm install -g live-server` + CMD，**不 COPY 任何仓库文件**。
       // 因此只有它自己的 Dockerfile 变化才需要重建；改仓库代码永远不必重建它。
       watches: ['packages/challenge-agents/live-server/Dockerfile'],
+   },
+   {
+      short: 'cloud-function',
+      title: '云函数服务',
+      dockerfile: 'packages/challenge-cloud-function/Dockerfile',
+      // 除自身源码外还 COPY 了 database（`RUN pnpm prisma:generate`）与 shared
+      // （签名实现 service/cloud-function/sign.ts 两侧共用）。
+      watches: [
+         'packages/challenge-cloud-function', // COPY packages/challenge-cloud-function
+         'packages/database', // COPY packages/database
+         'packages/shared', // COPY packages/shared
+      ],
    },
 ];
 
