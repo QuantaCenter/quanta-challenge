@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { Code, GoldMedalTwo, Peoples, TableReport, Tag } from '@icon-park/vue-next';
+import {
+   BookOne,
+   Code,
+   GoldMedalTwo,
+   Peoples,
+   TableReport,
+   Tag,
+} from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -13,6 +20,13 @@ type ProcessOption = {
 };
 
 const options: ProcessOption[] = [
+   {
+      title: '专题审核',
+      description: '审核管理员提交的专题，通过后上架到专题总览',
+      url: '/app/manage/topic',
+      icon: BookOne,
+      iconColor: '#38BDF8',
+   },
    {
       title: '题目管理',
       description: '管理已发布的题目，查看与编辑题目信息',
@@ -53,11 +67,8 @@ const options: ProcessOption[] = [
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace
-         direction="vertical"
-         gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">管理流程</h1>
+      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] py-6">
+         <h1 class="st-font-hero-bold text-accent-100">管理流程</h1>
 
          <StSpace direction="vertical" gap="1.5rem" fill-x>
             <NuxtLink
@@ -70,7 +81,7 @@ const options: ProcessOption[] = [
                   :to="option.url"
                   justify="between"
                   align="center"
-                  class="p-6 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
+                  class="p-5 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
                   <StSpace direction="vertical" gap="0.5rem">
                      <h2 class="st-font-capture text-[1.25rem] text-white">
                         {{ option.title }}
