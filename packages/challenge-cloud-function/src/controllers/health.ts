@@ -7,10 +7,6 @@ const healthRoute = new Hono();
 
 /**
  * 健康检查。
- *
- * 刻意**实际 ping** Redis 与 Postgres，而不是永远返回 ok：
- * judge-scheduler 曾出现"Hono 在 1888 返回 ok，但 MQ/Redis/Docker 全没就绪"的假健康状态，
- * 本服务不重蹈覆辙——依赖不可用时返回 503。
  */
 healthRoute.get('/', async (c) => {
    let redisOk = false;
