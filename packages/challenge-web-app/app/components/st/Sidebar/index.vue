@@ -8,6 +8,7 @@ import {
    TableReport,
    Trophy,
    UploadTwo,
+   BookOne,
 } from '@icon-park/vue-next';
 import Logo from '~/components/icon/Logo.vue';
 import useAuthStore from '~/stores/auth-store';
@@ -33,6 +34,11 @@ const role = computed(() => authStore.user?.role ?? 'USER');
             <StSidebarSidePopper content="仪表盘">
                <StSidebarNavigationButton to="/app/dashboard">
                   <DashboardTwo />
+               </StSidebarNavigationButton>
+            </StSidebarSidePopper>
+            <StSidebarSidePopper content="专题">
+               <StSidebarNavigationButton to="/app/topics">
+                  <BookOne />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
             <StSidebarSidePopper content="排行榜">

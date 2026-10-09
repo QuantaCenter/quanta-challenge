@@ -51,6 +51,13 @@ export const pageSecions = [
       ],
    },
    {
+      id: 'topics-list',
+      pageName: '专题',
+      sectionName: '专题总览',
+      url: '/app/topics',
+      keywords: ['专题', '学习', '路径', 'topics', 'learning', 'zhuanti', 'xuexi'],
+   },
+   {
       id: 'dashboard-daily-challenge',
       pageName: '仪表盘',
       sectionName: '每日一题',
