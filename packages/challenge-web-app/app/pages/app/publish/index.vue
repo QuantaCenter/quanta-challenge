@@ -1,9 +1,16 @@
 <script setup lang="ts">
-import { Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import { BookOne, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
 const options = [
+   {
+      title: '创建标签',
+      description: '创建新的题目标签，并为标签配置颜色与图标',
+      url: '/app/publish/create-tag',
+      icon: Tag,
+      iconColor: '#FE4E4E',
+   },
    {
       title: '发布题目',
       description: '创建一个新的判题流程，并配置题目的基本信息',
@@ -12,18 +19,18 @@ const options = [
       iconColor: '#C1EF3F',
    },
    {
+      title: '创建专题',
+      description: '把若干篇文章组织成一个专题，文章本身独立于专题存在',
+      url: '/app/publish/topic',
+      icon: BookOne,
+      iconColor: '#38BDF8',
+   },
+   {
       title: '创建成就',
       description: '创建一个新的成就，并配置成就的基本信息',
       url: '/app/publish/achievement',
       icon: GoldMedalTwo,
       iconColor: '#F59E0B',
-   },
-   {
-      title: '创建标签',
-      description: '创建新的题目标签，并为标签配置颜色与图标',
-      url: '/app/publish/create-tag',
-      icon: Tag,
-      iconColor: '#FE4E4E',
    },
    {
       title: '发布云函数',
