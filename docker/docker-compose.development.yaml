@@ -70,6 +70,12 @@ services:
       # Docker daemon —— daemon 按宿主机文件系统解析，容器私有路径必然失败：
       #   invalid mount config for type "bind": bind source path does not exist
       - TEMP_DIR=/app/tmp
+      # 共享 pnpm 缓存：固定路径，调度器是唯一写入方（通过 /cache/update 预热）。
+      - PNPM_CACHE_DIR=/app/pnpm-cache
+      # 预热 / 门禁用哪个镜像起容器。必须是【题目容器镜像】：
+      # pnpm 缓存的 postinstall 产物（如 Prisma 引擎）依赖 openssl/libc/arch，
+      # 用别的镜像预热会在题目容器里 miss。不设置则退化为调度器进程内预热（仅调试）。
+      - PNPM_CACHE_PROBLEM_IMAGE=${PNPM_CACHE_PROBLEM_IMAGE:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -83,6 +89,9 @@ services:
       # （判题首屏截图）Web 端 /api/static 读不到，所有封面都 404。
       - qtc_app_storage:/app/packages/challenge-web-app/local_store
       - /app/tmp:/app/tmp
+      # pnpm 缓存：宿主机路径与容器内路径保持一致，这样调度器创建题目容器时
+      # 可以直接把这个路径当作 bind mount 的 Source（daemon 按宿主机解析）。
+      - ${PNPM_CACHE_HOST_DIR:-/app/pnpm-cache}:/app/pnpm-cache
 
   challenge-cloud-function:
     build:

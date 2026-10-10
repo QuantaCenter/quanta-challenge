@@ -1,8 +1,11 @@
 import { DockerService } from './docker';
+import { PnpmCacheService } from './pnpm-cache';
 import { QueueService } from './queue';
 import { RedisService } from './redis';
 
 export const initServices = async () => {
+   // 共享 pnpm 缓存：确保挂载点存在并打印现状，路径没挂上时能第一时间发现。
+   await PnpmCacheService.instance.init();
    await DockerService.instance.init();
    // 兜底清理上次异常退出遗留的判题容器
    await DockerService.instance.sweepStaleLiveServers();

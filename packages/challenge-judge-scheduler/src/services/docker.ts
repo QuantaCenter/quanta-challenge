@@ -51,28 +51,11 @@ export class DockerService extends Singleton {
       super();
    }
 
-   /**
-    * 正在被 in-flight 判题任务使用的 live-server 容器 id。
-    *
-    * 定时清扫必须跳过这些容器。仅凭"容器年龄"判断是不安全的：一次集中提交会同时
-    * 建出几十个容器，它们年龄相同，无法区分哪些还在用、哪些是孤儿，
-    * 所以这里改为显式登记。
-    */
    private activeLiveServerIds = new Set<string>();
 
    /** 定时清扫句柄；用 unref 避免它把进程留在事件循环里。 */
    private sweepTimer: NodeJS.Timeout | null = null;
 
-   /**
-    * 周期清扫：进程内清理失败（job 失败、进程被强杀）时，容器会在分钟级被自愈回收。
-    *
-    * ⚠️ 宽限期（graceMs）不能为 0。
-    * 容器是"先创建、等 Ready 后才登记进 activeLiveServerIds"的，这中间有一个未登记窗口；
-    * 若清扫器此时扫描，会把**判题正在进行中**的容器当成孤儿删掉，判题机随即解析不到
-    * 该容器的网络别名，最终以 "Judge Machine response timeout" 失败。
-    * （实测：minAgeMs=0 时容器创建 6 秒即被删除，判题必失败。）
-    * 因此宽限期必须显著大于容器的正常启动耗时与单次判题耗时。
-    */
    startLiveServerSweeper(intervalMs = 30_000, graceMs = 5 * 60 * 1000) {
       if (this.sweepTimer) return;
       this.sweepTimer = setInterval(() => {
