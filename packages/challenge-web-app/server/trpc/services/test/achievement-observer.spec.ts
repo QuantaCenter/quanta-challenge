@@ -742,6 +742,41 @@ describe('AchievementObserver', () => {
          });
       });
 
+      test('should skip leading comment lines before export default', async () => {
+         const mockAchievement = {
+            AchievementValidateScript: {
+               script: [
+                  '// 达成条件：提交题目数 > 10',
+                  '// 多行注释与空行同样应被略过',
+                  '',
+                  'export default defineCheckFunc((depData) => ({',
+                  '   achieved: depData.problemCount > 10,',
+                  '   progress: depData.problemCount / 20,',
+                  '}));',
+               ].join('\n'),
+            },
+            AchievementDependencyData: [
+               {
+                  achievementDepDataLoader: {
+                     id: 1,
+                     name: 'problemCount',
+                     type: 'NUMERIC',
+                     sql: 'SELECT problems.pid AS value FROM problems',
+                  },
+               },
+            ],
+         };
+
+         (mockPrisma as any).achievement.findUnique.mockResolvedValue(
+            mockAchievement
+         );
+         mockPrisma.$queryRawUnsafe.mockResolvedValue([{ value: 15 }]);
+
+         const result = await observer.triggerCheckAchievement(1);
+
+         expect(result).toStrictEqual({ achieved: true, progress: 0.75, score: 0 });
+      });
+
       test('should execute achievement check and return false when condition is not met', async () => {
          const mockAchievement = {
             AchievementValidateScript: {
