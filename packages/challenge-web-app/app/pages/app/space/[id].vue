@@ -3,8 +3,10 @@ import DEFAULT_SPACE_URL from '~/assets/images/default-space-banner.png';
 import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
 import {
    BirthdayCake,
+   BookmarkOne,
    Mail,
    PeopleBottomCard,
+   Right,
    School,
    Config,
    Edit,
@@ -20,6 +22,7 @@ import UserInfoEditDrawer from './_drawers/UserInfoEditDrawer.vue';
 import SpaceConfigDrawer from './_drawers/SpaceConfigDrawer.vue';
 import dayjs from 'dayjs';
 import useAuthStore from '~/stores/auth-store';
+import { useFavorites } from '~/composables/use-favorites';
 import { PassRate, Score, Difficulty } from '../problems/_components/CardInfo';
 
 const route = useRoute();
@@ -37,6 +40,9 @@ useSeoMeta({ title: `${userName.value}的个人空间 - Quanta Challenge` });
 
 const editDrawerOpened = ref(false);
 const configDialogOpened = ref(false);
+
+// 名片下方的收藏入口：收藏是自己的，只有本人空间才显示
+const { problemFavorites, articleFavorites } = useFavorites();
 
 const openEditDrawer = () => {
    editDrawerOpened.value = true;
@@ -281,6 +287,29 @@ onMounted(() => {
                   <span>{{ item.value }}</span>
                </StSpace>
             </StGrid>
+
+            <NuxtLink
+               v-if="isOwnSpace"
+               to="/app/space/favorites"
+               class="w-full">
+               <div
+                  class="mx-3 mb-4 p-4 rounded-[1rem] bg-accent-500/60 hover:bg-accent-500 transition-colors flex items-center gap-3">
+                  <BookmarkOne
+                     class="shrink-0 text-secondary"
+                     size="1.25rem"
+                     :strokeWidth="3" />
+                  <StSpace direction="vertical" gap="0.25rem" class="min-w-0 flex-1">
+                     <span class="st-font-body-bold text-accent-100">
+                        我的收藏
+                     </span>
+                     <span class="st-font-tooltip text-accent-300">
+                        {{ problemFavorites.length }} 道题 ·
+                        {{ articleFavorites.length }} 篇文章
+                     </span>
+                  </StSpace>
+                  <Right class="shrink-0 text-accent-400" size="0.875rem" />
+               </div>
+            </NuxtLink>
          </StSpace>
 
          <StSpace direction="vertical" class="my-8" :style="{ width: `44rem` }">

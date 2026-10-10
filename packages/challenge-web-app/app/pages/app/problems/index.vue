@@ -13,6 +13,7 @@ import {
 } from '@icon-park/vue-next';
 import { useScroll, useResizeObserver, watchDebounced } from '@vueuse/core';
 import { PassRate, Score, Difficulty } from './_components/CardInfo';
+import { toFavoriteProblemFromApi } from '~/composables/use-favorites';
 
 useSeoMeta({ title: '题目 - Quanta Challenge' });
 
@@ -195,36 +196,45 @@ const {
                content="暂无题目"
                class="!w-[61.75rem] pb-32 mt-[5rem]" />
             <StGrid v-else fill :cols="4" gap="1.25rem">
-               <a
+               <div
                   v-for="(problem, idx) in problems"
-                  class="h-fit"
-                  target="_blank"
+                  class="relative h-fit"
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
-                  :key="idx"
-                  :href="`/challenge/editor/${problem.pid}`">
-                  <StProblemCard
-                     class="w-[14.5rem] h-fit"
-                     :cover-image-name="problem.imageName"
-                     :cover-image-thumbhash="problem.imageHash"
-                     :cover-image-thumbhash-url="problem.imageThumbhashUrl">
-                     <StProblemCardTitle :title="problem.title ?? '匿名题目'" />
-                     <StProblemCardTags :tags="problem.tags ?? []" />
-                     <StProblemCardDivider />
-                     <StProblemCardInfo
-                        class="pb-3"
-                        :class="{ 'px-2': problem.difficulty !== 'very_hard' }">
-                        <StProblemCardInfoItem title="通过率">
-                           <PassRate :rate="problem.passRate!" />
-                        </StProblemCardInfoItem>
-                        <StProblemCardInfoItem title="分数">
-                           <Score :score="problem.totalScore!" />
-                        </StProblemCardInfoItem>
-                        <StProblemCardInfoItem title="难度" center>
-                           <Difficulty :difficulty="problem.difficulty!" />
-                        </StProblemCardInfoItem>
-                     </StProblemCardInfo>
-                  </StProblemCard>
-               </a>
+                  :key="idx">
+                  <a
+                     class="block h-fit"
+                     target="_blank"
+                     :href="`/challenge/editor/by-base/${problem.baseId}`">
+                     <StProblemCard
+                        class="w-[14.5rem] h-fit"
+                        :cover-image-name="problem.imageName"
+                        :cover-image-thumbhash="problem.imageHash"
+                        :cover-image-thumbhash-url="problem.imageThumbhashUrl">
+                        <StProblemCardTitle :title="problem.title ?? '匿名题目'" />
+                        <StProblemCardTags :tags="problem.tags ?? []" />
+                        <StProblemCardDivider />
+                        <StProblemCardInfo
+                           class="pb-3"
+                           :class="{ 'px-2': problem.difficulty !== 'very_hard' }">
+                           <StProblemCardInfoItem title="通过率">
+                              <PassRate :rate="problem.passRate!" />
+                           </StProblemCardInfoItem>
+                           <StProblemCardInfoItem title="分数">
+                              <Score :score="problem.totalScore!" />
+                           </StProblemCardInfoItem>
+                           <StProblemCardInfoItem title="难度" center>
+                              <Difficulty :difficulty="problem.difficulty!" />
+                           </StProblemCardInfoItem>
+                        </StProblemCardInfo>
+                     </StProblemCard>
+                  </a>
+
+                  <LearningFavoriteButton
+                     kind="problem"
+                     :target="toFavoriteProblemFromApi(problem)"
+                     raised
+                     class="absolute right-4 top-4 z-10" />
+               </div>
             </StGrid>
          </StSkeleton>
          <div
