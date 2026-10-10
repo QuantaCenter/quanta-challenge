@@ -209,9 +209,11 @@ export const validateProblem = async (
    }
 
    // ── 运行期配置 ─────────────────────────────────────────────
+   const isBackend = config.type === 'backend_service';
    const mountPath = config.runtime.judgeUploadPath;
    const initCommand = config.runtime.initCommand;
-   if (initCommand && !initCommand.includes(mountPath)) {
+   // RUN001 只对前端题型成立：后端服务不要站点根，而是跑一个常驻进程。
+   if (!isBackend && initCommand && !initCommand.includes(mountPath)) {
       push({
          rule: 'RUN001',
          severity: 'warn',
@@ -229,6 +231,28 @@ export const validateProblem = async (
       });
    }
 
+   // 后端服务题型的额外约束（详见 docs/BACKEND_SERVICE_PROBLEM.md）
+   if (isBackend) {
+      if (!config.runtime.bootCommand) {
+         push({
+            rule: 'RUN002',
+            severity: 'error',
+            message: '后端服务题型必须提供 runtime.bootCommand（容器的启动命令）',
+            file: rel(config.configFile),
+            hint: '例如 bootCommand: "node dist/index.js"。容器入口脚本靠它启动用户服务。',
+         });
+      }
+      if (config.cover.mode === 'default') {
+         push({
+            rule: 'IMG002',
+            severity: 'error',
+            message: '后端服务题型必须使用自定义封面（没有首屏可截图）',
+            file: rel(config.configFile),
+            hint: '把 cover 改成 { mode: "custom", imageId: "..." }。',
+         });
+      }
+   }
+
    // ── 工程快照 ───────────────────────────────────────────────
    const template = await collectSnapshot(config.paths.template, { mountPath });
    const answer = await collectSnapshot(config.paths.answer, { mountPath });
@@ -238,6 +262,7 @@ export const validateProblem = async (
       dir: string,
       snapshot: SnapshotResult,
       rulePrefix: string,
+      requireIndex: boolean,
    ): Promise<void> => {
       const relative = rel(dir);
       if (!(await pathExists(dir))) {
@@ -262,7 +287,7 @@ export const validateProblem = async (
       const hasIndex = Object.keys(snapshot.files).some((key) =>
          key.endsWith('/index.html'),
       );
-      if (label === 'template' && !hasIndex) {
+      if (requireIndex && label === 'template' && !hasIndex) {
          push({
             rule: 'TPL003',
             severity: 'error',
@@ -270,6 +295,21 @@ export const validateProblem = async (
             file: relative,
             hint: 'initCommand 以该目录为站点根启动静态服务器，没有 index.html 时判题会一直等选择器。',
          });
+      }
+      // 后端服务必须有锁文件，否则容器内的离线安装无从谈起。
+      if (isBackend && label === 'answer') {
+         const hasLockfile = Object.keys(snapshot.files).some((key) =>
+            key.endsWith('/pnpm-lock.yaml'),
+         );
+         if (!hasLockfile) {
+            push({
+               rule: 'RUN003',
+               severity: 'error',
+               message: `后端服务参考答案缺少 pnpm-lock.yaml（应在 ${mountPath}/ 下）`,
+               file: relative,
+               hint: '离线安装依赖锁文件；没有它容器无法在断网环境下安装依赖。先在参考答案目录执行一次 pnpm install 生成。',
+            });
+         }
       }
       for (const ignored of snapshot.ignored) {
          push({
@@ -281,8 +321,8 @@ export const validateProblem = async (
       }
    };
 
-   await checkArtifact('template', config.paths.template, template, 'TPL');
-   await checkArtifact('answer', config.paths.answer, answer, 'ANS');
+   await checkArtifact('template', config.paths.template, template, 'TPL', !isBackend);
+   await checkArtifact('answer', config.paths.answer, answer, 'ANS', !isBackend);
 
    const maxUploadBytes = options.maxUploadBytes ?? Number.POSITIVE_INFINITY;
    const maxFileCount = options.maxFileCount ?? 500;

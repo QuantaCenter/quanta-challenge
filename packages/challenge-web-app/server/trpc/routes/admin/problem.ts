@@ -49,6 +49,9 @@ const handleCreateVersion = async (options: {
          buildCommand: input.buildCommand,
          judgeUploadPath: input.judgeUploadPath,
          enableCloudFunction: input.enableCloudFunction ?? false,
+         problemType: input.problemType ?? 'frontend',
+         serviceImage: input.serviceImage,
+         servicePort: input.servicePort ?? 3000,
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,
@@ -485,6 +488,9 @@ const getDetailProcedure = protectedAdminProcedure
             buildCommand: true,
             judgeUploadPath: true,
             enableCloudFunction: true,
+            problemType: true,
+            serviceImage: true,
+            servicePort: true,
             tags: {
                select: {
                   tid: true,

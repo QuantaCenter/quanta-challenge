@@ -8,6 +8,7 @@ import type { StForm } from '#components';
 import {
    useProblemPublicationForm,
    cloudFunctionOptions,
+   problemTypeOptions,
 } from './_composables/use-problem-publication-form';
 import { UploadTwo } from '@icon-park/vue-next';
 import { normalizePath, joinPath } from '~/utils/path-utils';
@@ -40,6 +41,18 @@ const enableCloudFunction = computed<boolean>({
    },
 });
 
+// 题型。切到后端服务时强制用自定义封面：后端没有首屏可截，
+// 默认封面（首屏截图）永远生成不出来（与服务端 schema 的 refine 一致）。
+const problemType = computed<'frontend' | 'backend_service'>({
+   get: () => draft.value.problemType ?? 'frontend',
+   set: (value) => {
+      draft.value.problemType = value;
+      if (value === 'backend_service') {
+         draft.value.coverMode = 'custom';
+      }
+   },
+});
+
 const imageName = ref('');
 const imageUrl = computed(() => {
    return imageName.value ? `/api/static/${imageName.value}` : undefined;
@@ -69,6 +82,9 @@ const fetchProblemDetail = async () => {
    draft.value.buildCommand = problem.buildCommand ?? '';
    draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
    draft.value.enableCloudFunction = problem.enableCloudFunction ?? false;
+   draft.value.problemType = problem.problemType ?? 'frontend';
+   draft.value.serviceImage = problem.serviceImage ?? '';
+   draft.value.servicePort = problem.servicePort ?? 3000;
 
    const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
    for (const file of files) {
@@ -116,6 +132,9 @@ const handleSubmit = async () => {
          initCommand: draft.value.initCommand,
          judgeUploadPath: draft.value.judgeUploadPath,
          enableCloudFunction: draft.value.enableCloudFunction ?? false,
+         problemType: draft.value.problemType,
+         serviceImage: draft.value.serviceImage || undefined,
+         servicePort: draft.value.servicePort,
       });
    };
    submitLoading.value = true;
@@ -193,6 +212,32 @@ const handleSubmit = async () => {
                      v-model:value="draft.difficulty"
                      :options="difficultyOptions" />
                </StFormItem>
+               <StFormItem
+                  name="problemType"
+                  label="题目类型"
+                  error-message="请选择题目类型"
+                  required>
+                  <StSlideRadioGroup
+                     v-model:value="problemType"
+                     :options="problemTypeOptions" />
+               </StFormItem>
+               <template v-if="problemType === 'backend_service'">
+                  <StFormItem
+                     name="serviceImage"
+                     label="服务运行镜像">
+                     <StInput
+                        v-model:value="draft.serviceImage"
+                        placeholder="留空使用默认镜像 challenge-backend-service-agent"
+                        :outer-class />
+                  </StFormItem>
+                  <StFormItem name="servicePort" label="服务端口" required>
+                     <StInput
+                        type="number"
+                        v-model:value="draft.servicePort"
+                        placeholder="服务监听的端口，默认 3000"
+                        :outer-class />
+                  </StFormItem>
+               </template>
                <StFormItem
                   name="enableCloudFunction"
                   label="是否使用云函数"

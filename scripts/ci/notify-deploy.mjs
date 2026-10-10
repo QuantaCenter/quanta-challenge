@@ -31,6 +31,8 @@ const COMPOSE_SERVICE = {
    'judge-scheduler': 'challenge-judge-scheduler',
    'judge-machine': null,
    'live-server': null,
+   'backend-service': null,
+   'backend-judge-machine': null,
    'cloud-function': 'challenge-cloud-function',
 };
 

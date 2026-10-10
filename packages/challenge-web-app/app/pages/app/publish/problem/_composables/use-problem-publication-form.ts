@@ -21,6 +21,12 @@ export const cloudFunctionOptions: ISlideRadioGroupOption[] = [
    { label: '使用云函数', value: true, color: '#C267FF' },
 ];
 
+// 题型选项：前端（静态站点 + Playwright）与后端服务（常驻进程 + HTTP 判题）
+export const problemTypeOptions: ISlideRadioGroupOption[] = [
+   { label: '前端题型', value: 'frontend', color: '#1DA1F2' },
+   { label: '后端服务题型', value: 'backend_service', color: '#17BF63' },
+];
+
 export const useProblemPublicationForm = (storageName: string) => {
    const formdata = useLocalStorage(storageName, {
       title: '',
@@ -43,6 +49,9 @@ export const useProblemPublicationForm = (storageName: string) => {
       buildCommand: '',
       judgeUploadPath: '',
       enableCloudFunction: false,
+      problemType: 'frontend' as 'frontend' | 'backend_service',
+      serviceImage: '',
+      servicePort: 3000,
    });
    const draft = useDebounce(formdata, 200);
 
@@ -127,6 +136,33 @@ export const useProblemPublicationForm = (storageName: string) => {
             return value && value.length > 0;
          },
       },
+      {
+         field: 'problemType',
+         required: true,
+         validator(value) {
+            return value === 'frontend' || value === 'backend_service';
+         },
+      },
+      {
+         field: 'bootCommand',
+         required: draft.value.problemType === 'backend_service',
+         validator(value) {
+            return (
+               draft.value.problemType !== 'backend_service' ||
+               (typeof value === 'string' && value.trim().length > 0)
+            );
+         },
+      },
+      {
+         field: 'servicePort',
+         required: draft.value.problemType === 'backend_service',
+         validator(value) {
+            return (
+               draft.value.problemType !== 'backend_service' ||
+               (typeof value === 'number' && value > 0 && value <= 65535)
+            );
+         },
+      },
    ]);
 
    return {
@@ -137,5 +173,6 @@ export const useProblemPublicationForm = (storageName: string) => {
       difficultyOptions,
       coverModeOptions,
       cloudFunctionOptions,
+      problemTypeOptions,
    };
 };

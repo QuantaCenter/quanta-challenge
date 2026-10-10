@@ -313,7 +313,24 @@ export default defineTestHandler(async ({ page, $ }) => {
 
 ---
 
-## 七、一句话总结
+## 七、后端服务题型（另一条链路）
+
+前端题目把用户代码当**静态站点**（live-server + Playwright）；后端服务题目把用户代码当
+**常驻进程**（离线安装依赖 → 启动服务 → 用 HTTP 断言）。出题方式差异：
+
+- `problem.config.ts` 里写 `type: 'backend_service'`，并提供 `runtime.bootCommand`
+  （容器启动命令）与 `runtime.servicePort`（默认 3000）。
+- 参考解目录里**必须有 `pnpm-lock.yaml`**：容器在断网环境用共享 store 装依赖，没有锁文件
+  就无从安装（`qpc check` 会以 RUN003 拦下）。
+- 不能用「默认封面」（首屏截图）—— 后端没有页面可截，必须用自定义封面。
+- 判题脚本不用 `page`，而是 `defineTestHandler(async ({ http, $ }) => {...})`；
+  同样**每个检查点必须 return 分数**，同样用 `$.expect` 写清「期望 vs 实际」。
+
+完整设计、镜像与调度流程见 `docs/BACKEND_SERVICE_PROBLEM.md`。
+
+---
+
+## 八、一句话总结
 
 > **判题的坑几乎全在"隐式约定"上**：分数要 return、路径要统一、按钮状态影响点击、
 > 封面由另一个进程写。凡是约定，都要么写进文档、要么在代码里强制校验 ——

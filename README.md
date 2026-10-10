@@ -90,11 +90,13 @@ quanta-challenge/
 │   │   │   └── services/            # 业务服务
 │   │   └── README.md
 │   ├── challenge-agents/            # 评测代理服务
-│   │   ├── judge-machine/           # Playwright 评测机
+│   │   ├── judge-machine/           # Playwright 评测机（前端题型）
 │   │   │   ├── protocol/            # JRTP 传输协议
 │   │   │   ├── src/                 # 评测逻辑
 │   │   │   └── README.md
-│   │   └── live-server/             # 用户代码运行容器
+│   │   ├── live-server/             # 前端题型：用户静态站点运行容器
+│   │   ├── backend-service/         # 后端服务题型：用户服务运行容器（离线安装 + 启动）
+│   │   └── backend-judge-machine/   # 后端服务题型：HTTP 判题机（无 Playwright）
 │   ├── database/                    # 数据库层
 │   │   ├── prisma/                  # Prisma Schema
 │   │   └── index.ts                 # 数据库客户端导出
@@ -150,6 +152,10 @@ pnpm install
 pnpm --filter @challenge/judge-machine-agent docker:build
 pnpm --filter @challenge/live-server-agent docker:build
 
+# 0.5 （可选）后端服务题型需要额外两个镜像；只有存在后端题目时才需要构建
+pnpm --filter @challenge/backend-service-agent docker:build
+pnpm --filter @challenge/backend-judge-machine-agent docker:build
+
 # 1. 构建并启动 Web 应用、调度器、PostgreSQL、Redis
 pnpm docker:up:dev
 
@@ -179,6 +185,10 @@ pnpm docker:build
 
 cd ../live-server
 pnpm docker:build
+
+# （可选）后端服务题型所需镜像，见 docs/BACKEND_SERVICE_PROBLEM.md
+cd ../backend-service && pnpm docker:build
+cd ../backend-judge-machine && pnpm docker:build
 
 # 4. 启动 Web 应用（终端 1）
 cd ../../challenge-web-app

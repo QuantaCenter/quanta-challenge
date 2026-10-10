@@ -1,0 +1,31 @@
+{
+   "name": "@challenge/backend-judge-machine-agent",
+   "type": "module",
+   "exports": {
+      "./schemas": "./src/schemas/index.ts"
+   },
+   "scripts": {
+      "dev": "vite",
+      "build": "vite build",
+      "start": "node dist/index.js",
+      "typecheck": "tsc --noEmit",
+      "test": "node --import tsx --test test/*.test.ts",
+      "docker:build": "docker build -t challenge-backend-judge-machine-agent -f ./Dockerfile ../..",
+      "docker:build:proxy": "docker build -t challenge-backend-judge-machine-agent -f ./Dockerfile ../.. --build-arg http_proxy=http://host.docker.internal:7890 --build-arg https_proxy=http://host.docker.internal:7890"
+   },
+   "dependencies": {
+      "@hono/node-server": "^1.18.1",
+      "@hono/node-ws": "^1.2.0",
+      "hono": "^4.8.12",
+      "vm2": "^3.9.19",
+      "zod": "^4.0.5"
+   },
+   "devDependencies": {
+      "@hono/vite-build": "^1.8.0",
+      "@hono/vite-dev-server": "^0.24.0",
+      "@types/node": "^24.0.14",
+      "tsx": "^4.7.1",
+      "typescript": "^5.8.3",
+      "vite": "^7.3.0"
+   }
+}

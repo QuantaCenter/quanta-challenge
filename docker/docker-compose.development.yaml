@@ -61,6 +61,8 @@ services:
       # 调度器在容器里，容器内的 localhost 指向自身，必须走 host.docker.internal
       # 才能连到宿主机上映射出来的判题机端口 1889。
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
+      # 后端题型判题机映射到宿主机 1891（与前端判题机的 1889 分开）。
+      - BACKEND_JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1891/link
       # 云函数服务：判题侧内部密钥自动认证，受 CF_JUDGE_ALLOWED_FUNCTIONS 白名单约束。
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=judge
@@ -127,6 +129,24 @@ services:
       dockerfile: packages/challenge-agents/live-server/Dockerfile
     profiles:
       - ignore
+
+  # 后端服务题型：题目容器镜像（默认镜像，题目可用 serviceImage 换）
+  challenge-backend-service-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-service/Dockerfile
+    profiles:
+      - ignore
+
+  # 后端服务题型：判题机镜像（懒加载，只有后端题目会用到）
+  challenge-backend-judge-machine-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-judge-machine/Dockerfile
+    profiles:
+      - ignore
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   redis:
     image: "redis:7-alpine"

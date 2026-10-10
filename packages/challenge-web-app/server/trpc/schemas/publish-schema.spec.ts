@@ -104,4 +104,38 @@ describe('UploadSchema / ReuploadSchema', () => {
             .success
       ).toBe(false);
    });
+
+   test('后端服务题型：必须自定义封面（没有首屏可截图）', () => {
+      const backend = {
+         ...valid,
+         problemType: 'backend_service' as const,
+         bootCommand: 'node dist/index.js',
+      };
+      // 默认封面（首屏截图）在后端题目上永远生成不出来
+      expect(UploadSchema.safeParse(backend).success).toBe(false);
+      expect(
+         UploadSchema.safeParse({
+            ...backend,
+            coverMode: 'custom' as const,
+            coverImageId: 'img-1',
+         }).success
+      ).toBe(true);
+   });
+
+   test('后端服务题型：必须提供启动命令', () => {
+      const backend = {
+         ...valid,
+         problemType: 'backend_service' as const,
+         coverMode: 'custom' as const,
+         coverImageId: 'img-1',
+      };
+      expect(UploadSchema.safeParse(backend).success).toBe(false);
+      expect(
+         UploadSchema.safeParse({ ...backend, bootCommand: '   ' }).success
+      ).toBe(false);
+      expect(
+         UploadSchema.safeParse({ ...backend, bootCommand: 'pnpm start' })
+            .success
+      ).toBe(true);
+   });
 });

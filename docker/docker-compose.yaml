@@ -45,6 +45,9 @@ services:
       - APP_SERVER_URL=http://challenge-web-app:3000
       - OPENAPI_WEBHOOK_SECRET=${OPENAPI_WEBHOOK_SECRET:?请设置 OPENAPI_WEBHOOK_SECRET}
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
+      # 后端题型判题机容器映射到宿主机 1891，与前端判题机（1889）分开，
+      # 两者的任务信封与回包格式一致，只是沙箱能力不同（见 docs/BACKEND_SERVICE_PROBLEM.md）。
+      - BACKEND_JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1891/link
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=judge
       - CF_INTERNAL_SECRET=${CF_JUDGE_SECRET:?请设置 CF_JUDGE_SECRET}
@@ -110,6 +113,24 @@ services:
       dockerfile: packages/challenge-agents/live-server/Dockerfile
     profiles:
       - ignore
+
+  # 后端服务题型：题目容器镜像（默认镜像，题目可用 serviceImage 换）
+  challenge-backend-service-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-service/Dockerfile
+    profiles:
+      - ignore
+
+  # 后端服务题型：判题机镜像（懒加载，只有后端题目会用到）
+  challenge-backend-judge-machine-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-judge-machine/Dockerfile
+    profiles:
+      - ignore
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   redis:
     image: "redis:7-alpine"

@@ -22,6 +22,26 @@ export const getProblemInfoByRecordId = async (judgeRecordId: number) => {
    };
 };
 
+/**
+ * 题目的运行时配置，用来决定「用哪条链路判题」。
+ *
+ * 刻意由调度器从数据库反查，而不是相信任务创建方传入的 problemType：
+ * 前端 / CLI / 未来的入口只要保证 DB 里的题目配置正确，就不会出现
+ * 「传了 frontend 但题目其实是后端服务」的错配。
+ */
+export const getProblemRuntimeInfo = async (problemId: number) => {
+   return await prisma.problems.findUniqueOrThrow({
+      where: { pid: problemId },
+      select: {
+         problemType: true,
+         serviceImage: true,
+         servicePort: true,
+         bootCommand: true,
+         judgeUploadPath: true,
+      },
+   });
+};
+
 export const getTemplateJudgeRecordCacheFiles = async (problemId: number) => {
    const result = await prisma.templateJudgeRecords.findFirstOrThrow({
       where: {

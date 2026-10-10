@@ -202,6 +202,9 @@ model Problems {
   buildCommand    String?
   judgeUploadPath String
   enableCloudFunction Boolean @default(false)
+  problemType     ProblemType @default(frontend)
+  serviceImage    String?
+  servicePort     Int        @default(3000)
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
@@ -257,6 +260,12 @@ enum Difficulty {
   medium
   hard
   very_hard
+}
+
+// 题型：前端（静态站点 + Playwright）或后端服务（常驻进程 + HTTP 判题）
+enum ProblemType {
+  frontend
+  backend_service
 }
 
 enum Status {

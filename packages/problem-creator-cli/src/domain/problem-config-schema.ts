@@ -16,6 +16,10 @@ export const DEFAULT_CONFIG_FILES = [
 export const DEFAULT_JUDGE_UPLOAD_PATH = 'project';
 export const DEFAULT_INIT_COMMAND = 'npx serve -l 3000 project';
 
+/** 题型：前端（静态站点 + Playwright）或后端服务（常驻进程 + HTTP 判题） */
+export const PROBLEM_TYPES = ['frontend', 'backend_service'] as const;
+export type ProblemType = (typeof PROBLEM_TYPES)[number];
+
 export const coverSchema = z.union([
    z.object({ mode: z.literal('default') }),
    z.object({ mode: z.literal('custom'), imageId: z.string().min(1) }),
@@ -23,6 +27,8 @@ export const coverSchema = z.union([
 
 export const problemConfigSchema = z.object({
    title: z.string().min(1, 'title 不能为空'),
+   /** 题型；缺省为前端，老题目不需要改配置 */
+   type: z.enum(PROBLEM_TYPES).default('frontend'),
    /** 题面正文；与 detailFile 二选一 */
    detail: z.string().min(1).optional(),
    /** 题面文件（相对题目目录），便于把长题面单独放一个 markdown */
@@ -41,10 +47,15 @@ export const problemConfigSchema = z.object({
          initCommand: z.string().min(1).default(DEFAULT_INIT_COMMAND),
          buildCommand: z.string().min(1).optional(),
          bootCommand: z.string().min(1).optional(),
+         /** 后端服务：用户服务跑在哪个镜像里；空则用调度器默认镜像 */
+         serviceImage: z.string().min(1).optional(),
+         /** 后端服务：服务监听端口（也是判题机请求的端口） */
+         servicePort: z.number().int().positive().max(65535).default(3000),
       })
       .default({
          judgeUploadPath: DEFAULT_JUDGE_UPLOAD_PATH,
          initCommand: DEFAULT_INIT_COMMAND,
+         servicePort: 3000,
       }),
    paths: z
       .object({

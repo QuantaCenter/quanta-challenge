@@ -18,8 +18,10 @@ import { JudgeJob } from './types';
 const sendTaskToJudgeMachine = async (options: {
    job: JudgeJob;
    networkUrl: string;
+   /** 目标判题机的 WebSocket。前端 / 后端用各自的连接，但信封与回包格式一致。 */
+   ws: WebSocket;
 }) => {
-   const { job, networkUrl } = options;
+   const { job, networkUrl, ws } = options;
 
    const cacheFiles =
       job.data.mode === 'audit'
@@ -27,7 +29,7 @@ const sendTaskToJudgeMachine = async (options: {
          : await db.getTemplateJudgeRecordCacheFiles(job.data.problemId);
 
    type TaskType = z.infer<typeof TaskSchema>;
-   DockerService.instance.judgeMachineWs!.send(
+   ws.send(
       JSON.stringify({
          judgeRecordId: job.data.judgeRecordId,
          judgeScript: job.data.judgeScript,
@@ -141,22 +143,51 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
    let cleanup: (() => Promise<void>) | undefined;
 
    try {
-      if (!DockerService.instance.judgeMachineWs) {
-         throw new Error('Judge machine WebSocket is not connected');
-      }
+      // 题型从数据库反查，不信任任务载荷（见 db.getProblemRuntimeInfo 的说明）。
+      const runtime = await db.getProblemRuntimeInfo(job.data.problemId);
 
-      // 启动 Live Server 容器
-      const { networkUrl, close } =
-         await DockerService.instance.startLiveServerContainer(
+      let networkUrl: string;
+      let judgeWs: WebSocket;
+
+      if (runtime.problemType === 'backend_service') {
+         if (!runtime.bootCommand) {
+            throw new Error(
+               `后端服务题目 ${job.data.problemId} 缺少启动命令（bootCommand），无法启动服务`
+            );
+         }
+
+         // 后端链路：预热缓存 + 离线安装 + 启动服务 + 等 Ready
+         const service = await DockerService.instance.startBackendServiceContainer({
+            fsSnapshot: job.data.fsSnapshot,
+            image: runtime.serviceImage ?? undefined,
+            port: runtime.servicePort ?? 3000,
+            startCommand: runtime.bootCommand,
+            judgeUploadPath: runtime.judgeUploadPath,
+         });
+         cleanup = service.close;
+         await service.waitForReady;
+         networkUrl = service.networkUrl;
+         judgeWs = await DockerService.instance.ensureBackendJudgeMachine();
+      } else {
+         if (!DockerService.instance.judgeMachineWs) {
+            throw new Error('Judge machine WebSocket is not connected');
+         }
+
+         // 启动 Live Server 容器
+         const liveServer = await DockerService.instance.startLiveServerContainer(
             job.data.fsSnapshot
          );
-      cleanup = close;
+         cleanup = liveServer.close;
 
-      // 等待容器启动稳定
-      await delay(1000);
+         // 等待容器启动稳定
+         await delay(1000);
 
-      // 发送任务到 Judge Machine，等待返回结果
-      const result = await sendTaskToJudgeMachine({ job, networkUrl });
+         networkUrl = liveServer.networkUrl;
+         judgeWs = DockerService.instance.judgeMachineWs;
+      }
+
+      // 发送任务到判题机（前端 / 后端同一套信封），等待返回结果
+      const result = await sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs });
 
       // 处理 Judge Machine 返回的结果
       const pass = await processResult(
@@ -164,8 +195,9 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          LocalStoreService.instance
       );
 
-      // 关闭 Live Server 容器
-      close();
+      // 关闭题目容器（前端 live-server / 后端服务容器共用同一套 cleanup）
+      await cleanup?.();
+      cleanup = undefined;
 
       return {
          judgeRecordId: job.data.judgeRecordId,
@@ -176,7 +208,7 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
    } catch (error: any) {
       // 处理错误
       await db.saveErrorRecord({ error, pendingTime, startTime, job });
-      // 必须清理：live-server 容器与 tmp/<uuid> 快照目录不会自动消失，
+      // 必须清理：题目容器与 tmp/<uuid> 快照目录不会自动消失，
       // 原实现把这行注释掉后，每次失败判题都会永久残留一个容器和一份临时文件，
       // 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
       if (cleanup) {

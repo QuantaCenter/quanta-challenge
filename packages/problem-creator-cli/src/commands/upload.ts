@@ -100,6 +100,11 @@ export const runUpload = async (
          : {}),
       initCommand: config.runtime.initCommand,
       judgeUploadPath: config.runtime.judgeUploadPath,
+      problemType: config.type,
+      ...(config.runtime.serviceImage
+         ? { serviceImage: config.runtime.serviceImage }
+         : {}),
+      servicePort: config.runtime.servicePort,
    };
 
    const payloadBytes =
@@ -113,6 +118,7 @@ export const runUpload = async (
       ['难度 / 总分', `${config.difficulty} / ${report.totalScore}`],
       ['标签', config.tagIds.join(', ')],
       ['判题打包目录', config.runtime.judgeUploadPath],
+      ['题型', config.type],
       ['启动命令', config.runtime.initCommand ?? '<默认>'],
       ['答案模板', `${report.stats.template.fileCount} 个文件`],
       ['参考解', `${report.stats.answer.fileCount} 个文件`],

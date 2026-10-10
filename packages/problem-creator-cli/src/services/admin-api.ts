@@ -16,6 +16,12 @@ export interface UploadProblemInput {
    initCommand?: string;
    buildCommand?: string;
    judgeUploadPath: string;
+   /** 题型：frontend（默认）或 backend_service */
+   problemType?: 'frontend' | 'backend_service';
+   /** 后端服务：运行镜像（空用调度器默认镜像） */
+   serviceImage?: string;
+   /** 后端服务：服务监听端口 */
+   servicePort?: number;
 }
 
 export interface AuditCheckpointResult {
