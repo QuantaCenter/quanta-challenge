@@ -46,6 +46,12 @@ model User {
   UserInfo                  UserInfo?
   UserSpaceConfig           UserSpaceConfig?
   notifications             Notification[]
+  Course                    Course[]
+  CourseReviewRecord        CourseReviewRecord[]
+  Topic                     Topic[]
+  Article                   Article[]
+  LearningVisit             LearningVisit[]
+  LearningCompletion        LearningCompletion[]
 
   @@map("users")
 }
@@ -180,6 +186,8 @@ model BaseProblems {
   ProblemVersions           Problems[]                  @relation("ProblemVersions")
   ProblemVersionTransitions ProblemVersionTransitions[]
   DailyProblem              DailyProblem[]
+  /// 引用这道题的文章（由文章正文里的 <Problem baseId={…} /> 解析而来）
+  ArticleProblem            ArticleProblem[]
 
   @@map("base_problems")
 }
@@ -764,4 +772,219 @@ model CloudFunctionInvocation {
   @@index([functionId, createdAt])
   @@index([userId, createdAt])
   @@map("cloud_function_invocations")
+}
+
+// ============================================================
+// 学习内容：课程 / 专题 / 文章（设计文档 §6、§17）
+//
+// 三个约定（§17.2）：
+//   1. 只有一处「归属」：专题属于课程；文章独立存在，被专题**引用**；
+//   2. 引用带顺序（TopicArticle.sort / ArticleProblem.sort），
+//      因为「专题页里的文章顺序」是编排结果，不是时间顺序；
+//   3. 有引用的对象不可删除（关系上用 Restrict），而不是静默级联。
+// ============================================================
+
+/// 课程：学习侧的入口与骨架，也是**唯一需要审核**的实体（§17.1）
+model Course {
+  id          String       @id @default(cuid())
+  authorId    String
+  slug        String       @unique
+  name        String
+  description String       @default("")
+  /// 学习侧按它排序（同一批里小的在前）
+  weight      Int          @default(10)
+  status      CourseStatus @default(DRAFT)
+  coverPreset String       @default("slate")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  /// 最近一次审核动作的时间，卡片/列表按它倒序时用
+  reviewedAt  DateTime?
+
+  Author        User                 @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Topics        Topic[]
+  ReviewRecords CourseReviewRecord[]
+
+  @@index([status, weight])
+  @@map("courses")
+}
+
+/// 课程审核留痕：提交 / 通过 / 驳回各一条（§17.3）
+model CourseReviewRecord {
+  id         String             @id @default(cuid())
+  courseId   String
+  actorId    String
+  action     CourseReviewAction
+  /// 驳回理由；通过/提交时可为空
+  reason     String?
+  /// 动作后的课程状态，便于直接读历史而不必反推
+  toStatus   CourseStatus
+  createdAt  DateTime           @default(now())
+
+  Course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  Actor  User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, createdAt])
+  @@map("course_review_records")
+}
+
+/// 专题：属于某个课程，**不需要审核**（可见性跟随课程，§17.1）
+model Topic {
+  id          String   @id @default(cuid())
+  authorId    String
+  /// 归属：非空。删除课程时 Restrict，必须先安置专题（§17.2）
+  courseId    String
+  slug        String
+  name        String
+  description String   @default("")
+  weight      Int      @default(10)
+  coverPreset String   @default("slate")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  Author        User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  Articles      TopicArticle[]
+  Prerequisites TopicPrerequisite[] @relation("TopicPrerequisites")
+  RequiredBy    TopicPrerequisite[] @relation("TopicRequiredBy")
+
+  @@unique([courseId, slug])
+  @@index([courseId, weight])
+  @@map("topics")
+}
+
+/// 专题 → 文章：带顺序的引用
+model TopicArticle {
+  id        String @id @default(cuid())
+  topicId   String
+  articleId String
+  /// 专题页里的展示顺序
+  sort      Int    @default(0)
+
+  Topic   Topic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  Article Article @relation(fields: [articleId], references: [id], onDelete: Restrict)
+
+  @@unique([topicId, articleId])
+  @@index([topicId, sort])
+  @@index([articleId])
+  @@map("topic_articles")
+}
+
+/// 专题 → 前置专题（只用于排序与展示，不做访问控制，§9.1）
+model TopicPrerequisite {
+  id            String @id @default(cuid())
+  topicId       String
+  prerequisiteId String
+
+  Topic        Topic @relation("TopicPrerequisites", fields: [topicId], references: [id], onDelete: Cascade)
+  Prerequisite Topic @relation("TopicRequiredBy", fields: [prerequisiteId], references: [id], onDelete: Restrict)
+
+  @@unique([topicId, prerequisiteId])
+  @@map("topic_prerequisites")
+}
+
+/// 文章：一等实体，独立存在、可被 0..n 个专题引用，**不需要审核**（§6.7、§17.1）
+model Article {
+  id          String   @id @default(cuid())
+  authorId    String
+  slug        String   @unique
+  title       String
+  summary     String   @default("")
+  /// 正文的**真源**：Markdown，题目处写 `<Problem baseId={…} />`（§13.3）
+  source      String   @default("")
+  coverPreset String   @default("slate")
+  coverUrl    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  Author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  Topics   TopicArticle[]
+  Problems ArticleProblem[]
+
+  @@index([updatedAt])
+  @@map("articles")
+}
+
+/// 文章 → 题目：从正文解析出来的引用，落库只为「反查文章 / 校验题号」
+/// 正文仍然是唯一真源：改正文会整体重算这张表
+model ArticleProblem {
+  id        String @id @default(cuid())
+  articleId String
+  /// 题号（base_problems.id）；正文里写的就是它
+  baseId    Int
+  /// 正文里的出现顺序
+  sort      Int    @default(0)
+
+  Article     Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  BaseProblem BaseProblems @relation(fields: [baseId], references: [id], onDelete: Restrict)
+
+  @@unique([articleId, baseId])
+  @@index([articleId, sort])
+  @@index([baseId])
+  @@map("article_problems")
+}
+
+/// 课程状态机（§17.3）：draft → pending → published，驳回回 draft
+enum CourseStatus {
+  DRAFT
+  PENDING
+  PUBLISHED
+}
+
+enum CourseReviewAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  WITHDRAW
+}
+
+// ============================================================
+// 学习进度：访问记录 / 做题记录 / 完成标记
+//
+// 这三样原本只存在浏览器 localStorage（见 docs/PITFALLS.md P14）：
+// 换设备或清缓存就没了，而且无法作数。落库后它们以「用户 + 内容」为键，
+// 服务端成为权威，本地只做兜底缓存。
+//
+// 与内容表的关系：一律 Restrict（内容被删前先想清楚这些记录怎么办），
+// 但用户注销时随用户级联清理。
+// ============================================================
+
+/// 用户对某个学习内容的**访问**记录（「最近学习」的数据来源）
+model LearningVisit {
+  id        String          @id @default(cuid())
+  userId    String
+  /// 访问对象的种类：文章 / 专题 / 课程 / 题目
+  kind      LearningKind
+  /// 对象主键。文章/专题/课程是 cuid；题目是**题号** baseId（与正文引用一致）
+  targetId  String
+  /// 最近一次访问时间（同一对象多次访问只更新时间）
+  visitedAt DateTime        @default(now())
+  createdAt DateTime        @default(now())
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, targetId])
+  @@index([userId, kind, visitedAt])
+  @@map("learning_visits")
+}
+
+/// **不可逆**的完成标记：达成即写，之后分母怎么变都不回退（设计文档 §17.9）
+model LearningCompletion {
+  id          String          @id @default(cuid())
+  userId      String
+  kind        LearningKind
+  targetId    String
+  completedAt DateTime        @default(now())
+
+  User User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, kind, targetId])
+  @@index([userId, kind])
+  @@map("learning_completions")
+}
+
+enum LearningKind {
+  ARTICLE
+  TOPIC
+  COURSE
+  PROBLEM
 }
