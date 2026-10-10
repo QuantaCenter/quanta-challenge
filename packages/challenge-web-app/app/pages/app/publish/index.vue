@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { BookOne, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import {
+   BookOne,
+   Code,
+   DocDetail,
+   FileCollection,
+   GoldMedalTwo,
+   Right,
+   School,
+   TableReport,
+   Tag,
+} from '@icon-park/vue-next';
+import PublishOptionCard from './_components/PublishOptionCard.vue';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
@@ -18,13 +29,43 @@ const options = [
       icon: TableReport,
       iconColor: '#C1EF3F',
    },
+];
+
+const articleEntry = {
+   title: '发布文章',
+   description: '写正文并插入题库中的题目——文章是内容的原子，独立于专题存在',
+   url: '/app/publish/article',
+   icon: DocDetail,
+   iconColor: '#4ADE80',
+};
+
+/** 三张表的统一入口：在哪改、被谁引用，都在这一页里看 */
+const contentEntry = {
+   title: '内容库',
+   description: '课程 / 专题 / 文章放在一起：直达编辑页，含待审核的课程',
+   url: '/app/publish/content',
+   icon: FileCollection,
+   iconColor: '#38BDF8',
+};
+
+const articleChildren = [
    {
       title: '创建专题',
-      description: '把若干篇文章组织成一个专题，文章本身独立于专题存在',
+      description: '专题引用文章：把若干篇文章组织成一个知识领域，例如「布局」',
       url: '/app/publish/topic',
       icon: BookOne,
       iconColor: '#38BDF8',
    },
+   {
+      title: '创建课程',
+      description: '课程集合专题：把若干专题编成一门可完整学完的课程，例如「CSS」',
+      url: '/app/publish/course',
+      icon: School,
+      iconColor: '#F472B6',
+   },
+];
+
+const tailOptions = [
    {
       title: '创建成就',
       description: '创建一个新的成就，并配置成就的基本信息',
@@ -40,45 +81,44 @@ const options = [
       iconColor: '#C267FF',
    },
 ];
+
+const expanded = ref(false);
 </script>
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace
-         direction="vertical"
-         gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
          <h1 class="st-font-hero-bold">发布流程</h1>
 
          <StSpace direction="vertical" gap="1.5rem" fill-x>
-            <NuxtLink
-               v-for="option in options"
-               :key="option.title"
-               :to="option.url"
-               class="w-full">
-               <StSpace
-                  fill-x
-                  :to="option.url"
-                  justify="between"
-                  align="center"
-                  class="p-6 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
-                  <StSpace direction="vertical" gap="0.5rem">
-                     <h2 class="st-font-capture text-[1.25rem] text-white">
-                        {{ option.title }}
-                     </h2>
-                     <p class="st-font-body-normal text-accent-300">
-                        {{ option.description }}
-                     </p>
-                  </StSpace>
-                  <Component
-                     :is="option.icon"
-                     :fill="option.iconColor"
-                     :strokeWidth="3"
-                     size="7rem"
-                     class="absolute -right-5 -bottom-6 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
+            <PublishOptionCard v-for="option in options" :key="option.title" v-bind="option" />
+
+            <PublishOptionCard v-bind="contentEntry" />
+
+            <div class="relative w-full">
+               <button type="button" :title="expanded ? '收起专题与课程' : '展开创建专题与创建课程'" :aria-label="expanded ? '收起' : '展开'"
+                  :aria-expanded="expanded"
+                  class="absolute -left-12 top-1/2 -translate-y-1/2 mr-3 flex items-center justify-center size-9 rounded-[0.5rem] border transition-colors cursor-pointer"
+                  :class="expanded
+                     ? 'border-secondary text-secondary'
+                     : 'border-accent-300 text-accent-300 hover:border-secondary hover:text-secondary'
+                     " @click="expanded = !expanded">
+                  <Right size="1.125rem" :strokeWidth="3" class="transition-transform duration-200"
+                     :class="expanded ? 'rotate-90' : ''" />
+               </button>
+               <PublishOptionCard v-bind="articleEntry" />
+            </div>
+
+            <div v-if="expanded" class="relative w-full">
+               <!-- 树状连接线 -->
+               <StSpace direction="vertical" gap="1rem" fill-x>
+                  <PublishOptionCard v-for="option in articleChildren" :key="option.title" v-bind="option" />
                </StSpace>
-            </NuxtLink>
+            </div>
+
+            <PublishOptionCard v-for="option in tailOptions" :key="option.title" v-bind="option" />
          </StSpace>
+
       </StSpace>
    </StSpace>
 </template>
