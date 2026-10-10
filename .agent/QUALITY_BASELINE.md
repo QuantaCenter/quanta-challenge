@@ -122,20 +122,28 @@ pnpm dev            # 原生 nuxt dev（需要看原始行为时用）
 
 ## 启动顺序
 
-```
-1. 确认 Docker Desktop 正在运行
-2. start-dev.bat（依赖起不来会明确报错退出，不会"假装成功"）
-```
+依赖（PostgreSQL / Redis）起不来时，Web 能打开但接口全报错、判题一直 pending，
+所以**先确认依赖，再起服务**：
 
-手工方式：
-
-```powershell
+```bash
 docker start quanta-challenge-postgres-1 quanta-challenge-redis-1   # 已设 restart=unless-stopped，通常自动恢复
-cd packages/challenge-judge-scheduler ; pnpm dev
+
+cd packages/challenge-judge-scheduler ; pnpm dev   # 判题调度器，端口 1888（不启动它，qpc upload 会 500）
 cd packages/challenge-web-app        ; pnpm dev:watch
 ```
 
+> 原先仓库里有一对 `scripts/start-dev.bat` / `stop-dev.bat`，是 Windows + Docker Desktop
+> 专用的编排脚本（`taskkill`、`Docker Desktop.exe` 路径、`netstat` 端口清理）。
+> 在 macOS / Linux 上一步都跑不动，且 CI 与容器部署都不用它，已删除；
+> 上面的命令就是它的等价手工流程。
+
 ---
+
+## 踩过的坑
+
+事故档案在 [`docs/PITFALLS.md`](../docs/PITFALLS.md)：每条写明「症状 → 根因 → 记住什么」，
+按「前端状态与本地存储 / 编号与地址 / 数据源切换 / 判题与 CLI / 产品口径」分类。
+改这一块之前先扫一眼对应分类，能省掉几轮返工。
 
 ## 已知问题
 

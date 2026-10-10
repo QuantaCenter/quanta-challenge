@@ -279,6 +279,9 @@ const arr = await redis.zrevrange(key, 0, -1, 'WITHSCORES');
 - [ ] 断言消息包含"期望 vs 实际"
 - [ ] 快照键统一为 `/project/...`，`judgeUploadPath = 'project'`
 - [ ] `initCommand = 'npx -y serve@14.2.6 -l 3000 project'`（锁版本 + 免交互；**不要加** `--no-clipboard`，见坑 11 的真机验证表）
+- [ ] `buildCommand` **必须给**：没有构建步骤的静态题也写 `'echo built'`。
+      留空时在线编辑器点「提交」会**毫无反应**（`CommitModal.vue` 里 `!props.buildCommand` 直接 return，
+      构建 / 打包 / 上传整条链路都不开始，且不报错）。`qpc check` 的 RUN002 会提醒这一条
 - [ ] `totalScore` = 各检查点分值之和
 - [ ] `tagIds` 用**已存在的** tag id（当前库里只有 `1 = Vue3`）
 - [ ] `coverMode: 'default'` 时必须提供 `referenceAnswerSnapshot`
