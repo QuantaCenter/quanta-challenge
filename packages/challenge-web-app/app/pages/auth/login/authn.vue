@@ -86,12 +86,6 @@ const gotoPasswordLogin = () => {
                   密码登录
                </NuxtLink>
             </StButton>
-            <StButton class="!bg-accent-600 !text-accent-200 w-full">
-               <div class="flex gap-2 items-center">
-                  <IconQQ />
-                  QQ 登录
-               </div>
-            </StButton>
          </div>
       </div>
    </div>

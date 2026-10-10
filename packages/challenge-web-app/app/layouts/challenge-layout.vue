@@ -54,7 +54,44 @@ const handleCommitClick = () => {
 };
 
 const path = useParam<string[]>('path', { required: true });
-const id = computed(() => Number(path.value?.[1] ?? 0));
+
+/**
+ * 侧栏里的 pid。
+ *
+ * ⚠️ 不能直接 `Number(path[1])`：做题页的新地址是
+ * `/challenge/editor/by-base/:baseId`，第 2 段是字符串 `by-base` → NaN，
+ * 于是侧栏「返回题目」「提交记录」会分别跳到 `/challenge/editor/NaN`
+ * 与 `/challenge/record/NaN`。用统一的解析函数拿目标：
+ * 记录页取 pid，做题页按**题号**回跳（跳回 by-base 才与版本无关）。
+ */
+const view = computed<'problem' | 'record'>(() =>
+   path.value?.[0] === 'record' ? 'record' : 'problem',
+);
+const baseId = computed(() => {
+   const value = path.value;
+   if (value?.[0] === 'editor' && value[1] === 'by-base') {
+      const parsed = Number(value[2]);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+   }
+   return null;
+});
+const id = computed(() => {
+   const value = path.value;
+   if (view.value === 'record') {
+      const parsed = Number(value?.[1]);
+      return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+   }
+   // 老地址 `/challenge/editor/:pid` 仍然可用
+   const parsed = Number(value?.[1]);
+   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+});
+/** 返回题目：优先按题号（by-base），否则用 pid */
+const problemBackTo = computed(() =>
+   baseId.value ? `/challenge/editor/by-base/${baseId.value}` : id.value ? `/challenge/editor/${id.value}` : '/app/problems',
+);
+const recordTo = computed(() =>
+   id.value ? `/challenge/record/${id.value}` : '/app/problems',
+);
 
 const route = useRoute();
 const mode = computed<'problem' | 'record'>(() => {
@@ -87,7 +124,7 @@ const avatarUrl = computed(() => {
             <StSpace direction="vertical" align="center" gap="0.5rem">
                <template v-if="mode === 'record'">
                   <StSidebarSidePopper content="返回题目">
-                     <NuxtLink :to="`/challenge/editor/${id}`">
+                     <NuxtLink :to="problemBackTo">
                         <StRippleEffect>
                            <button
                               class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
@@ -113,7 +150,7 @@ const avatarUrl = computed(() => {
                   </StSidebarSidePopper>
 
                   <StSidebarSidePopper content="提交记录">
-                     <NuxtLink :to="`/challenge/record/${id}`">
+                     <NuxtLink :to="recordTo">
                         <StRippleEffect>
                            <button
                               class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">

@@ -3,7 +3,6 @@ import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 import type { IProgressStep } from '~/components/st/Progress/type';
 import { useTerminal } from '../../../_composables/use-terminal';
 import { useEventEmitter } from '~/composables/use-event-emitter';
-import { useParam } from '~/composables/use-param';
 import { acceptedBinaryExtensions } from '~/configs/accepted-pack-extension';
 
 const props = defineProps<{
@@ -146,17 +145,23 @@ const runUploadStep = async (pack: Record<string, string>) => {
    return judgeRecordId;
 };
 
-const path = useParam<string[]>('path', {
-   required: true,
-   onError: () => navigateTo('/app/problems'),
-});
-const id = computed(() => Number(path.value?.[1] ?? 0));
+/**
+ * 提交成功后要跳到 `/challenge/record/:pid`。
+ *
+ * ⚠️ 这里**必须用 `props.problemId`**（父级已经解析好的当前版本 pid），
+ * 不能再从地址里取第 2 段：地址可能是 `/challenge/editor/by-base/6`，
+ * 那一段是字符串 `by-base`，`Number('by-base')` 是 NaN ——
+ * 提交后会跳到 `/challenge/record/NaN`（提交记录与排名都拿不到数据）。
+ */
 const commitEmitter = useEventBus<number>('challenge-commit');
 const close = (recordId?: number) => {
    runningProcess?.kill();
    opened.value = false;
    commitEmitter.emit(recordId);
-   recordId && navigateTo(`/challenge/record/${id.value}?id=${recordId}`);
+   if (!recordId) return;
+   const pid = props.problemId;
+   if (!Number.isInteger(pid) || pid <= 0) return;
+   navigateTo(`/challenge/record/${pid}?id=${recordId}`);
 };
 
 const closable = computed(() => {

@@ -4,6 +4,7 @@ import { CheckOne, CloseOne, LoadingFour } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import CommitRecordSkeleton from '../_skeletons/CommitRecordSkeleton.vue';
 import type { CommitRecordType } from '../_types/shared-types';
+import { useLearningVisits } from '~/composables/use-learning-visits';
 
 const props = defineProps<{ id: number }>();
 
@@ -20,6 +21,22 @@ const getRecords = async () => {
 const { data: records, refresh } = await useAsyncData(
    'commit-records',
    getRecords
+);
+
+// 有提交记录 = 这道题做过了：写下题号，文章里的题目块与「最近学习」据此显示完成
+const visits = useLearningVisits();
+watch(
+   [records, () => props.id],
+   async ([list, pid]) => {
+      if (import.meta.server || !list?.length || !pid) return;
+      try {
+         const info = await $trpc.public.learning.problemByPid.query({ pid });
+         if (info?.baseId) visits.markSolved(info.baseId);
+      } catch {
+         // 解析失败就当没记录，不影响页面
+      }
+   },
+   { immediate: true },
 );
 
 const loading = computed(() => !records.value);

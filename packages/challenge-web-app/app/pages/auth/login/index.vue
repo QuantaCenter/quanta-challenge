@@ -102,24 +102,21 @@ const gotoWebAuthnLogin = () => {
             </StFormItem>
             <StButton :loading @click.prevent="handleLogin">登录</StButton>
          </StForm>
-         <StDivider>或使用</StDivider>
-         <div class="flex gap-4 w-full text-sm">
-            <StButton
-               v-if="supportWebAuthn"
-               @click.self="gotoWebAuthnLogin"
-               class="!bg-accent-600 !text-accent-200 w-full">
-               <NuxtLink to="/auth/login/authn" class="flex gap-2 items-center">
-                  <Fingerprint class="text-xl text-[#9D9D9D]" />
-                  生物认证
-               </NuxtLink>
-            </StButton>
-            <StButton class="!bg-accent-600 !text-accent-200 w-full">
-               <div class="flex gap-2 items-center">
-                  <IconQQ />
-                  QQ 登录
-               </div>
-            </StButton>
-         </div>
+         <template v-if="supportWebAuthn">
+            <StDivider>或使用</StDivider>
+            <div class="flex gap-4 w-full text-sm">
+               <StButton
+                  @click.self="gotoWebAuthnLogin"
+                  class="!bg-accent-600 !text-accent-200 w-full">
+                  <NuxtLink
+                     to="/auth/login/authn"
+                     class="flex gap-2 items-center">
+                     <Fingerprint class="text-xl text-[#9D9D9D]" />
+                     生物认证
+                  </NuxtLink>
+               </StButton>
+            </div>
+         </template>
       </div>
    </div>
 </template>
