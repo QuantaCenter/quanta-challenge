@@ -1,4 +1,56 @@
+/**
+ * 学习系统的**派生规则与读取接口**。
+ *
+ * 层级（v0.5 起）：
+ *   课程（HTML / CSS / JavaScript …）→ 专题（布局 / 变量 / 选择器 …）→ 文章（flex 布局 / grid 布局 …）→ 题目
+ *
+ * 三处关系里只有一处是「归属」（专题属于课程），另外两处都是「引用」：
+ * 专题引用文章、文章引用题目 —— 被引用者独立存在，可以不被任何一方引用，也可以被多方引用。
+ *
+ * 内容本身（增删改）在 `use-learning-store.ts`，初始内容在 `learning-content.ts`；
+ * 这里只放「事实 + 现算的派生值」：完成记录、进度、排序、按课程 / 专题取文章。
+ */
+
+import { unref, type Ref } from 'vue';
+import { useLearningContentStore } from './use-learning-store';
+import { renderArticleSource } from '~/utils/learning-markdown';
+import { useLearningVisits } from '~/composables/use-learning-visits';
+import {
+   articleProgress,
+   courseProgress,
+   isArticleFinished,
+   isProblemCompleted,
+   topicProgress,
+   emptyVisits,
+   type CourseProgress,
+   type VisitSlice,
+} from '~/utils/learning-progress';
+
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'very_hard';
+
+/**
+ * 读取内容时的数据切片。
+ *
+ * ⚠️ 为什么这些读函数**必须**能接收外部传入的内容，而不是各自去 `useState`：
+ * `useState()` 只能在 setup / Nuxt 钩子里调用，而页面里大量用法是
+ * `computed(() => courseTopics(id))` —— 在 computed getter 里再调 `useState`
+ * 会直接抛「A composable that requires access to the Nuxt instance was called
+ * outside of ... Vue setup function」。症状是整页 SSR 直接 500。
+ *
+ * 所以：setup 里可以只传 id（内部用 useLearningContentStore 取一次），
+ * 页面里嵌套调用时把 `content.xxx` 传进来（Ref 与普通数组都吃）。
+ */
+export interface LearningContentSlice {
+   articles?: Ref<LearningArticle[]> | LearningArticle[];
+   topics?: Ref<LearningTopic[]> | LearningTopic[];
+   courses?: Ref<LearningCourse[]> | LearningCourse[];
+}
+
+const list = <T>(value: Ref<T[]> | T[] | undefined, fallback: T[]): T[] =>
+   value === undefined ? fallback : (unref(value) as T[]);
+
+const resolveContent = (content?: LearningContentSlice): LearningContentSlice =>
+   content ?? useLearningContentStore();
 
 export interface LearningProblemRef {
    baseId: number;
@@ -17,659 +69,127 @@ export type ContentBlock =
    | { type: 'code'; lang: string; text: string }
    | { type: 'callout'; text: string };
 
+/**
+ * 封面。仓库里没有现成的配图素材，所以静态预览用一组固定的渐变预设，
+ * 另外支持上传自定义图片（有 `coverUrl` 时优先）。
+ * 类名必须是完整字面量，Tailwind 才能扫到。
+ */
+export type ArticleCoverPreset = 'aurora' | 'ember' | 'mint' | 'violet' | 'slate';
+
+export interface ArticleCoverOption {
+   id: ArticleCoverPreset;
+   name: string;
+   class: string;
+}
+
+export const ARTICLE_COVER_PRESETS: ArticleCoverOption[] = [
+   {
+      id: 'aurora',
+      name: '极光',
+      class: 'from-[#0b3d4f] via-[#12707f] to-[#1f9c6b]',
+   },
+   {
+      id: 'ember',
+      name: '余烬',
+      class: 'from-[#4a2313] via-[#8a3d15] to-[#c96a1a]',
+   },
+   {
+      id: 'mint',
+      name: '薄荷',
+      class: 'from-[#123a2a] via-[#1c5c3d] to-[#3f8b4a]',
+   },
+   {
+      id: 'violet',
+      name: '夜紫',
+      class: 'from-[#2b1b4d] via-[#452a75] to-[#6b3fa0]',
+   },
+   {
+      id: 'slate',
+      name: '石墨',
+      class: 'from-[#232323] via-[#333333] to-[#4a4a4a]',
+   },
+];
+
+export const articleCoverClass = (
+   preset?: ArticleCoverPreset | null,
+): string =>
+   ARTICLE_COVER_PRESETS.find((item) => item.id === preset)?.class ??
+   ARTICLE_COVER_PRESETS[4]!.class;
+
 // 文章是一等实体：独立存在、不归属任何专题，专题只是引用它
 export interface LearningArticle {
    id: number;
+   /** 服务端主键 */
+   cuid?: string;
    slug: string;
    title: string;
    summary: string;
    content: ContentBlock[];
    problems: LearningProblemRef[];
+   /**
+    * 正文的 Markdown 源码（含 `<Problem baseId={…} />`）。
+    * 它是真源；`content` 与 `problems` 都是从它解析出来的派生数据。
+    * 保留源码的原因：编辑页要能原样打开——题目插在两段之间的位置不能丢，
+    * 而从方块反推 Markdown 会把正文里的题目指令统一挪到末尾。
+    */
+   source?: string;
+   coverPreset?: ArticleCoverPreset;
+   // 上传的封面：有它就不看预设
+   coverUrl?: string;
 }
 
+// 专题是一个知识领域的**文章引用集合**，归属一个课程
 export interface LearningTopic {
    id: number;
+   /** 服务端主键 */
+   cuid?: string;
    courseId: number;
    slug: string;
    name: string;
    description: string;
    weight: number;
-   // 只影响排列顺序，不做访问控制
+   // 只影响同一课程内的排列顺序，不做访问控制
    prerequisites: number[];
    // 引用，不是归属：同一篇文章可以出现在多个专题里，也可以一个都不出现
    articleIds: number[];
+   coverPreset?: ArticleCoverPreset;
 }
 
-// 课程是专题的集合，允许 0 个专题（可以存草稿，不能发布）
+// 课程是一门可被完整学完的知识体系，是专题的集合
 export interface LearningCourse {
    id: number;
+   /** 服务端主键。前端 id 是数字（历史原因），写接口要的是这个 cuid */
+   cuid?: string;
    slug: string;
    name: string;
    description: string;
    weight: number;
    status: 'draft' | 'pending' | 'published';
+   coverPreset?: ArticleCoverPreset;
 }
 
-export interface ArticleProgress {
-   total: number;
-   done: number;
-   progress: number;
-   percent: number;
-   completed: boolean;
-   isReadingOnly: boolean;
-   read: boolean;
-   lastOpenedAt: string | null;
-}
-
-export interface TopicProgress {
-   articleCount: number;
-   finishedArticles: number;
-   problemCount: number;
-   doneProblems: number;
-   percent: number;
-   completed: boolean;
-   lastOpenedAt: string | null;
-}
-
-export interface CourseProgress {
-   topicCount: number;
-   finishedTopics: number;
-   problemCount: number;
-   doneProblems: number;
-   percent: number;
-   // 单向：一旦完成就不再回退
-   completed: boolean;
-   completedAt: string | null;
-}
-
-// 「最近学习」卡片的一行 = 一个专题，连同它所属的课程名
-export interface RecentLearningItem extends TopicProgress {
-   courseId: number;
-   courseName: string;
-   topicId: number;
-   topicName: string;
-}
-
-/* 事实（Facts）。其余全部现算。 */
-
-// 已完成题目：某 base 的任意版本上拿过该版本的满分
-const COMPLETED_BASE_IDS = new Set<number>([
-   4001, // CSS / 布局
-   4101, 4102, 4103, // CSS / 变量
-   4201, 4202, // HTML / 标签
-   4301, 4302, // JavaScript / 异步
-   4701, // Git 提交规范
-   4901, 4902, // 浏览器调试工具
-]);
-
-// 文章访问记录。格式固定为 'YYYY-MM-DD HH:mm'：可按字典序倒排，且不受时区影响
-const ARTICLE_VISITS: Record<number, string> = {
-   101: '2026-10-08 09:12',
-   102: '2026-10-08 14:32',
-   104: '2026-10-06 10:20',
-   201: '2026-10-07 21:48',
-   202: '2026-10-08 11:05',
-   203: '2026-10-07 09:00',
-   301: '2026-10-05 18:20',
-   303: '2026-10-04 20:41',
-   401: '2026-10-03 16:00',
+/**
+ * 进度与完成度规则搬到了 `~/utils/learning-progress`（纯模块，可单测）。
+ *
+ * ⚠️ 必须**先 import 再 export**：`export { x } from '...'` 只对外转发，
+ * 不会在本模块建立本地绑定。本文件内部的 `useRecentLearning` 等函数还要调用
+ * 这些进度函数，用纯转发写法会得到 `topicProgress is not defined`
+ * （页面整页 500，日志里就是这个错）。
+ */
+export {
+   articleProgress,
+   courseProgress,
+   isArticleFinished,
+   isProblemCompleted,
+   topicProgress,
+   emptyVisits,
+   type ArticleProgress,
+   type CourseProgress,
+   type TopicProgress,
+   type VisitSlice,
 };
 
-// 课程完成记录。这是唯一落库的派生值——「一旦完成不再回退」没法从事实重放出来
-const COURSE_COMPLETIONS: Record<number, string> = {
-   // 课程 1 在 2026-10-06 完成；此后专题里补了新文章，进度掉到 100% 以下，完成状态保留
-   1: '2026-10-06 20:15',
-};
 
-/* 内容（假数据） */
-
-const ARTICLES: LearningArticle[] = [
-   {
-      id: 101,
-      slug: 'document-structure',
-      title: '文档结构',
-      summary: '纯阅读文章：没有引用任何题目',
-      content: [
-         {
-            type: 'paragraph',
-            text: '浏览器拿到 HTML 文本之后，第一件事不是"画出来"，而是把它解析成一棵 DOM 树。这篇只讲这棵树是怎么长出来的。',
-         },
-         {
-            type: 'heading',
-            text: '解析是容错的',
-         },
-         {
-            type: 'paragraph',
-            text: '与 XML 不同，HTML 的解析器不会因为一个没闭合的标签就罢工。它会按照规范里写死的规则猜测你的意图，然后把树补完。',
-         },
-         {
-            type: 'list',
-            items: [
-               '<p> 里嵌 <div> 会被自动拆开——因为 <p> 不允许包含块级元素',
-               '表格外的 <tr> 会被默默丢弃',
-               '缺失的 <html> / <head> / <body> 会被自动补齐',
-            ],
-         },
-         {
-            type: 'callout',
-            text: '这篇没有引用任何题目，所以它不显示进度条，只用「未读 / 已读」表达状态。',
-         },
-      ],
-      problems: [],
-   },
-   {
-      id: 102,
-      slug: 'html-tags',
-      title: '标签',
-      summary: '语义化标签与它们的默认行为',
-      content: [
-         {
-            type: 'paragraph',
-            text: '同一个视觉效果可以用很多种标签实现，但只有一种是对的。这篇讨论怎么选。',
-         },
-         {
-            type: 'code',
-            lang: 'html',
-            text: '<button onclick="location.href=\'/a\'">去 A 页</button>\n<a href="/a">去 A 页</a>',
-         },
-         {
-            type: 'paragraph',
-            text: '上面两行的视觉结果几乎一样，但只有第二行能被键盘聚焦、能被右键"在新标签页打开"、能被屏幕阅读器识别为链接。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4201,
-            pid: 7201,
-            title: '语义化一个产品卡片',
-            difficulty: 'easy',
-            totalScore: 100,
-         },
-         {
-            baseId: 4202,
-            pid: 7202,
-            title: '表单标签与可访问性',
-            difficulty: 'medium',
-            totalScore: 120,
-         },
-         {
-            baseId: 4203,
-            pid: 7203,
-            title: '表格结构的正确写法',
-            difficulty: 'medium',
-            totalScore: 100,
-            unavailable: true,
-         },
-      ],
-   },
-   {
-      id: 104,
-      slug: 'browser-devtools',
-      title: '浏览器调试工具',
-      summary: '在 Elements 面板里定位样式来源',
-      content: [
-         {
-            type: 'paragraph',
-            text: '写完一个页面的第一件事不是问别人"为什么不生效"，而是打开开发者工具自己找答案。',
-         },
-         {
-            type: 'list',
-            items: [
-               'Elements 面板右侧的 Styles 会告诉你每条规则来自哪个文件、有没有被划掉',
-               'Computed 面板给出的是最终生效值，排除掉层叠与继承的干扰',
-               'Sources 面板的断点比 console.log 更早看到问题现场',
-            ],
-         },
-      ],
-      problems: [
-         {
-            baseId: 4901,
-            pid: 7901,
-            title: '用 DevTools 定位一条被覆盖的样式',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-         {
-            baseId: 4902,
-            pid: 7902,
-            title: '在循环里下一个条件断点',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-      ],
-   },
-   {
-      id: 201,
-      slug: 'css-layout',
-      title: '布局',
-      summary: 'flex 与 grid 都在这一篇里',
-      content: [
-         {
-            type: 'paragraph',
-            text: 'flex 与 grid 不是二选一的关系：flex 管一维排布，grid 管二维。判断标准是"我需不需要同时控制行和列"。',
-         },
-         {
-            type: 'heading',
-            text: 'flex 的两个轴',
-         },
-         {
-            type: 'list',
-            items: [
-               '主轴由 flex-direction 决定，justify-content 作用在主轴上',
-               '交叉轴垂直于主轴，align-items 作用在交叉轴上',
-               'flex: 1 是 flex-grow:1 / flex-shrink:1 / flex-basis:0% 的简写',
-            ],
-         },
-         {
-            type: 'code',
-            lang: 'css',
-            text: '.bar {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n}',
-         },
-         {
-            type: 'callout',
-            text: 'flex 与 grid 是这一篇内部的内容，不是两篇独立的文章。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4001,
-            pid: 7001,
-            title: '用 flex 实现等高三栏',
-            difficulty: 'easy',
-            totalScore: 100,
-         },
-         {
-            baseId: 4002,
-            pid: 7002,
-            title: 'grid 实现瀑布流卡片',
-            difficulty: 'hard',
-            totalScore: 150,
-         },
-         {
-            baseId: 4003,
-            pid: 7003,
-            title: '响应式导航栏',
-            difficulty: 'medium',
-            totalScore: 120,
-         },
-      ],
-   },
-   {
-      id: 202,
-      slug: 'css-variables',
-      title: '变量',
-      summary: '自定义属性、作用域与回退',
-      content: [
-         {
-            type: 'paragraph',
-            text: 'CSS 自定义属性（--x）和预处理器变量最大的区别是：它是**运行时可读写的**，能被 JS 修改、能参与继承。',
-         },
-         {
-            type: 'code',
-            lang: 'css',
-            text: ':root { --brand: #fa7c0e; }\n.card { color: var(--brand, #333); }',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4101,
-            pid: 7101,
-            title: '用变量实现主题切换',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-         {
-            baseId: 4102,
-            pid: 7102,
-            title: '变量的作用域与继承',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-         {
-            baseId: 4103,
-            pid: 7103,
-            title: '用 JS 读写自定义属性',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-      ],
-   },
-   {
-      id: 203,
-      slug: 'css-selectors',
-      title: '选择器',
-      summary: '优先级、层叠与 :is() / :where()',
-      content: [
-         {
-            type: 'paragraph',
-            text: '优先级不是"谁写得靠后谁赢"，而是先比权重、权重相同才比顺序。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4401,
-            pid: 7401,
-            title: '计算一组选择器的优先级',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-         {
-            baseId: 4402,
-            pid: 7402,
-            title: '用 :where() 降低权重',
-            difficulty: 'hard',
-            totalScore: 120,
-         },
-         {
-            baseId: 4403,
-            pid: 7403,
-            title: '层叠上下文与 z-index',
-            difficulty: 'hard',
-            totalScore: 150,
-         },
-         {
-            baseId: 4404,
-            pid: 7404,
-            title: '属性选择器实战',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-      ],
-   },
-   {
-      id: 301,
-      slug: 'dom',
-      title: 'DOM',
-      summary: '节点操作与事件模型',
-      content: [
-         {
-            type: 'paragraph',
-            text: 'DOM 是文档在 JS 里的投影。它既是数据结构，也是一套事件系统。',
-         },
-         {
-            type: 'heading',
-            text: '事件委托',
-         },
-         {
-            type: 'paragraph',
-            text: '把监听器挂在父节点上、靠事件冒泡统一处理，比给每个子节点都挂一个监听器更省内存 —— 而且动态插入的子节点自动生效。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4501,
-            pid: 7501,
-            title: '实现一个事件委托列表',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-         {
-            baseId: 4502,
-            pid: 7502,
-            title: '手写一个简版 querySelectorAll',
-            difficulty: 'hard',
-            totalScore: 150,
-         },
-         {
-            baseId: 4503,
-            pid: 7503,
-            title: '阻止默认行为与冒泡',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-         {
-            baseId: 4504,
-            pid: 7504,
-            title: '节点的创建、插入与移除',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-      ],
-   },
-   {
-      id: 302,
-      slug: 'bom',
-      title: 'BOM',
-      summary: '浏览器对象模型：location、history、storage',
-      content: [
-         {
-            type: 'paragraph',
-            text: 'BOM 没有正式规范，各浏览器实现有差异。这篇只讲稳定可用的那一部分。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4601,
-            pid: 7601,
-            title: '用 history 实现无刷新筛选',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-         {
-            baseId: 4602,
-            pid: 7602,
-            title: 'localStorage 的容量与序列化',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-      ],
-   },
-   {
-      id: 303,
-      slug: 'async',
-      title: '异步',
-      summary: '事件循环、Promise 与并发控制',
-      content: [
-         {
-            type: 'paragraph',
-            text: '理解事件循环的关键是分清宏任务与微任务的插入位置。',
-         },
-         {
-            type: 'code',
-            lang: 'js',
-            text: 'console.log(1);\nsetTimeout(() => console.log(2));\nPromise.resolve().then(() => console.log(3));\nconsole.log(4);\n// 1 4 3 2',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4301,
-            pid: 7301,
-            title: '手写 Promise.all',
-            difficulty: 'hard',
-            totalScore: 150,
-         },
-         {
-            baseId: 4302,
-            pid: 7302,
-            title: '限制并发数的任务队列',
-            difficulty: 'hard',
-            totalScore: 150,
-         },
-         {
-            baseId: 4303,
-            pid: 7303,
-            title: '判断一段代码的输出顺序',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-         {
-            baseId: 4304,
-            pid: 7304,
-            title: 'async / await 的错误处理',
-            difficulty: 'medium',
-            totalScore: 100,
-         },
-         {
-            baseId: 4305,
-            pid: 7305,
-            title: '取消一个进行中的请求',
-            difficulty: 'hard',
-            totalScore: 120,
-         },
-      ],
-   },
-   {
-      id: 401,
-      slug: 'git-commit',
-      title: 'Git 提交规范',
-      summary: '一个提交只做一件事',
-      content: [
-         {
-            type: 'paragraph',
-            text: '提交信息是写给半年后的自己看的。标题写清"做了什么"，正文写清"为什么"。',
-         },
-      ],
-      problems: [
-         {
-            baseId: 4701,
-            pid: 7701,
-            title: '重写一条描述不清的提交信息',
-            difficulty: 'easy',
-            totalScore: 80,
-         },
-      ],
-   },
-];
-
-const TOPICS: LearningTopic[] = [
-   {
-      id: 1,
-      courseId: 1,
-      slug: 'html',
-      name: 'HTML',
-      description:
-         '网页的结构层。先弄清文档是怎么被解析成一棵树的，再谈标签怎么写。',
-      weight: 10,
-      prerequisites: [],
-      articleIds: [101, 102, 104],
-   },
-   {
-      id: 2,
-      courseId: 1,
-      slug: 'css',
-      name: 'CSS',
-      description:
-         '网页的表现层。布局是这里最容易卡住的地方，所以单独拆成一篇。',
-      weight: 20,
-      prerequisites: [1],
-      articleIds: [201, 202, 203],
-   },
-   {
-      id: 3,
-      courseId: 1,
-      slug: 'javascript',
-      name: 'JavaScript',
-      description:
-         '网页的行为层。DOM 与 BOM 是这个专题下的两篇文章，不是两个独立专题。',
-      weight: 30,
-      prerequisites: [1, 2],
-      // 104「浏览器调试工具」同时被 HTML 专题引用：它不属于任何一个专题
-      articleIds: [301, 302, 303, 104],
-   },
-];
-
-const COURSES: LearningCourse[] = [
-   {
-      id: 1,
-      slug: 'frontend-basics',
-      name: '前端基础',
-      description: '从文档结构讲到事件循环，把浏览器这一侧的基础补齐。',
-      weight: 10,
-      status: 'published',
-   },
-   {
-      id: 2,
-      slug: 'frontend-engineering',
-      name: '前端工程化',
-      description: '构建、包管理与发布流程。还没有编排专题。',
-      weight: 20,
-      status: 'draft',
-   },
-];
-
-/* 规则 */
-
-export function articleProgress(article: LearningArticle): ArticleProgress {
-   const total = article.problems.length;
-   const done = article.problems.filter(
-      (p) => p.unavailable || COMPLETED_BASE_IDS.has(p.baseId),
-   ).length;
-   const isReadingOnly = total === 0;
-   const progress = isReadingOnly ? 0 : done / total;
-   const lastOpenedAt = ARTICLE_VISITS[article.id] ?? null;
-
-   return {
-      total,
-      done,
-      progress,
-      // 向下取整：99.5% 显示 99%，避免「显示 100% 却拿不到对勾」
-      percent: Math.floor(progress * 100),
-      completed: !isReadingOnly && progress === 1,
-      isReadingOnly,
-      read: lastOpenedAt !== null,
-      lastOpenedAt,
-   };
-}
-
-export function isProblemCompleted(baseId: number): boolean {
-   return COMPLETED_BASE_IDS.has(baseId);
-}
-
-export function topicProgress(topic: LearningTopic): TopicProgress {
-   const articles = articlesOfTopic(topic);
-   const states = articles.map(articleProgress);
-   const problemCount = states.reduce((sum, s) => sum + s.total, 0);
-   const doneProblems = states.reduce((sum, s) => sum + s.done, 0);
-   const finishedArticles = states.filter(
-      (s) => s.completed || (s.isReadingOnly && s.read),
-   ).length;
-   const lastOpenedAt = states.reduce<string | null>(
-      (latest, s) =>
-         s.lastOpenedAt && (!latest || s.lastOpenedAt > latest)
-            ? s.lastOpenedAt
-            : latest,
-      null,
-   );
-
-   return {
-      articleCount: articles.length,
-      finishedArticles,
-      problemCount,
-      doneProblems,
-      percent:
-         problemCount === 0
-            ? 0
-            : Math.floor((doneProblems / problemCount) * 100),
-      completed: articles.length > 0 && finishedArticles === articles.length,
-      lastOpenedAt,
-   };
-}
-
-export function courseProgress(course: LearningCourse): CourseProgress {
-   const topics = courseTopics(course.id);
-   const states = topics.map(topicProgress);
-   const problemCount = states.reduce((sum, s) => sum + s.problemCount, 0);
-   const doneProblems = states.reduce((sum, s) => sum + s.doneProblems, 0);
-   const completedAt = COURSE_COMPLETIONS[course.id] ?? null;
-
-   return {
-      topicCount: topics.length,
-      finishedTopics: states.filter((s) => s.completed).length,
-      problemCount,
-      doneProblems,
-      percent:
-         problemCount === 0
-            ? 0
-            : Math.floor((doneProblems / problemCount) * 100),
-      // 单向：有完成记录就永远算完成，不因为专题新增文章而回退
-      completed:
-         completedAt !== null ||
-         (topics.length > 0 && states.every((s) => s.completed)),
-      completedAt,
-   };
-}
-
-// 发布校验：0 专题的课程可以存草稿，但不能发布
 export function canPublishCourse(course: LearningCourse): boolean {
    return courseTopics(course.id).length > 0;
 }
@@ -720,83 +240,359 @@ export function sortTopicsByPrecedence(
 
 /* 对外的读取接口 */
 
-export function useLearningCourses(): LearningCourse[] {
-   return COURSES;
+/**
+ * 学习侧只列**已上架**的课程：待审核 / 草稿是创作侧的状态，
+ * 不应该出现在「全部课程」里（文章与专题不需要审核，所以没有对应的过滤）。
+ */
+export const isCoursePublished = (course: LearningCourse): boolean =>
+   course.status === 'published';
+
+/** 学习侧：只列已上架的课程（待审 / 草稿留在创作侧） */
+export function useLearningCourses(
+   content?: LearningContentSlice,
+): LearningCourse[] {
+   const courses = list(resolveContent(content).courses, []);
+   return [...courses]
+      .filter(isCoursePublished)
+      .sort((a, b) => a.weight - b.weight || a.id - b.id);
+}
+
+/** 创作侧：全部课程，含待审与草稿 */
+export function useAllCourses(
+   content?: LearningContentSlice,
+): LearningCourse[] {
+   const courses = list(resolveContent(content).courses, []);
+   return [...courses].sort((a, b) => a.weight - b.weight || a.id - b.id);
 }
 
 export function useLearningCourse(
    courseId: number | string,
+   content?: LearningContentSlice,
 ): LearningCourse | undefined {
    const id = Number(courseId);
-   return COURSES.find((c) => c.id === id);
+   return list(resolveContent(content).courses, []).find((c) => c.id === id);
 }
 
-export function courseTopics(courseId: number | string): LearningTopic[] {
+export function courseTopics(
+   courseId: number | string,
+   content?: LearningContentSlice,
+): LearningTopic[] {
    const id = Number(courseId);
-   return sortTopicsByPrecedence(TOPICS.filter((t) => t.courseId === id));
+   const topics = list(resolveContent(content).topics, []);
+   return sortTopicsByPrecedence(topics.filter((t) => t.courseId === id));
 }
 
-export function useLearningTopics(): LearningTopic[] {
-   return sortTopicsByPrecedence(TOPICS);
+/**
+ * 学习侧的全部专题：按课程顺序平铺，课程内的顺序由先后关系决定。
+ *
+ * 只包含**已上架课程**下的专题：新建的课程是待审状态，
+ * 它的专题在审核通过前不该出现在学习侧（文章与专题本身不需要审核）。
+ * 创作侧要完整列表，用 `useAllTopics`。
+ */
+export function useLearningTopics(
+   content?: LearningContentSlice,
+): LearningTopic[] {
+   return useLearningCourses(content).flatMap((course) =>
+      courseTopics(course.id, content),
+   );
+}
+
+/** 创作侧：全部专题，含待审 / 草稿课程下的 */
+export function useAllTopics(content?: LearningContentSlice): LearningTopic[] {
+   const topics = list(resolveContent(content).topics, []);
+   return [...topics].sort((a, b) => a.weight - b.weight || a.id - b.id);
 }
 
 export function useLearningTopic(
    topicId: number | string,
+   content?: LearningContentSlice,
 ): LearningTopic | undefined {
    const id = Number(topicId);
-   return TOPICS.find((t) => t.id === id);
+   return list(resolveContent(content).topics, []).find((t) => t.id === id);
 }
 
-export function useLearningArticles(): LearningArticle[] {
-   return ARTICLES;
+export function useLearningArticles(
+   content?: LearningContentSlice,
+): LearningArticle[] {
+   return list(resolveContent(content).articles, []);
 }
 
 export function useLearningArticle(
    articleId: number | string,
+   content?: LearningContentSlice,
 ): LearningArticle | undefined {
    const id = Number(articleId);
-   return ARTICLES.find((a) => a.id === id);
+   return list(resolveContent(content).articles, []).find((a) => a.id === id);
 }
 
-export function articlesOfTopic(topic: LearningTopic): LearningArticle[] {
+export function articlesOfTopic(
+   topic: LearningTopic,
+   content?: LearningContentSlice,
+): LearningArticle[] {
+   const articles = list(resolveContent(content).articles, []);
    return topic.articleIds
-      .map((id) => ARTICLES.find((a) => a.id === id))
+      .map((id) => articles.find((a) => a.id === id))
       .filter((a): a is LearningArticle => a !== undefined);
 }
 
+// 一个课程下的全部文章（按专题顺序平铺，同一篇只出现一次）
+export function articlesOfCourse(
+   courseId: number | string,
+   content?: LearningContentSlice,
+): LearningArticle[] {
+   const seen = new Set<number>();
+   const result: LearningArticle[] = [];
+   for (const topic of courseTopics(courseId, content)) {
+      for (const article of articlesOfTopic(topic, content)) {
+         if (seen.has(article.id)) continue;
+         seen.add(article.id);
+         result.push(article);
+      }
+   }
+   return result;
+}
+
 // 一篇文章被哪些专题引用：可能 0 个，也可能多个
-export function topicsOfArticle(articleId: number | string): LearningTopic[] {
+export function topicsOfArticle(
+   articleId: number | string,
+   content?: LearningContentSlice,
+): LearningTopic[] {
    const id = Number(articleId);
-   return TOPICS.filter((t) => t.articleIds.includes(id));
+   return list(resolveContent(content).topics, []).filter((t) =>
+      t.articleIds.includes(id),
+   );
+}
+
+// 文章页的地址必须带一个专题上下文，所以取第一个引用它的专题
+export function firstTopicOfArticle(
+   articleId: number | string,
+   content?: LearningContentSlice,
+): LearningTopic | undefined {
+   return topicsOfArticle(articleId, content)[0];
+}
+
+/* 学习首页 / 课程总览用的读取接口 */
+
+// 在学课程：有访问记录的课程，按最近打开时间倒序
+export function useLearningActiveCourses(
+   content?: LearningContentSlice,
+   visits: VisitSlice = emptyVisits(),
+): {
+   course: LearningCourse;
+   progress: CourseProgress;
+}[] {
+   return useLearningCourses(content)
+      .map((course) => ({
+         course,
+         progress: courseProgress(
+            course,
+            visits,
+            courseTopics(course.id, content),
+            articlesOfCourse(course.id, content),
+         ),
+      }))
+      .filter((row) => row.progress.lastOpenedAt !== null)
+      .sort((a, b) =>
+         (b.progress.lastOpenedAt ?? '') < (a.progress.lastOpenedAt ?? '')
+            ? -1
+            : 1,
+      );
+}
+
+// 推荐课程：一次都没打开过的课程
+export function useLearningRecommendedCourses(
+   content?: LearningContentSlice,
+   visits: VisitSlice = emptyVisits(),
+): LearningCourse[] {
+   return useLearningCourses(content).filter(
+      (course) =>
+         courseProgress(
+            course,
+            visits,
+            courseTopics(course.id, content),
+            articlesOfCourse(course.id, content),
+         ).lastOpenedAt === null,
+   );
 }
 
 export function useLearningTopicArticle(
    topicId: number | string,
    articleId: number | string,
+   content?: LearningContentSlice,
 ):
    | { topic: LearningTopic; course?: LearningCourse; article: LearningArticle }
    | undefined {
-   const topic = useLearningTopic(topicId);
+   const topic = useLearningTopic(topicId, content);
    if (!topic) return undefined;
-   const article = articlesOfTopic(topic).find(
+   const article = articlesOfTopic(topic, content).find(
       (a) => a.id === Number(articleId),
    );
    if (!article) return undefined;
-   return { topic, course: useLearningCourse(topic.courseId), article };
+   return {
+      topic,
+      course: useLearningCourse(topic.courseId, content),
+      article,
+   };
 }
 
-export function useRecentLearning(limit = 3): RecentLearningItem[] {
-   return TOPICS.map((topic) => {
-      const course = useLearningCourse(topic.courseId);
-      return {
-         ...topicProgress(topic),
-         courseId: topic.courseId,
-         courseName: course?.name ?? '',
-         topicId: topic.id,
-         topicName: topic.name,
-      };
-   })
+export function useRecentLearning(
+   limit = 3,
+   content?: LearningContentSlice,
+   visits: VisitSlice = emptyVisits(),
+): RecentLearningItem[] {
+   return useLearningTopics(content)
+      .map((topic) => {
+         const course = useLearningCourse(topic.courseId, content);
+         return {
+            ...topicProgress(topic, visits, articlesOfTopic(topic, content)),
+            courseId: topic.courseId,
+            courseName: course?.name ?? '',
+            topicId: topic.id,
+            topicName: topic.name,
+         };
+      })
       .filter((item) => item.lastOpenedAt !== null)
       .sort((a, b) => (b.lastOpenedAt! < a.lastOpenedAt! ? -1 : 1))
       .slice(0, limit);
 }
+
+/* 创作侧（发布页）的读取接口 */
+
+/* ---------- 题库（文章正文只能引用真题库里已发布的题） ---------- */
+
+/** `public.problem.listPublicProblems` 返回的一条（只列这里用到的字段） */
+interface ApiProblem {
+   baseId?: number;
+   pid: number;
+   title: string;
+   difficulty: Difficulty;
+   totalScore: number;
+   tags?: Array<{ name: string; color: string }>;
+}
+
+const API_PAGE_SIZE = 48;
+
+/** 翻页拉全部已发布题目，按 baseId 去重排序（一次会话只拉一遍） */
+const fetchPublishedProblems = async (): Promise<LearningProblemRef[]> => {
+   const { $trpc } = useNuxtApp();
+   const collected = new Map<number, LearningProblemRef>();
+   let cursor: number | null | undefined;
+
+   // 游标分页，最多翻 20 页（48 × 20 = 960 道题，够用且不会失控）
+   for (let page = 0; page < 20; page += 1) {
+      const result = await $trpc.public.problem.listPublicProblems.query({
+         limit: API_PAGE_SIZE,
+         ...(cursor == null ? {} : { cursor }),
+      });
+      for (const item of (result.items ?? []) as ApiProblem[]) {
+         // 没有 baseId 的题没法写进正文：宁可不出现，也不要插入后变成未知题目
+         if (typeof item.baseId !== 'number') continue;
+         if (collected.has(item.baseId)) continue;
+         collected.set(item.baseId, {
+            baseId: item.baseId,
+            pid: item.pid,
+            title: item.title,
+            difficulty: item.difficulty,
+            totalScore: item.totalScore,
+         });
+      }
+      cursor = result.nextCursor ?? null;
+      if (cursor == null) break;
+   }
+
+   return [...collected.values()].sort((a, b) => a.baseId - b.baseId);
+};
+
+/**
+ * 题库的全部状态与操作。
+ *
+ * ⚠️ 必须在 setup 里调一次（它会 `useState`），拿到的 `reload` 才可以
+ * 在事件回调 / watch 里随便调 —— 那里已经没有 Nuxt 上下文了。
+ */
+const useProblemBankState = () => {
+   const bank = useState<LearningProblemRef[]>(
+      'learning-problem-bank',
+      () => [],
+   );
+   const loaded = useState<boolean>('learning-problem-bank-loaded', () => false);
+   const loading = useState<boolean>('learning-problem-bank-loading', () => false);
+   const failed = useState<boolean>('learning-problem-bank-failed', () => false);
+
+   const load = async (force = false) => {
+      if (loading.value) return;
+      if (loaded.value && !force) return;
+      loading.value = true;
+      failed.value = false;
+      try {
+         bank.value = await fetchPublishedProblems();
+         loaded.value = true;
+      } catch (error) {
+         failed.value = true;
+         console.warn('[learning] 题库加载失败：', error);
+      } finally {
+         loading.value = false;
+      }
+   };
+
+   return { bank, loaded, loading, failed, load };
+};
+
+/**
+ * 已发布题目的题库，供文章正文插入 `<Problem baseId={…} />`。
+ *
+ * 历史实现是**从已有文章的引用里反推**题库，那是个循环依赖：
+ * 文章不引用某道题 → 它就进不了题库 → 也就没法被引用。
+ * 症状正是「刚发布的题在选题列表里搜不到」。
+ *
+ * 现在直接问服务端要已发布的题，一次会话只拉一遍；没有登录态时静默失败，
+ * 只是题库为空，不影响其它功能。
+ */
+export function useLearningProblemBank(
+   content?: LearningContentSlice,
+): LearningProblemRef[] {
+   const { bank, load } = useProblemBankState();
+
+   // SSR 首帧不发这个请求（会带上服务端上下文），挂载后再拉
+   if (import.meta.client) onMounted(() => void load());
+
+   if (bank.value.length > 0) return bank.value;
+
+   // 接口没回来 / 失败时，先用文章里已有的引用兜底显示
+   const articles = list(resolveContent(content).articles, []);
+   const byBaseId = new Map<number, LearningProblemRef>();
+   for (const article of articles) {
+      for (const problem of article.problems) {
+         if (problem.unavailable) continue;
+         if (!byBaseId.has(problem.baseId)) byBaseId.set(problem.baseId, problem);
+      }
+   }
+   return [...byBaseId.values()].sort((a, b) => a.baseId - b.baseId);
+}
+
+/**
+ * 题库的状态与手动刷新，给选题浮窗用。
+ *
+ * `reload()` 会强制重拉一次并更新上面那个共享状态，用于：
+ *   · 上一次拉失败了（没登录 / 网络问题）；
+ *   · 刚发布了一道新题，想让选题浮窗立刻看到它。
+ */
+export function useLearningProblemBankStatus() {
+   const { loaded, loading, failed, load } = useProblemBankState();
+
+   return {
+      loading,
+      failed,
+      loaded,
+      reload: () => load(true),
+   };
+}
+
+// 把文章正文还原成 Markdown 源码，供发布页的编辑表单打开已有文章。
+// 正文是「引用了哪些题」的唯一来源：优先用存下来的源码（位置不丢），
+// 只有老数据没存源码时才从方块反推。
+export const articleMarkdown = (article: LearningArticle): string =>
+   article.source ?? renderArticleSource(article);
+
+/* 正文的两种表示（Markdown ↔ 方块）在 `~/utils/learning-markdown.ts`，
+   内容的增删改在 `./use-learning-store.ts`：它们各自被 Nuxt 自动导入，
+   这里不再转发，避免同名的重复导出。 */
