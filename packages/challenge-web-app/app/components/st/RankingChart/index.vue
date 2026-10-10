@@ -33,10 +33,14 @@ const currentIntervalIdx = computed(() => {
 });
 
 const maxCount = computed(() => {
+   if (props.rank.length === 0) return 1;
    return Math.max(...props.rank.map((item) => item.count));
 });
 
 const xAxisLabels = computed(() => {
+   // 没有区间数据时不要算坐标轴：`Math.min()` 对空数组返回 Infinity，
+   // `max - min` 会得到 NaN，页面上就会出现一个孤零零的 "NaN"。
+   if (props.rank.length === 0) return [];
    const minScore = Math.min(...props.rank.map((item) => item.from));
    const maxScore = Math.max(...props.rank.map((item) => item.to));
    const delta = maxScore - minScore;
@@ -52,7 +56,16 @@ const xAxisLabels = computed(() => {
 
 <template>
    <StSpace direction="vertical" fill gap="0.5rem" class="pt-6">
-      <StSpace gap=".25rem" fill class="flex-1" align="end">
+      <!-- 还没有排行数据（例如刚提交、缓存待载入）就给一句人话，不要画空图 -->
+      <StSpace
+         v-if="rank.length === 0"
+         fill
+         center
+         class="st-font-tooltip text-accent-400">
+         暂无排行数据
+      </StSpace>
+
+      <StSpace v-else gap=".25rem" fill class="flex-1" align="end">
          <div
             v-for="(item, idx) in rank"
             :style="{ height: `${(item.count / maxCount) * 100 + 5}%` }"
@@ -75,7 +88,7 @@ const xAxisLabels = computed(() => {
             </svg>
          </div>
       </StSpace>
-      <StSpace fill-x gap="0">
+      <StSpace v-if="rank.length > 0" fill-x gap="0">
          <span
             v-for="(label, idx) in xAxisLabels"
             :key="idx"
