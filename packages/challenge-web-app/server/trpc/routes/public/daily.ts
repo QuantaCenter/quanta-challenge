@@ -11,6 +11,8 @@ import { publicProcedure, router } from '../../trpc';
 import { dailyService } from '../../services/daily';
 
 const problemQuery = {
+   // 题号（base_problems.id）：前端链接按它进，见设计文档 §17.7
+   id: true,
    CurrentProblem: {
       select: {
          pid: true,
@@ -50,6 +52,8 @@ const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
 
    return {
       pid: dailyProblem.pid,
+      // 题号：前端链接按它进（做题页按 baseId 解析当前版本，见 §17.7）
+      baseId: baseProblem.id,
       title: dailyProblem.title,
       difficulty: dailyProblem.difficulty,
       tags: dailyProblem.tags,

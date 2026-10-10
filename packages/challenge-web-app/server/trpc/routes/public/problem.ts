@@ -98,6 +98,11 @@ const getAllPublicProblems = publicProcedure
          const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
          return {
             ...p.CurrentProblem,
+            // ⚠️ `CurrentProblem` 只有版本号 pid，**没有题号 baseId**。
+            // 而文章正文写题目用的是 `<Problem baseId={…} />`（设计文档 §13.3），
+            // 所以这里必须把 baseProblems.id 一并返回；漏了它的症状就是
+            // 「文章编辑器的题库里能看到题，但插入后写成未知题目」。
+            baseId: p.id,
             // 没有封面时必须返回 null，而不是字符串 'unknown'：
             // 前端会拼成 /api/static/unknown，该请求因无扩展名被 403，
             // 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。

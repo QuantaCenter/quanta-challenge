@@ -141,7 +141,13 @@ const getSelfProblemRanking = async (problemId: number, record: number) => {
    return {
       rank: rank + 1,
       total,
-      aheadRate: (total - rank - 1) / total,
+      /**
+       * ⚠️ `total` 可能是 0（排行榜缓存刚刚载入、或该题还没有任何有分记录），
+       * 此时 `(total - rank - 1) / total` 会算出 NaN（前端显示成「NaN%」）。
+       * 拿不到有效分母就返回 0，前端显示 0%。
+       */
+      aheadRate:
+         total > 0 ? Math.max(0, (total - rank - 1) / total) : 0,
    };
 };
 
