@@ -7,6 +7,7 @@ import {
    DEFAULT_ACHIEVEMENTS,
    type IAchievementLoaderSeed,
 } from './achievement-seed-data.ts';
+import { seedLearningContent } from './learning-seed.ts';
 
 /**
  * 写入超级管理员账号（首次部署用）。
@@ -194,6 +195,8 @@ async function main() {
 
    await seedAdminUser();
    await seedAchievements();
+   // 学习内容（课程 / 专题 / 文章）也落库；依赖管理员账号已存在
+   await seedLearningContent();
 }
 
 main()
