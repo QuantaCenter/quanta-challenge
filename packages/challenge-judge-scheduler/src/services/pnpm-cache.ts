@@ -59,6 +59,39 @@ export interface CacheMeta {
 /** pnpm 9 与 10 的索引文件位置不同，统计包数量时两种都要认。 */
 const V9_INDEX_SUFFIX = '-index.json';
 
+/**
+ * 解析 Docker 的多路复用日志流。
+ *
+ * 未分配 TTY 的容器，`container.logs()` 返回的不是纯文本，而是逐帧的：
+ *   [streamType(1B)][0,0,0][size(4B, BE)][payload]
+ * 直接 `toString('utf8')` 会把帧头（含 0x00）混进文本，这些 NUL 字节既会污染错误信息，
+ * 也会让 Prisma 写入时报 "unsupported Unicode escape sequence"。
+ * 因此必须按帧拆开，只取 payload。
+ */
+const demuxDockerLogs = (buffer: Buffer): string => {
+   const chunks: string[] = [];
+   let offset = 0;
+   let sawFrame = false;
+
+   while (offset + 8 <= buffer.length) {
+      const streamType = buffer[offset];
+      // 合法的帧类型只有 0(stdin) / 1(stdout) / 2(stderr)
+      if (streamType > 2) break;
+      const size = buffer.readUInt32BE(offset + 4);
+      const start = offset + 8;
+      const end = start + size;
+      if (end > buffer.length) break;
+      chunks.push(buffer.subarray(start, end).toString('utf8'));
+      sawFrame = true;
+      offset = end;
+   }
+
+   // 不像多路复用流（例如 TTY 容器）或完全没有完整帧时，退回原文，
+   // 避免把内容不慎丢掉；同时清掉 NUL 字节（Postgres 的 text/jsonb 不接受）。
+   const text = sawFrame ? chunks.join('') : buffer.toString('utf8');
+   return text.replace(/\u0000/g, '');
+};
+
 const parseSpec = (spec: string): [string, string] => {
    const at = spec.startsWith('@') ? spec.indexOf('@', 1) : spec.indexOf('@');
    if (at === -1) return [spec, '*'];
@@ -172,11 +205,33 @@ export class PnpmCacheService extends Singleton {
       // 开发环境常用本地代理，转发给容器（容器里的 127.0.0.1 指向自身，需自行配好）。
       for (const key of ['http_proxy', 'https_proxy', 'no_proxy']) {
          const value = process.env[key] ?? process.env[key.toUpperCase()];
-         if (value) env.push(`${key}=${value}`);
+         if (!value) continue;
+         // 指向回环地址的代理在容器里必然连不上：容器内的 127.0.0.1 是它自己，
+         // 而不是宿主机。转发它只会让 pnpm 以 ECONNREFUSED 失败（实测：宿主机 shell
+         // 里设了 http_proxy=http://127.0.0.1:7890，预热容器整包安装全部失败）。
+         // 要真正走宿主机代理，请显式传 host.docker.internal:7890。
+         if (
+            key !== 'no_proxy' &&
+            /(^|\/\/|@)(127\.0\.0\.1|localhost)(:|\/|$)/i.test(value)
+         ) {
+            console.warn(
+               `[WARN] 忽略指向回环地址的 ${key}=${value}（容器内无法访问宿主机的 127.0.0.1）。` +
+                  '如需代理，请改成 host.docker.internal:<port>。',
+            );
+            continue;
+         }
+         env.push(`${key}=${value}`);
       }
 
       const container = await this.docker.createContainer({
          Image: opts.image,
+         // 必须清空镜像的 ENTRYPOINT。
+         //
+         // 预热用的镜像是【题目容器镜像】，而题目镜像（如 challenge-backend-service-agent）
+         // 自带 entrypoint.sh：它不理会这里的 Cmd，而是去 /app/project 安装并启动服务，
+         // 于是预热容器一启动就报 "题目目录不存在：/app/project" 并以 exit 1 结束。
+         // 预热只需要一个「跑 pnpm 的裸 shell」，所以显式重置 Entrypoint。
+         Entrypoint: [],
          Cmd: ['sh', '-c', opts.command],
          WorkingDir: opts.workdir,
          Env: env,
@@ -204,7 +259,9 @@ export class PnpmCacheService extends Singleton {
          await container.start();
          const { StatusCode } = await container.wait();
          const raw = await container.logs({ stdout: true, stderr: true });
-         const logs = Buffer.isBuffer(raw) ? raw.toString('utf8') : String(raw);
+         const logs = Buffer.isBuffer(raw)
+            ? demuxDockerLogs(raw)
+            : String(raw).replace(/\u0000/g, '');
          return { exitCode: StatusCode, logs };
       } finally {
          await container.remove({ force: true }).catch(() => undefined);

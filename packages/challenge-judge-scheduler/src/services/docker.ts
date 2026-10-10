@@ -156,6 +156,19 @@ export class DockerService extends Singleton {
             result.containerId,
          );
       } catch (error: any) {
+         // 默认仍是 fail-fast：缺镜像时启动即失败，避免"服务看着是好的、判题全挂"。
+         //
+         // 但只跑【后端服务题型】的环境不需要 Playwright 镜像（它体积大、构建慢）。
+         // 此时可用 JUDGE_MACHINE_OPTIONAL=1 显式降级为告警：调度器能起来、后端判题可用；
+         // 一旦真的来了前端判题任务，judge-processor 会因为 judgeMachineWs 为空而
+         // 返回清晰错误（"Judge machine WebSocket is not connected"），而不是静默挂起。
+         if (process.env.JUDGE_MACHINE_OPTIONAL === '1') {
+            console.warn(
+               `[WARN] 前端判题机未启动（JUDGE_MACHINE_OPTIONAL=1）：${error.message}\n` +
+                  '       前端题型将无法判题；后端服务题型不受影响。',
+            );
+            return;
+         }
          throw new Error(
             `[ERROR] Failed to start Playwright container: ${error.message}`,
          );
@@ -465,18 +478,7 @@ export class DockerService extends Singleton {
       };
    }
 
-   async connectWebSocket(wsUrl: string) {
-      // 判题机容器的 3000 端口被映射到宿主机的 1889，调度器通过 WebSocket 把任务发给它。
-      //
-      // 这个地址取决于调度器跑在哪里，写死任何一种都会在另一种形态下挂住：
-      //   - 调度器跑在宿主机（pnpm dev）：localhost 即可，且该环境下
-      //     host.docker.internal 往往无法解析（本项目实测如此），所以默认值仍取 localhost；
-      //   - 调度器跑在容器里（docker compose，即 Dockerfile 的目标形态）：容器内的
-      //     localhost 指向容器自身，连不上宿主机的 1889。此时必须由 compose 注入
-      //     JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link。
-      //
-      // 两种情况下失败的症状都是"静默挂起"：init() 卡在 connectWebSocket，
-      // 调度器既不监听 1888 也不报错，日志停在"正在初始化服务依赖..."。
+  async connectWebSocket(wsUrl: string) {
       const ws = new WebSocket(wsUrl);
       await new Promise<void>((resolve) => {
          ws.addEventListener('open', () => {

@@ -187,3 +187,6 @@ dist
 # 调度器与 Web 应用共用 local_store；两边都忽略，避免把二进制图片写进版本库。
 local_store/
 tmp/
+
+# 共享 pnpm 缓存（本地开发时默认落在仓库根，见 docs/PNPM_CACHE.md）
+.pnpm-cache/

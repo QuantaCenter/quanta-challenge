@@ -176,6 +176,13 @@ export const saveErrorRecord = async (options: {
    startTime: number;
    job: JudgeJob;
 }) => {
+   // 防御性清洗：错误信息可能来自容器日志/二进制输出，带上 NUL(\u0000)。
+   // Postgres 的 text/jsonb 不接受 NUL，写入会直接失败（22P05 unsupported Unicode
+   // escape sequence），于是真正的判题错误被一个「写库失败」盖掉，更难排查。
+   const errorMessage = String(options.error?.message ?? options.error ?? '').replace(
+      /\u0000/g,
+      '',
+   );
    await prisma.judgeRecords.update({
       where: { id: options.job.data.judgeRecordId },
       data: {
@@ -183,7 +190,7 @@ export const saveErrorRecord = async (options: {
          judgingTime: Date.now() - options.startTime,
          result: 'failed',
          info: {
-            errorMessage: options.error.message,
+            errorMessage,
          },
          problem: {
             update: {
