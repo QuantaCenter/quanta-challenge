@@ -11,10 +11,11 @@ export const requireSession = (ctx: CommandContext): void => {
    }
 };
 
+/** 服务端可能把没有的字段回成 null（例如用户名登录的账号没有 email），这里都要能吃下 */
 export const summarizeUser = (user: {
-   nickname?: string;
-   email?: string;
-   role?: string;
+   nickname?: string | null;
+   email?: string | null;
+   role?: string | null;
 }): string =>
    [user.nickname, user.email, user.role].filter(Boolean).join(' · ') ||
    '<unknown>';

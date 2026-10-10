@@ -117,8 +117,12 @@ export class JudgeService extends Singleton {
             timeout: 10 * 1000,
          });
          type TestHandler = ReturnType<typeof defineTestHandler>;
+         // 只替换**行首**那个 export default。
+         // 用 `String.replace('export default ', ...)` 会在注释里先命中
+         // （脚手架模板的注释就写着这个词），真正的 export 留在源码里，
+         // vm2 直接报 "'import' and 'export' may appear only with 'sourceType: module'"。
          const script = payload.judgeScript.replace(
-            'export default ',
+            /^[ \t]*export\s+default\s+/m,
             'const run = '
          );
 

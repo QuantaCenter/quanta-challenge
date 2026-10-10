@@ -16,8 +16,11 @@ export const credentialsSchema = z.object({
    user: z
       .object({
          id: z.string(),
-         nickname: z.string().optional(),
-         email: z.string().optional(),
+         // ⚠️ 必须是 nullish：登录接口会把 username 登录的账号回成 `email: null`，
+         // 只写 `.optional()` 会让**下一次**命令在读取凭据时直接报
+         // 「凭据文件结构无法识别」——而 `qpc login` 自己却一切正常。
+         nickname: z.string().nullish(),
+         email: z.string().nullish(),
          role: z.string().optional(),
       })
       .optional(),

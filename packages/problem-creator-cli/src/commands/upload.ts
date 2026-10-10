@@ -16,12 +16,26 @@ import { formatBytes } from '../utils/paths';
 import type { CommandRegistry } from './registry';
 import { confirmOrSkip, requireSession } from './support';
 
+/** `--base` 的取值：题号必须是正整数；写错就当场拦下，别让它变成一次新建 */
+const parseBaseId = (raw?: string): number | undefined => {
+   if (raw === undefined) return undefined;
+   const value = Number(raw);
+   if (!Number.isInteger(value) || value <= 0) {
+      throw new UsageError(`--base 需要正整数题号，收到 "${raw}"`, {
+         hint: '题号就是 `qpc status` 里显示的 baseId，例如 --base 6。',
+      });
+   }
+   return value;
+};
+
 export interface UploadOptions {
    dir: string;
    /** 只打印将要提交的内容，不发请求 */
    dryRun?: boolean;
    /** 跳过预检（不推荐：等于把静态错误留给线上） */
    skipCheck?: boolean;
+   /** 在已有题号上创建新版本，而不是新建一道题 */
+   base?: string;
    /** 上传后等待审计结果，默认 true */
    wait?: boolean;
    /** 审计等待超时（秒） */
@@ -39,6 +53,10 @@ export const registerUploadCommand = (registry: CommandRegistry): void => {
       .argument('[dir]', '题目目录（默认当前目录）', '.')
       .option('--dry-run', '只做预检并打印将要提交的内容')
       .option('--skip-check', '跳过预检（不建议）')
+      .option(
+         '--base <baseId>',
+         '在已有题号（baseId）上创建新版本：题号不变，只换版本。改配置后想保持引用关系时用',
+      )
       .option('--no-wait', '上传后不等待审计')
       .option('--timeout <seconds>', '审计等待超时（秒）', '180')
       .option('--interval <seconds>', '审计状态轮询间隔（秒）', '2')
@@ -78,6 +96,8 @@ export const runUpload = async (
       }
    }
 
+   const baseId = parseBaseId(options.base);
+
    const judgeScript = await readText(config.paths.judge);
    const payload = {
       title: config.title,
@@ -114,11 +134,20 @@ export const runUpload = async (
       ['标签', config.tagIds.join(', ')],
       ['判题打包目录', config.runtime.judgeUploadPath],
       ['启动命令', config.runtime.initCommand ?? '<默认>'],
+      [
+         '构建命令',
+         config.runtime.buildCommand ?? '<未配置：编辑器里点提交不会有反应>',
+      ],
       ['答案模板', `${report.stats.template.fileCount} 个文件`],
       ['参考解', `${report.stats.answer.fileCount} 个文件`],
       ['判题脚本', `${Buffer.byteLength(judgeScript, 'utf8')} 字节`],
       ['请求体', formatBytes(payloadBytes)],
-      ['接口', `${ctx.env.apiUrl} → admin.problem.upload`],
+      [
+         '接口',
+         baseId === undefined
+            ? `${ctx.env.apiUrl} → admin.problem.upload（新建题目）`
+            : `${ctx.env.apiUrl} → admin.problem.reupload（题号 ${baseId} 的新版本）`,
+      ],
    ]);
 
    if (options.dryRun) {
@@ -128,6 +157,7 @@ export const runUpload = async (
             dryRun: true,
             payload: {
                ...payload,
+               ...(baseId === undefined ? {} : { baseId }),
                judgeScript: `<${judgeScript.length} 字符>`,
                answerTemplateSnapshot: `<${report.stats.template.fileCount} 个文件>`,
                referenceAnswerSnapshot: `<${report.stats.answer.fileCount} 个文件>`,
@@ -139,13 +169,29 @@ export const runUpload = async (
    }
 
    requireSession(ctx);
-   await confirmOrSkip(ctx, '确认创建新的题目版本？');
+   await confirmOrSkip(
+      ctx,
+      baseId === undefined
+         ? '确认创建新的题目版本？'
+         : `确认在题号 ${baseId} 上创建新版本（题号不变）？`,
+   );
 
    const api = createAdminApi(ctx.client);
-   ctx.logger.step('提交 upload 请求');
-   const created = await api.uploadProblem(payload);
+   if (baseId === undefined) {
+      ctx.logger.step('提交 upload 请求');
+   } else {
+      ctx.logger.step(`提交 reupload 请求（题号 ${baseId} 的新版本）`);
+   }
+   const created =
+      baseId === undefined
+         ? await api.uploadProblem(payload)
+         : await api.reuploadProblem({ ...payload, baseId });
    const problemId = created.problemId;
-   ctx.logger.success(`题目已创建：#${problemId}（${created.message}）`);
+   ctx.logger.success(
+      baseId === undefined
+         ? `题目已创建：#${problemId}（${created.message}）`
+         : `题目 #${problemId} 已创建（题号仍是 ${baseId}，${created.message}）`,
+   );
 
    if (options.wait === false) {
       ctx.logger.info(`  审计状态：qpc status ${problemId} --watch`);

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+   <head>
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>主题切换</title>
+      <style>
+         :root {
+            --bg: #f6f7f9;
+            --fg: #1f2328;
+            --card: #ffffff;
+            --accent: #1a7f37;
+            font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+         }
+         /* 深色主题：只覆盖变量，组件样式一行都不用改 */
+         html[data-theme='dark'] {
+            --bg: #10151c;
+            --fg: #e6edf3;
+            --card: #161d26;
+            --accent: #4ac26b;
+         }
+         body {
+            margin: 0;
+            min-height: 100vh;
+            display: grid;
+            place-items: center;
+            background: var(--bg);
+            color: var(--fg);
+         }
+         .card {
+            width: min(26rem, 90vw);
+            padding: 2rem;
+            border-radius: 1rem;
+            background: var(--card);
+            box-shadow: 0 12px 32px rgb(15 23 42 / 12%);
+            text-align: center;
+         }
+         h1 {
+            margin: 0 0 0.75rem;
+            font-size: 1.25rem;
+         }
+         p {
+            margin: 0 0 1.25rem;
+            opacity: 0.75;
+            font-size: 0.9375rem;
+         }
+         button {
+            padding: 0.5rem 1.25rem;
+            border-radius: 999px;
+            border: 1px solid var(--accent);
+            background: transparent;
+            color: var(--accent);
+            font: inherit;
+            cursor: pointer;
+         }
+      </style>
+      <script>
+         // 在首次渲染前就把主题定下来，避免浅色一闪
+         // TODO: 读取 localStorage 里保存的主题，写到 <html data-theme="...">
+      </script>
+   </head>
+   <body>
+      <main class="card">
+         <h1>阅读设置</h1>
+         <p>换一个主题，刷新之后也应该还在。</p>
+         <button id="theme-toggle" type="button">
+            <span id="theme-label">切到深色</span>
+         </button>
+      </main>
+
+      <script>
+         const root = document.documentElement;
+         const label = document.querySelector('#theme-label');
+         const toggle = document.querySelector('#theme-toggle');
+
+         // TODO: 实现切换
+         // 1) 点击 #theme-toggle 时，在 light / dark 之间切换 html 的 data-theme
+         // 2) 把选择写进 localStorage 的 'theme' 键
+         // 3) 按钮文案：#theme-label 在浅色时显示"切到深色"，深色时显示"切到浅色"
+      </script>
+   </body>
+</html>

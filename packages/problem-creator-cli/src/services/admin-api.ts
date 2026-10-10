@@ -18,6 +18,11 @@ export interface UploadProblemInput {
    judgeUploadPath: string;
 }
 
+/** 与 upload 同形，多一个 baseId：新版本挂在这个题号下 */
+export interface ReuploadProblemInput extends UploadProblemInput {
+   baseId: number;
+}
+
 export interface AuditCheckpointResult {
    score: number;
    totalScore: number;
@@ -83,6 +88,11 @@ export interface AdminApi {
       problemId: number;
       message: string;
    }>;
+   /** 在已有 baseProblem 上创建新版本（题目改了配置但想保持 baseId 不变时用） */
+   reuploadProblem(input: ReuploadProblemInput): Promise<{
+      problemId: number;
+      message: string;
+   }>;
    getAuditDetail(problemId: number): Promise<AuditDetail>;
    setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
@@ -111,6 +121,15 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
    uploadProblem: (input) =>
       client.call<{ problemId: number; message: string }>(
          'admin.problem.upload',
+         {
+            input,
+            method: 'POST',
+         },
+      ),
+
+   reuploadProblem: (input) =>
+      client.call<{ problemId: number; message: string }>(
+         'admin.problem.reupload',
          {
             input,
             method: 'POST',

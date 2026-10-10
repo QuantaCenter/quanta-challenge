@@ -220,6 +220,17 @@ export const validateProblem = async (
          hint: '站点根必须等于判题打包目录，否则判题机会在错误的目录下找 index.html 直到超时。',
       });
    }
+   // 在线编辑器点「提交」时会先跑 buildCommand；它为空时编辑器侧直接 return，
+   // 表现是「点了提交什么都没发生」——静态题目也必须给一条（`echo built` 即可）。
+   if (!config.runtime.buildCommand) {
+      push({
+         rule: 'RUN002',
+         severity: 'warn',
+         message: '未指定 buildCommand，在线编辑器里点「提交」不会有任何反应',
+         file: rel(config.configFile),
+         hint: "没有构建步骤的静态题也写一条 `buildCommand: 'echo built'`。",
+      });
+   }
    if (config.cover.mode === 'custom' && !('imageId' in config.cover)) {
       push({
          rule: 'IMG001',

@@ -37,6 +37,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | 规则 | 级别 | 触发条件 | 为什么 |
 |---|---|---|---|
 | RUN001 | warn | `initCommand` 里没有出现 `judgeUploadPath` | 站点根必须等于打包目录，否则判题机在错误目录找 `index.html` 直到超时 |
+| RUN002 | warn | 没有配置 `buildCommand` | 在线编辑器点「提交」时会先跑它；为空时编辑器侧直接 return，表现是「点了提交什么都没发生」。静态题也写 `echo built` |
 | IMG001 | error | `cover.mode = 'custom'` 但没给 `imageId` | 服务端 schema 会拒绝，属于"提交前就能发现"的错误 |
 
 ## 工程快照（TPL / ANS / SNAP）

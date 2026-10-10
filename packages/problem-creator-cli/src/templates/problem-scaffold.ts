@@ -58,6 +58,9 @@ export default defineProblemConfig({
       // 判题打包目录，同时决定快照键前缀（/project/...）
       judgeUploadPath: '${mountPath}',
       initCommand: '${initCommand}',
+      // 在线编辑器点「提交」时会先跑这条命令，退出码非 0 即失败。
+      // 没有构建步骤的静态题也要给一条，否则编辑器里点提交不会有任何反应（RUN002）。
+      buildCommand: 'echo built',
    },
    paths: {
       template: 'template',
@@ -68,8 +71,10 @@ export default defineProblemConfig({
 `;
 
    // 判题脚本模板：不使用反引号与嵌套模板串，便于在多种终端/编辑器里复制粘贴。
-   const judge = `// 判题脚本。必须写成 \`export default defineTestHandler(...)\`：
-// 判题机内部把这段文本里的 "export default " 替换成 "const run = " 后执行。
+   // ⚠️ 注释里不要再出现「导出关键字 + default + 空格」这个字面量：
+   // 判题机按行首做替换，写在注释里会先被命中，真正的语句就被漏掉了（见 judge.ts）。
+   const judge = `// 判题脚本。首行必须写成 defineTestHandler(...)，前面加导出关键字：
+// 判题机内部会把行首那条导出语句替换成 const run = ... 后执行。
 export default defineTestHandler(async ({ page, $ }) => {
    const text = async (selector) => {
       const element = await page.$(selector);
@@ -245,7 +250,7 @@ ${script}
       'qpc check',
       '',
       '# 2. 上传并等待审计（生成题目版本，审计约 20 秒）',
-      'qpc upload --wait',
+      'qpc upload',
       '',
       '# 3. 审计通过后发布',
       'qpc publish <problemId>',
@@ -253,7 +258,7 @@ ${script}
       '',
       '## 需要人工确认的事（预检覆盖不到）',
       '',
-      '- [ ] 参考解真的能拿满分（看 `qpc upload --wait` 的检查点明细）',
+      '- [ ] 参考解真的能拿满分（看 `qpc upload` 的检查点明细）',
       '- [ ] 答案模板明显低分（证明判题能抓错）',
       '- [ ] 断言消息写清"期望 vs 实际"（预检只做启发式提醒）',
       '- [ ] 封面好看（默认封面 = 参考解首屏截图）',

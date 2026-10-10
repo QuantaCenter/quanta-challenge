@@ -1,5 +1,5 @@
-// 判题脚本。必须写成 `export default defineTestHandler(...)`：
-// 判题机内部把这段文本里的 "export default " 替换成 "const run = " 后执行。
+// 判题脚本。首行必须写成 defineTestHandler(...)，前面加导出关键字：
+// 判题机内部会把行首那条导出语句替换成 const run = ... 后执行。
 export default defineTestHandler(async ({ page, $ }) => {
    const text = async (selector) => {
       const element = await page.$(selector);

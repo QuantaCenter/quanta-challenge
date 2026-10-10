@@ -30,7 +30,10 @@ qpc init my-problem --name "购物车合计" --difficulty easy
 cd my-problem
 qpc check                       # 毫秒级：判题脚本 / 快照 / 分值 / 运行配置
 qpc login                       # 默认设备码授权（浏览器里确认，无需密码）
-qpc upload --wait               # 上传并等待审计（约 20 秒，出检查点明细）
+qpc upload               # 上传并等待审计（约 20 秒，出检查点明细）
+# 改了配置（例如补上 buildCommand）后重发一版：题号不变，只换版本
+qpc upload my-problem --base 6  # 走 admin.problem.reupload，挂在题号 6 下
+qpc publish <新的 pid>
 qpc publish 123                 # 审计通过后发布（123 是 upload 返回的 pid）
 ```
 
@@ -40,7 +43,7 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 |---|---|---|
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
-| `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
+| `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果。`--base <baseId>` 在**已有题号**上创建新版本（题号不变，引用它的学习内容不用改） | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
 | `qpc login` | 登录并保存凭据；**默认走设备码授权**，密码登录用 `--email` / `--password-stdin`；`--show` 查看状态，`--logout` 删除凭据 | 否 |
@@ -101,7 +104,7 @@ export default defineProblemConfig({
    runtime: {
       judgeUploadPath: 'project',              // 判题打包目录 = 快照挂载路径
       initCommand: 'npx serve -l 3000 project', // 站点根必须等于上面那个目录
-      buildCommand: undefined,                 // 需要构建时填写
+      buildCommand: 'echo built',              // 编辑器点「提交」会先跑它；没有构建步骤也写一条（RUN002）
    },
    paths: { template: 'template', answer: 'answer', judge: 'judge.js' },
 });
@@ -132,7 +135,7 @@ $ qpc check
 ```
 
 预检**不能**替代线上审计：参考解是否真能拿满分、首屏封面好不好看，
-只能在真实判题机上跑一遍。所以 `qpc upload --wait` 会把审计的检查点明细拉回来打印。
+只能在真实判题机上跑一遍。所以 `qpc upload` 会把审计的检查点明细拉回来打印。
 
 ## 认证
 
@@ -178,7 +181,7 @@ echo "$PASSWORD" | qpc login --email you@example.com --password-stdin   # CI
 ### 3. 直接注入令牌（适合一次性脚本）
 
 ```bash
-QUANTA_TOKEN=<粘贴 access token> qpc upload my-problem --wait
+QUANTA_TOKEN=<粘贴 access token> qpc upload my-problem
 ```
 
 > 令牌来自浏览器 cookie `quanta_access_token`，**只适合临时使用**（15 分钟过期）。
