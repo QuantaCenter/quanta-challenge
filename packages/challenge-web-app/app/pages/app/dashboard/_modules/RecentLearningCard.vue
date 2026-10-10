@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { BookmarkThree, Box } from '@icon-park/vue-next';
 import { useRecentLearning } from '~/composables/use-learning';
+import { useLearningVisits } from '~/composables/use-learning-visits';
 
-const items = useRecentLearning(5);
+// 访问记录在这里取一次，传进纯读函数（不能在它内部懒调 useState）
+const visits = useLearningVisits();
+const items = computed(() => useRecentLearning(5, undefined, visits.slice.value));
 
 const loading = ref(false);
 </script>
@@ -69,8 +72,8 @@ const loading = ref(false);
                      :progress="item.percent / 100"
                      :percent="item.percent"
                      :completed="item.completed"
-                     :is-reading-only="item.articleCount === 0"
-                     :read="item.lastOpenedAt !== null" />
+                     :is-reading-only="item.isReadingOnly"
+                     :read="item.read" />
                   <NuxtLink
                      v-if="!item.completed"
                      :to="`/app/topics/${item.topicId}`"

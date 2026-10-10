@@ -148,7 +148,7 @@ const handleCheckin = async () => {
                   <a
                      v-if="dailyProblem"
                      class="w-full"
-                     :href="`/challenge/editor/${dailyProblem.pid}`"
+                     :href="`/challenge/editor/by-base/${dailyProblem.baseId}`"
                      target="_blank">
                      <ProblemCard :problem="dailyProblem" />
                   </a>

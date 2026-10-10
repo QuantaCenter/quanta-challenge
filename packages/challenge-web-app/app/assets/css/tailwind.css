@@ -141,4 +141,27 @@ body::-webkit-scrollbar {
    .st-font-tooltip {
       @apply text-[0.625rem] font-normal font-family-sans;
    }
+
+   /*
+    * 正文里的字号档位：`<ArticleText size="sm|base|lg">` → 这三个类。
+    *
+    * ⚠️ 这三个类名由 `app/utils/inline-markdown.ts` 的 SIZE_CLASS 与编辑器预览
+    * （ArticleBodyEditor 里同一份 SIZE_CLASS）共同产出。**只产出类名、没有样式**
+    * 的话，渲染出来就是一个空 span —— 表现是"设置了字号但发布后没变化"，
+    * 而同一行的加粗看起来正常（`<strong>` 有浏览器默认样式）。
+    *
+    * 字号沿用 body/caption/title 三档（16 / 14 / 20px），
+    * 与设计文档 §16 的字号口径一致，不再引入新档位。
+    */
+   .article-text-sm {
+      @apply text-sm font-family-sans;
+   }
+
+   .article-text-base {
+      @apply text-base font-family-sans;
+   }
+
+   .article-text-lg {
+      @apply text-[1.25rem] font-family-sans;
+   }
 }
