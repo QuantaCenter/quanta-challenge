@@ -79,7 +79,7 @@ export const problemConfigSchema = z.object({
    difficulty: z.enum(DIFFICULTIES),
    tagIds: z
       .array(z.number().int().positive())
-      .min(1, 'tagIds 至少需要一个标签（库中现有 1 = Vue3）'),
+      .min(1, 'tagIds 至少需要一个标签（用 `qpc tag` 查看可用 id）'),
    /** 留空表示"以判题脚本里各检查点之和为准"；填写则必须与之和相等 */
    totalScore: z.number().int().positive().optional(),
    cover: coverSchema.default({ mode: 'default' }),

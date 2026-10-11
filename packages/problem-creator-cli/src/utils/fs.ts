@@ -5,9 +5,12 @@ import {
    mkdir,
    readdir,
    readFile,
+   rename,
+   rm,
+   stat,
    writeFile,
 } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 import { CliError } from '../core/errors';
 
@@ -42,6 +45,30 @@ export const writeText = async (
 ): Promise<void> => {
    await ensureDir(dirname(path));
    await writeFile(path, content, 'utf8');
+};
+
+/**
+ * 原子写文本：先写同目录临时文件再 rename。中途失败/被中断时原文件保持完整，
+ * 不会被截断成半个配置文件。
+ */
+export const writeTextAtomic = async (
+   path: string,
+   content: string,
+): Promise<void> => {
+   const dir = dirname(path);
+   await ensureDir(dir);
+   const temp = join(dir, `.${basename(path)}.${process.pid}.tmp`);
+   const mode = await stat(path)
+      .then((info) => info.mode)
+      .catch(() => undefined);
+   try {
+      await writeFile(temp, content, 'utf8');
+      if (mode !== undefined) await chmod(temp, mode);
+      await rename(temp, path);
+   } catch (error) {
+      await rm(temp, { force: true }).catch(() => {});
+      throw error;
+   }
 };
 
 /** 与 `writeTextExclusive` 相对：存在则覆盖，用于 --force */

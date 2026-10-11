@@ -44,7 +44,7 @@ export const registerInitCommand = (registry: CommandRegistry): void => {
          `难度：${DIFFICULTIES.join(' | ')}`,
          'easy',
       )
-      .option('--tag <id...>', '标签 id，可给多个（当前库中 1 = Vue3）', ['1'])
+      .option('--tag <id...>', '标签 id，可给多个（用 `qpc tag` 查看）', ['1'])
       .option(
          '--mount <path>',
          '判题打包目录 / 快照挂载路径',
@@ -204,7 +204,7 @@ const assertTagIds = (values: string[] | undefined): number[] => {
    const parsed = parts.map((part) => Number.parseInt(part, 10));
    if (parsed.some((id) => !Number.isInteger(id) || id <= 0)) {
       throw new UsageError(`标签 id 必须是正整数：${parts.join(', ')}`, {
-         hint: '标签 id 可在管理端「标签管理」页查看；当前库中 1 = Vue3。',
+         hint: '运行 `qpc tag` 查看可用标签 id，或用 `qpc tag --write` 交互选择。',
       });
    }
    return parsed;

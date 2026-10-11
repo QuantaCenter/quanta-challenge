@@ -17,7 +17,7 @@ import {
 import { loadProblemConfig } from '../domain/problem-config';
 import { createAdminApi } from '../services/admin-api';
 import { renderCoverPng } from '../services/cover-image';
-import { readText, writeBinary, writeText } from '../utils/fs';
+import { readText, writeBinary, writeTextAtomic } from '../utils/fs';
 import { formatBytes } from '../utils/paths';
 import type { CommandRegistry } from './registry';
 import { requireSession } from './support';
@@ -205,7 +205,7 @@ const writeBackCover = async (
 ): Promise<string> => {
    const original = await readText(configFile);
    const patched = applyCoverUpdate(original, { imageId, colors }, configFile);
-   await writeText(configFile, patched);
+   await writeTextAtomic(configFile, patched);
    try {
       const reloaded = await loadProblemConfig(resolve(configFile, '..'));
       if (
@@ -225,7 +225,7 @@ const writeBackCover = async (
          if (!matches) throw new Error('写回后读取到的配色与预期不一致');
       }
    } catch (error) {
-      await writeText(configFile, original);
+      await writeTextAtomic(configFile, original);
       throw new ConfigError('写回封面信息后配置校验失败，已回滚原文件', {
          cause: error,
          hint: `手动把 imageId 填成 ${imageId}，并抄回配色。`,

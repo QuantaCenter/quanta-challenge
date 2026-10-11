@@ -49,6 +49,7 @@ qpc upload --wait
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解）；`--type` 选题型，不传则**方向键交互选择** | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
 | `qpc cover [dir]` | 从题目配置生成封面图；`--random` 随机生成合理配色，`--upload` 上传，`--write` 把 imageId 与配色写回配置 | 上传时 |
+| `qpc tag [dir]` | 查看平台标签；`--write` 交互多选、`--set <id...>` 直接指定，把 tagIds 写回配置 | 否 |
 | `qpc upload [dir]` | 上传题目：配置了 `problemId` 就追加新版本，否则新建；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
@@ -134,7 +135,7 @@ export default defineProblemConfig({
    problemId: 123,                 // 首次上传后用 --write 写回；有它才会追加新版本
    detail: '题面（Markdown）',      // 或 detailFile: 'statement.md'
    difficulty: 'easy',              // easy | medium | hard | very_hard
-   tagIds: [1],                     // 必须是库里已存在的标签 id（当前 1 = Vue3）
+   tagIds: [1],                     // 必须是库里已存在的标签 id（用 `qpc tag` 查看/选择）
    // totalScore: 20,               // 留空 = 以检查点之和为准；填了就必须相等
    cover: { mode: 'default' },      // 或 { mode: 'custom', imageId: '<id>' }
    // 后端题型（没有首屏可截图）用这条替代上面那行，再跑
@@ -176,6 +177,21 @@ $ qpc check
 预检**不能**替代线上审计：参考解是否真能拿满分、首屏封面好不好看，
 只能在真实判题机上跑一遍。所以 `qpc upload --wait` 会把审计的检查点明细拉回来打印。
 
+## 标签（`qpc tag`）
+
+`tagIds` 必须是平台标签库里已有的 id，以前只能靠文档里那句「当前 1 = Vue3」，换个环境就失效。
+`qpc tag` 直接从平台拉取（`public.tag.list`，**无需登录**）并把本题的标签写回配置：
+
+```bash
+qpc tag                       # 列出全部标签（id / 名称 / 颜色）
+qpc tag --write               # 方向键多选（空格切换、回车确认），写回 tagIds
+qpc tag --set 1,3             # 直接指定 id，写回（CI / 非交互）
+```
+
+写回复用与 `problemId` / `imageId` 相同的做法：原子写盘，写完重新加载校验，对不上就回滚。
+`tagIds` 缺失的旧配置也能用 `--set` / `--write` 补上（不会因为 schema 先校验而卡住）。
+非交互环境里 `--write` 会报用法错误，提示改用 `--set`。
+
 ## 上传与版本管理（`qpc upload`）
 
 服务端上一道题分为「基础题（base）」与「版本（pid）」两层。默认情况下 `qpc upload`
@@ -192,7 +208,10 @@ qpc upload
 ```
 
 `--write` 会就地改写配置文件并重新加载校验，对不上就回滚（与 `qpc cover --write`
-同一套做法）。也可以手动把 id 填进 `problemId`，或在命令上临时指定：
+同一套做法）。**只在整条命令成功后才写回**：审计未通过时不会写回 `problemId`，
+避免配置指向一道无效的题（`--no-wait` 时上传成功即写回）。写盘是原子的
+（临时文件 + rename），中途失败不会把配置截断。也可以手动把 id 填进 `problemId`，
+或在命令上临时指定：
 
 | 参数 | 说明 |
 |---|---|
@@ -233,6 +252,7 @@ qpc cover --upload --write     # 生成 cover.png → 上传 → 把 imageId 写
 执行顺序与产物：渲染 PNG 到 `cover.generate.out`（默认 `cover.png`）→
 `admin.image.upload` 拿到 id → 就地改写配置文件里的 `imageId`，
 **写完会立刻重新加载配置校验一遍，对不上就回滚**（改坏配置比没改更糟）。
+写盘是原子的（临时文件 + rename），中途失败不会把配置截断。
 
 命令行参数会覆盖配置里的同名项，方便临时试配色（颜色优先级：**显式参数 >
 `--random` > 配置 > 默认值**）：

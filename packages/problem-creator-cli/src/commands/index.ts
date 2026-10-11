@@ -6,6 +6,7 @@ import { registerLoginCommand } from './login';
 import { registerPublishCommand } from './publish';
 import type { CommandRegistry } from './registry';
 import { registerStatusCommand } from './status';
+import { registerTagCommand } from './tag';
 import { registerUploadCommand } from './upload';
 
 export type { CommandRegistry } from './registry';
@@ -20,6 +21,7 @@ export const registerCommands = (registry: CommandRegistry): void => {
    registerInitCommand(registry);
    registerCheckCommand(registry);
    registerCoverCommand(registry);
+   registerTagCommand(registry);
    registerUploadCommand(registry);
    registerStatusCommand(registry);
    registerPublishCommand(registry);

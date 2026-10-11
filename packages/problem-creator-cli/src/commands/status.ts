@@ -1,6 +1,10 @@
 import type { CommandContext } from '../core/context';
 import { UsageError } from '../core/errors';
-import { createAdminApi } from '../services/admin-api';
+import {
+   auditRecordOf,
+   createAdminApi,
+   isAuditSettled,
+} from '../services/admin-api';
 import { auditToJson, renderAuditDetail } from '../ui/report';
 import { sleep } from '../utils/async';
 import type { CommandRegistry } from './registry';
@@ -54,7 +58,7 @@ export const runStatus = async (
    for (;;) {
       if (ctx.runtime.signal?.aborted) return;
       const detail = await api.getAuditDetail(problemId);
-      const record = detail.TemplateJudgeRecord?.[0]?.judgeRecord;
+      const record = auditRecordOf(detail);
       const signature = `${detail.status}|${record?.result ?? 'none'}|${record?.score ?? 0}`;
       if (signature !== lastSignature) {
          lastSignature = signature;
@@ -66,7 +70,7 @@ export const runStatus = async (
          ctx.logger.detail(`状态未变化（${signature}）`);
       }
 
-      if (record && record.result !== 'pending') {
+      if (isAuditSettled(detail)) {
          if (ctx.logger.json) ctx.logger.result(auditToJson(detail));
          ctx.logger.success('审计已出结果，停止刷新');
          return;

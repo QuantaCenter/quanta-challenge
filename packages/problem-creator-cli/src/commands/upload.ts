@@ -5,14 +5,19 @@ import { ConfigError, PrecheckError, UsageError } from '../core/errors';
 import { applyProblemIdUpdate } from '../domain/config-writer';
 import { loadProblemConfig } from '../domain/problem-config';
 import { type ValidationReport, validateProblem } from '../domain/validate';
-import { type AuditDetail, createAdminApi } from '../services/admin-api';
+import {
+   type AuditDetail,
+   auditRecordOf,
+   createAdminApi,
+   isAuditSettled,
+} from '../services/admin-api';
 import {
    renderAuditDetail,
    renderFindings,
    validationToJson,
 } from '../ui/report';
 import { poll } from '../utils/async';
-import { readText, writeText } from '../utils/fs';
+import { readText, writeTextAtomic } from '../utils/fs';
 import { formatBytes } from '../utils/paths';
 import type { CommandRegistry } from './registry';
 import { parseProblemId } from './status';
@@ -222,22 +227,29 @@ export const runUpload = async (
          : `新版本已创建：#${problemId}（${created.message}）`,
    );
 
-   if (options.write) {
+   // 只在整条命令成功后写回：失败时留下 problemId 会把配置指向一道没通过的题。
+   const writeBackIfRequested = async (): Promise<void> => {
+      if (!options.write) return;
       const written = await writeBackProblemId(config.configFile, problemId);
       ctx.logger.success(
          `problemId 已写回 ${relative(ctx.cwd, written) || written}`,
       );
-   } else if (targetProblemId === undefined && config.problemId === undefined) {
-      ctx.logger.info(
-         `  加 --write 可把 problemId: ${problemId} 写回配置，之后上传默认在该题目下追加版本`,
-      );
-   } else if (options.new && config.problemId !== undefined) {
-      ctx.logger.warn(
-         `  配置里的 problemId: ${config.problemId} 仍指向旧题目；要改用新题目请加 --write`,
-      );
+   };
+
+   if (!options.write) {
+      if (targetProblemId === undefined && config.problemId === undefined) {
+         ctx.logger.info(
+            `  加 --write 可把 problemId: ${problemId} 写回配置，之后上传默认在该题目下追加版本`,
+         );
+      } else if (options.new && config.problemId !== undefined) {
+         ctx.logger.warn(
+            `  配置里的 problemId: ${config.problemId} 仍指向旧题目；要改用新题目请加 --write`,
+         );
+      }
    }
 
    if (options.wait === false) {
+      await writeBackIfRequested();
       ctx.logger.info(`  审计状态：qpc status ${problemId} --watch`);
       if (ctx.logger.json) ctx.logger.result({ problemId, waited: false });
       return;
@@ -256,11 +268,18 @@ export const runUpload = async (
    if (ctx.logger.json) ctx.logger.result({ problemId, waited: true, detail });
 
    if (!passed) {
+      const hasRecord = auditRecordOf(detail) !== undefined;
+      const reason = hasRecord
+         ? '看上面的检查点明细：分数不等通常是"参考解拿不到满分"或"totalScore 与检查点之和不一致"。'
+         : '题目状态已置为 invalid，但判题记录没有写回：多半是判题机/容器出结果前就崩了，看调度器日志。';
       throw new PrecheckError(`题目 #${problemId} 审计未通过`, {
-         hint: '看上面的检查点明细：分数不等通常是"参考解拿不到满分"或"totalScore 与检查点之和不一致"。',
+         hint: options.write
+            ? `${reason}（--write 已跳过：审计未通过不写回 problemId）`
+            : reason,
       });
    }
 
+   await writeBackIfRequested();
    ctx.logger.success(`审计通过：${detail.totalScore} 分满分`);
    ctx.logger.info(`  发布：qpc publish ${problemId}`);
 };
@@ -283,13 +302,9 @@ export const waitForAudit = async (
       signal: ctx.runtime.signal,
       probe: async () => {
          const current = await api.getAuditDetail(problemId);
-         const record = current.TemplateJudgeRecord?.[0]?.judgeRecord;
-         if (!record) return undefined;
-         if (record.result === 'pending') {
-            ctx.logger.detail(`审计进行中…（status=${current.status}）`);
-            return undefined;
-         }
-         return current;
+         if (isAuditSettled(current)) return current;
+         ctx.logger.detail(`审计进行中…（status=${current.status}）`);
+         return undefined;
       },
    });
 
@@ -332,14 +347,14 @@ const writeBackProblemId = async (
 ): Promise<string> => {
    const original = await readText(configFile);
    const patched = applyProblemIdUpdate(original, problemId, configFile);
-   await writeText(configFile, patched);
+   await writeTextAtomic(configFile, patched);
    try {
       const reloaded = await loadProblemConfig(resolve(configFile, '..'));
       if (reloaded.problemId !== problemId) {
          throw new Error('写回后读取到的 problemId 与预期不一致');
       }
    } catch (error) {
-      await writeText(configFile, original);
+      await writeTextAtomic(configFile, original);
       throw new ConfigError('写回 problemId 后配置校验失败，已回滚原文件', {
          cause: error,
          hint: `手动把 problemId: ${problemId} 填进配置。`,

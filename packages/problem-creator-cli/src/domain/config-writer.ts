@@ -159,6 +159,84 @@ const applyProblemIdToSource = (
    return `${content.slice(0, openBrace + 1)}${insertion}${after}`;
 };
 
+// 把本题的标签写回配置：tagIds 是数组，已有就整段替换，没有就按模板位置补上。
+export const applyTagIdsUpdate = (
+   content: string,
+   tagIds: number[],
+   file: string,
+): string => {
+   if (file.endsWith('.json')) {
+      return applyTagIdsToJson(content, tagIds, file);
+   }
+   return applyTagIdsToSource(content, tagIds, file);
+};
+
+const applyTagIdsToJson = (
+   content: string,
+   tagIds: number[],
+   file: string,
+): string => {
+   let parsed: unknown;
+   try {
+      parsed = JSON.parse(content);
+   } catch (error) {
+      throw new ConfigError('题目配置不是合法 JSON，无法写回 tagIds', {
+         cause: error,
+         hint: `手动把 tagIds: [${tagIds.join(', ')}] 填进配置。`,
+      });
+   }
+   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new ConfigError(`${file} 的顶层不是一个对象，无法写回 tagIds`, {
+         hint: `手动把 tagIds: [${tagIds.join(', ')}] 填进配置。`,
+      });
+   }
+   (parsed as Record<string, unknown>).tagIds = tagIds;
+   return `${JSON.stringify(parsed, null, 3)}\n`;
+};
+
+const applyTagIdsToSource = (
+   content: string,
+   tagIds: number[],
+   file: string,
+): string => {
+   const literal = `[${tagIds.join(', ')}]`;
+   // 已经写过就只改数组，位置与格式不动。
+   const existing = /\btagIds\s*:\s*\[[^\]]*\]/.exec(content);
+   if (existing) return content.replace(existing[0], `tagIds: ${literal}`);
+
+   // 优先插在 difficulty / title 的下一行，与 init 模板的字段顺序一致。
+   for (const anchor of ['difficulty', 'title']) {
+      const match = new RegExp(
+         `\\b${anchor}\\s*:\\s*(['"\`])[^'"\`]*\\1,?`,
+      ).exec(content);
+      if (!match) continue;
+      const lineStart = content.lastIndexOf('\n', match.index) + 1;
+      const prefix = content.slice(lineStart, match.index);
+      const indent = /^([ \t]*)$/.exec(prefix)?.[1] ?? '   ';
+      const sep = /,\s*$/.test(match[0]) ? '' : ',';
+      const insertAt = match.index + match[0].length;
+      const next = /^[ \t]*$/.test(prefix)
+         ? `${sep}\n${indent}tagIds: ${literal},`
+         : `${sep} tagIds: ${literal},`;
+      return `${content.slice(0, insertAt)}${next}${content.slice(insertAt)}`;
+   }
+
+   const openBrace = findConfigObjectStart(content);
+   if (openBrace < 0) {
+      throw new ConfigError(
+         `在 ${file} 里找不到题目配置对象，无法写回 tagIds`,
+         { hint: `手动把 tagIds: ${literal} 填进配置。` },
+      );
+   }
+   const after = content.slice(openBrace + 1);
+   const firstNewline = after.indexOf('\n');
+   const sameLine = after.slice(0, firstNewline < 0 ? undefined : firstNewline);
+   const insertion = /^[ \t]*$/.test(sameLine)
+      ? `\n${/\n([ \t]+)\S/.exec(after)?.[1] ?? '   '}tagIds: ${literal},`
+      : ` tagIds: ${literal},`;
+   return `${content.slice(0, openBrace + 1)}${insertion}${after}`;
+};
+
 // 定位配置对象（defineProblemConfig({ ... })）的 {，兼容直接 export default { ... } 的写法。
 const findConfigObjectStart = (content: string): number => {
    const wrapper = /defineProblemConfig\s*\(\s*\{/.exec(content);

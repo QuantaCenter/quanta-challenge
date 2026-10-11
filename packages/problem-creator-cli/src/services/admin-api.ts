@@ -72,6 +72,13 @@ export interface ProblemListItem {
    updatedAt?: string;
 }
 
+export interface Tag {
+   tid: number;
+   name: string;
+   color?: string | null;
+   description?: string | null;
+}
+
 export interface CurrentUser {
    id: string;
    nickname?: string;
@@ -108,6 +115,8 @@ export interface AdminApi {
    getAuditDetail(problemId: number): Promise<AuditDetail>;
    setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
+   /** 平台全部标签（public.tag.list，无需登录） */
+   listTags(): Promise<Tag[]>;
 }
 
 export const createAdminApi = (client: HttpClient): AdminApi => ({
@@ -173,7 +182,41 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
       if (Array.isArray(result)) return result;
       return result.problems ?? [];
    },
+
+   listTags: async () => {
+      const tags = await client.call<RawTag[]>('public.tag.list', {
+         method: 'GET',
+      });
+      return tags.map((tag) => ({
+         tid: tag.tid,
+         name: tag.name,
+         color: tag.color ?? null,
+         description: tag.description ?? null,
+      }));
+   },
 });
+
+/** `public.tag.list` 原样返回数据库整行，这里只声明用到的字段 */
+interface RawTag {
+   tid: number;
+   name: string;
+   color?: string | null;
+   description?: string | null;
+}
+
+/** 取本题版本的判题记录（服务端按关系返回，[0] 即当前版本那条） */
+export const auditRecordOf = (detail: AuditDetail): AuditRecord | undefined =>
+   detail.TemplateJudgeRecord?.[0]?.judgeRecord;
+
+/**
+ * 审计是否已到终局。status 离开 draft 即算结束：调度器在任务失败时只改 status、
+ * 不补写判题记录，只看记录会让这类失败一直轮询到超时。
+ */
+export const isAuditSettled = (detail: AuditDetail): boolean => {
+   if (detail.status !== 'draft') return true;
+   const record = auditRecordOf(detail);
+   return record !== undefined && record.result !== 'pending';
+};
 
 /** 从审计记录里取出检查点明细，兼容失败时只有 errorMessage 的情况 */
 export const readAuditResults = (

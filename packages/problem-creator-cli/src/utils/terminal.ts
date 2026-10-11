@@ -1,5 +1,9 @@
 import { createInterface } from 'node:readline';
-import { select as clackSelect, isCancel } from '@clack/prompts';
+import {
+   multiselect as clackMultiselect,
+   select as clackSelect,
+   isCancel,
+} from '@clack/prompts';
 
 import { CanceledError, UsageError } from '../core/errors';
 
@@ -170,4 +174,46 @@ export const select = async <T extends string>(
       throw new CanceledError('已取消选择');
    }
    return answer as T;
+};
+
+export interface MultiSelectChoice<T extends string> {
+   value: T;
+   label: string;
+   hint?: string;
+}
+
+/** 方向键多选（空格切换，回车确认）。非 TTY 同样报用法错误，由调用方回落。 */
+export const multiselect = async <T extends string>(
+   message: string,
+   choices: MultiSelectChoice<T>[],
+   io: PromptIO,
+   options: { initialValues?: T[]; required?: boolean } = {},
+): Promise<T[]> => {
+   if (!isInteractive(io.stdin)) {
+      throw new UsageError('当前不是交互式终端，无法多选', {
+         hint: '请在命令里显式指定，例如 `qpc tag --set 1,2`。',
+      });
+   }
+
+   const answer = await clackMultiselect<string>({
+      message,
+      options: choices.map(
+         (choice): ClackOption => ({
+            value: choice.value,
+            label: choice.label,
+            ...(choice.hint === undefined ? {} : { hint: choice.hint }),
+         }),
+      ),
+      ...(options.initialValues === undefined
+         ? {}
+         : { initialValues: options.initialValues }),
+      ...(options.required === undefined ? {} : { required: options.required }),
+      input: io.stdin,
+      output: io.stderrStream ?? process.stderr,
+   });
+
+   if (isCancel(answer)) {
+      throw new CanceledError('已取消选择');
+   }
+   return answer as T[];
 };
