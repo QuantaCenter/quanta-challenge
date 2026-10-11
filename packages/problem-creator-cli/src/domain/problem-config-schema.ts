@@ -68,6 +68,8 @@ export const coverSchema = z.union([
 
 export const problemConfigSchema = z.object({
    title: z.string().min(1, 'title 不能为空'),
+   /** 平台题目 id（qpc upload 返回的 pid）：填了它就在该题目下追加新版本，否则每次新建 */
+   problemId: z.number().int().positive().optional(),
    /** 题型；缺省为前端，老题目不需要改配置 */
    type: z.enum(PROBLEM_TYPES).default('frontend'),
    /** 题面正文；与 detailFile 二选一 */

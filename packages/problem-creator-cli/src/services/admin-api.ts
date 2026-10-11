@@ -100,6 +100,11 @@ export interface AdminApi {
       problemId: number;
       message: string;
    }>;
+   /** 在已有基础题目（baseId）下创建新版本（发布页的"重新发布"） */
+   reuploadProblem(input: UploadProblemInput & { baseId: number }): Promise<{
+      problemId: number;
+      message: string;
+   }>;
    getAuditDetail(problemId: number): Promise<AuditDetail>;
    setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
@@ -128,6 +133,15 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
    uploadProblem: (input) =>
       client.call<{ problemId: number; message: string }>(
          'admin.problem.upload',
+         {
+            input,
+            method: 'POST',
+         },
+      ),
+
+   reuploadProblem: (input) =>
+      client.call<{ problemId: number; message: string }>(
+         'admin.problem.reupload',
          {
             input,
             method: 'POST',

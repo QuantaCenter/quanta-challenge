@@ -97,6 +97,77 @@ const applyToSource = (
    return `${before}${body}${after}`;
 };
 
+// 把平台题目 id 写回配置：填了 problemId 才会追加新版本，否则每次上传都新建一道题。
+export const applyProblemIdUpdate = (
+   content: string,
+   problemId: number,
+   file: string,
+): string => {
+   if (file.endsWith('.json')) {
+      return applyProblemIdToJson(content, problemId, file);
+   }
+   return applyProblemIdToSource(content, problemId, file);
+};
+
+const applyProblemIdToJson = (
+   content: string,
+   problemId: number,
+   file: string,
+): string => {
+   let parsed: unknown;
+   try {
+      parsed = JSON.parse(content);
+   } catch (error) {
+      throw new ConfigError('题目配置不是合法 JSON，无法写回 problemId', {
+         cause: error,
+         hint: `手动把 problemId: ${problemId} 填进配置。`,
+      });
+   }
+   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
+      throw new ConfigError(`${file} 的顶层不是一个对象，无法写回 problemId`, {
+         hint: `手动把 problemId: ${problemId} 填进配置。`,
+      });
+   }
+   (parsed as Record<string, unknown>).problemId = problemId;
+   return `${JSON.stringify(parsed, null, 3)}\n`;
+};
+
+const applyProblemIdToSource = (
+   content: string,
+   problemId: number,
+   file: string,
+): string => {
+   // 已经写过就只改值，位置与格式都不动。
+   const existing = /\bproblemId\s*:\s*\d+/.exec(content);
+   if (existing) return content.replace(existing[0], `problemId: ${problemId}`);
+
+   const openBrace = findConfigObjectStart(content);
+   if (openBrace < 0) {
+      throw new ConfigError(
+         `在 ${file} 里找不到题目配置对象，无法写回 problemId`,
+         { hint: `手动把 problemId: ${problemId} 填进配置。` },
+      );
+   }
+
+   const after = content.slice(openBrace + 1);
+   const firstNewline = after.indexOf('\n');
+   const sameLine = after.slice(0, firstNewline < 0 ? undefined : firstNewline);
+   // 与左括号同一行还有内容 -> 紧凑写法，就地插入；否则按下一行缩进另起一行。
+   const insertion = /^[ \t]*$/.test(sameLine)
+      ? `\n${/\n([ \t]+)\S/.exec(after)?.[1] ?? '   '}problemId: ${problemId},`
+      : ` problemId: ${problemId},`;
+   return `${content.slice(0, openBrace + 1)}${insertion}${after}`;
+};
+
+// 定位配置对象（defineProblemConfig({ ... })）的 {，兼容直接 export default { ... } 的写法。
+const findConfigObjectStart = (content: string): number => {
+   const wrapper = /defineProblemConfig\s*\(\s*\{/.exec(content);
+   if (wrapper) return wrapper.index + wrapper[0].lastIndexOf('{');
+   const fallback = /export\s+default\s*\{/.exec(content);
+   if (fallback) return fallback.index + fallback[0].lastIndexOf('{');
+   return content.indexOf('{');
+};
+
 // 找到 cover.generate，就地改颜色；没有 generate 就在 cover 里补一个。
 const writeColors = (
    body: string,

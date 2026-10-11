@@ -1,7 +1,8 @@
-import { resolve } from 'node:path';
+import { relative, resolve } from 'node:path';
 
 import type { CommandContext } from '../core/context';
-import { PrecheckError, UsageError } from '../core/errors';
+import { ConfigError, PrecheckError, UsageError } from '../core/errors';
+import { applyProblemIdUpdate } from '../domain/config-writer';
 import { loadProblemConfig } from '../domain/problem-config';
 import { type ValidationReport, validateProblem } from '../domain/validate';
 import { type AuditDetail, createAdminApi } from '../services/admin-api';
@@ -11,9 +12,10 @@ import {
    validationToJson,
 } from '../ui/report';
 import { poll } from '../utils/async';
-import { readText } from '../utils/fs';
+import { readText, writeText } from '../utils/fs';
 import { formatBytes } from '../utils/paths';
 import type { CommandRegistry } from './registry';
+import { parseProblemId } from './status';
 import { confirmOrSkip, requireSession } from './support';
 
 export interface UploadOptions {
@@ -28,6 +30,12 @@ export interface UploadOptions {
    timeout?: string;
    /** 轮询间隔（秒） */
    interval?: string;
+   /** 在该题目 id 下追加新版本（覆盖配置里的 problemId） */
+   problem?: string;
+   /** 强制新建题目，忽略配置 / 参数里的 problemId */
+   new?: boolean;
+   /** 把本次使用的题目 id 写回配置 */
+   write?: boolean;
 }
 
 export const registerUploadCommand = (registry: CommandRegistry): void => {
@@ -35,11 +43,17 @@ export const registerUploadCommand = (registry: CommandRegistry): void => {
 
    program
       .command('upload')
-      .description('上传题目（创建新版本）并可等待线上审计结果')
+      .description('上传题目（新建或追加版本）并可等待线上审计结果')
       .argument('[dir]', '题目目录（默认当前目录）', '.')
       .option('--dry-run', '只做预检并打印将要提交的内容')
       .option('--skip-check', '跳过预检（不建议）')
       .option('--no-wait', '上传后不等待审计')
+      .option(
+         '--problem <pid>',
+         '在该题目下追加新版本（覆盖配置里的 problemId）',
+      )
+      .option('--new', '强制新建题目（忽略配置里的 problemId）')
+      .option('--write', '把本次使用的题目 id 写回配置')
       .option('--timeout <seconds>', '审计等待超时（秒）', '180')
       .option('--interval <seconds>', '审计状态轮询间隔（秒）', '2')
       .action(async (dir: string, options: Omit<UploadOptions, 'dir'>) => {
@@ -54,6 +68,15 @@ export const runUpload = async (
 ): Promise<void> => {
    const rootDir = resolve(ctx.cwd, options.dir);
    const config = await loadProblemConfig(rootDir);
+
+   // --new 与 --problem 语义互斥，提前拦下比让服务端猜好。
+   if (options.new && options.problem !== undefined) {
+      throw new UsageError('--new 与 --problem 不能同时使用', {
+         hint: '要新建题目就别指定 --problem；要追加版本就别加 --new。',
+      });
+   }
+   // 本次要追加版本的题目 id：--problem > 配置里的 problemId；--new 一律新建。
+   const targetProblemId = resolveTargetProblemId(options, config.problemId);
 
    let report: ValidationReport;
    if (options.skipCheck) {
@@ -124,7 +147,20 @@ export const runUpload = async (
       ['参考解', `${report.stats.answer.fileCount} 个文件`],
       ['判题脚本', `${Buffer.byteLength(judgeScript, 'utf8')} 字节`],
       ['请求体', formatBytes(payloadBytes)],
-      ['接口', `${ctx.env.apiUrl} → admin.problem.upload`],
+      [
+         '目标',
+         targetProblemId === undefined
+            ? '新建题目'
+            : `题目 #${targetProblemId} 的新版本`,
+      ],
+      [
+         '接口',
+         `${ctx.env.apiUrl} → ${
+            targetProblemId === undefined
+               ? 'admin.problem.upload'
+               : 'admin.problem.reupload'
+         }`,
+      ],
    ]);
 
    if (options.dryRun) {
@@ -132,6 +168,8 @@ export const runUpload = async (
       if (ctx.logger.json) {
          ctx.logger.result({
             dryRun: true,
+            mode: targetProblemId === undefined ? 'create' : 'version',
+            targetProblemId,
             payload: {
                ...payload,
                judgeScript: `<${judgeScript.length} 字符>`,
@@ -145,13 +183,59 @@ export const runUpload = async (
    }
 
    requireSession(ctx);
-   await confirmOrSkip(ctx, '确认创建新的题目版本？');
-
    const api = createAdminApi(ctx.client);
-   ctx.logger.step('提交 upload 请求');
-   const created = await api.uploadProblem(payload);
+
+   // 追加版本时服务端要的是基础题 id（baseId），先按题目 id 查出来。
+   let baseId: number | undefined;
+   if (targetProblemId !== undefined) {
+      ctx.logger.step(`查找题目 #${targetProblemId} 的基础题 id`);
+      const target = await api.getAuditDetail(targetProblemId);
+      baseId = target.BaseProblem?.id;
+      if (baseId === undefined) {
+         throw new PrecheckError(
+            `题目 #${targetProblemId} 没有关联的基础题，无法追加版本`,
+            {
+               hint: '确认这个 id 来自 `qpc upload` / 管理端，且属于当前账号。',
+            },
+         );
+      }
+   }
+
+   await confirmOrSkip(
+      ctx,
+      targetProblemId === undefined
+         ? '确认创建新题目？'
+         : `确认在题目 #${targetProblemId} 下创建新版本？`,
+   );
+
+   ctx.logger.step(
+      baseId === undefined ? '提交 upload 请求' : '提交 reupload 请求',
+   );
+   const created =
+      baseId === undefined
+         ? await api.uploadProblem(payload)
+         : await api.reuploadProblem({ ...payload, baseId });
    const problemId = created.problemId;
-   ctx.logger.success(`题目已创建：#${problemId}（${created.message}）`);
+   ctx.logger.success(
+      baseId === undefined
+         ? `题目已创建：#${problemId}（${created.message}）`
+         : `新版本已创建：#${problemId}（${created.message}）`,
+   );
+
+   if (options.write) {
+      const written = await writeBackProblemId(config.configFile, problemId);
+      ctx.logger.success(
+         `problemId 已写回 ${relative(ctx.cwd, written) || written}`,
+      );
+   } else if (targetProblemId === undefined && config.problemId === undefined) {
+      ctx.logger.info(
+         `  加 --write 可把 problemId: ${problemId} 写回配置，之后上传默认在该题目下追加版本`,
+      );
+   } else if (options.new && config.problemId !== undefined) {
+      ctx.logger.warn(
+         `  配置里的 problemId: ${config.problemId} 仍指向旧题目；要改用新题目请加 --write`,
+      );
+   }
 
    if (options.wait === false) {
       ctx.logger.info(`  审计状态：qpc status ${problemId} --watch`);
@@ -229,4 +313,37 @@ const parsePositiveSeconds = (
       throw new UsageError(`时间参数必须是正数（秒）：${value}`);
    }
    return seconds;
+};
+
+/** 本次要追加版本的题目 id：--problem > 配置里的 problemId；--new 一律新建 */
+const resolveTargetProblemId = (
+   options: UploadOptions,
+   configuredProblemId: number | undefined,
+): number | undefined => {
+   if (options.new) return undefined;
+   if (options.problem !== undefined) return parseProblemId(options.problem);
+   return configuredProblemId;
+};
+
+// 写回后重新加载配置验证，对不上就回滚（同 qpc cover --write）。
+const writeBackProblemId = async (
+   configFile: string,
+   problemId: number,
+): Promise<string> => {
+   const original = await readText(configFile);
+   const patched = applyProblemIdUpdate(original, problemId, configFile);
+   await writeText(configFile, patched);
+   try {
+      const reloaded = await loadProblemConfig(resolve(configFile, '..'));
+      if (reloaded.problemId !== problemId) {
+         throw new Error('写回后读取到的 problemId 与预期不一致');
+      }
+   } catch (error) {
+      await writeText(configFile, original);
+      throw new ConfigError('写回 problemId 后配置校验失败，已回滚原文件', {
+         cause: error,
+         hint: `手动把 problemId: ${problemId} 填进配置。`,
+      });
+   }
+   return configFile;
 };

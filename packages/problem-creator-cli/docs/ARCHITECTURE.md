@@ -42,6 +42,8 @@ answer/ ───────────┘                                    
 
 POST /api/trpc/admin.problem.upload  （裸 input → {result:{data}}）
         │                                  服务端会再调调度器 /code/extract 归一化脚本
+        │  配了 problemId 时改走 admin.problem.reupload（多一个 baseId，先去
+        │  getAuditDetail 按 pid 查出 baseId），在已有题目下追加新版本
         ▼
    problemId + 审计任务入队
         ▼

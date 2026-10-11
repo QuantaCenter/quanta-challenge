@@ -41,7 +41,7 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
 | `qpc cover [dir]` | 从题目配置生成封面图；`--random` 随机生成合理配色，`--upload` 上传，`--write` 把 imageId 与配色写回配置 | 上传时 |
-| `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
+| `qpc upload [dir]` | 上传题目：配置了 `problemId` 就追加新版本，否则新建；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
 | `qpc login` | 登录并保存凭据；**默认走设备码授权**，密码登录用 `--email` / `--password-stdin`；`--show` 查看状态，`--logout` 删除凭据 | 否 |
@@ -94,6 +94,7 @@ import { defineProblemConfig } from '@challenge/problem-creator-cli';
 
 export default defineProblemConfig({
    title: '购物车合计',
+   problemId: 123,                 // 首次上传后用 --write 写回；有它才会追加新版本
    detail: '题面（Markdown）',      // 或 detailFile: 'statement.md'
    difficulty: 'easy',              // easy | medium | hard | very_hard
    tagIds: [1],                     // 必须是库里已存在的标签 id（当前 1 = Vue3）
@@ -137,6 +138,34 @@ $ qpc check
 
 预检**不能**替代线上审计：参考解是否真能拿满分、首屏封面好不好看，
 只能在真实判题机上跑一遍。所以 `qpc upload --wait` 会把审计的检查点明细拉回来打印。
+
+## 上传与版本管理（`qpc upload`）
+
+服务端上一道题分为「基础题（base）」与「版本（pid）」两层。默认情况下 `qpc upload`
+每次都会**新建一道基础题**，改稿越改越乱。把 `problemId`（`qpc upload` 返回的
+pid）写进配置后，后续上传就会在**同一道题下追加新版本**（服务端的 `reupload`），
+旧版本保留、可在管理端切回：
+
+```bash
+# 首次：新建题目，并把返回的 pid 写回配置
+qpc upload --write
+
+# 之后：默认就在该题目下追加新版本（无需再传 --problem）
+qpc upload
+```
+
+`--write` 会就地改写配置文件并重新加载校验，对不上就回滚（与 `qpc cover --write`
+同一套做法）。也可以手动把 id 填进 `problemId`，或在命令上临时指定：
+
+| 参数 | 说明 |
+|---|---|
+| `--problem <pid>` | 本次在该题目下追加新版本（覆盖配置里的 `problemId`） |
+| `--new` | 强制新建题目（忽略配置里的 `problemId`，与 `--problem` 互斥） |
+| `--write` | 把本次创建/追加后的题目 id 写回配置 |
+
+> 追加版本前会先按 `problemId` 查出基础题 id，因此该 id 必须属于当前账号；
+> 不写 `--write` 时配置里的 `problemId` 保持原值同样有效（任意一个版本的 pid
+> 都能定位到它的基础题）。
 
 ## 封面生成（`qpc cover`）
 
