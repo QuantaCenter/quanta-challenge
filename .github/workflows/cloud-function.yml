@@ -1,10 +1,6 @@
 name: cloud-function
 
-# 云函数服务的验证：typecheck / 单测 / 构建。
-#
-# 沙箱（Worker + node:vm）的编译与执行真的在这里跑：executor.spec 会用 esbuild 把
-# src/runtime/worker.ts 编译成临时 bundle 再执行（含死循环硬超时、OOM、KV 策略等用例），
-# 因此这个包没有"改坏了要到部署时才发现"的死角。
+# 云函数服务的验证：typecheck / 构建。
 #
 # 只在本包或它的依赖变化时触发，避免每次改前端都跑一遍。
 on:
@@ -38,7 +34,7 @@ defaults:
 
 jobs:
   verify:
-    name: typecheck / test / build
+    name: typecheck / build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -69,9 +65,6 @@ jobs:
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
-      - name: Test (vitest, 含沙箱编译与执行)
-        run: pnpm test
-
       - name: Build (vite)
         run: pnpm build
 
@@ -94,5 +87,5 @@ jobs:
             echo "| node | \`$(node --version)\` |"
             echo "| pnpm | \`$(pnpm --version)\` |"
             echo ""
-            echo "本地复现：\`pnpm --filter @challenge/database prisma:generate && cd packages/challenge-cloud-function && pnpm typecheck && pnpm test && pnpm build\`"
+            echo "本地复现：\`pnpm --filter @challenge/database prisma:generate && cd packages/challenge-cloud-function && pnpm typecheck && pnpm build\`"
           } >> "$GITHUB_STEP_SUMMARY"

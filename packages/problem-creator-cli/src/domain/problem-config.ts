@@ -136,7 +136,7 @@ const importConfig = async (file: string): Promise<unknown> => {
  * 三种可能的布局都要兼容，因此按顺序探测而不是写死相对路径：
  *   · 打包后：dist/index.js → dist/program.js（本模块被打进 bin 入口）
  *   · 未打包的 dist：dist/domain/problem-config.js → dist/program.js
- *   · 源码直跑（tsx / vitest）：src/domain/problem-config.ts → src/program.ts
+ *   · 源码直跑（tsx）：src/domain/problem-config.ts → src/program.ts
  */
 const programModulePath = (): string => {
    const candidates = [

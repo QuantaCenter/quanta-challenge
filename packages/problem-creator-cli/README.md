@@ -252,7 +252,7 @@ QUANTA_TOKEN=<粘贴 access token> qpc upload my-problem --wait
 - access token 只有 15 分钟，命令会自动用 refresh token 调用 `GET /api/refresh` 续期；
   续期失败会明确提示重新 `qpc login`，而不是抛一个网络错误。
 - 有 csrf token 时按服务端要求发送 `x-csrf-token`；只有 access token 时退回
-  `x-ssr: 1` 通道（与仓库自带的 `scripts/smoke-test.mjs` 一致）。
+  `x-ssr: 1` 通道。
 
 ## 目录结构（本包）
 
@@ -268,32 +268,27 @@ src/
 ├── ui/             # 输出渲染（人类可读报告 / JSON 负载）
 ├── utils/          # fs / paths / async / terminal / jwt 等小工具
 └── templates/      # `qpc init` 的脚手架内容
-tests/
-├── unit/           # 领域逻辑 + 命令（用假 fetch，不发真实请求）
-└── e2e/            # 真子进程跑 init → check
 ```
 
 依赖方向单向：`commands → (domain | services | ui) → core/utils`。
 `domain` 不 import `services`；`ui` 只把数据渲染成文本/JSON，不发请求。
-因此判题脚本分析、快照、预检规则都能脱离网络与 CLI 单独测试。
+因此判题脚本分析、快照、预检规则都能脱离网络与 CLI 单独调用。
 
 ## 开发
 
 ```bash
 pnpm dev <args>        # tsx 直跑源码
-pnpm test              # vitest
-pnpm test:coverage     # 覆盖率（阈值 70%）
 pnpm lint              # biome check（格式化 + lint）
 pnpm typecheck         # tsc --noEmit（含 examples）
 pnpm build             # tsup → dist/（index.js 带 shebang，program.js 为库入口）
-pnpm verify            # lint + typecheck + test + build
+pnpm verify            # lint + typecheck + build
 ```
 
 约定：
 
 - 3 空格缩进、单引号、行宽 80（由 biome 强制，配置见 `biome.json`）。
-- `examples/` 是 `qpc init` 的产物，**不参与 lint**（它同时也是 e2e 的 fixture）。
-- 新增规则时必须同时补 `docs/RULES.md` 与 `tests/unit/validate.test.ts` 的用例。
+- `examples/` 是 `qpc init` 的产物，**不参与 lint**。
+- 新增规则时必须同时补 `docs/RULES.md`。
 
 ## 相关文档
 

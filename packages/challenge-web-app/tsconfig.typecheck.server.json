@@ -21,7 +21,7 @@
       "noEmit": true
    },
    // 只纳入 server 代码实际 import 的那几个 lib 工具。
-   // 不用 "lib/**/*" 是因为 lib/test/*.spec.ts 属于测试，应由 vitest 处理；
+   // 不用 "lib/**/*" 是为了只检查 server 真正依赖的那几个文件；
    // 也不能加 "app/**/*"——app 作用域依赖 Vue 的自动导入类型，必须用 vue-tsc
    // 检查，用 tsc 检查会产生大量假报错。
    // 关于 include 的取舍：
@@ -29,7 +29,7 @@
    //     等 **Nitro 侧**自动导入，缺了会报 "Cannot find name 'useRuntimeConfig'"。
    //   · 不能纳入 .nuxt/nuxt.d.ts —— 它会把 app 侧（Vue）自动导入一并引入，
    //     而这里用 tsc（非 vue-tsc）检查，会连带检查 app/utils/* 并产生假报错。
-   //   · lib 只列 server 实际 import 的三个文件；lib/test/*.spec.ts 交给 vitest。
+   //   · lib 只列 server 实际 import 的三个文件。
    "include": [
       ".nuxt/types/nitro-imports.d.ts",
       "server/**/*",

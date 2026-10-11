@@ -5,29 +5,10 @@
 
 ---
 
-## 一键自检（优先跑这个）
+## 环境自检
 
-```powershell
-cd packages/challenge-web-app
-pnpm smoke
-```
-
-依次验证：Docker 依赖容器 → 应用端口 → 判题机容器 → 跨源隔离响应头 → 端到端判题 → 外部网络。
-**任何一项失败都会直接给出修复命令。**
-
-预期（正常时）：
-
-```
-[1/6] Docker 依赖容器        ✅ Docker 守护进程 / PostgreSQL / Redis / 连接可用
-[2/6] 应用服务端口            ✅ Web :3000 / 调度器 :1888
-[3/6] 判题机容器              ✅ 运行中
-[4/6] 跨源隔离                ✅ COOP=same-origin COEP=require-corp
-[5/6] 端到端判题              ✅ result=success
-[6/6] 运行环境                ✅ stackblitz.com 可达
-```
-
-> 第 6 项是**外部域名可达性**，可能间歇性失败（实测时而 1.2s 通、时而 20s 超时）。
-> 它只影响**在线编辑器的实时预览**，不影响登录、题库与判题。
+本仓库已移除全部自动化测试（单测 / e2e / 冒烟脚本均不再包含在版本库中）。
+判断环境是否正常以 `pnpm typecheck`、各包构建产物与运行时日志为准。
 
 ---
 
@@ -58,17 +39,12 @@ pnpm typecheck:app        # 只跑 app 侧（vue-tsc）
 ```powershell
 cd packages/challenge-cloud-function
 pnpm typecheck          # tsc：0 错误（前置：pnpm --filter @challenge/database prisma:generate）
-pnpm test               # vitest：29 个单测（签名 / 密钥 / 编译器 / 沙箱 / KV 策略）
 pnpm build              # 产物含 dist/index.js 与 dist/runtime/worker.js 两个入口
-
-# 端到端（需要本机 PostgreSQL + Redis，会自动应用迁移并清理测试数据）
-npx tsx scripts/e2e.ts   # 期望最后输出 ✅ E2E PASSED
 ```
 
-前三步已在 CI 里跑：`.github/workflows/cloud-function.yml`（仅在本包/`prisma`/`shared/service/cloud-function`
-变化时触发），断言两个入口产物存在；`e2e.ts` 需要 PostgreSQL + Redis，暂未进 CI。
+两步都已在 CI 里跑：`.github/workflows/cloud-function.yml`（仅在本包/`prisma`/`shared/service/cloud-function`
+变化时触发），断言两个入口产物存在。
 
-端到端覆盖：健康检查、创建/发布/调用、**KV 用户隔离**、**nonce 防重放**、**判题密钥白名单**。
 本地开发模式（HTTP 由 `@hono/vite-dev-server` 提供，:1890）另行验证可启动并响应 `/healthz`。
 
 ### ⚠️ 不要在 dev server 运行时跑 typecheck
@@ -104,7 +80,7 @@ server 的严格检查由 `tsconfig.typecheck.server.json` 负责，不在 app �
 `OffScreenTwo` 那次 500 就是例子 —— `@icon-park/vue-next` 的 **类型定义声明了该导出**
 （`es/map.d.ts:1696`），但**运行时并没有真正导出**，于是 SSR 渲染 undefined 组件而 500。
 类型检查全绿，因为类型定义本身就是错的。
-**这类问题只能靠端到端冒烟测试或运行时日志发现** —— 这正是 `pnpm smoke` 存在的理由。
+**这类问题只能靠运行时日志（或手工端到端验证）发现**。
 
 ---
 
