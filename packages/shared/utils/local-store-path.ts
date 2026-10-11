@@ -1,5 +1,5 @@
 import path from 'path';
-import { findRepoRoot } from './repo-root';
+import { findRepoRoot } from './repo-root.ts';
 
 /**
  * 解析本地存储（local_store）的绝对路径。
