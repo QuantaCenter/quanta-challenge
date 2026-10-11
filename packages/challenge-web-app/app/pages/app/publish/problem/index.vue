@@ -56,7 +56,6 @@ const problemType = computed<'frontend' | 'backend_service'>({
    },
 });
 
-/** 重新发布时详情还在路上：此时题型未知，固定字段先锁住，别让作者改。 */
 const detailLoading = ref(false);
 
 const imageName = ref('');
@@ -93,9 +92,6 @@ const fetchProblemDetail = async () => {
       draft.value.problemType = problem.problemType ?? 'frontend';
       draft.value.serviceImage = problem.serviceImage ?? '';
       draft.value.servicePort = problem.servicePort ?? 3000;
-      // 历史题目的镜像名 / 命令可能已过期，按注册表收敛一次；
-      // 上面的赋值会把 coverMode / enableCloudFunction 又写回库里的旧值，
-      // 所以这里再按题型强制一次（后端题不可协商的那几项）。
       applyProblemTypeConstraints(draft.value.problemType);
 
       const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
@@ -151,8 +147,6 @@ const handleSubmit = async () => {
          judgeUploadPath: draft.value.judgeUploadPath,
          enableCloudFunction: draft.value.enableCloudFunction ?? false,
          problemType: draft.value.problemType,
-         // 后端题只认注册表里的镜像 id（服务端会再收敛一次）；
-         // 前端题不带这个字段，避免往库里写无意义的镜像。
          serviceImage:
             draft.value.problemType === 'backend_service'
                ? normalizeBackendServiceImageId(draft.value.serviceImage)
