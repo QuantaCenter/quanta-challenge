@@ -49,6 +49,7 @@ const SNAPSHOT_IGNORE = new Set([
    '.nuxt',
    '.output',
    '.DS_Store',
+   '.quanta',
 ]);
 
 const steps = ref<IProgressStep[]>([]);

@@ -17,4 +17,6 @@ export const IGNORE_FILE_PATTERNS = [
    '**/.cache/',
    '**/*.lock',
    'dist',
+   '**/.quanta/**',
+   '**/.quanta',
 ];

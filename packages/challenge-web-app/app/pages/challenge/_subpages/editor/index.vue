@@ -12,6 +12,7 @@ import FileManagerPanel from './_modules/FileManagerPanel.vue';
 import CodeEditorPanel from './_modules/CodeEditorPanel.vue';
 import TerminalPanel from './_modules/TerminalPanel.vue';
 import PreviewPanel from './_modules/PreviewPanel.vue';
+import RequestPanel from './_modules/RequestPanel.vue';
 import { useWebContainer } from '../../_composables/use-web-container';
 import DetailWindow from './_components/DetailWindow.vue';
 import CommitModal from './_components/CommitModal.vue';
@@ -416,6 +417,19 @@ const { data: problem } = await useAsyncData(
 const loaded = (() => { let r; const p = new Promise<void>(res => { r = res; }); return { promise: p, resolve: r! }; })();
 watch(problem, () => problem.value && loaded.resolve(), { immediate: true });
 
+const isBackendService = computed(
+   () => problem.value?.problemType === 'backend_service',
+);
+
+// 预览板块的标题跟着题型走（拖拽把手上的提示文案）
+const previewBoardLabel = computed(() =>
+   isBackendService.value ? '接口调试' : '实时预览',
+);
+
+const backendServicePort = computed(
+   () => exposeServer.value?.port ?? problem.value?.servicePort ?? 3000,
+);
+
 watch(
    problem,
    (value) => {
@@ -423,7 +437,6 @@ watch(
    },
    { immediate: true },
 );
-
 const appBaseUrl = useRuntimeConfig().public.appBaseUrl;
 
 // command for right-click menu
@@ -536,13 +549,7 @@ useSeoMeta({
          :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
-         <!--
-            三个板块（资源管理器 / 代码编辑器+终端 / 实时预览）由 EditorBoardLayout 承载：
-            · 拖动板块左上角的把手到另一个板块位置即可**换位**（顺序持久化）
-            · 拖动板块之间的分隔条调整宽度（宽度跟着板块走）
-            板块内容通过具名插槽传进去，因此 ref / props 都留在本页，组件不会被重挂。
-         -->
-         <EditorBoardLayout>
+         <EditorBoardLayout :preview-label="previewBoardLabel">
             <template #board-files>
                <FileManagerPanel
                   :dir-loader="dirLoader"
@@ -581,7 +588,17 @@ useSeoMeta({
             </template>
 
             <template #board-preview>
+               <RequestPanel
+                  v-if="isBackendService"
+                  :port="backendServicePort"
+                  :server-ready="!!exposeServer"
+                  :steps="steps"
+                  :current-step="currentStep"
+                  :unsupported-reason="unsupportedReason"
+                  :get-wc-instance="getInstance"
+                  :write-file="writeFile" />
                <PreviewPanel
+                  v-else
                   :steps="steps"
                   :current-step="currentStep"
                   :preview-url="previewUrl"

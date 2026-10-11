@@ -340,11 +340,46 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 2. **门禁（`POST /cache/verify`）未接入判题热路径**：每次判题都跑一次试装容器
    代价过高；预热 + 容器内 `--offline` 已经 fail-closed。门禁保留为出题/发布前的
    手动预检入口。
-3. **编辑器预览是「能跑但没有画面」**：`initCommand` 会在 WebContainer 里把服务跑起来
-   （所以学生能用终端调自己的 API），但预览面板对纯 HTTP 服务无内容可展示——
-   题目应该把「怎么自己 curl 验证」写进题面（后端脚手架生成的 `detail.md` 已经带了这一段）。
 
 > 后端脚手架已落地（`qpc init --type backend_service`），见 §8。
+
+---
+
+## 9.5 答题页的「接口调试」面板
+
+后端题没有可看的页面，答题页的预览板块因此换成请求面板
+（`app/pages/challenge/_subpages/editor/_modules/RequestPanel.vue`）：
+方法 / 路径 / 参数 / 请求头 / 请求体 → 状态码 / 耗时 / 响应头 / 响应体，
+另附「复制 curl」。服务未监听时仍然显示启动步骤（跟前端题一致）。
+
+响应被抽成**独立面板**（`_modules/ResponsePanel.vue`），由一条竖向分割条摆在
+请求面板下方（即最右侧板的最下边）；它不设标题栏，状态码 / 耗时 / 字节数与
+复制按钮并入页签行右侧，把纵向空间留给响应体。
+参数 / 请求头则改成了方形表格：最左列是「是否采用」复选框，最右列是
+圆形减号按钮（点击移除该行），底下一行是「添加」。
+
+一个必须注意的实现选择：**请求不是页面 `fetch` 发的，而是由容器内的 Node 脚本代发**
+（`_utils/request-runner.ts`，脚本与请求描述写在 `.quanta/`，与 `project/` 同级，
+不会被资源管理器捕获、也不会被打进提交快照）。
+
+原因：预览地址（`https://<id>-<port>.webcontainer-api.io`）对页面来说是跨源资源，
+而题目参考实现（`node:http` / Express 模板）**不会**下发 CORS 响应头，
+面板就只能永远显示 `Failed to fetch`。容器内访问 `127.0.0.1:<servicePort>` 是同源回环，
+不存在跨域，也不需要暴露预览地址——这与判题机发请求的口径也一致
+（判题脚本在容器外按同源白名单发请求）。
+
+> 注意三个易错点：
+> ① 辅助文件与脚本路径都用**相对路径**（`.quanta/request.mjs`）：
+> WebContainer 的 fs API 与子进程 cwd 都以工作目录为基准，带前导 `/` 的路径
+> 在不同版本里解释不一致（这也是题目 `initCommand` 必须写 `cd ./project && ...` 的同一个坑）；
+> ② 辅助文件必须落在 `project/` **同级**：资源管理器只渲染题库文件树（`/project/...`）。
+> `FileSystemDispatcher` 虽然监听的是容器工作目录根，但它按 fsTree 根节点前缀过滤，
+> `project/` 之外的路径不会进文件管理器，也不会被同步到数据库；
+> 名字用 `.` 开头，终端 `ls` 也看不到。另在 `CommitModal.SNAPSHOT_IGNORE` 与
+> `_configs.IGNORE_FILE_PATTERNS` 里又各拦一道，
+> 因为 `judgeUploadPath` 允许填 `.`（打包整个工作目录）；
+> ③ 脚本只往 stdout 写**一行 JSON**，失败也要写——否则面板拿到空输出，
+> 用户看到的就是「点了发送没反应」。
 
 ---
 

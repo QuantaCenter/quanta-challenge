@@ -19,13 +19,18 @@ import { resizeBoardPair } from '~/utils/board-layout';
  */
 const layoutStore = useLayoutStore();
 
+const props = withDefaults(
+   defineProps<{ previewLabel?: string }>(),
+   { previewLabel: '实时预览' },
+);
+
 /** DOM 里固定的板块顺序（≠ 视觉顺序） */
 const BOARD_IDS: EditorBoardId[] = ['files', 'code', 'preview'];
-const BOARD_LABEL: Record<EditorBoardId, string> = {
+const BOARD_LABEL = computed<Record<EditorBoardId, string>>(() => ({
    files: '资源管理器',
    code: '代码编辑器 / 终端',
-   preview: '实时预览',
-};
+   preview: props.previewLabel,
+}));
 /** 三条板块之间有两条分隔条 */
 const DIVIDER_INDEXES = [0, 1];
 

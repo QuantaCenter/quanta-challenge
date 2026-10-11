@@ -43,10 +43,19 @@ export class FileSystemDispatcher {
       if (event === 'rename') {
          // 规范化路径后添加到变更集合
          const normalizedPath = normalizePath(`/${path}`);
+         if (!this._isTrackedPath(normalizedPath)) return;
          this.changePaths.add(normalizedPath);
          // 防抖处理：延迟一段时间后批量处理变更
          this._scheduleDispatch();
       }
+   }
+
+   private _isTrackedPath(path: string): boolean {
+      const roots = this.fsTree.value;
+      if (!roots || roots.length === 0) return false;
+      return roots.some(
+         (root) => path === root.path || path.startsWith(`${root.path}/`)
+      );
    }
 
    private _dispatchTimer: ReturnType<typeof setTimeout> | null = null;
