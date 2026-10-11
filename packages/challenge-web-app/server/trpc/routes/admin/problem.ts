@@ -1,6 +1,10 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
-import { ReuploadSchema, UploadSchema } from '../../schemas/publish-schema';
+import {
+   ReuploadSchema,
+   resolveBackendServiceRuntime,
+   UploadSchema,
+} from '../../schemas/publish-schema';
 import { router } from '../../trpc';
 import { IFile, projectService } from '../../services/project';
 import z from 'zod';
@@ -34,6 +38,15 @@ const handleCreateVersion = async (options: {
       judgeServerUrl,
       traceId,
    } = options;
+   // 后端题：bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样）
+   const isBackendService = input.problemType === 'backend_service';
+   const backendRuntime = isBackendService
+      ? resolveBackendServiceRuntime({
+           serviceImage: input.serviceImage,
+           servicePort: input.servicePort,
+           judgeUploadPath: input.judgeUploadPath,
+        })
+      : undefined;
    // 创建问题版本
    const problem = await tx.problems.create({
       data: {
@@ -44,14 +57,17 @@ const handleCreateVersion = async (options: {
          totalScore: input.totalScore,
          status: 'draft',
          coverImageId: input.coverImageId,
-         bootCommand: input.bootCommand,
+         bootCommand: backendRuntime?.bootCommand ?? input.bootCommand,
          initCommand: input.initCommand,
          buildCommand: input.buildCommand,
          judgeUploadPath: input.judgeUploadPath,
-         enableCloudFunction: input.enableCloudFunction ?? false,
+         // 后端题：云函数在判题容器里调不通（不签发令牌），强制关掉
+         enableCloudFunction:
+            backendRuntime?.enableCloudFunction ??
+            (input.enableCloudFunction ?? false),
          problemType: input.problemType ?? 'frontend',
-         serviceImage: input.serviceImage,
-         servicePort: input.servicePort ?? 3000,
+         serviceImage: backendRuntime?.serviceImage ?? input.serviceImage,
+         servicePort: backendRuntime?.servicePort ?? input.servicePort ?? 3000,
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,

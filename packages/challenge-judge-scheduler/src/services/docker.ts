@@ -1,6 +1,10 @@
 import Docker from 'dockerode';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+   BACKEND_SERVICE_CONTAINER_IMAGES,
+   resolveBackendServiceImageName,
+} from '@challenge/shared/backend-service-image';
 import { Singleton } from '../utils/singleton';
 import { TempFileService } from './temp-file';
 import JRTP from '@challenge/judge-machine-agent';
@@ -61,16 +65,13 @@ const BACKEND_JUDGE_MACHINE_LIMITS = {
    pidsLimit: numEnv('BACKEND_JUDGE_MACHINE_PIDS_LIMIT', 256),
 };
 
-/** 后端服务容器镜像（题目未指定 serviceImage 时的默认值）。 */
-const DEFAULT_BACKEND_SERVICE_IMAGE = 'challenge-backend-service-agent';
-
 /** 后端判题机镜像。 */
 const BACKEND_JUDGE_MACHINE_IMAGE = 'challenge-backend-judge-machine-agent';
 
-/** 会被清扫的「题目容器」镜像集合（后端服务容器同样需要自愈回收）。 */
+/** 会被清扫的「题目容器」镜像（后端侧从注册表派生，避免新镜像泄漏容器）。 */
 const PROBLEM_CONTAINER_IMAGES = [
    'challenge-live-server-agent',
-   DEFAULT_BACKEND_SERVICE_IMAGE,
+   ...BACKEND_SERVICE_CONTAINER_IMAGES,
 ];
 
 export class DockerService extends Singleton {
@@ -628,7 +629,7 @@ export class DockerService extends Singleton {
       startCommand?: string;
       judgeUploadPath?: string;
    }) {
-      const image = options.image || DEFAULT_BACKEND_SERVICE_IMAGE;
+      const image = resolveBackendServiceImageName(options.image);
       const port = options.port ?? 3000;
       const judgeUploadPath = options.judgeUploadPath || 'project';
       const startCommand = options.startCommand || '';

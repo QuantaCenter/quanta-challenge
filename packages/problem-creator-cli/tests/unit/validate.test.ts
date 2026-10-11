@@ -98,6 +98,33 @@ describe('validateProblem', () => {
       expect(ruleIds(report)).toContain('RUN001');
    });
 
+   it('后端题型自定义 bootCommand → RUN002 警告（准备步骤由镜像决定）', async () => {
+      const report = await validateFixture(
+         goodJudge(),
+         "type: 'backend_service',\n   cover: { mode: 'custom', imageId: 'img-1' },\n   runtime: { judgeUploadPath: 'project', bootCommand: '[install] npm install' },",
+      );
+      const finding = report.findings.find((f) => f.rule === 'RUN002');
+      // 覆盖是刻意的，因此是 warn 而不是 error：不阻塞上传，但必须让作者看见
+      expect(finding?.severity).toBe('warn');
+      expect(finding?.message).toContain('runtime.bootCommand');
+   });
+
+   it('后端题型自定义 initCommand 不再报 RUN002（服务启动命令允许自定义）', async () => {
+      const report = await validateFixture(
+         goodJudge(),
+         "type: 'backend_service',\n   cover: { mode: 'custom', imageId: 'img-1' },\n   runtime: { judgeUploadPath: 'project', initCommand: 'cd ./project && node app.js' },",
+      );
+      expect(ruleIds(report)).not.toContain('RUN002');
+   });
+
+   it('后端题型参考解缺少 pnpm-lock.yaml → RUN003', async () => {
+      const report = await validateFixture(
+         goodJudge(),
+         "type: 'backend_service',\n   cover: { mode: 'custom', imageId: 'img-1' },",
+      );
+      expect(ruleIds(report)).toContain('RUN003');
+   });
+
    it('答案模板缺少 index.html → TPL003', async () => {
       const dir = await createTempDir();
       await writeText(`${dir}/problem.config.ts`, configSource());

@@ -4,17 +4,6 @@ FROM node:24-slim
 ARG APT_MIRROR=""
 ARG NPM_REGISTRY="https://registry.npmjs.org/"
 
-# ---------------------------------------------------------------------------
-# 这是「后端服务题目」的默认基础镜像。
-#
-# 设计目标：足够基础、足够小，同时能覆盖绝大多数 Node 后端服务题：
-#   · openssl/libssl3 —— Prisma 等依赖的引擎需要（与 cloud-function 镜像一致）
-#   · python3/make/g++ —— 少数含原生扩展（bcrypt/sharp 等）的题目需要 node-gyp
-#   · pnpm@9.15.9      —— 必须与调度器预热 store 的 pnpm 大版本一致，否则 100% 未命中
-#
-# 题目作者可以换更专门的镜像（python:3.12-slim 等），只要同样提供
-# /usr/local/bin/quanta-entrypoint.sh 这一层约定即可。
-# ---------------------------------------------------------------------------
 RUN if [ -n "$APT_MIRROR" ]; then \
        sed -i "s/deb.debian.org/$APT_MIRROR/g" /etc/apt/sources.list.d/debian.sources; \
     fi && \

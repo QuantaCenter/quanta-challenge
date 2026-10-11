@@ -228,18 +228,20 @@ export const validateProblem = async (
          severity: 'error',
          message: 'cover.mode=custom 时必须提供 imageId',
          file: rel(config.configFile),
+         hint: '配置了 cover.generate 的话，跑 `qpc cover --upload --write` 一键生成并写回；否则把平台上的图片 id 填进 imageId。',
       });
    }
 
    // 后端服务题型的额外约束（详见 docs/BACKEND_SERVICE_PROBLEM.md）
    if (isBackend) {
-      if (!config.runtime.bootCommand) {
+      // RUN002：后端题的 bootCommand 由镜像决定，作者写的会被覆盖，因此只提示不报错。
+      for (const field of config.overriddenByImage) {
          push({
             rule: 'RUN002',
-            severity: 'error',
-            message: '后端服务题型必须提供 runtime.bootCommand（容器的启动命令）',
+            severity: 'warn',
+            message: `${field} 会被初始镜像 ${config.runtime.serviceImage} 规定的命令覆盖，不会生效`,
             file: rel(config.configFile),
-            hint: '例如 bootCommand: "node dist/index.js"。容器入口脚本靠它启动用户服务。',
+            hint: '编辑器里的一次性准备步骤由镜像决定（与容器内的离线安装保持一致）；服务启动命令请写在 runtime.initCommand。',
          });
       }
       if (config.cover.mode === 'default') {
@@ -248,7 +250,7 @@ export const validateProblem = async (
             severity: 'error',
             message: '后端服务题型必须使用自定义封面（没有首屏可截图）',
             file: rel(config.configFile),
-            hint: '把 cover 改成 { mode: "custom", imageId: "..." }。',
+            hint: '把 cover 改成 { mode: "custom", generate: { bg: "#0F172A", bgTo: "#14432A" } }，再跑 `qpc cover --upload --write`。',
          });
       }
    }
@@ -321,8 +323,20 @@ export const validateProblem = async (
       }
    };
 
-   await checkArtifact('template', config.paths.template, template, 'TPL', !isBackend);
-   await checkArtifact('answer', config.paths.answer, answer, 'ANS', !isBackend);
+   await checkArtifact(
+      'template',
+      config.paths.template,
+      template,
+      'TPL',
+      !isBackend,
+   );
+   await checkArtifact(
+      'answer',
+      config.paths.answer,
+      answer,
+      'ANS',
+      !isBackend,
+   );
 
    const maxUploadBytes = options.maxUploadBytes ?? Number.POSITIVE_INFINITY;
    const maxFileCount = options.maxFileCount ?? 500;

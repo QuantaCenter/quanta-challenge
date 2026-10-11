@@ -1,3 +1,10 @@
+import {
+   BACKEND_SERVICE_IMAGE_IDS,
+   buildBackendBootCommand,
+   buildBackendInitCommand,
+   getBackendServiceDefaultPort,
+   normalizeBackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
 import { z } from 'zod';
 
 /** 与 packages/challenge-web-app/server/trpc/schemas/publish-schema.ts 保持一致 */
@@ -47,8 +54,8 @@ export const problemConfigSchema = z.object({
          initCommand: z.string().min(1).default(DEFAULT_INIT_COMMAND),
          buildCommand: z.string().min(1).optional(),
          bootCommand: z.string().min(1).optional(),
-         /** 后端服务：用户服务跑在哪个镜像里；空则用调度器默认镜像 */
-         serviceImage: z.string().min(1).optional(),
+         /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
+         serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
          /** 后端服务：服务监听端口（也是判题机请求的端口） */
          servicePort: z.number().int().positive().max(65535).default(3000),
       })
@@ -68,3 +75,53 @@ export const problemConfigSchema = z.object({
 
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;
+
+/**
+ * 后端题的镜像与 bootCommand 由镜像决定（会覆盖作者写的值）；initCommand 只在作者
+ * 没写时填镜像默认值。回报被覆盖的字段，供 `qpc check` 提示。前端题型原样返回。
+ */
+export const applyBackendServiceImageDefaults = (
+   config: ProblemConfig,
+): { config: ProblemConfig; overridden: string[] } => {
+   if (config.type !== 'backend_service') {
+      return { config, overridden: [] };
+   }
+   const mountPath =
+      config.runtime.judgeUploadPath || DEFAULT_JUDGE_UPLOAD_PATH;
+   const serviceImage = normalizeBackendServiceImageId(
+      config.runtime.serviceImage,
+   );
+   const bootCommand = buildBackendBootCommand(serviceImage, mountPath);
+   const defaultInitCommand = buildBackendInitCommand(serviceImage, mountPath);
+
+   const overridden: string[] = [];
+   if (
+      config.runtime.bootCommand &&
+      config.runtime.bootCommand !== bootCommand
+   ) {
+      overridden.push('runtime.bootCommand');
+   }
+   // initCommand 的 schema 默认值是静态服务器命令（前端用），后端题没写时会落到它上面；
+   // 只有这种情况才用镜像默认值替掉它，作者写过的保留。
+   const initCommand =
+      !config.runtime.initCommand ||
+      config.runtime.initCommand === DEFAULT_INIT_COMMAND
+         ? defaultInitCommand
+         : config.runtime.initCommand;
+
+   return {
+      config: {
+         ...config,
+         runtime: {
+            ...config.runtime,
+            serviceImage,
+            servicePort:
+               config.runtime.servicePort ??
+               getBackendServiceDefaultPort(serviceImage),
+            bootCommand,
+            initCommand,
+         },
+      },
+      overridden,
+   };
+};

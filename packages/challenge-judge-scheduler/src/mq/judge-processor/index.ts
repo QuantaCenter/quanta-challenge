@@ -12,8 +12,21 @@ import { delay } from '../../utils/wait';
 import { ignoreError } from '../../utils/ignore-error';
 import prisma from '../../utils/prisma';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
+import { buildBackendInitCommand } from '@challenge/shared/backend-service-image';
 import * as db from './db';
 import { JudgeJob } from './types';
+
+const firstCommandOf = (raw: string | null | undefined): string => {
+   if (!raw) return '';
+   for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const match = trimmed.match(/^\[(.+?)\]\s*(.+)$/);
+      const command = (match ? match[2] : trimmed).trim();
+      if (command) return command;
+   }
+   return '';
+};
 
 const sendTaskToJudgeMachine = async (options: {
    job: JudgeJob;
@@ -150,9 +163,17 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
       let judgeWs: WebSocket;
 
       if (runtime.problemType === 'backend_service') {
-         if (!runtime.bootCommand) {
+         const startCommand =
+            firstCommandOf(runtime.initCommand) ||
+            firstCommandOf(
+               buildBackendInitCommand(
+                  runtime.serviceImage,
+                  runtime.judgeUploadPath
+               )
+            );
+         if (!startCommand) {
             throw new Error(
-               `后端服务题目 ${job.data.problemId} 缺少启动命令（bootCommand），无法启动服务`
+               `后端服务题目 ${job.data.problemId} 缺少启动命令（initCommand），无法启动服务`
             );
          }
 
@@ -161,7 +182,7 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
             fsSnapshot: job.data.fsSnapshot,
             image: runtime.serviceImage ?? undefined,
             port: runtime.servicePort ?? 3000,
-            startCommand: runtime.bootCommand,
+            startCommand,
             judgeUploadPath: runtime.judgeUploadPath,
          });
          cleanup = service.close;

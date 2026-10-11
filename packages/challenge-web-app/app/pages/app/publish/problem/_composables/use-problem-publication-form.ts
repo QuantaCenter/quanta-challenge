@@ -1,10 +1,23 @@
 import type { StForm } from '#components';
+import {
+   BACKEND_SERVICE_IMAGES,
+   buildBackendBootCommand,
+   buildBackendInitCommand,
+   DEFAULT_BACKEND_SERVICE_IMAGE_ID,
+   getBackendServiceDefaultPort,
+   normalizeBackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
+import type { ISelectOption } from '~/components/st/Select/type';
 import type { IRule } from '~/components/st/Form/type';
 import type { ISlideRadioGroupOption } from '~/components/st/SlideRadioGroup/type';
 import {
    isJudgeScriptTemplate,
    judgeScriptTemplateOf,
 } from './judge-script-template';
+
+export const serviceImageOptions: ISelectOption[] = Object.values(
+   BACKEND_SERVICE_IMAGES
+).map((item) => ({ label: item.label, value: item.id }));
 
 // 题目难度选项
 const difficultyOptions: ISlideRadioGroupOption[] = [
@@ -28,7 +41,7 @@ export const cloudFunctionOptions: ISlideRadioGroupOption[] = [
 // 题型选项：前端（静态站点 + Playwright）与后端服务（常驻进程 + HTTP 判题）
 export const problemTypeOptions: ISlideRadioGroupOption[] = [
    { label: '前端题型', value: 'frontend', color: '#1DA1F2' },
-   { label: '后端服务题型', value: 'backend_service', color: '#17BF63' },
+   { label: '后端题型', value: 'backend_service', color: '#17BF63' },
 ];
 
 export const useProblemPublicationForm = (storageName: string) => {
@@ -54,8 +67,66 @@ export const useProblemPublicationForm = (storageName: string) => {
       judgeUploadPath: '',
       enableCloudFunction: false,
       problemType: 'frontend' as 'frontend' | 'backend_service',
+      serviceImage: DEFAULT_BACKEND_SERVICE_IMAGE_ID as string,
+      servicePort: getBackendServiceDefaultPort(
+         DEFAULT_BACKEND_SERVICE_IMAGE_ID
+      ) as number,
    });
    const draft = useDebounce(formdata, 200);
+
+   /** 后端题的挂载目录（启动命令要相对它写 `cd ./<dir> && ...`）。 */
+   const backendMountPath = computed(
+      () => draft.value.judgeUploadPath || 'project'
+   );
+
+   const applyProblemTypeConstraints = (
+      type?: 'frontend' | 'backend_service'
+   ) => {
+      if (type !== 'backend_service') return;
+      draft.value.coverMode = 'custom';
+      draft.value.enableCloudFunction = false;
+      if (!draft.value.judgeUploadPath) {
+         draft.value.judgeUploadPath = 'project';
+      }
+      syncBackendServiceCommands();
+   };
+
+   let lastAutoInitCommand = '';
+   const syncBackendServiceCommands = () => {
+      if (draft.value.problemType !== 'backend_service') return;
+      const imageId = normalizeBackendServiceImageId(draft.value.serviceImage);
+      if (draft.value.serviceImage !== imageId) {
+         draft.value.serviceImage = imageId;
+      }
+      const mountPath = backendMountPath.value;
+      draft.value.bootCommand = buildBackendBootCommand(imageId, mountPath);
+
+      const autoInitCommand = buildBackendInitCommand(imageId, mountPath);
+      const isAutoValue =
+         !draft.value.initCommand ||
+         draft.value.initCommand === lastAutoInitCommand ||
+         draft.value.initCommand === autoInitCommand;
+      if (isAutoValue) {
+         lastAutoInitCommand = autoInitCommand;
+         draft.value.initCommand = autoInitCommand;
+      }
+   };
+
+   watch(
+      () =>
+         [
+            draft.value.problemType,
+            draft.value.serviceImage,
+            draft.value.judgeUploadPath,
+         ] as const,
+      () => syncBackendServiceCommands()
+   );
+
+   watch(
+      () => draft.value.problemType,
+      (type) => applyProblemTypeConstraints(type),
+      { immediate: true }
+   );
 
    const syncJudgeScriptTemplate = () => {
       if (
@@ -159,12 +230,22 @@ export const useProblemPublicationForm = (storageName: string) => {
          },
       },
       {
-         field: 'bootCommand',
+         field: 'initCommand',
          required: draft.value.problemType === 'backend_service',
          validator(value) {
             return (
                draft.value.problemType !== 'backend_service' ||
                (typeof value === 'string' && value.trim().length > 0)
+            );
+         },
+      },
+      {
+         field: 'serviceImage',
+         required: draft.value.problemType === 'backend_service',
+         validator(value) {
+            return (
+               draft.value.problemType !== 'backend_service' ||
+               serviceImageOptions.some((option) => option.value === value)
             );
          },
       },
@@ -189,5 +270,8 @@ export const useProblemPublicationForm = (storageName: string) => {
       coverModeOptions,
       cloudFunctionOptions,
       problemTypeOptions,
+      serviceImageOptions,
+      syncBackendServiceCommands,
+      applyProblemTypeConstraints,
    };
 };

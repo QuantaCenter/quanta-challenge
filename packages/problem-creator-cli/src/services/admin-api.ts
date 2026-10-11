@@ -1,3 +1,4 @@
+import type { BackendServiceImageId } from '@challenge/shared/backend-service-image';
 import type { Difficulty } from '../domain/problem-config';
 import type { HttpClient } from './http';
 
@@ -18,8 +19,8 @@ export interface UploadProblemInput {
    judgeUploadPath: string;
    /** 题型：frontend（默认）或 backend_service */
    problemType?: 'frontend' | 'backend_service';
-   /** 后端服务：运行镜像（空用调度器默认镜像） */
-   serviceImage?: string;
+   /** 后端服务：初始镜像 id（见 @challenge/shared/backend-service-image） */
+   serviceImage?: BackendServiceImageId;
    /** 后端服务：服务监听端口 */
    servicePort?: number;
 }

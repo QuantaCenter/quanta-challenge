@@ -1,3 +1,10 @@
+import {
+   BACKEND_SERVICE_IMAGE_IDS,
+   buildBackendBootCommand,
+   DEFAULT_BACKEND_SERVICE_IMAGE_ID,
+   getBackendServiceDefaultPort,
+   type BackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
 import { Difficulty } from '@prisma/client';
 import z from 'zod';
 
@@ -35,8 +42,8 @@ const uploadShape = {
    enableCloudFunction: z.boolean().optional(),
    /** 题型：前端（默认）或后端服务 */
    problemType: z.enum(['frontend', 'backend_service']).optional(),
-   /** 后端服务：运行用户服务的镜像，空则用调度器默认镜像 */
-   serviceImage: z.string().optional(),
+   /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
+   serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
    /** 后端服务：服务监听端口 */
    servicePort: z.number().int().positive().max(65535).optional(),
 };
@@ -71,15 +78,32 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
          },
          { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
       )
-      // 后端服务的启动命令是必填的：容器入口脚本靠它启动用户服务。
+      // 后端服务的启动命令必填（默认值由发布页按初始镜像回填，但不锁：
+      // 入口文件、参数、端口都因题而异）。
       .refine(
          (data: any) => {
             return data.problemType === 'backend_service'
-               ? Boolean(data.bootCommand && data.bootCommand.trim())
+               ? Boolean(data.initCommand && data.initCommand.trim())
                : true;
          },
-         { error: '后端服务题型必须填写启动命令（bootCommand）' }
+         { error: '后端服务题型必须填写初始化命令（服务启动命令）' }
       );
+
+export const resolveBackendServiceRuntime = (input: {
+   serviceImage?: BackendServiceImageId;
+   servicePort?: number;
+   judgeUploadPath: string;
+}) => {
+   const serviceImage = input.serviceImage ?? DEFAULT_BACKEND_SERVICE_IMAGE_ID;
+   const mountPath = input.judgeUploadPath || 'project';
+   return {
+      serviceImage,
+      servicePort:
+         input.servicePort ?? getBackendServiceDefaultPort(serviceImage),
+      bootCommand: buildBackendBootCommand(serviceImage, mountPath),
+      enableCloudFunction: false,
+   };
+};
 
 /** 上传新题目 */
 export const UploadSchema = withUploadRefinements(z.object(uploadShape));

@@ -4,6 +4,7 @@ import UploadProject from './_components/UploadProject.vue';
 import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
+import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';
 import type { StForm } from '#components';
 import {
    useProblemPublicationForm,
@@ -31,8 +32,15 @@ if (route.query.fromId) {
 }
 
 const { $trpc } = useNuxtApp();
-const { draft, coverModeOptions, difficultyOptions, formKey, rules } =
-   useProblemPublicationForm(storageName);
+const {
+   draft,
+   coverModeOptions,
+   difficultyOptions,
+   formKey,
+   rules,
+   serviceImageOptions,
+   applyProblemTypeConstraints,
+} = useProblemPublicationForm(storageName);
 
 const enableCloudFunction = computed<boolean>({
    get: () => draft.value.enableCloudFunction === true,
@@ -41,17 +49,15 @@ const enableCloudFunction = computed<boolean>({
    },
 });
 
-// 题型。切到后端服务时强制用自定义封面：后端没有首屏可截，
-// 默认封面（首屏截图）永远生成不出来（与服务端 schema 的 refine 一致）。
 const problemType = computed<'frontend' | 'backend_service'>({
    get: () => draft.value.problemType ?? 'frontend',
    set: (value) => {
       draft.value.problemType = value;
-      if (value === 'backend_service') {
-         draft.value.coverMode = 'custom';
-      }
    },
 });
+
+/** 重新发布时详情还在路上：此时题型未知，固定字段先锁住，别让作者改。 */
+const detailLoading = ref(false);
 
 const imageName = ref('');
 const imageUrl = computed(() => {
@@ -60,38 +66,49 @@ const imageUrl = computed(() => {
 const fetchProblemDetail = async () => {
    if (!fromId) return;
 
-   const problem = await $trpc.admin.problem.getDetail.query({
-      problemId: fromId,
-   });
-   baseId = problem.BaseProblem.id;
+   detailLoading.value = true;
+   try {
+      const problem = await $trpc.admin.problem.getDetail.query({
+         problemId: fromId,
+      });
+      baseId = problem.BaseProblem.id;
 
-   imageName.value = problem.CoverImage?.name ?? '';
-   draft.value.title = problem.title;
-   draft.value.detail = problem.detail;
-   draft.value.score = problem.totalScore;
-   draft.value.tags = problem.tags.map((t) => t.tid);
-   draft.value.difficulty = problem.difficulty;
-   draft.value.judgeScript = problem.JudgeFile[0]?.judgeScript ?? '';
-   draft.value.coverMode = problem.CoverImage ? 'custom' : 'default';
-   draft.value.coverImageId = problem.CoverImage?.id;
-   draft.value.answerTemplate = {};
-   draft.value.referenceAnswer = {};
+      imageName.value = problem.CoverImage?.name ?? '';
+      draft.value.title = problem.title;
+      draft.value.detail = problem.detail;
+      draft.value.score = problem.totalScore;
+      draft.value.tags = problem.tags.map((t) => t.tid);
+      draft.value.difficulty = problem.difficulty;
+      draft.value.judgeScript = problem.JudgeFile[0]?.judgeScript ?? '';
+      draft.value.coverMode = problem.CoverImage ? 'custom' : 'default';
+      draft.value.coverImageId = problem.CoverImage?.id;
+      draft.value.answerTemplate = {};
+      draft.value.referenceAnswer = {};
 
-   draft.value.bootCommand = problem.bootCommand ?? '';
-   draft.value.initCommand = problem.initCommand ?? '';
-   draft.value.buildCommand = problem.buildCommand ?? '';
-   draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
-   draft.value.enableCloudFunction = problem.enableCloudFunction ?? false;
-   draft.value.problemType = problem.problemType ?? 'frontend';
-   draft.value.serviceImage = problem.serviceImage ?? '';
-   draft.value.servicePort = problem.servicePort ?? 3000;
+      draft.value.bootCommand = problem.bootCommand ?? '';
+      draft.value.initCommand = problem.initCommand ?? '';
+      draft.value.buildCommand = problem.buildCommand ?? '';
+      draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
+      draft.value.enableCloudFunction = problem.enableCloudFunction ?? false;
+      draft.value.problemType = problem.problemType ?? 'frontend';
+      draft.value.serviceImage = problem.serviceImage ?? '';
+      draft.value.servicePort = problem.servicePort ?? 3000;
+      // 历史题目的镜像名 / 命令可能已过期，按注册表收敛一次；
+      // 上面的赋值会把 coverMode / enableCloudFunction 又写回库里的旧值，
+      // 所以这里再按题型强制一次（后端题不可协商的那几项）。
+      applyProblemTypeConstraints(draft.value.problemType);
 
-   const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
-   for (const file of files) {
-      // 统一规范化路径为前置 / 格式
-      const normalizedPath = normalizePath(file.path);
-      draft.value.answerTemplate[joinPath('/answer-template', normalizedPath)] =
-         file.content;
+      const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
+      for (const file of files) {
+         // 统一规范化路径为前置 / 格式
+         const normalizedPath = normalizePath(file.path);
+         draft.value.answerTemplate[
+            joinPath('/answer-template', normalizedPath)
+         ] = file.content;
+      }
+   } finally {
+      // 失败也要解锁，否则报错后字段永久置灰
+      detailLoading.value = false;
    }
 };
 onMounted(() => {
@@ -127,13 +144,19 @@ const handleSubmit = async () => {
          answerTemplateSnapshot: removeRootDir(draft.value.answerTemplate),
          referenceAnswerSnapshot: removeRootDir(draft.value.referenceAnswer),
          coverMode: draft.value.coverMode,
+         coverImageId: draft.value.coverImageId,
          bootCommand: draft.value.bootCommand,
          buildCommand: draft.value.buildCommand,
          initCommand: draft.value.initCommand,
          judgeUploadPath: draft.value.judgeUploadPath,
          enableCloudFunction: draft.value.enableCloudFunction ?? false,
          problemType: draft.value.problemType,
-         serviceImage: draft.value.serviceImage || undefined,
+         // 后端题只认注册表里的镜像 id（服务端会再收敛一次）；
+         // 前端题不带这个字段，避免往库里写无意义的镜像。
+         serviceImage:
+            draft.value.problemType === 'backend_service'
+               ? normalizeBackendServiceImageId(draft.value.serviceImage)
+               : undefined,
          servicePort: draft.value.servicePort,
       });
    };
@@ -201,17 +224,6 @@ const handleSubmit = async () => {
                      placeholder="请输入题目总分"
                      :outer-class />
                </StFormItem>
-               <StFormItem name="judgeScript" label="判题脚本" required>
-                  <JudgeScript v-model:script="draft.judgeScript" />
-               </StFormItem>
-               <StFormItem name="tags" label="题目标签" required>
-                  <TagsPicker v-model:tags="draft.tags" :outer-class />
-               </StFormItem>
-               <StFormItem name="difficulty" label="题目难度" required>
-                  <StSlideRadioGroup
-                     v-model:value="draft.difficulty"
-                     :options="difficultyOptions" />
-               </StFormItem>
                <StFormItem
                   name="problemType"
                   label="题目类型"
@@ -221,14 +233,27 @@ const handleSubmit = async () => {
                      v-model:value="problemType"
                      :options="problemTypeOptions" />
                </StFormItem>
+               <StFormItem name="judgeScript" label="判题脚本" required>
+                  <JudgeScript
+                     v-model:script="draft.judgeScript"
+                     :problem-type="problemType" />
+               </StFormItem>
+               <StFormItem name="tags" label="题目标签" required>
+                  <TagsPicker v-model:tags="draft.tags" :outer-class />
+               </StFormItem>
+               <StFormItem name="difficulty" label="题目难度" required>
+                  <StSlideRadioGroup
+                     v-model:value="draft.difficulty"
+                     :options="difficultyOptions" />
+               </StFormItem>
                <template v-if="problemType === 'backend_service'">
-                  <StFormItem
-                     name="serviceImage"
-                     label="服务运行镜像">
-                     <StInput
+                  <StFormItem name="serviceImage" label="初始镜像" required>
+                     <StSelect
                         v-model:value="draft.serviceImage"
-                        placeholder="留空使用默认镜像 challenge-backend-service-agent"
-                        :outer-class />
+                        placeholder="请选择初始镜像"
+                        attach-to-body
+                        :outer-class
+                        :options="serviceImageOptions" />
                   </StFormItem>
                   <StFormItem name="servicePort" label="服务端口" required>
                      <StInput
@@ -239,6 +264,7 @@ const handleSubmit = async () => {
                   </StFormItem>
                </template>
                <StFormItem
+                  v-if="problemType !== 'backend_service'"
                   name="enableCloudFunction"
                   label="是否使用云函数"
                   error-message="请选择是否使用云函数"
@@ -248,11 +274,16 @@ const handleSubmit = async () => {
                      :options="cloudFunctionOptions" />
                </StFormItem>
                <StFormItem name="cover" label="封面图片" required>
+                  <!-- 后端题型只支持自定义封面，不需要让出题人选 -->
                   <StSlideRadioGroup
+                     v-if="problemType !== 'backend_service'"
                      v-model:value="draft.coverMode"
                      :options="coverModeOptions" />
                   <StUploadImage
-                     v-show="draft.coverMode === 'custom'"
+                     v-show="
+                        problemType === 'backend_service' ||
+                        draft.coverMode === 'custom'
+                     "
                      v-model:image-id="draft.coverImageId"
                      :image-url="imageUrl"
                      placeholder="请选择封面图片" />
@@ -273,23 +304,45 @@ const handleSubmit = async () => {
                      placeholder="上传打包后的参考答案文件夹"
                      v-model:project-fs="draft.referenceAnswer" />
                </StFormItem>
-               <StFormItem name="bootCommand" label="启动命令">
+               <StFormItem
+                  name="bootCommand"
+                  :label="
+                     problemType === 'backend_service'
+                        ? '启动命令（由初始镜像决定）'
+                        : '启动命令（提交前的一次性准备步骤，必须自行退出）'
+                  ">
                   <StTextarea
                      rows="3"
-                     placeholder="请输入启动命令（一行一条命令，顺序执行，不可取消）"
+                     :disabled="
+                        detailLoading || problemType === 'backend_service'
+                     "
+                     :placeholder="
+                        problemType === 'backend_service'
+                           ? '由初始镜像决定'
+                           : '一行一条，例如：[install] npm --prefix ./project install'
+                     "
                      v-model:value="draft.bootCommand"
                      :outer-class />
                </StFormItem>
-               <StFormItem name="initCommand" label="初始化命令">
+               <StFormItem
+                  name="initCommand"
+                  :label="
+                     problemType === 'backend_service'
+                        ? '初始化命令（服务启动命令，判题与预览共用）'
+                        : '初始化命令（在线预览的 dev server）'
+                  "
+                  :required="problemType === 'backend_service'">
                   <StInput
-                     placeholder="请输入初始化 Shell 脚本（可取消）"
+                     placeholder="例如：[dev-server] cd ./project && npm start"
                      v-model:value="draft.initCommand"
                      :outer-class />
                </StFormItem>
-               <StFormItem name="buildCommand" label="构建命令">
+               <StFormItem
+                  name="buildCommand"
+                  label="构建命令（提交时执行一次，必须自行退出；无构建步骤时填一条立即退出的命令）">
                   <StInput
                      v-model:value="draft.buildCommand"
-                     placeholder="请输入构建命令"
+                     placeholder="例如：npm --prefix ./project run build"
                      :outer-class />
                </StFormItem>
                <StFormItem name="judgeUploadPath" label="打包上传路径" required>

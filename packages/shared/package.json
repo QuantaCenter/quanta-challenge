@@ -25,6 +25,9 @@
       "./config": {
          "import": "./configs/search-config.ts"
       },
+      "./backend-service-image": {
+         "import": "./service/backend-service-image.ts"
+      },
       "./openapi": {
          "import": "./service/openapi/sign.ts"
       },

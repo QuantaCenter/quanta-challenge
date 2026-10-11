@@ -36,8 +36,11 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 
 | 规则 | 级别 | 触发条件 | 为什么 |
 |---|---|---|---|
-| RUN001 | warn | `initCommand` 里没有出现 `judgeUploadPath` | 站点根必须等于打包目录，否则判题机在错误目录找 `index.html` 直到超时 |
-| IMG001 | error | `cover.mode = 'custom'` 但没给 `imageId` | 服务端 schema 会拒绝，属于"提交前就能发现"的错误 |
+| RUN001 | warn | `initCommand` 里没有出现 `judgeUploadPath` | 站点根必须等于打包目录，否则判题机在错误目录找 `index.html` 直到超时（**仅前端题型**） |
+| RUN002 | warn | 后端题型写了自定义的 `bootCommand` | 编辑器里的一次性准备步骤由「初始镜像」注册表决定（要与容器内的离线安装一致），作者写的那条会被覆盖。服务启动命令请写 `runtime.initCommand` |
+| RUN003 | error | 后端题型参考解里没有 `pnpm-lock.yaml` | 容器要在断网环境下离线安装依赖，没有锁文件就无从安装 |
+| IMG001 | error | `cover.mode = 'custom'` 但没给 `imageId` | 服务端 schema 会拒绝，属于"提交前就能发现"的错误。配置了 `cover.generate` 时用 `qpc cover --upload --write` 消除 |
+| IMG002 | error | 后端题型用了默认封面（首屏截图） | 后端没有页面可截，封面永远生成不出来。用 `cover: { mode: 'custom', generate: {...} }` + `qpc cover --upload --write` |
 
 ## 工程快照（TPL / ANS / SNAP）
 

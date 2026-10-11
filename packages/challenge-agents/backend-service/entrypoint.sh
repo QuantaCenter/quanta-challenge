@@ -1,21 +1,4 @@
 #!/bin/sh
-#
-# Quanta 后端服务容器入口。
-#
-# 职责（顺序固定，不要重排）：
-#   1. 进入题目目录
-#   2. 用【只读共享 store】离线安装依赖（--offline，禁止回退联网）
-#   3. 执行题目自定义启动命令
-#   4. 探测端口可连后打印 `Ready`（调度器靠这一行判断就绪）
-#   5. wait 住服务进程
-#
-# 为什么安装必须在容器里、而不是镜像构建期：
-# 每个题目的依赖树不同，镜像不可能预装。共享 store 由调度器预热（PNPM_CACHE.md），
-# 容器只读消费，因此 --offline 是硬约束：
-#   · 缺包 → 立即失败（fail-closed），而不是悄悄联网拉一份不可复现的依赖
-#   · store 只读 → pnpm 无法回写新的 side effect，命中就还原，不命中就报错
-#
-# ⚠️ 不要给这条 pnpm install 加 --prefer-offline：它会要求 store 可写，等于放弃保证。
 set -eu
 
 APP_DIR="${QUANTA_APP_DIR:-/app/project}"
@@ -23,6 +6,13 @@ STORE_DIR="${QUANTA_STORE_DIR:-/pnpm-store}"
 PORT="${QUANTA_PORT:-3000}"
 START_COMMAND="${QUANTA_START_COMMAND:-}"
 READY_TIMEOUT="${QUANTA_READY_TIMEOUT:-60}"
+# 启动命令的工作目录。
+#
+# 默认是快照挂载根 /app，而不是 APP_DIR：题目作者写的启动命令与编辑器里的
+# initCommand 是**同一条**（例如 `cd ./project && node server.js`），它相对
+# WebContainer 根目录；若在 /app/project 里执行就会变成 /app/project/project。
+# 因此约定：依赖装在 APP_DIR，启动命令在 WORK_DIR 执行。
+WORK_DIR="${QUANTA_WORK_DIR:-/app}"
 
 log() {
    echo "[quanta] $*"
@@ -51,7 +41,8 @@ if [ -z "$START_COMMAND" ]; then
    exit 1
 fi
 
-log "启动服务：$START_COMMAND"
+log "启动服务（cwd=$WORK_DIR）：$START_COMMAND"
+cd "$WORK_DIR"
 # 用 sh -c 跑题目的启动命令，使其支持管道 / && 等 shell 语法。
 sh -c "$START_COMMAND" &
 SERVICE_PID=$!

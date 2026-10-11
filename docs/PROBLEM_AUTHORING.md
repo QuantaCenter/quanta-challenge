@@ -318,8 +318,12 @@ export default defineTestHandler(async ({ page, $ }) => {
 前端题目把用户代码当**静态站点**（live-server + Playwright）；后端服务题目把用户代码当
 **常驻进程**（离线安装依赖 → 启动服务 → 用 HTTP 断言）。出题方式差异：
 
-- `problem.config.ts` 里写 `type: 'backend_service'`，并提供 `runtime.bootCommand`
-  （容器启动命令）与 `runtime.servicePort`（默认 3000）。
+- `problem.config.ts` 里写 `type: 'backend_service'`，选择 `runtime.serviceImage`
+  （初始镜像，目前只有 `'node-24'`），声明 `runtime.servicePort`（默认 3000）与
+  `runtime.initCommand`（服务启动命令，编辑器与判题容器共用）。
+  只有 `runtime.bootCommand`（编辑器里的一次性准备步骤）由镜像决定、写了也会被覆盖
+  （`qpc check` 以 RUN002 提示），因为它必须与容器内的离线安装保持一致。详见
+  `docs/BACKEND_SERVICE_PROBLEM.md` §3.5。
 - 参考解目录里**必须有 `pnpm-lock.yaml`**：容器在断网环境用共享 store 装依赖，没有锁文件
   就无从安装（`qpc check` 会以 RUN003 拦下）。
 - 不能用「默认封面」（首屏截图）—— 后端没有页面可截，必须用自定义封面。

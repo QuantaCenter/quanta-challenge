@@ -37,6 +37,7 @@ export const getProblemRuntimeInfo = async (problemId: number) => {
          serviceImage: true,
          servicePort: true,
          bootCommand: true,
+         initCommand: true,
          judgeUploadPath: true,
       },
    });

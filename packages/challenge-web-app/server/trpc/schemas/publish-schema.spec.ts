@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import z from 'zod';
-import { ReuploadSchema, UploadSchema } from './publish-schema';
+import {
+   ReuploadSchema,
+   resolveBackendServiceRuntime,
+   UploadSchema,
+} from './publish-schema';
 
 type UploadInput = z.input<typeof UploadSchema>;
 type ReuploadInput = z.input<typeof ReuploadSchema>;
@@ -109,7 +113,7 @@ describe('UploadSchema / ReuploadSchema', () => {
       const backend = {
          ...valid,
          problemType: 'backend_service' as const,
-         bootCommand: 'node dist/index.js',
+         initCommand: 'cd ./project && node server.js',
       };
       // 默认封面（首屏截图）在后端题目上永远生成不出来
       expect(UploadSchema.safeParse(backend).success).toBe(false);
@@ -122,20 +126,79 @@ describe('UploadSchema / ReuploadSchema', () => {
       ).toBe(true);
    });
 
-   test('后端服务题型：必须提供启动命令', () => {
+   test('后端服务题型：必须提供初始化命令（服务启动命令）', () => {
       const backend = {
          ...valid,
          problemType: 'backend_service' as const,
          coverMode: 'custom' as const,
          coverImageId: 'img-1',
       };
+      // 编辑器与判题容器共用 initCommand，缺失则两边都起不来
       expect(UploadSchema.safeParse(backend).success).toBe(false);
       expect(
-         UploadSchema.safeParse({ ...backend, bootCommand: '   ' }).success
+         UploadSchema.safeParse({ ...backend, initCommand: '   ' }).success
       ).toBe(false);
       expect(
-         UploadSchema.safeParse({ ...backend, bootCommand: 'pnpm start' })
-            .success
+         UploadSchema.safeParse({
+            ...backend,
+            initCommand: 'cd ./project && node server.js',
+         }).success
       ).toBe(true);
+   });
+
+   test('后端服务题型：初始镜像必须是注册表里的 id（不允许自由填镜像名）', () => {
+      const backend = {
+         ...valid,
+         problemType: 'backend_service' as const,
+         coverMode: 'custom' as const,
+         coverImageId: 'img-1',
+         initCommand: 'cd ./project && node server.js',
+      };
+      expect(
+         UploadSchema.safeParse({ ...backend, serviceImage: 'node-24' }).success
+      ).toBe(true);
+      // 自由填写镜像名 / 空串都不再接受：镜像决定了容器内的安装与启动命令
+      expect(
+         UploadSchema.safeParse({ ...backend, serviceImage: 'node:24-slim' })
+            .success
+      ).toBe(false);
+      expect(
+         UploadSchema.safeParse({ ...backend, serviceImage: '' }).success
+      ).toBe(false);
+      // 不传时由服务端回落到默认镜像
+      expect(UploadSchema.safeParse(backend).success).toBe(true);
+   });
+
+   test('后端服务的镜像与 bootCommand 由注册表收敛（服务端才是真正的锁）', () => {
+      // 两步：先装 pnpm（版本与容器镜像一致），再用 pnpm 装依赖
+      const bootCommandOf = (mountPath: string) =>
+         [
+            '[install-pnpm] npm install --global pnpm@9.15.9',
+            `[install] pnpm --dir ./${mountPath} install`,
+         ].join('\n');
+
+      const runtime = resolveBackendServiceRuntime({
+         judgeUploadPath: 'project',
+      });
+      expect(runtime.serviceImage).toBe('node-24');
+      expect(runtime.servicePort).toBe(3000);
+      expect(runtime.bootCommand).toBe(bootCommandOf('project'));
+      // initCommand 是可自定义的（镜像只提供默认值），不在这里收敛
+      expect(runtime).not.toHaveProperty('initCommand');
+      // 后端题的代码跑在判题容器里，那里不签发云函数令牌
+      expect(runtime.enableCloudFunction).toBe(false);
+
+      // 挂载目录变了，命令要跟着变（编辑器与容器都相对挂载根执行）
+      expect(
+         resolveBackendServiceRuntime({ judgeUploadPath: 'app' }).bootCommand
+      ).toBe(bootCommandOf('app'));
+
+      const fixed = resolveBackendServiceRuntime({
+         serviceImage: 'node-24',
+         servicePort: 8080,
+         judgeUploadPath: 'project',
+      });
+      expect(fixed.servicePort).toBe(8080);
+      expect(fixed.bootCommand).toBe(bootCommandOf('project'));
    });
 });

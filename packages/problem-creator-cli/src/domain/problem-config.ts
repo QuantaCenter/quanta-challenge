@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { ConfigError } from '../core/errors';
 import { pathExists } from '../utils/fs';
 import {
+   applyBackendServiceImageDefaults,
    DEFAULT_CONFIG_FILES,
    type ProblemConfig,
    problemConfigSchema,
@@ -30,6 +31,8 @@ export interface ResolvedProblemConfig extends ProblemConfig {
       answer: string;
       judge: string;
    };
+   /** 后端题里被镜像注册表覆盖掉的自定义字段（`qpc check` 据此提示 RUN002）。 */
+   overriddenByImage: string[];
 }
 
 /**
@@ -61,7 +64,8 @@ export const loadProblemConfig = async (
       );
    }
 
-   const config = parsed.data;
+   const parsedConfig = applyBackendServiceImageDefaults(parsed.data);
+   const config = parsedConfig.config;
    const detail = await resolveDetail(config, rootDir, configFile);
 
    return {
@@ -69,6 +73,7 @@ export const loadProblemConfig = async (
       detail,
       rootDir,
       configFile,
+      overriddenByImage: parsedConfig.overridden,
       paths: {
          template: resolve(rootDir, config.paths.template),
          answer: resolve(rootDir, config.paths.answer),

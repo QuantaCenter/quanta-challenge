@@ -130,7 +130,8 @@ services:
     profiles:
       - ignore
 
-  # 后端服务题型：题目容器镜像（默认镜像，题目可用 serviceImage 换）
+  # 后端服务题型：Node 24 题目容器镜像（注册表 id `node-24`、展示名「Node.js 24」，
+  # 见 packages/shared/service/backend-service-image.ts；换镜像要同时加注册表条目）
   challenge-backend-service-agent:
     build:
       context: ../
