@@ -1,5 +1,5 @@
-import { existsSync } from 'fs';
 import path from 'path';
+import { findRepoRoot } from './repo-root';
 
 /**
  * 解析本地存储（local_store）的绝对路径。
@@ -26,21 +26,9 @@ import path from 'path';
  * 保持同一处可以避免再出现"容器里读、容器外写"的分裂。
  */
 
-/** 向上查找 monorepo 根目录；找不到就退回起点，保证函数不会抛错。 */
-const findRepoRoot = (startDir: string): string => {
-   let current = startDir;
-   for (let i = 0; i < 12; i++) {
-      if (existsSync(path.join(current, 'pnpm-workspace.yaml'))) return current;
-      const parent = path.dirname(current);
-      if (parent === current) break;
-      current = parent;
-   }
-   return startDir;
-};
-
 /** 唯一的规范存储目录（绝对路径）。 */
 export const canonicalLocalStorePath = (): string => {
-   const root = findRepoRoot(process.cwd());
+   const root = findRepoRoot();
    return path.join(root, 'packages', 'challenge-web-app', 'local_store');
 };
 

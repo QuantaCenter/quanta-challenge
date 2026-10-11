@@ -21,17 +21,21 @@ const startApp = async () => {
  * /health 返回 ok，但 MQ / Redis / Docker 全都没就绪，判题机从未启动，
  * 提交的任务永远停在 pending。用户看到"服务是好的"，实际完全不可用。
  * 这里改为显式标记失败并退出进程，让问题在启动阶段就暴露。
+ *
+ * 注意：唯一不走上这条出口的降级场景是「前端判题机镜像不存在」——
+ * 它由 DockerService.init() 转成 WARN + /health degraded（见那里的注释）。
  */
 const handleInitFailure = (error: unknown, scene: string) => {
    console.error(
       `\n[FATAL] ${scene} 初始化失败，判题服务无法工作。\n` +
          '常见原因：\n' +
-         '  1. PostgreSQL / Redis 容器未启动（Docker Desktop 重启后不会自动回来）\n' +
+         '  1. PostgreSQL / Redis 未就绪（Docker Desktop 重启后不会自动回来）\n' +
          '     -> docker start quanta-challenge-postgres-1 quanta-challenge-redis-1\n' +
          '  2. 1889 端口被残留的判题机容器占用\n' +
          '     -> docker rm -f $(docker ps -aq --filter ancestor=challenge-judge-machine-agent)\n' +
-         '  3. 判题机镜像不存在\n' +
-         '     -> pnpm docker:build（judge-machine）\n',
+         '  3. 前端判题机镜像不存在\n' +
+         '     -> pnpm --filter @challenge/judge-machine-agent docker:build\n' +
+         '        （只跑后端服务题型时不必构建：缺这个镜像会自动降级为 WARN）\n',
       error,
    );
    process.exit(1);

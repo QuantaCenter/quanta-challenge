@@ -199,6 +199,13 @@ cd ../challenge-judge-scheduler
 pnpm dev
 ```
 
+> **只开发后端服务题型？** 上面第 3 步里的 `judge-machine`（带 Playwright，体积大、构建慢）
+> 可以跳过：调度器在镜像不存在时会**降级运行**（启动只打 WARN，`/health` 返回
+> `status: degraded`），前端题型提交会以 `Judge machine WebSocket is not connected`
+> 明确失败，后端服务题型不受影响。
+> 需要前端判题时再补上 `pnpm --filter @challenge/judge-machine-agent docker:build`。
+> 若镜像在但 1889 端口被占、容器起不来，可用 `JUDGE_MACHINE_OPTIONAL=1` 同样降级。
+
 ### 访问应用
 
 - **Web 应用**: <http://localhost:3000>

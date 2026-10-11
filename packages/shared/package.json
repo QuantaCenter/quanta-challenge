@@ -22,6 +22,9 @@
       "./utils/local-store-path": {
          "import": "./utils/local-store-path.ts"
       },
+      "./utils/repo-root": {
+         "import": "./utils/repo-root.ts"
+      },
       "./config": {
          "import": "./configs/search-config.ts"
       },

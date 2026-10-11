@@ -14,6 +14,10 @@
 | 题型字段 | `packages/database/prisma/schema.prisma` |
 | 后端服务容器镜像 | `packages/challenge-agents/backend-service/` |
 | 后端判题机镜像 / 服务 | `packages/challenge-agents/backend-judge-machine/` |
+
+> 只开发这条链路的环境**不需要**前端判题机镜像（`challenge-judge-machine-agent`，
+> 带 Playwright、体积很大）。它不存在时调度器会降级运行：启动打 WARN，
+> `/health` 返回 `status: degraded`，只有前端题型会失败。详见 `README.md` 本地开发一节。
 | 调度器编排 | `packages/challenge-judge-scheduler/src/services/docker.ts`、`src/mq/judge-processor/` |
 | 出题工具链 | `packages/problem-creator-cli/`、`packages/challenge-web-app/server/trpc/` |
 

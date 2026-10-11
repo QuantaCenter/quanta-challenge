@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
 import Docker from 'dockerode';
+import { resolvePnpmCacheDir } from '../utils/pnpm-cache-path';
 import { Singleton } from '../utils/singleton';
 
 const execFileAsync = promisify(execFile);
@@ -13,9 +14,6 @@ const execFileAsync = promisify(execFile);
  * 这里默认按调度器镜像里装的版本记录，实际以题目镜像里的为准。
  */
 export const PNPM_VERSION = '9.15.9';
-
-/** 缓存目录在宿主机上的固定路径（调度器容器内同一路径，读写）。 */
-export const DEFAULT_PNPM_CACHE_DIR = '/app/pnpm-cache';
 
 /** 缓存挂进题目容器的目标路径。预热 / 门禁 / 题目容器都用这个路径作 --store-dir。 */
 export const PROBLEM_CONTAINER_STORE_PATH = '/pnpm-store';
@@ -103,7 +101,10 @@ export class PnpmCacheService extends Singleton {
       return this.getInstance<PnpmCacheService>();
    }
 
-   readonly cacheDir = process.env.PNPM_CACHE_DIR || DEFAULT_PNPM_CACHE_DIR;
+   // 必须是【宿主机绝对路径】：调度器创建题目容器时把它当作 bind mount 的 Source，
+   // 由宿主机的 Docker daemon 解析。因此不能写死容器内的 /app/pnpm-cache ——
+   // 解析规则见 utils/pnpm-cache-path.ts。
+   readonly cacheDir = resolvePnpmCacheDir();
 
    readonly externalRegistry =
       process.env.PNPM_CACHE_EXTERNAL_REGISTRY || 'https://registry.npmjs.org/';
@@ -134,7 +135,19 @@ export class PnpmCacheService extends Singleton {
    }
 
    async init() {
-      await fs.mkdir(this.cacheDir, { recursive: true });
+      // mkdir 失败时补一句人话：最典型的失败是把容器路径（/app/pnpm-cache）
+      // 用在了宿主机上 —— 根目录通常不可写，报错只有一句 ENOENT/EACCES，很难定位。
+      try {
+         await fs.mkdir(this.cacheDir, { recursive: true });
+      } catch (error: any) {
+         throw new Error(
+            `无法创建 pnpm 缓存目录 ${this.cacheDir}（${error?.code ?? error?.message}）。\n` +
+               '该目录必须是**宿主机**上的绝对路径：调度器会把它作为 bind mount 的 Source ' +
+               '交给宿主机的 Docker daemon。\n' +
+               '本地开发请直接删掉 .env 里的 PNPM_CACHE_DIR（默认用 <仓库根>/.pnpm-cache），' +
+               '容器部署则保持 compose 里的 /app/pnpm-cache。',
+         );
+      }
       const stats = await this.stats();
       const meta = await this.readMeta();
       console.log(

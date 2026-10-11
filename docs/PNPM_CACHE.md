@@ -34,6 +34,25 @@
 daemon 按宿主机文件系统解析 bind mount 的 `Source`，容器私有路径它看不到
 （与 `TEMP_DIR=/app/tmp` 同一个坑）。
 
+因此 `PNPM_CACHE_DIR` 按「进程所在环境」分两种规范值，由
+`src/utils/pnpm-cache-path.ts` 的 `resolvePnpmCacheDir()` 统一解析：
+
+| 运行方式 | 规范目录 | 来源 |
+|---|---|---|
+| `pnpm dev` / `pnpm start`（宿主机） | `<仓库根>/.pnpm-cache` | 未配置时的兜底（`.gitignore` 已忽略） |
+| 调度器容器 | `/app/pnpm-cache` | compose 显式注入 `PNPM_CACHE_DIR` |
+
+> 切勿把容器路径写进宿主机侧的 `.env`。`pnpm dev` 会真的去 `mkdir /app/pnpm-cache`，
+> 在 macOS/Linux 上根目录不可写，表现为启动即失败：
+> `ENOENT: no such file or directory, mkdir '/app'`。
+
+解析规则（与 `resolveLocalStorePath()` 同一套收紧策略）：
+
+1. `PNPM_CACHE_DIR` 是绝对路径 -> 用它；
+2. 配的是相对路径 -> 忽略并告警，改用规范目录（相对路径按各进程 cwd 解析，
+   而 daemon 按宿主机解析，两边必然对不上）；
+3. 未配置 -> 容器内用 `/app/pnpm-cache`，宿主机用 `<仓库根>/.pnpm-cache`。
+
 ## 3. 关键设计：预热必须发生在"题目镜像"里
 
 这是踩坑之后定下来的，原因见 §5：
@@ -51,7 +70,7 @@ daemon 按宿主机文件系统解析 bind mount 的 `Source`，容器私有路�
 
 | 变量 | 默认值 | 说明 |
 |---|---|---|
-| `PNPM_CACHE_DIR` | `/app/pnpm-cache` | 缓存目录（调度器容器内） |
+| `PNPM_CACHE_DIR` | 容器 `/app/pnpm-cache`；宿主机 `<仓库根>/.pnpm-cache` | 缓存目录（**必须是宿主机绝对路径**，见 §2） |
 | `PNPM_CACHE_PROBLEM_IMAGE` | 空 | **题目容器镜像**；预热/门禁都从这里起容器 |
 | `PNPM_CACHE_WARM_NETWORK` | `bridge` | 预热容器的网络（需要能访问 registry） |
 | `PNPM_CACHE_WARM_DIR` | `$TEMP_DIR` | 临时项目目录根，必须宿主机可见 |

@@ -15,6 +15,8 @@ import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server'
 import { buildBackendInitCommand } from '@challenge/shared/backend-service-image';
 import * as db from './db';
 import { JudgeJob } from './types';
+import { $Enums } from '@prisma/client';
+import { TimingService } from '../../services/timing';
 
 const firstCommandOf = (raw: string | null | undefined): string => {
    if (!raw) return '';
@@ -154,15 +156,18 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
    const pendingTime = Date.now() - job.data.queueTimestamp;
    const startTime = Date.now();
    let cleanup: (() => Promise<void>) | undefined;
+   const timer = TimingService.instance;
+   const timingId = String(job.data.judgeRecordId);
 
    try {
-      // 题型从数据库反查，不信任任务载荷（见 db.getProblemRuntimeInfo 的说明）。
-      const runtime = await db.getProblemRuntimeInfo(job.data.problemId);
+      const runtime = await timer.measure(timingId, '获取题目运行时信息', () =>
+         db.getProblemRuntimeInfo(job.data.problemId)
+      );
 
       let networkUrl: string;
       let judgeWs: WebSocket;
 
-      if (runtime.problemType === 'backend_service') {
+      if (runtime.problemType === $Enums.ProblemType.backend_service) {
          const startCommand =
             firstCommandOf(runtime.initCommand) ||
             firstCommandOf(
@@ -178,47 +183,65 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          }
 
          // 后端链路：预热缓存 + 离线安装 + 启动服务 + 等 Ready
-         const service = await DockerService.instance.startBackendServiceContainer({
-            fsSnapshot: job.data.fsSnapshot,
-            image: runtime.serviceImage ?? undefined,
-            port: runtime.servicePort ?? 3000,
-            startCommand,
-            judgeUploadPath: runtime.judgeUploadPath,
-         });
+         const service = await timer.measure(timingId, '启动后端服务容器', () =>
+            DockerService.instance.startBackendServiceContainer({
+               fsSnapshot: job.data.fsSnapshot,
+               image: runtime.serviceImage ?? undefined,
+               port: runtime.servicePort ?? 3000,
+               startCommand,
+               judgeUploadPath: runtime.judgeUploadPath,
+               timingId,
+            })
+         );
          cleanup = service.close;
-         await service.waitForReady;
+         await timer.measure(timingId, '等待后端服务就绪', () => service.waitForReady);
          networkUrl = service.networkUrl;
-         judgeWs = await DockerService.instance.ensureBackendJudgeMachine();
+         judgeWs = await timer.measure(timingId, '启动后端判题机', () =>
+            DockerService.instance.ensureBackendJudgeMachine()
+         );
       } else {
          if (!DockerService.instance.judgeMachineWs) {
             throw new Error('Judge machine WebSocket is not connected');
          }
 
          // 启动 Live Server 容器
-         const liveServer = await DockerService.instance.startLiveServerContainer(
-            job.data.fsSnapshot
+         const liveServer = await timer.measure(
+            timingId,
+            '启动 live-server 容器',
+            () =>
+               DockerService.instance.startLiveServerContainer(
+                  job.data.fsSnapshot,
+                  timingId
+               )
          );
          cleanup = liveServer.close;
 
          // 等待容器启动稳定
-         await delay(1000);
+         await timer.measure(timingId, '等待 live-server 稳定', () => delay(1000));
 
          networkUrl = liveServer.networkUrl;
          judgeWs = DockerService.instance.judgeMachineWs;
       }
 
       // 发送任务到判题机（前端 / 后端同一套信封），等待返回结果
-      const result = await sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs });
+      const result = await timer.measure(timingId, '判题执行', () =>
+         sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs })
+      );
 
       // 处理 Judge Machine 返回的结果
-      const pass = await processResult(
-         { result, pendingTime, startTime, job },
-         LocalStoreService.instance
+      const pass = await timer.measure(timingId, '判题结果入库', () =>
+         processResult(
+            { result, pendingTime, startTime, job },
+            LocalStoreService.instance
+         )
       );
 
       // 关闭题目容器（前端 live-server / 后端服务容器共用同一套 cleanup）
-      await cleanup?.();
-      cleanup = undefined;
+      if (cleanup) {
+         const closeContainer = cleanup;
+         await timer.measure(timingId, '清理题目容器', () => closeContainer());
+         cleanup = undefined;
+      }
 
       return {
          judgeRecordId: job.data.judgeRecordId,
@@ -234,7 +257,9 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
       // 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
       if (cleanup) {
          const closeContainer = cleanup;
-         await ignoreError(() => closeContainer());
+         await timer.measure(timingId, '清理题目容器', () =>
+            ignoreError(() => closeContainer())
+         );
       }
 
       return {
@@ -243,5 +268,8 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          status: 'failed',
          message: error.message || 'Unknown error occurred',
       };
+   } finally {
+      // 兜底：异常退出时清掉未结算的计时，避免残留。
+      timer.clear(timingId);
    }
 };
