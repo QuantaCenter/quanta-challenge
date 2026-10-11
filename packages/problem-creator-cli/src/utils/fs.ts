@@ -54,6 +54,15 @@ export const writeTextWithMode = async (
    if (mode !== undefined) await chmod(path, mode);
 };
 
+/** 二进制写盘（封面 PNG）。与 writeText 一样自动建父目录。 */
+export const writeBinary = async (
+   path: string,
+   content: Uint8Array,
+): Promise<void> => {
+   await ensureDir(dirname(path));
+   await writeFile(path, content);
+};
+
 export const listDir = async (dir: string): Promise<string[]> => {
    try {
       return await readdir(dir);

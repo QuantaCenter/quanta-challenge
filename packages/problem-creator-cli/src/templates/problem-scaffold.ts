@@ -54,6 +54,12 @@ export default defineProblemConfig({
    // totalScore 留空时以判题脚本里各检查点分值之和为准；
    // 填写则必须与之相等，否则审计会失败（见 qpc check 的 CFG001）。
    cover: { mode: 'default' },
+   // 后端题型没有首屏可截图，必须自定义封面：配上 generate 就能一键生成
+   // （qpc cover --upload --write，配色/尺寸见 README）。例如：
+   //   cover: {
+   //      mode: 'custom',
+   //      generate: { bg: '#0F172A', bgTo: '#14432A', subtitle: 'GET /health' },
+   //   },
    runtime: {
       // 判题打包目录，同时决定快照键前缀（/project/...）
       judgeUploadPath: '${mountPath}',

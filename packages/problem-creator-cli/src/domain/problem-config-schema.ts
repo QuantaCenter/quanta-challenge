@@ -7,6 +7,8 @@ import {
 } from '@challenge/shared/backend-service-image';
 import { z } from 'zod';
 
+import { COVER_DEFAULTS } from './cover';
+
 /** 与 packages/challenge-web-app/server/trpc/schemas/publish-schema.ts 保持一致 */
 export const DIFFICULTIES = ['easy', 'medium', 'hard', 'very_hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
@@ -27,9 +29,41 @@ export const DEFAULT_INIT_COMMAND = 'npx serve -l 3000 project';
 export const PROBLEM_TYPES = ['frontend', 'backend_service'] as const;
 export type ProblemType = (typeof PROBLEM_TYPES)[number];
 
+/**
+ * 本地生成封面的配色与排版。
+ *
+ * 这几项**不会**随上传发给服务端（服务端只认 imageId），因此可以自由增减：
+ * `qpc cover` 读它渲染 PNG，上传拿到 id 后由 `--write` 把 imageId 写回配置。
+ */
+export const coverGenerateSchema = z.object({
+   /** 背景色（纯色；配合 bgTo 变成对角线渐变） */
+   bg: z.string().default(COVER_DEFAULTS.bg),
+   /** 渐变终止色，留空 = 纯色背景 */
+   bgTo: z.string().optional(),
+   /** 强调色：左侧竖条 + 副标题 */
+   accent: z.string().default(COVER_DEFAULTS.accent),
+   /** 主标题颜色 */
+   text: z.string().default(COVER_DEFAULTS.text),
+   /** 副标题（建议写接口清单或一句话简介），留空则不渲染 */
+   subtitle: z.string().optional(),
+   /** 左下角页脚，默认 “Quanta Challenge” */
+   footer: z.string().optional(),
+   width: z.number().int().min(200).max(4096).default(COVER_DEFAULTS.width),
+   height: z.number().int().min(200).max(4096).default(COVER_DEFAULTS.height),
+   /** 输出文件（相对题目目录） */
+   out: z.string().default('cover.png'),
+});
+export type CoverGenerateOptions = z.output<typeof coverGenerateSchema>;
+
 export const coverSchema = z.union([
    z.object({ mode: z.literal('default') }),
-   z.object({ mode: z.literal('custom'), imageId: z.string().min(1) }),
+   z.object({
+      mode: z.literal('custom'),
+      /** 平台上的图片 id；`qpc cover --upload --write` 会把生成结果写回这里 */
+      imageId: z.string().min(1).optional(),
+      /** 配置了就能用 `qpc cover` 一键生成（后端题型必须自定义封面） */
+      generate: coverGenerateSchema.optional(),
+   }),
 ]);
 
 export const problemConfigSchema = z.object({

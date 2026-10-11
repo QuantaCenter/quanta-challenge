@@ -40,6 +40,7 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 |---|---|---|
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
+| `qpc cover [dir]` | 从题目配置生成封面图；`--upload` 上传，`--write` 把 imageId 写回配置 | 上传时 |
 | `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
@@ -98,6 +99,9 @@ export default defineProblemConfig({
    tagIds: [1],                     // 必须是库里已存在的标签 id（当前 1 = Vue3）
    // totalScore: 20,               // 留空 = 以检查点之和为准；填了就必须相等
    cover: { mode: 'default' },      // 或 { mode: 'custom', imageId: '<id>' }
+   // 后端题型（没有首屏可截图）用这条替代上面那行，再跑
+   // `qpc cover --upload --write` 自动生成并填好 imageId：
+   // cover: { mode: 'custom', generate: { bg: '#0F172A', bgTo: '#14432A' } },
    runtime: {
       judgeUploadPath: 'project',              // 判题打包目录 = 快照挂载路径
       initCommand: 'npx serve -l 3000 project', // 站点根必须等于上面那个目录
@@ -133,6 +137,64 @@ $ qpc check
 
 预检**不能**替代线上审计：参考解是否真能拿满分、首屏封面好不好看，
 只能在真实判题机上跑一遍。所以 `qpc upload --wait` 会把审计的检查点明细拉回来打印。
+
+## 封面生成（`qpc cover`）
+
+后端题型没有首屏可截图，**必须**用自定义封面，而自定义封面需要一个平台上的
+`imageId`——以前只能去发布页手动传图、再把 id 抄回配置。现在在配置里声明配色，
+一条命令生成、上传、写回：
+
+```ts
+export default defineProblemConfig({
+   title: '图书库存查询与借阅 HTTP API',
+   cover: {
+      mode: 'custom',
+      // 配色/排版；qpc cover 读它渲染，服务端不感知这几项
+      generate: {
+         bg: '#0F172A',        // 背景色（纯色）
+         bgTo: '#14432A',      // 给了就是对角线渐变
+         accent: '#A6FB1D',    // 左侧竖条 + 副标题
+         subtitle: 'GET /books  POST /borrow',
+      },
+   },
+});
+```
+
+```bash
+qpc cover --upload --write     # 生成 cover.png → 上传 → 把 imageId 写回配置
+```
+
+执行顺序与产物：渲染 PNG 到 `cover.generate.out`（默认 `cover.png`）→
+`admin.image.upload` 拿到 id → 就地改写配置文件里的 `imageId`，
+**写完会立刻重新加载配置校验一遍，对不上就回滚**（改坏配置比没改更糟）。
+
+命令行参数会覆盖配置里的同名项，方便临时试配色：
+
+```bash
+qpc cover --bg "#101828" --bg-to "#123B2A" --subtitle "GET /health"
+qpc cover --out /tmp/preview.png --width 1600 --height 900
+qpc cover                      # 只生成，不上传：本地看一眼再说
+```
+
+| 参数 | 说明 | 默认值 |
+|---|---|---|
+| `--out <file>` | 输出文件（相对题目目录） | 配置里的 `generate.out`，否则 `cover.png` |
+| `--bg <color>` | 背景色 | `#0F172A` |
+| `--bg-to <color>` | 渐变终止色，给了就画渐变 | 无（纯色） |
+| `--accent <color>` | 强调色（竖条 / 副标题） | `#A6FB1D` |
+| `--text <color>` | 主标题颜色 | `#F8FAFC` |
+| `--subtitle <text>` | 副标题；传空字符串则不渲染 | 配置里的 `generate.subtitle` |
+| `--footer <text>` | 左下角页脚 | `Quanta Challenge` |
+| `--width/--height <px>` | 画布尺寸（200~4096） | `1200 × 675` |
+| `--upload` | 上传到平台，输出可用的 `imageId` | 否 |
+| `--write` | 把 `imageId` 写回配置文件（隐含 `--upload`） | 否 |
+
+颜色只收十六进制（`#rgb` / `#rrggbb`）：这些值会被拼进 SVG，
+放行任意字符串等于把「配色参数」变成注入点。
+
+排版由 CLI 自己算（按 `width / 1200` 等比缩放）：标题按显示宽度贪心换行
+（优先断在空格 / 汉字边界），再从基准字号向下收敛到能塞进 3 行，
+左侧竖条自动跟随标题高度。所以标题很长也不会溢出画布。
 
 ## 认证
 

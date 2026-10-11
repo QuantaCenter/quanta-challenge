@@ -2,6 +2,11 @@ import type { BackendServiceImageId } from '@challenge/shared/backend-service-im
 import type { Difficulty } from '../domain/problem-config';
 import type { HttpClient } from './http';
 
+export interface UploadedImage {
+   id: string;
+   name: string;
+}
+
 export interface UploadProblemInput {
    title: string;
    detail: string;
@@ -86,6 +91,11 @@ export interface AdminApi {
       csrfToken: string;
    }>;
    getCurrentUser(): Promise<CurrentUser>;
+   /** 上传图片（`qpc cover --upload` 用它把生成的封面变成 imageId） */
+   uploadImage(input: {
+      fileBase64: string;
+      fileName: string;
+   }): Promise<UploadedImage>;
    uploadProblem(input: UploadProblemInput): Promise<{
       problemId: number;
       message: string;
@@ -123,6 +133,12 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
             method: 'POST',
          },
       ),
+
+   uploadImage: (input) =>
+      client.call<UploadedImage>('admin.image.upload', {
+         input,
+         method: 'POST',
+      }),
 
    getAuditDetail: (problemId) =>
       client.call<AuditDetail>('admin.problem.getAuditDetail', {

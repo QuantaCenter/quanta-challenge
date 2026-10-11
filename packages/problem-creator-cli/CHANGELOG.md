@@ -3,6 +3,19 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+### Added
+
+- 新增 `qpc cover`：从题目配置生成封面图（`cover.generate` 声明配色/尺寸），
+  `--upload` 上传后返回 `cover.imageId`，`--write` 直接写回配置文件并在写完后
+  重新加载校验（对不上就回滚）。命令行参数（`--bg` / `--bg-to` / `--accent` /
+  `--text` / `--subtitle` / `--footer` / `--width` / `--height` / `--out`）
+  覆盖配置里的同名项。颜色只收十六进制。
+- `cover: { mode: 'custom' }` 的 `imageId` 变为可选，并可携带 `generate`
+  配色块：后端题型没有首屏可截图，以前必须去发布页手动传图再抄 id 回配置，
+  现在写配色 + 一条命令即可。
+
 ## [1.0.0] - 2026-10-07
 
 ### Changed
