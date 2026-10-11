@@ -245,7 +245,8 @@ const result = await $trpc.protected.myEndpoint.query();
 在仓库根目录直接调用（`pnpm qpc` 等价于包内 `pnpm dev`，相对路径按仓库根解析）：
 
 ```bash
-pnpm qpc init my-problem --name "购物车合计"   # 生成题目骨架
+pnpm qpc init my-problem --name "购物车合计"   # 生成前端题骨架（默认）
+pnpm qpc init my-api --type backend_service   # 生成后端服务题骨架（含封面图）
 pnpm qpc check my-problem                      # 毫秒级预检（判题脚本/快照/分值）
 pnpm qpc login                                 # 默认设备码授权（浏览器里确认）
 pnpm qpc upload my-problem --wait              # 上传并打印审计的检查点明细

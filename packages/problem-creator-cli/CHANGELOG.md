@@ -7,6 +7,14 @@
 
 ### Added
 
+- `qpc init --type <frontend | backend_service>`：按题型生成不同骨架。后端服务题
+  （`backend_service`）生成 `type: 'backend_service'` 的配置、用 `http` 断言的后端
+  判题脚本、`detail.md` 题面，以及 `template/` / `answer/` 两份可离线安装的 Node
+  工程（含 `pnpm-lock.yaml`）；并默认写好 `cover: { mode: 'custom', generate }`
+  且**在本地渲染 `cover.png`**（后端没有首屏可截图）。上传换 `imageId` 仍由
+  `qpc cover --upload --write` 完成。**不传 `--type` 时用方向键菜单选择**
+  （基于 `@clack/prompts`：`↑/↓` 移动、回车确认、Ctrl-C 取消）；
+  非交互环境 / `--yes` / `--json` 下不提问，默认 `frontend`，脚本行为与之前一致。
 - `qpc upload` 支持在**已有题目下追加新版本**，不再一律新建题目。配置里填上
   `problemId`（`qpc upload` 返回的 pid）后默认走服务端的 `reupload`；
   `--problem <pid>` 临时指定目标，`--new` 强制新建，`--write` 把本次的题目 id

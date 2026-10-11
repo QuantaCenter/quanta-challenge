@@ -307,7 +307,11 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 
 ## 8. 出题侧
 
-- **CLI**：`problem.config.ts` 里写 `type: 'backend_service'` 与
+- **CLI**：`qpc init --type backend_service` 直接生成后端骨架（配置、用 `http`
+  断言的后端判题脚本、`detail.md`、`template/` 与 `answer/` 两份可离线安装的 Node
+  工程 + `pnpm-lock.yaml`），并写好 `cover: { mode: 'custom', generate }`、在本地渲染
+  `cover.png`；上传换 `imageId` 仍由 `qpc cover --upload --write` 完成。
+  也可以手写 `problem.config.ts`：`type: 'backend_service'` 与
   `runtime.serviceImage（枚举，当前只有 node-24）/ servicePort / initCommand`。
   `runtime.bootCommand` 会被镜像覆盖（`RUN002` 以 warn 提示）。
   预检规则：后端题目必须提供 `pnpm-lock.yaml`（RUN003，否则离线安装无从谈起）、
@@ -334,9 +338,9 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
    手动预检入口。
 3. **编辑器预览是「能跑但没有画面」**：`initCommand` 会在 WebContainer 里把服务跑起来
    （所以学生能用终端调自己的 API），但预览面板对纯 HTTP 服务无内容可展示——
-   题目应该把「怎么自己 curl 验证」写进题面。
-4. **CLI 尚未提供后端脚手架**：`qpc init` 仍生成前端骨架；后端题目需要手写
-   `problem.config.ts`（`qpc check` 会按 RUN002 / RUN003 / IMG002 校验）。
+   题目应该把「怎么自己 curl 验证」写进题面（后端脚手架生成的 `detail.md` 已经带了这一段）。
+
+> 后端脚手架已落地（`qpc init --type backend_service`），见 §8。
 
 ---
 

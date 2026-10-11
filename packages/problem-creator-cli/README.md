@@ -26,19 +26,27 @@ node packages/problem-creator-cli/dist/index.js --help
 真实使用（假设已 `npm i -g`/`pnpm link` 或直接用 `pnpm dev`）：
 
 ```bash
-qpc init my-problem --name "购物车合计" --difficulty easy
+# 不写 --type 会弹出方向键菜单（↑/↓ 选择，回车确认）；也可显式指定
+qpc init my-problem --type frontend --name "购物车合计" --difficulty easy
 cd my-problem
 qpc check                       # 毫秒级：判题脚本 / 快照 / 分值 / 运行配置
 qpc login                       # 默认设备码授权（浏览器里确认，无需密码）
 qpc upload --wait               # 上传并等待审计（约 20 秒，出检查点明细）
 qpc publish 123                 # 审计通过后发布（123 是 upload 返回的 pid）
+
+# 后端服务题：常驻进程 + HTTP 判题（模板不同，且默认生成封面图）
+qpc init my-api --type backend_service --name "待办清单 HTTP API"
+cd my-api
+qpc cover --upload --write      # 后端没有首屏可截图，先生成/上传封面并写回 imageId
+qpc check
+qpc upload --wait
 ```
 
 ## 命令一览
 
 | 命令 | 作用 | 需要登录 |
 |---|---|---|
-| `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
+| `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解）；`--type` 选题型，不传则**方向键交互选择** | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
 | `qpc cover [dir]` | 从题目配置生成封面图；`--random` 随机生成合理配色，`--upload` 上传，`--write` 把 imageId 与配色写回配置 | 上传时 |
 | `qpc upload [dir]` | 上传题目：配置了 `problemId` 就追加新版本，否则新建；默认等待审计结果 | 是 |
@@ -76,16 +84,45 @@ CI 可以只依赖退出码判断结果：
 
 ## 题目目录结构
 
-`qpc init` 生成的就是标准结构：
+`qpc init` 生成的就是标准结构。用 `--type` 选择题型，两套模板不一样；**不传 `--type` 时会弹出方向键菜单让你选**（`↑/↓` 移动、回车确认、Ctrl-C 取消）：
+
+```text
+◆  请选择题型
+│  ● 前端题（frontend）         静态站点，用 Playwright 判题
+│  ○ 后端服务题（backend_service）  常驻进程，用 HTTP 判题
+└  ↑/↓ to navigate • Enter: confirm
+```
+
+非交互环境（管道 / CI）、`--yes`、`--json` 下不提问，直接默认 `frontend`，脚本行为与之前一致。
 
 ```
+# 前端题（--type frontend，默认）
 my-problem/
 ├── problem.config.ts     # 唯一真源：标题、难度、标签、运行命令
 ├── judge.js              # 判题脚本（判分逻辑都在这）
 ├── template/index.html   # 答案模板：学生起点，通常拿低分
 ├── answer/index.html     # 参考解：必须满分；默认封面取它的首屏截图
 └── README.md             # 出题流程备忘（可以删）
+
+# 后端服务题（--type backend_service）
+my-api/
+├── problem.config.ts     # type: 'backend_service'，含镜像 / 端口 / 启动命令
+├── detail.md             # 题面（后端题接口清单长，默认拆成单独 markdown）
+├── judge.js              # 判题脚本：用 http 发请求、断言响应
+├── template/             # 学生起点（package.json + server.js + pnpm-lock.yaml）
+├── answer/               # 参考解：必须满分（同样含锁文件）
+├── cover.png             # init 已按 cover.generate 渲染好（还没上传）
+└── README.md
 ```
+
+后端题与前端题的差异（详见 [`docs/BACKEND_SERVICE_PROBLEM.md`](../../docs/BACKEND_SERVICE_PROBLEM.md)）：
+
+- 判题脚本用 `defineTestHandler(async ({ http, $ }) => ...)`，不是 `page`。
+- **没有首屏可截图**，必须自定义封面：`--type backend_service` 会写好
+  `cover: { mode: 'custom', generate: {...} }` 并本地渲染 `cover.png`，
+  但仍需跑一次 `qpc cover --upload --write` 上传换 `imageId`（否则 `IMG001` 会拦下）。
+- `template/` 与 `answer/` 是两份独立工程，都要有 `pnpm-lock.yaml`（容器断网离线安装）。
+- `runtime.bootCommand` 由初始镜像决定，不用手写；服务启动命令写 `runtime.initCommand`。
 
 ### `problem.config.ts`
 
@@ -315,6 +352,9 @@ QUANTA_TOKEN=<粘贴 access token> qpc upload my-problem --wait
 ## 目录结构（本包）
 
 ```
+templates/          # `qpc init` 的脚手架内容（按题型分目录的真实文件）
+├── frontend/       # 前端题：problem.config.ts / judge.js / template / answer
+└── backend_service/# 后端服务题：另有 detail.md 与两份可离线安装的 Node 工程
 src/
 ├── index.ts        # bin 入口：装信号处理、设置退出码（唯一有副作用的地方）
 ├── program.ts      # 程序化入口：defineProblemConfig + 类型（零副作用）
@@ -325,8 +365,13 @@ src/
 ├── services/       # 外部交互：凭据、HTTP、tRPC、admin API、judge API、OAuth 设备码
 ├── ui/             # 输出渲染（人类可读报告 / JSON 负载）
 ├── utils/          # fs / paths / async / terminal / jwt 等小工具
-└── templates/      # `qpc init` 的脚手架内容
+└── templates/      # 读 `templates/`、替换占位符、组装成 ScaffoldFile[]
 ```
+
+脚手架模板是**真实文件**（不是塞在源码里的模板串），可以按真实语言高亮/校验；
+文件里用 `{{title}}` / `{{mountPath}}` 等占位符，`qpc init` 生成时一次性插值，
+产物里不留任何 `{{...}}`（引用了未知占位符会直接报内部错误）。
+`templates/**/gitignore` 交付时改名为 `.gitignore`——源码里叫 `.gitignore` 会被 git 当成忽略规则。
 
 依赖方向单向：`commands → (domain | services | ui) → core/utils`。
 `domain` 不 import `services`；`ui` 只把数据渲染成文本/JSON，不发请求。

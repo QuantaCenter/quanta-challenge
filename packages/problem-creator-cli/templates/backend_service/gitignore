@@ -1,0 +1,5 @@
+node_modules/
+dist/
+# qpc 的本地缓存（预检产物、审计快照）
+.qpc/
+.DS_Store

@@ -318,6 +318,9 @@ export default defineTestHandler(async ({ page, $ }) => {
 前端题目把用户代码当**静态站点**（live-server + Playwright）；后端服务题目把用户代码当
 **常驻进程**（离线安装依赖 → 启动服务 → 用 HTTP 断言）。出题方式差异：
 
+- 直接用 `qpc init --type backend_service` 生成后端骨架（配置、判题脚本、`detail.md`、
+  `template/` 与 `answer/` 两份工程 + `pnpm-lock.yaml`，以及本地渲染好的 `cover.png`），
+  再按下面的约定改。
 - `problem.config.ts` 里写 `type: 'backend_service'`，选择 `runtime.serviceImage`
   （初始镜像，目前只有 `'node-24'`），声明 `runtime.servicePort`（默认 3000）与
   `runtime.initCommand`（服务启动命令，编辑器与判题容器共用）。

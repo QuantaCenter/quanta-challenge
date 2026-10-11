@@ -3,18 +3,22 @@ import { resolve } from 'node:path';
 import type { CommandContext } from '../core/context';
 import { UsageError } from '../core/errors';
 import {
-   DEFAULT_INIT_COMMAND,
    DEFAULT_JUDGE_UPLOAD_PATH,
    DIFFICULTIES,
    type Difficulty,
+   PROBLEM_TYPES,
+   type ProblemType,
 } from '../domain/problem-config';
+import { renderCoverPng } from '../services/cover-image';
 import { buildProblemScaffold } from '../templates/problem-scaffold';
-import { listDir, writeTextWithMode } from '../utils/fs';
-import { displayPath } from '../utils/paths';
+import { listDir, writeBinary, writeTextWithMode } from '../utils/fs';
+import { displayPath, formatBytes } from '../utils/paths';
+import { select } from '../utils/terminal';
 import type { CommandRegistry } from './registry';
 
 export interface InitOptions {
    name?: string;
+   type?: string;
    difficulty?: string;
    tag?: string[];
    mount?: string;
@@ -31,6 +35,10 @@ export const registerInitCommand = (registry: CommandRegistry): void => {
       )
       .argument('[dir]', '目标目录（默认当前目录）', '.')
       .option('--name <title>', '题目标题（默认取目录名）')
+      .option(
+         '--type <type>',
+         `题型：${PROBLEM_TYPES.join(' | ')}（不传则方向键选择；非交互环境默认 frontend）`,
+      )
       .option(
          '--difficulty <level>',
          `难度：${DIFFICULTIES.join(' | ')}`,
@@ -58,6 +66,7 @@ export const runInit = async (
    const difficulty = assertDifficulty(options.difficulty);
    const tagIds = assertTagIds(options.tag);
    const mountPath = options.mount ?? DEFAULT_JUDGE_UPLOAD_PATH;
+   const title = options.name?.trim() || defaultTitle(target);
 
    if (!options.force) {
       const existing = (await listDir(target)).filter(
@@ -70,32 +79,59 @@ export const runInit = async (
       }
    }
 
-   const files = buildProblemScaffold({
-      title: options.name?.trim() || defaultTitle(target),
+   const type = await resolveProblemType(ctx, options.type);
+
+   const scaffold = await buildProblemScaffold({
+      title,
+      type,
       difficulty,
       tagIds,
       mountPath,
-      initCommand: DEFAULT_INIT_COMMAND.replace(/\sproject$/, ` ${mountPath}`),
    });
 
-   ctx.logger.step(`生成题目骨架 → ${displayPath(ctx.cwd, target)}`);
-   for (const file of files) {
+   ctx.logger.step(
+      `生成${type === 'backend_service' ? '后端服务题' : '前端题'}骨架 → ${displayPath(ctx.cwd, target)}`,
+   );
+   for (const file of scaffold.files) {
       await writeTextWithMode(resolve(target, file.path), file.content);
       ctx.logger.success(
          `${file.path}  ${ctx.logger.colors.dim(`${file.content.length} 字符`)}`,
       );
    }
 
+   // 后端题没有首屏可截图：init 先本地渲染 cover.png，失败不阻断，qpc cover 可重试。
+   if (scaffold.cover) {
+      const outFile = resolve(target, scaffold.cover.path);
+      try {
+         const png = await renderCoverPng(scaffold.cover.spec);
+         await writeBinary(outFile, png);
+         ctx.logger.success(
+            `${scaffold.cover.path}  ${ctx.logger.colors.dim(formatBytes(png.byteLength))}`,
+         );
+      } catch (error) {
+         ctx.logger.warn(
+            `封面渲染失败（${error instanceof Error ? error.message : String(error)}）：配置里已有 cover.generate，跑 \`qpc cover\` 可重试`,
+         );
+      }
+   }
+
    const cd = dir === '.' ? 'qpc' : `cd ${displayPath(ctx.cwd, target)} && qpc`;
    ctx.logger.blank();
    ctx.logger.step('下一步');
+   if (type === 'backend_service') {
+      ctx.logger.info(
+         `  ${cd} cover --upload --write   # 后端题必须自定义封面：生成 → 上传 → 写回 imageId`,
+      );
+   }
    ctx.logger.info(`  ${cd} check          # 毫秒级静态预检`);
    ctx.logger.info(`  ${cd} upload --wait  # 上传并等待审计（约 20 秒）`);
 
    if (ctx.logger.json) {
       ctx.logger.result({
          dir: target,
-         files: files.map((file) => file.path),
+         type,
+         files: scaffold.files.map((file) => file.path),
+         cover: scaffold.cover?.path,
          difficulty,
          tagIds,
       });
@@ -104,6 +140,48 @@ export const runInit = async (
 
 const defaultTitle = (target: string): string =>
    target.split(/[\\/]/).filter(Boolean).pop() ?? '未命名题目';
+
+const assertProblemType = (value: string | undefined): ProblemType => {
+   const candidate = (value ?? 'frontend') as ProblemType;
+   if (!PROBLEM_TYPES.includes(candidate)) {
+      throw new UsageError(`题型不合法：${value}`, {
+         hint: `可选值：${PROBLEM_TYPES.join(' | ')}`,
+      });
+   }
+   return candidate;
+};
+
+// 未给 --type 时交互选择；CI / 管道 / --json / --yes 下退回 frontend，保持老行为。
+const resolveProblemType = async (
+   ctx: CommandContext,
+   value: string | undefined,
+): Promise<ProblemType> => {
+   if (value !== undefined) return assertProblemType(value);
+   if (ctx.assumeYes || ctx.logger.json || !ctx.runtime.stdin.isTTY) {
+      return 'frontend';
+   }
+   return select<ProblemType>(
+      '请选择题型',
+      [
+         {
+            value: 'frontend',
+            label: '前端题（frontend）',
+            hint: '静态站点，用 Playwright 判题',
+         },
+         {
+            value: 'backend_service',
+            label: '后端服务题（backend_service）',
+            hint: '常驻进程，用 HTTP 判题，模板含封面图',
+         },
+      ],
+      {
+         stdin: ctx.runtime.stdin,
+         stderr: ctx.runtime.stderr,
+         stderrStream: ctx.runtime.stderrStream,
+      },
+      { initialValue: 'frontend' },
+   );
+};
 
 const assertDifficulty = (value: string | undefined): Difficulty => {
    const candidate = (value ?? 'easy') as Difficulty;
