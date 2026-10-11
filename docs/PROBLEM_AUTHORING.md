@@ -89,7 +89,8 @@ $.expect(total === '10.50', '合计应为 10.50，实际为 "' + total + '"');
 
 ### 🟡 坑 5：脚本里不要写 `export default`
 
-判题机内部会把 `export default ` 文本替换成 `const run = `。
+判题机内部会把**代码里真正的** `export default ` 替换成 `const run = `（注释、字符串、
+模板串与正则字面量里的同名文本会被跳过）。
 所以正确写法是**直接写 `export default defineTestHandler(...)`**（会被替换）；
 如果自己写成裸函数声明，替换不生效反而多一层不确定性。照抄现有题目即可。
 

@@ -3,6 +3,7 @@ import { VM } from 'vm2';
 import { JRTP } from '../../protocol/judge-result-transfer-protocal.js';
 import { EventType, type IEventMessage } from '../events/index.js';
 import { defineTestHandler, HttpClient, System } from '../lib/system.js';
+import { replaceDefaultExport } from '../lib/judge-script.js';
 import type { JudgeSuccessResultSchema } from '../schemas/judge-result.js';
 import { TaskSchema } from '../schemas/task.js';
 import { Singleton } from '../utils/singleton.js';
@@ -109,10 +110,8 @@ export class JudgeService extends Singleton {
          });
 
          type TestHandler = ReturnType<typeof defineTestHandler>;
-         const script = payload.judgeScript.replace(
-            'export default ',
-            'const run = '
-         );
+         // 见 lib/judge-script.ts：不能直接 String.replace，注释里的 "export default " 会抢先命中。
+         const script = replaceDefaultExport(payload.judgeScript);
 
          let timer: NodeJS.Timeout | undefined;
          const timeoutGuard = new Promise<never>((_, reject) => {

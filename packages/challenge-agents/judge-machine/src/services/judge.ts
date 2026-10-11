@@ -2,6 +2,7 @@ import type z from 'zod';
 import { JRTP } from '../../protocol/judge-result-transfer-protocal.js';
 import { EventType, type IEventMessage } from '../events/index.js';
 import { defineTestHandler, getExposePage, System } from '../lib/system.js';
+import { replaceDefaultExport } from '../lib/judge-script.js';
 import { TaskSchema } from '../schemas/task.js';
 import { Singleton } from '../utils/singleton.js';
 import { EventEmitterService } from './event-emitter.js';
@@ -117,10 +118,8 @@ export class JudgeService extends Singleton {
             timeout: 10 * 1000,
          });
          type TestHandler = ReturnType<typeof defineTestHandler>;
-         const script = payload.judgeScript.replace(
-            'export default ',
-            'const run = '
-         );
+         // 见 lib/judge-script.ts：不能直接 String.replace，注释里的 "export default " 会抢先命中。
+         const script = replaceDefaultExport(payload.judgeScript);
 
          // VM2 的 timeout 只能中断「同步」执行，无法打断 await 中的异步操作。
          // 一旦判题脚本里的 waitForSelector/click 等一直等待，handleTask 会永久挂住，
