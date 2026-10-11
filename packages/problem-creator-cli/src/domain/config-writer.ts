@@ -1,72 +1,87 @@
 import { ConfigError } from '../core/errors';
+import type { CoverPalette } from './cover-palette';
 
-/**
- * 把生成好的封面 id 写回题目配置。
- *
- * 为什么要改文件而不是只打印一行让用户手抄：一条 `imageId` 抄错一个字符，
- * 报错要等到线上审计（"图片不存在"），而这正是 CLI 存在的意义——把隐式约定
- * 变成一条命令。所以 `qpc cover --write` 直接改配置，并在写完后**重新加载
- * 配置校验一遍**（见 commands/cover.ts），对不上就回滚。
- *
- * 只做最小的文本手术：不引 AST，不重排用户原有的格式与注释。
- */
-export const applyCoverImageId = (
+// 一次写回的内容：imageId 必有，配色只在 --random 时给。
+export interface CoverWrite {
+   imageId: string;
+   colors?: CoverPalette;
+}
+
+// 把生成好的封面（id + 可选配色）写回题目配置。
+//
+// 为什么要改文件而不是让用户手抄：一条 imageId 抄错一个字符，报错要等到线上
+// 审计（"图片不存在"），而这正是 CLI 存在的意义。写完由调用方重新加载配置
+// 校验，对不上就回滚。只做最小的文本手术：不引 AST，不重排用户原有的格式。
+export const applyCoverUpdate = (
    content: string,
-   imageId: string,
+   update: CoverWrite,
    file: string,
 ): string => {
    if (file.endsWith('.json')) {
-      return applyToJson(content, imageId);
+      return applyToJson(content, update);
    }
-   return applyToSource(content, imageId, file);
+   return applyToSource(content, update, file);
 };
 
-const applyToJson = (content: string, imageId: string): string => {
+const applyToJson = (content: string, update: CoverWrite): string => {
    let parsed: unknown;
    try {
       parsed = JSON.parse(content);
    } catch (error) {
-      throw new ConfigError('题目配置不是合法 JSON，无法写回 imageId', {
+      throw new ConfigError('题目配置不是合法 JSON，无法写回封面', {
          cause: error,
-         hint: '手动把 cover.imageId 改成上面的值。',
+         hint: '手动把 imageId 与配色填进 cover。',
       });
    }
    const root = parsed as { cover?: Record<string, unknown> };
    const cover = root.cover;
    if (cover?.mode !== 'custom') {
       throw new ConfigError(
-         '配置里没有 cover: { mode: "custom" }，无法写回 imageId',
+         '配置里没有 cover: { mode: "custom" }，无法写回封面',
          { hint: '先按文档把封面改成自定义模式，再重跑。' },
       );
    }
-   cover.imageId = imageId;
+   cover.imageId = update.imageId;
+   if (update.colors) {
+      const previous =
+         cover.generate && typeof cover.generate === 'object'
+            ? (cover.generate as Record<string, unknown>)
+            : {};
+      const generate: Record<string, unknown> = { ...previous };
+      generate.bg = update.colors.bg;
+      generate.accent = update.colors.accent;
+      generate.text = update.colors.text;
+      if (update.colors.bgTo === undefined) {
+         delete generate.bgTo;
+      } else {
+         generate.bgTo = update.colors.bgTo;
+      }
+      cover.generate = generate;
+   }
    return `${JSON.stringify(parsed, null, 3)}\n`;
 };
 
 const applyToSource = (
    content: string,
-   imageId: string,
+   update: CoverWrite,
    file: string,
 ): string => {
    const coverMatch = /cover\s*:\s*\{/.exec(content);
    if (!coverMatch) {
       throw new ConfigError(
-         `在 ${file} 里找不到 cover: { ... }，无法写回 imageId`,
-         {
-            hint: '把上面的 imageId 手动填进 cover.imageId。',
-         },
+         `在 ${file} 里找不到 cover: { ... }，无法写回封面`,
+         { hint: '把 imageId 与配色手动填进 cover。' },
       );
    }
    const openBrace = content.indexOf('{', coverMatch.index);
    const closeBrace = findObjectEnd(content, openBrace);
    if (closeBrace < 0) {
       throw new ConfigError(`在 ${file} 里无法解析 cover 对象（括号不配对）`, {
-         hint: '把上面的 imageId 手动填进 cover.imageId。',
+         hint: '把 imageId 与配色手动填进 cover。',
       });
    }
 
    const before = content.slice(0, openBrace);
-   const body = content.slice(openBrace, closeBrace + 1);
    const after = content.slice(closeBrace + 1);
    const coverLineStart = content.lastIndexOf('\n', coverMatch.index) + 1;
    const coverLinePrefix = content.slice(coverLineStart, coverMatch.index);
@@ -74,21 +89,116 @@ const applyToSource = (
       ? `${coverLinePrefix}   `
       : `${/\n([ \t]+)\S/.exec(before)?.[1] ?? '   '}   `;
 
-   const existing = /imageId\s*:\s*(['"`])(?:[^'"`]*)\1/.exec(body);
-   const patched = existing
-      ? body.replace(existing[0], `imageId: '${imageId}'`)
-      : insertImageId(body, imageId, file, indent);
-
-   return `${before}${patched}${after}`;
+   let body = content.slice(openBrace, closeBrace + 1);
+   if (update.colors) {
+      body = writeColors(body, update.colors, indent, file);
+   }
+   body = writeImageId(body, update.imageId, file, indent);
+   return `${before}${body}${after}`;
 };
 
-/**
- * 追加 imageId：插在 `mode: 'custom'` 之后。
- *
- * 分两种写法，目的是不重排用户原有的格式：
- *   · `cover: {` 与 `mode` 同一行 → 就地插在同一行
- *   · `mode` 自己占一行 → 换行后沿用同一缩进
- */
+// 找到 cover.generate，就地改颜色；没有 generate 就在 cover 里补一个。
+const writeColors = (
+   body: string,
+   colors: CoverPalette,
+   coverIndent: string,
+   file: string,
+): string => {
+   const generateMatch = /generate\s*:\s*\{/.exec(body);
+   if (!generateMatch) {
+      return insertGenerate(body, colors, coverIndent, file);
+   }
+   const openBrace = body.indexOf('{', generateMatch.index);
+   const closeBrace = findObjectEnd(body, openBrace);
+   if (closeBrace < 0) {
+      throw new ConfigError(
+         `在 ${file} 里无法解析 cover.generate（括号不配对）`,
+         {
+            hint: '把配色手动填进 cover.generate。',
+         },
+      );
+   }
+   const generatePrefix = body.slice(openBrace, closeBrace + 1);
+   const generateIndent = detectIndent(generatePrefix) ?? `${coverIndent}   `;
+   let generateBody = generatePrefix;
+   generateBody = upsertColor(generateBody, 'bg', colors.bg, generateIndent);
+   generateBody = upsertColor(
+      generateBody,
+      'bgTo',
+      colors.bgTo,
+      generateIndent,
+   );
+   generateBody = upsertColor(
+      generateBody,
+      'accent',
+      colors.accent,
+      generateIndent,
+   );
+   generateBody = upsertColor(
+      generateBody,
+      'text',
+      colors.text,
+      generateIndent,
+   );
+   return body.slice(0, openBrace) + generateBody + body.slice(closeBrace + 1);
+};
+
+// 没有 generate 时补一个：插在 mode: 'custom' 之后，风格与 insertImageId 一致。
+const insertGenerate = (
+   body: string,
+   colors: CoverPalette,
+   indent: string,
+   file: string,
+): string => {
+   const modeMatch = /mode\s*:\s*(['"`])custom\1,?/.exec(body);
+   if (!modeMatch) {
+      throw new ConfigError(
+         `在 ${file} 的 cover 对象里找不到 mode: 'custom'，无法写入 generate`,
+         { hint: '把配色手动填进 cover.generate。' },
+      );
+   }
+   const literal = formatColors(colors);
+   const matched = modeMatch[0];
+   const hasComma = /,\s*$/.test(matched);
+   const linePrefix = body.slice(
+      body.lastIndexOf('\n', modeMatch.index) + 1,
+      modeMatch.index,
+   );
+   const inline = !/^[ \t]*$/.test(linePrefix);
+   const separator = hasComma ? ' ' : ', ';
+   const replacement = inline
+      ? `${matched}${separator}generate: { ${literal} },`
+      : `${matched}${hasComma ? '' : ','}\n${indent}generate: { ${literal} },`;
+   return body.replace(matched, replacement);
+};
+
+const formatColors = (colors: CoverPalette): string => {
+   const parts = [
+      `bg: '${colors.bg}'`,
+      colors.bgTo === undefined ? undefined : `bgTo: '${colors.bgTo}'`,
+      `accent: '${colors.accent}'`,
+      `text: '${colors.text}'`,
+   ].filter((part): part is string => part !== undefined);
+   return parts.join(', ');
+};
+
+const writeImageId = (
+   body: string,
+   imageId: string,
+   file: string,
+   indent: string,
+): string => {
+   const existing = /imageId\s*:\s*(['"`])(?:[^'"`]*)\1/.exec(body);
+   return existing
+      ? body.replace(existing[0], `imageId: '${imageId}'`)
+      : insertImageId(body, imageId, file, indent);
+};
+
+// 追加 imageId：插在 mode: 'custom' 之后。
+//
+// 分两种写法，目的是不重排用户原有格式：
+//   · cover 与 mode 同一行  -> 就地插在同一行
+//   · mode 自己占一行       -> 换行后沿用同一缩进
 const insertImageId = (
    body: string,
    imageId: string,
@@ -99,7 +209,7 @@ const insertImageId = (
    if (!modeMatch) {
       throw new ConfigError(
          `在 ${file} 的 cover 对象里找不到 mode: 'custom'，无法写回 imageId`,
-         { hint: '把上面的 imageId 手动填进 cover.imageId。' },
+         { hint: '把 imageId 手动填进 cover.imageId。' },
       );
    }
    const matched = modeMatch[0];
@@ -116,12 +226,57 @@ const insertImageId = (
    return body.replace(matched, replacement);
 };
 
-/**
- * 从 `{` 出发找配对的 `}`，跳过字符串与模板串。
- *
- * 不处理正则字面量：配置文件里的 `cover` 对象几乎不可能出现正则，
- * 为此写一个 JS 词法分析器代价太大，而这里错了也只是抛错让用户手改。
- */
+// key: 'value' 的正则片段，group 1 是引号，供 \1 配对使用。
+const keyPattern = (key: string): string =>
+   `\\b${key}\\s*:\\s*(['"\`])(?:[^'"\`]*)\\1`;
+
+const detectIndent = (body: string): string | undefined =>
+   /\n([ \t]+)\S/.exec(body)?.[1];
+
+// 有则改写，值为 undefined 则删除，没有则插入。
+const upsertColor = (
+   body: string,
+   key: string,
+   value: string | undefined,
+   indent: string,
+): string => {
+   const existing = new RegExp(keyPattern(key)).exec(body);
+   if (value === undefined) {
+      return existing ? removeKey(body, key) : body;
+   }
+   if (existing) {
+      return body.replace(existing[0], `${key}: '${value}'`);
+   }
+   return insertKey(body, key, value, indent);
+};
+
+const insertKey = (
+   body: string,
+   key: string,
+   value: string,
+   indent: string,
+): string => {
+   const inner = body.slice(1, -1);
+   if (inner.trim() === '') return `{ ${key}: '${value}' }`;
+   if (!inner.includes('\n')) return body.replace('{', `{ ${key}: '${value}',`);
+   const entryIndent = detectIndent(body) ?? indent;
+   return body.replace('{', `{\n${entryIndent}${key}: '${value}',`);
+};
+
+// 删除一个键，连带处理逗号，避免留下 `{ , }` 这种坏字面量。
+const removeKey = (body: string, key: string): string => {
+   const pattern = keyPattern(key);
+   const trailing = new RegExp(`${pattern}\\s*,\\s*`);
+   if (trailing.test(body)) return body.replace(trailing, '');
+   const leading = new RegExp(`\\s*,\\s*${pattern}`);
+   if (leading.test(body)) return body.replace(leading, '');
+   return body.replace(new RegExp(pattern), '');
+};
+
+// 从 `{` 出发找配对的 `}`，跳过字符串与模板串。
+//
+// 不处理正则字面量：配置文件里的 cover 对象几乎不可能出现正则，为此写一个 JS
+// 词法分析器代价太大，而这里错了也只是抛错让用户手改。
 const findObjectEnd = (content: string, openBrace: number): number => {
    let depth = 0;
    let quote: string | null = null;

@@ -36,12 +36,6 @@ const HEX_COLOR = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/;
 
 export const isHexColor = (value: string): boolean => HEX_COLOR.test(value);
 
-/**
- * 颜色只收十六进制。
- *
- * 不是洁癖：这些值会被拼进 SVG 属性。放任 `red;...` 这类字符串进来，
- * 就等于把「配色参数」变成注入点。名字色（`red`）不值得为它开这个口子。
- */
 export const assertHexColor = (value: string, field: string): string => {
    if (!isHexColor(value)) {
       throw new UsageError(
@@ -91,12 +85,6 @@ const textWidthEm = (text: string, bold: boolean): number =>
 const isBreakAfter = (char: string): boolean =>
    char === ' ' || isWideChar(char.codePointAt(0) ?? 0);
 
-/**
- * 按最大宽度（em）贪心换行。
- *
- * 优先在最近的断点断（空格 / 汉字边界），只有在行首没有断点时才硬切，
- * 这样 "图书库存查询与借阅 HTTP API" 会断成两行而不是把单词拆开。
- */
 export const wrapByWidth = (
    text: string,
    maxWidthEm: number,

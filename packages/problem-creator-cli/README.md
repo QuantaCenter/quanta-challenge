@@ -40,7 +40,7 @@ qpc publish 123                 # 审计通过后发布（123 是 upload 返回�
 |---|---|---|
 | `qpc init [dir]` | 生成题目骨架（配置、判题脚本、模板、参考解） | 否 |
 | `qpc check [dir]` | 离线预检；`--strict` 让警告也失败 | 否 |
-| `qpc cover [dir]` | 从题目配置生成封面图；`--upload` 上传，`--write` 把 imageId 写回配置 | 上传时 |
+| `qpc cover [dir]` | 从题目配置生成封面图；`--random` 随机生成合理配色，`--upload` 上传，`--write` 把 imageId 与配色写回配置 | 上传时 |
 | `qpc upload [dir]` | 上传并创建题目版本；默认等待审计结果 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`），`--unpublish` 下架 | 是 |
@@ -168,7 +168,8 @@ qpc cover --upload --write     # 生成 cover.png → 上传 → 把 imageId 写
 `admin.image.upload` 拿到 id → 就地改写配置文件里的 `imageId`，
 **写完会立刻重新加载配置校验一遍，对不上就回滚**（改坏配置比没改更糟）。
 
-命令行参数会覆盖配置里的同名项，方便临时试配色：
+命令行参数会覆盖配置里的同名项，方便临时试配色（颜色优先级：**显式参数 >
+`--random` > 配置 > 默认值**）：
 
 ```bash
 qpc cover --bg "#101828" --bg-to "#123B2A" --subtitle "GET /health"
@@ -186,8 +187,36 @@ qpc cover                      # 只生成，不上传：本地看一眼再说
 | `--subtitle <text>` | 副标题；传空字符串则不渲染 | 配置里的 `generate.subtitle` |
 | `--footer <text>` | 左下角页脚 | `Quanta Challenge` |
 | `--width/--height <px>` | 画布尺寸（200~4096） | `1200 × 675` |
+| `--random` | 随机生成一套**合理**配色（背景 / 渐变 / 强调色 / 标题色） | 否 |
+| `--seed <n>` | 配合 `--random`：固定随机种子，复现同一套配色 | 无（每次随机） |
 | `--upload` | 上传到平台，输出可用的 `imageId` | 否 |
-| `--write` | 把 `imageId` 写回配置文件（隐含 `--upload`） | 否 |
+| `--write` | 把 `imageId` 与 `--random` 配色写回配置（隐含 `--upload`） | 否 |
+
+### 随机配色（`--random`）
+
+没有配色灵感时，让 CLI 抽一套：
+
+```bash
+qpc cover --random                  # 生成一套，并打印可复现的 seed
+qpc cover --random --seed 42        # 用指定种子复现
+qpc cover --random --upload --write # 随机配色 + 上传 + 写回 imageId
+```
+
+「随机」不是「乱抽」，每套都满足两条硬约束：
+
+- **可读**：主标题对背景 ≥ **7:1**、强调色对背景 ≥ **4.5:1**（WCAG 对比度）。
+  不达标就调整明度直到达标，而不是抽到就用。
+- **和谐**：强调色色相按配色关系（同色系 / 邻近色 / 分裂互补 / 互补 / 三角）
+  从背景色相推导；背景固定在「深色 + 中等饱和」的窄带里，排除刺眼与发灰的组合。
+
+随机由**种子**驱动，同一个 seed 永远得到同一套配色。输出里会打印 seed 与配色
+关系（例如 `暗紫 · 分裂互补`），`--seed <n>` 可复现。`--random --write` 会把
+配色一并写进 `cover.generate`（保留 `subtitle`、`out` 等字段）；只 `--upload`
+不改配置。
+
+`--random` 产出的是整组协调的深色配色；若再显式传 `--bg` / `--text` 等把对比度
+覆盖到不达标，命令会**直接拒绝并说明是哪一对颜色**（例如白底 + 近白标题），
+而不是输出一张看不清的封面。
 
 颜色只收十六进制（`#rgb` / `#rrggbb`）：这些值会被拼进 SVG，
 放行任意字符串等于把「配色参数」变成注入点。
