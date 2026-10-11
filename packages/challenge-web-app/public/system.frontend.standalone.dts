@@ -575,7 +575,6 @@ declare const getExposeSystem: (sys: System) => {
       expression: any | (() => Promise<any> | any),
       desc?: string
    ) => Promise<void>;
-   readonly root: string;
 };
 
 /**
@@ -642,7 +641,7 @@ type ExposePage = ReturnType<typeof getExposePage>;
  * });
  * ```
  */
-declear const defineTestHandler: (
+declare const defineTestHandler: (
    handler: (ctx: IHandlerCtx) => Promise<void>
 ) => (
    page: ExposePage,

@@ -1,6 +1,10 @@
 import type { StForm } from '#components';
 import type { IRule } from '~/components/st/Form/type';
 import type { ISlideRadioGroupOption } from '~/components/st/SlideRadioGroup/type';
+import {
+   isJudgeScriptTemplate,
+   judgeScriptTemplateOf,
+} from './judge-script-template';
 
 // 题目难度选项
 const difficultyOptions: ISlideRadioGroupOption[] = [
@@ -50,10 +54,21 @@ export const useProblemPublicationForm = (storageName: string) => {
       judgeUploadPath: '',
       enableCloudFunction: false,
       problemType: 'frontend' as 'frontend' | 'backend_service',
-      serviceImage: '',
-      servicePort: 3000,
    });
    const draft = useDebounce(formdata, 200);
+
+   const syncJudgeScriptTemplate = () => {
+      if (
+         !draft.value.judgeScript ||
+         isJudgeScriptTemplate(draft.value.judgeScript)
+      ) {
+         draft.value.judgeScript = judgeScriptTemplateOf(
+            draft.value.problemType
+         );
+      }
+   };
+   watch(() => draft.value.problemType, () => syncJudgeScriptTemplate());
+   onMounted(() => syncJudgeScriptTemplate());
 
    const formKey = 'publishForm';
    const form = useTemplateRef<InstanceType<typeof StForm>>(formKey);

@@ -1,21 +1,58 @@
 <script setup lang="ts">
+import type monaco from 'monaco-editor';
 import { BookOne, SaveOne } from '@icon-park/vue-next';
 import { useSimpleEditor } from '~/composables/use-simple-editor';
+
+const props = defineProps<{
+   problemType?: 'frontend' | 'backend_service';
+}>();
 
 const script = defineModel<string>('script');
 const opened = defineModel<boolean>('opened', { default: false });
 
-const defaultScript = `export default defineTestHandler(async ({ $, page }) => {
-   // 在这里编写测试逻辑
-   // 使用 $.defineCheckPoint(name, score, action) 定义检查点
-   // 使用 page 对象来操作页面元素
-   // 返回分数
-})`;
-
-const { containerKey, onEditorContentChanged } = useSimpleEditor({
-   script: script.value || defaultScript,
-   imports: ['/system.standalone.dts'],
+// 模板由发布页按题型写进 script（见 judge-script-template.ts），这里只负责编辑。
+const { containerKey, onEditorContentChanged, onEditorReady } = useSimpleEditor({
+   script: script.value ?? '',
 });
+
+let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+let monacoInstance: typeof import('monaco-editor') | null = null;
+let typeLib: { dispose(): void } | null = null;
+
+const loadTypeDeclarations = async (problemType?: string) => {
+   if (!monacoInstance) return;
+   const file =
+      problemType === 'backend_service'
+         ? '/system.backend.standalone.dts'
+         : '/system.frontend.standalone.dts';
+   const content = await fetch(file).then((res) => res.text());
+   typeLib?.dispose();
+   typeLib =
+      monacoInstance.languages.typescript.typescriptDefaults.addExtraLib(
+         content,
+         file
+      );
+};
+
+onEditorReady((instance, monacoModule) => {
+   editor = instance;
+   monacoInstance = monacoModule;
+   void loadTypeDeclarations(props.problemType);
+});
+
+// 切题型：换类型声明，并把草稿里的（新题型）模板同步进已挂载的编辑器
+watch(
+   () => props.problemType,
+   (problemType) => {
+      void loadTypeDeclarations(problemType);
+   }
+);
+watch(script, (value) => {
+   if (editor && editor.getValue() !== (value ?? '')) {
+      editor.setValue(value ?? '');
+   }
+});
+
 onEditorContentChanged((value) => {
    script.value = value;
 });
