@@ -38,7 +38,7 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
    不用 `commit` 单独做幂等键：同一个 commit 可以分批发布（`images[]` 只含本次重建的镜像，
    比如先 `-f images=live-server` 再 `-f images=web-app`），只按 commit 判会把后一批错当成已部署。
 3. **同步执行完再回包**：成功 `200`，失败（含已回滚 / 回滚失败）`5xx`，CI 据此判定发布是否真正生效。
-4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.nju.edu.cn` → `ghcr.dockerproxy.net` 依次回退
+4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）。
 5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz` 做健康检查。
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；

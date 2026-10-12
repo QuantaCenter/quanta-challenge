@@ -35,7 +35,7 @@ const CFG = {
    stateFile: env.STATE_FILE || '/var/lib/quanta-deploy/state.json',
    logFile: env.LOG_FILE || '/var/log/quanta-deploy-webhook.log',
    // ghcr.io 本机直连不可用（约 0.01 MiB/s），按序回退
-   mirrors: (env.GHCR_MIRRORS || 'ghcr.nju.edu.cn,ghcr.dockerproxy.net').split(',').map((s) => s.trim()).filter(Boolean),
+   mirrors: (env.GHCR_MIRRORS || 'ghcr.dockerproxy.net,ghcr.nju.edu.cn').split(',').map((s) => s.trim()).filter(Boolean),
    alertUrl: env.ALERT_WEBHOOK_URL || '',
 };
 
