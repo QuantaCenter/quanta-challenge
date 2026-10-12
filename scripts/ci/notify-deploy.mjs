@@ -17,6 +17,8 @@
  */
 import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { request as httpRequest } from 'node:http';
+import { request as httpsRequest } from 'node:https';
 
 /**
  * 镜像 → docker compose 服务名的映射。
@@ -35,6 +37,11 @@ const COMPOSE_SERVICE = {
    'backend-judge-machine': null,
    'cloud-function': 'challenge-cloud-function',
 };
+
+// webhook 同步等部署完成（docker pull 最长 8 分钟）才回包
+const REQUEST_TIMEOUT_MS = 15 * 60_000;
+// 响应体只用于日志，超出部分丢弃
+const MAX_RESPONSE_BYTES = 64 * 1024;
 
 const args = process.argv.slice(2);
 const option = (name) => {
@@ -116,22 +123,56 @@ if (dryRun) {
    process.exit(0);
 }
 
-const response = await fetch(process.env.WEBHOOK_URL, {
-   method: 'POST',
-   headers,
-   body,
-   // webhook 同步等部署完成（拉镜像最长 8 分钟）才回包，客户端要给足余量
-   signal: AbortSignal.timeout(15 * 60_000),
-}).catch((error) => {
+/**
+ * POST 并等完整响应。超时只由 REQUEST_TIMEOUT_MS 决定。
+ *
+ * 不用 fetch：undici 的 headersTimeout 默认 300s，AbortSignal 覆盖不掉它，
+ * 等待超过 5 分钟的响应会被 undici 提前断开。
+ */
+const postJson = (url, payload) =>
+   new Promise((resolve, reject) => {
+      const target = new URL(url);
+      const send = target.protocol === 'http:' ? httpRequest : httpsRequest;
+      const req = send(
+         target,
+         {
+            method: 'POST',
+            headers: { ...headers, 'Content-Length': Buffer.byteLength(payload) },
+         },
+         (res) => {
+            const chunks = [];
+            let size = 0;
+            res.on('data', (chunk) => {
+               size += chunk.length;
+               if (size <= MAX_RESPONSE_BYTES) chunks.push(chunk);
+            });
+            res.on('end', () =>
+               resolve({
+                  status: res.statusCode ?? 0,
+                  statusText: res.statusMessage ?? '',
+                  text: Buffer.concat(chunks).toString('utf8'),
+               }),
+            );
+            res.on('error', reject);
+         },
+      );
+      const timer = setTimeout(() => {
+         req.destroy(new Error(`等待响应超过 ${REQUEST_TIMEOUT_MS / 60_000} 分钟`));
+      }, REQUEST_TIMEOUT_MS);
+      req.on('close', () => clearTimeout(timer));
+      req.on('error', reject);
+      req.end(payload);
+   });
+
+const response = await postJson(process.env.WEBHOOK_URL, body).catch((error) => {
    console.error(`请求失败: ${error.message}`);
    process.exit(1);
 });
 
-const text = await response.text().catch(() => '');
 console.log(`HTTP ${response.status} ${response.statusText}`);
-if (text) console.log(text);
+if (response.text) console.log(response.text);
 
-if (!response.ok) {
+if (response.status < 200 || response.status >= 300) {
    // 不自动重试：构建产物已经在 registry 里，重放用本脚本手动触发即可（见 docs/IMAGE_WEBHOOK.md）
    console.error('部署 webhook 返回非 2xx，本次发布视为未生效');
    process.exit(1);
