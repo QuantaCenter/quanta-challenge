@@ -45,8 +45,10 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
 
-`service` 为 `null` 的镜像（`judge-machine`、`live-server`）只预拉到本地：判题机镜像由调度器
-自行构建容器，不归 compose 管，强行替换会让调度器与容器版本不一致。
+`service` 为 `null` 的镜像（`judge-machine`、`live-server`、`backend-service`、
+`backend-judge-machine`）不归 compose 管：webhook 把它们拉到本地，并把调度器使用的本地名
+（`challenge-live-server-agent:latest` 等）指到本次拉取的镜像，不碰容器（容器由调度器创建，
+强行替换会让调度器与容器版本不一致）。
 
 ### 云函数服务（`challenge-cloud-function`）
 

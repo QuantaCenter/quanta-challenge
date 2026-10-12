@@ -463,12 +463,23 @@ export class DockerService extends Singleton {
       let container: Docker.Container;
 
       // 优先复用已占着 1889 端口 / 同名镜像的容器。
-      // 必须按镜像名而非 tag 过滤：镜像重建后旧容器会变成 dangling，tag 匹配不到它，
-      // 于是会误判为"无旧容器"并重复绑定 1889，导致启动失败。
       //
-      // listContainersByImage 现在会连已退出的容器一起返回（清扫需要），
+      // 只按镜像名匹配不够：镜像名被重新指向新镜像（重新发布）后，旧容器在列表里就只剩
+      // 镜像 ID（`ancestor=` 也匹配不到），于是会误判为「无旧容器」并重复绑定 1889，
+      // 调度器启动即失败。端口是独占资源，占着 1889 的必然是旧判题机，故再按端口兜底查一次。
+      //
+      // listContainersByImage 会连已退出的容器一起返回（清扫需要），
       // 但这里只能复用**正在运行**的，否则会把已退出的容器当成判题机去连 WebSocket。
-      const candidates = (await this.listContainersByImage(imageName)).filter(
+      const [byImage, byPort] = await Promise.all([
+         this.listContainersByImage(imageName),
+         ignoreError(() =>
+            this.docker.listContainers({
+               all: true,
+               filters: { publish: ['1889'] },
+            }),
+         ).then((r) => r ?? []),
+      ]);
+      const candidates = [...byImage, ...byPort].filter(
          (c) => c.State === 'running',
       );
 

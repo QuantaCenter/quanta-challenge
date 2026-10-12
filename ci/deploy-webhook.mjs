@@ -55,6 +55,18 @@ const SERVICES = {
    },
 };
 
+/**
+ * `service` 为 null 的镜像不在 compose 里，但调度器是按【本地镜像名:latest】拉容器的
+ * （docker.ts 里写 `Image: 'challenge-live-server-agent'`，docker 会补 `:latest`）。
+ * 这些本地名必须由 webhook 维护，不能靠人工 docker tag。
+ */
+const LOCAL_IMAGE_NAMES = {
+   'judge-machine': 'challenge-judge-machine-agent',
+   'live-server': 'challenge-live-server-agent',
+   'backend-service': 'challenge-backend-service-agent',
+   'backend-judge-machine': 'challenge-backend-judge-machine-agent',
+};
+
 const log = (msg) => {
    const line = `${new Date().toISOString()} ${msg}`;
    console.log(line);
@@ -196,6 +208,14 @@ const deploy = async (payload) => {
    try {
       const ids = new Map();
       for (const image of payload.images) ids.set(image.name, await pullByDigest(image));
+
+      // 非 compose 管理的镜像：把调度器使用的本地名 :latest 指到本次拉取的镜像
+      for (const image of payload.images) {
+         const localName = LOCAL_IMAGE_NAMES[image.name];
+         if (!localName) continue;
+         await docker(['tag', ids.get(image.name), `${localName}:latest`]);
+         log(`[tag] ${localName}:latest -> ${ids.get(image.name).slice(0, 19)}`);
+      }
 
       // 打标签：web-app 用「官方名:tag」并写入 compose 变量；调度器无 image:，只能换成正在用的标签
       for (const t of targets) {
