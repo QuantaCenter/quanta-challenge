@@ -163,24 +163,48 @@ judge-machine/
 
 ### 评测脚本 API
 
-评测脚本在 VM2 沙箱中执行，可访问以下 API：
+评测脚本在 VM2 沙箱中执行，沙箱只注入两个句柄（`page` 与 `$`），入口必须是
+`export default defineTestHandler(...)`（判题机把 `export default ` 文本改写成 `const run = `）：
 
 ```typescript
-// 定义测试处理器
-defineTestHandler(async ({ page, $ }) => {
-  // page: Playwright Page 对象（受限 API）
-  // $: System 实例，提供评测辅助方法
+export default defineTestHandler(async ({ page, $ }) => {
+   // page: Playwright 的 Page（去掉了 goto，导航由判题机负责）
+   //   - 额外提供 page.waitForNetworkIdle({ timeout })，见下
+   // $: 评测辅助方法
 
-  // 定义检查点
-  $.defineCheckPoint('检查点名称', score);
+   $.defineCheckPoint('检查点名称', 10, async () => {
+      $.expect(条件, '期望 X，实际 Y'); // 断言失败抛错 → 该检查点 fail
+      return 10;                       // 必须 return 本检查点得分，否则记 0 分
+   });
 
-  // 保存或比较截图
-  await $.saveOrCompare('screenshot-name');
-
-  // 断言验证
-  $.expect(condition).toBe(expected);
+   // 快照：audit 模式存图，judge 模式与出题时存下的图比相似度
+   await $.saveOrCompare({
+      type: 'image',
+      buffer: await page.screenshot(),
+      name: 'main.png',
+   });
 });
 ```
+
+#### `page.waitForNetworkIdle({ timeout })`
+
+等网络静默：在途请求归零并保持 500ms 后 resolve `true`，超时 resolve `false`（不抛错）。
+
+Playwright 自己没有这个能力：`waitForLoadState('networkidle')` 依赖导航期的 lifecycle
+事件，页面加载完之后再调用会立即返回，点一次按钮再等就等不到东西。
+
+```js
+const idle = page.waitForNetworkIdle({ timeout: 5000 }); // 先挂等待（默认 3000，上限 5000）
+await page.click('#load-more');                          // 再触发请求
+$.expect(await idle, '点击后 5s 内网络仍未结束');
+```
+
+- 只统计**调用之后**发出的请求，所以顺序必须是“先挂等待、再触发动作”。
+- `timeout` 上限 5000ms：脚本总预算只有 20s（见 `src/services/judge.ts`），一次等待
+  吃掉一半预算，后面的检查点会被硬超时一起作废。
+- 超时返回 `false` 而不是抛错，由调用方用 `$.expect` 决定要不要判失败 ——
+  脚本级异常会让**所有**检查点一起作废。
+- 它只保证“请求已结束”，不代表渲染完成；断言前仍应 `waitForSelector` 等目标元素。
 
 ## Docker 部署
 

@@ -61,6 +61,83 @@ const SaveImageSchema = z.object({
 const SaveSchema = z.discriminatedUnion('type', [SaveImageSchema]);
 type SaveType = z.infer<typeof SaveSchema>;
 
+/** `page.waitForNetworkIdle` 的超时上限（毫秒）。 */
+export const MAX_NETWORK_IDLE_TIMEOUT_MS = 5_000;
+
+/** 默认超时（毫秒）。 */
+const DEFAULT_NETWORK_IDLE_TIMEOUT_MS = 3_000;
+
+/** 在途请求归零后需保持的静默时长（毫秒）。 */
+const NETWORK_IDLE_QUIET_MS = 500;
+
+/** 轮询间隔（毫秒）。 */
+const NETWORK_IDLE_POLL_MS = 50;
+
+const WaitForNetworkIdleOptionsSchema = z.object({
+   timeout: z
+      .number('timeout 必须是数字')
+      .int('timeout 必须是整数')
+      .positive('timeout 必须大于 0')
+      .max(
+         MAX_NETWORK_IDLE_TIMEOUT_MS,
+         `timeout 不能超过 ${MAX_NETWORK_IDLE_TIMEOUT_MS}ms`
+      )
+      .optional(),
+});
+
+export type WaitForNetworkIdleOptions = z.infer<
+   typeof WaitForNetworkIdleOptionsSchema
+>;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * 等待网络静默：在途请求归零并保持 {@link NETWORK_IDLE_QUIET_MS} 后返回 true，超时返回 false。
+ * 只统计调用之后发出的请求：需先调用本方法、再触发动作。
+ */
+export const waitForNetworkIdle = async (
+   page: Page,
+   options: WaitForNetworkIdleOptions = {}
+): Promise<boolean> => {
+   // 抛普通 Error：ZodError 的 message 是 JSON，会被拼进测试点失败原因展示。
+   const parsed = WaitForNetworkIdleOptionsSchema.safeParse(options);
+   if (!parsed.success) {
+      const reasons = parsed.error.issues
+         .map((issue) => issue.message)
+         .join('；');
+      throw new Error(`page.waitForNetworkIdle 参数无效：${reasons}`);
+   }
+   const { timeout = DEFAULT_NETWORK_IDLE_TIMEOUT_MS } = parsed.data;
+
+   const inflight = new Set<unknown>();
+   const track = (request: unknown) => void inflight.add(request);
+   const settle = (request: unknown) => void inflight.delete(request);
+
+   // 必须在任何 await 之前挂载，否则调用方随后触发的请求会漏统计。
+   page.on('request', track);
+   page.on('requestfinished', settle);
+   page.on('requestfailed', settle);
+
+   const deadline = Date.now() + timeout;
+   let quietSince: number | null = null;
+   try {
+      while (Date.now() < deadline) {
+         if (inflight.size > 0) {
+            quietSince = null;
+         } else {
+            quietSince ??= Date.now();
+            if (Date.now() - quietSince >= NETWORK_IDLE_QUIET_MS) return true;
+         }
+         await sleep(NETWORK_IDLE_POLL_MS);
+      }
+      return false;
+   } finally {
+      page.off('request', track);
+      page.off('requestfinished', settle);
+      page.off('requestfailed', settle);
+   }
+};
+
 const generateUUID = () => {
    return crypto.randomUUID();
 };
@@ -195,14 +272,19 @@ interface ITestResult {
 }
 
 export const getExposePage = (page: Page) => {
-   return buildProxy(page, ['goto'], 'omit');
+   const exposed = buildProxy(page, ['goto'], 'omit');
+   // 在受限 Page 上补一个平台方法：Playwright 没有等网络静默的能力。
+   return Object.assign(exposed, {
+      waitForNetworkIdle: (options?: WaitForNetworkIdleOptions) =>
+         waitForNetworkIdle(page, options),
+   });
 };
 export type ExposePage = ReturnType<typeof getExposePage>;
 
 export const defineTestHandler = (
    handler: (ctx: IHandlerCtx) => Promise<void>
 ) => {
-   return async (page: Page, system: System) => {
+   return async (page: ExposePage, system: System) => {
       await handler({
          page,
          $: getExposeSystem(system),

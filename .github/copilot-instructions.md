@@ -223,7 +223,7 @@ import { prisma } from '@challenge/database';
 
 1. Edit judge script in `packages/app` problem detail
 2. Use exposed API: `defineTestHandler(async ({ page, $ }) => { ... })`
-3. Available methods: `$.saveOrCompare()`, `$.defineCheckPoint()`, `$.expect()`
+3. Available methods: `$.saveOrCompare()`, `$.defineCheckPoint()`, `$.expect()`, `page.waitForNetworkIdle({ timeout })`（上限 5000ms，先挂等待再触发动作）
 
 ### Debug Docker Containers
 
