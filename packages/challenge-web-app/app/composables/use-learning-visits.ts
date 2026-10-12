@@ -12,7 +12,7 @@ import {
    visitStamp,
    type VisitRecord,
 } from '~/utils/learning-visits';
-import type { VisitSlice } from '~/composables/use-learning';
+import type { VisitSlice } from '~/utils/learning-progress';
 
 /**
  * 「最近学习」的访问记录。

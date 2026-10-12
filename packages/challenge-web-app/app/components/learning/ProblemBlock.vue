@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CheckOne, CloseOne, Right } from '@icon-park/vue-next';
+import { isProblemCompleted } from '~/utils/learning-progress';
 import {
-   isProblemCompleted,
    type Difficulty,
    type LearningProblemRef,
 } from '~/composables/use-learning';

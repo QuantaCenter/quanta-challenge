@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { DocDetail, Left, Right } from '@icon-park/vue-next';
+import { articleProgress, topicProgress } from '~/utils/learning-progress';
 import {
-   articleProgress,
-   topicProgress,
    topicsOfArticle,
    useLearningArticle,
    useLearningTopic,

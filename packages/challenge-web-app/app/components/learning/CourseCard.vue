@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import { courseProgress } from '~/utils/learning-progress';
 import {
    articlesOfCourse,
-   courseProgress,
    courseTopics,
    type LearningCourse,
 } from '~/composables/use-learning';

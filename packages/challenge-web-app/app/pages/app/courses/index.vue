@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Left } from '@icon-park/vue-next';
+import { courseProgress } from '~/utils/learning-progress';
 import {
    articlesOfCourse,
-   courseProgress,
    courseTopics,
    useLearningCourses,
 } from '~/composables/use-learning';

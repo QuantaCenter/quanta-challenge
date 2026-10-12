@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DocDetail, FileEditingOne, Left, Right } from '@icon-park/vue-next';
+import { articleProgress } from '~/utils/learning-progress';
 import {
-   articleProgress,
    useLearningArticle,
    type ContentBlock,
 } from '~/composables/use-learning';

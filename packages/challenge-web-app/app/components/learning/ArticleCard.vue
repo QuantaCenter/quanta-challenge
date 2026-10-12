@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { articleProgress } from '~/utils/learning-progress';
 import {
-   articleProgress,
    type LearningArticle,
 } from '~/composables/use-learning';
 import { useLearningVisits } from '~/composables/use-learning-visits';

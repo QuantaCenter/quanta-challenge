@@ -16,10 +16,7 @@ import { useLearningContentStore } from './use-learning-store';
 import { renderArticleSource } from '~/utils/learning-markdown';
 import { useLearningVisits } from '~/composables/use-learning-visits';
 import {
-   articleProgress,
    courseProgress,
-   isArticleFinished,
-   isProblemCompleted,
    topicProgress,
    emptyVisits,
    type CourseProgress,
@@ -167,28 +164,6 @@ export interface LearningCourse {
    status: 'draft' | 'pending' | 'published';
    coverPreset?: ArticleCoverPreset;
 }
-
-/**
- * 进度与完成度规则搬到了 `~/utils/learning-progress`（纯模块，可单测）。
- *
- * ⚠️ 必须**先 import 再 export**：`export { x } from '...'` 只对外转发，
- * 不会在本模块建立本地绑定。本文件内部的 `useRecentLearning` 等函数还要调用
- * 这些进度函数，用纯转发写法会得到 `topicProgress is not defined`
- * （页面整页 500，日志里就是这个错）。
- */
-export {
-   articleProgress,
-   courseProgress,
-   isArticleFinished,
-   isProblemCompleted,
-   topicProgress,
-   emptyVisits,
-   type ArticleProgress,
-   type CourseProgress,
-   type TopicProgress,
-   type VisitSlice,
-};
-
 
 export function canPublishCourse(course: LearningCourse): boolean {
    return courseTopics(course.id).length > 0;
