@@ -41,6 +41,7 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）。
 5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz` 做健康检查。
+   启动调度器前先移除占用 1889 的残留容器（前端判题机容器由调度器自己创建，不随上一实例退出而消失）。
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
 
