@@ -312,6 +312,24 @@ export default defineTestHandler(async ({ page, $ }) => {
 });
 ```
 
+### 等异步请求结束：`page.waitForNetworkIdle({ timeout })`
+
+点击后才会发请求的场景，**不要**用 `page.waitForLoadState('networkidle')`：Playwright 的
+networkidle 是导航期的 lifecycle 事件，页面早就加载完了，点完再等会立即返回。用平台补的：
+
+```js
+const idle = page.waitForNetworkIdle({ timeout: 5000 }); // 先挂等待（默认 3000，上限 5000）
+await page.click('#load-more');                          // 再触发请求
+$.expect(await idle, '点击后 5s 内网络仍未结束');
+```
+
+- 只统计**调用之后**发出的请求，所以顺序必须是“先挂等待、再触发动作”；反过来写会漏统计，
+  于是断言读到旧 DOM，表现为“偶发”失败。
+- 超时返回 `false` 而不是抛错：用 `$.expect` 决定要不要判这个检查点失败，
+  免得脚本级异常把**所有**检查点一起作废（总预算只有 20s，见 `src/services/judge.ts`）。
+- 它只保证“请求已结束”，不代表渲染完成；`$.expect` 之前仍应 `waitForSelector` 等目标元素。
+- `timeout` 上限 5000ms：写更大直接抛错，因为一次等待吃掉一半预算就等于把后面的检查点全作废。
+
 ---
 
 ## 七、后端服务题型（另一条链路）
