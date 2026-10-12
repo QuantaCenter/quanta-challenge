@@ -55,7 +55,7 @@ export interface ValidateOptions {
  * initCommand 与 judgeUploadPath 是否自洽、totalScore 与检查点之和是否相等。
  *
  * 审不了的部分（参考解是否真能拿满分、封面好不好看）只能靠线上审计，
- * 所以 `qpc upload --wait` 会把审计结果拉回来，而不是假装本地就能搞定。
+ * 所以 `qpc upload` 会把审计结果拉回来，而不是假装本地就能搞定。
  */
 export const validateProblem = async (
    config: ResolvedProblemConfig,
@@ -209,9 +209,11 @@ export const validateProblem = async (
    }
 
    // ── 运行期配置 ─────────────────────────────────────────────
+   const isBackend = config.type === 'backend_service';
    const mountPath = config.runtime.judgeUploadPath;
    const initCommand = config.runtime.initCommand;
-   if (initCommand && !initCommand.includes(mountPath)) {
+   // RUN001 只对前端题型成立：后端服务不要站点根，而是跑一个常驻进程。
+   if (!isBackend && initCommand && !initCommand.includes(mountPath)) {
       push({
          rule: 'RUN001',
          severity: 'warn',
@@ -220,11 +222,11 @@ export const validateProblem = async (
          hint: '站点根必须等于判题打包目录，否则判题机会在错误的目录下找 index.html 直到超时。',
       });
    }
-   // 在线编辑器点「提交」时会先跑 buildCommand；它为空时编辑器侧直接 return，
+   // RUN004：在线编辑器点「提交」时会先跑 buildCommand；它为空时编辑器侧直接 return，
    // 表现是「点了提交什么都没发生」——静态题目也必须给一条（`echo built` 即可）。
    if (!config.runtime.buildCommand) {
       push({
-         rule: 'RUN002',
+         rule: 'RUN004',
          severity: 'warn',
          message: '未指定 buildCommand，在线编辑器里点「提交」不会有任何反应',
          file: rel(config.configFile),
@@ -237,7 +239,31 @@ export const validateProblem = async (
          severity: 'error',
          message: 'cover.mode=custom 时必须提供 imageId',
          file: rel(config.configFile),
+         hint: '配置了 cover.generate 的话，跑 `qpc cover --upload --write` 一键生成并写回；否则把平台上的图片 id 填进 imageId。',
       });
+   }
+
+   // 后端服务题型的额外约束（详见 docs/BACKEND_SERVICE_PROBLEM.md）
+   if (isBackend) {
+      // RUN002：后端题的 bootCommand 由镜像决定，作者写的会被覆盖，因此只提示不报错。
+      for (const field of config.overriddenByImage) {
+         push({
+            rule: 'RUN002',
+            severity: 'warn',
+            message: `${field} 会被初始镜像 ${config.runtime.serviceImage} 规定的命令覆盖，不会生效`,
+            file: rel(config.configFile),
+            hint: '编辑器里的一次性准备步骤由镜像决定（与容器内的离线安装保持一致）；服务启动命令请写在 runtime.initCommand。',
+         });
+      }
+      if (config.cover.mode === 'default') {
+         push({
+            rule: 'IMG002',
+            severity: 'error',
+            message: '后端服务题型必须使用自定义封面（没有首屏可截图）',
+            file: rel(config.configFile),
+            hint: '把 cover 改成 { mode: "custom", generate: { bg: "#0F172A", bgTo: "#14432A" } }，再跑 `qpc cover --upload --write`。',
+         });
+      }
    }
 
    // ── 工程快照 ───────────────────────────────────────────────
@@ -249,6 +275,7 @@ export const validateProblem = async (
       dir: string,
       snapshot: SnapshotResult,
       rulePrefix: string,
+      requireIndex: boolean,
    ): Promise<void> => {
       const relative = rel(dir);
       if (!(await pathExists(dir))) {
@@ -273,7 +300,7 @@ export const validateProblem = async (
       const hasIndex = Object.keys(snapshot.files).some((key) =>
          key.endsWith('/index.html'),
       );
-      if (label === 'template' && !hasIndex) {
+      if (requireIndex && label === 'template' && !hasIndex) {
          push({
             rule: 'TPL003',
             severity: 'error',
@@ -281,6 +308,21 @@ export const validateProblem = async (
             file: relative,
             hint: 'initCommand 以该目录为站点根启动静态服务器，没有 index.html 时判题会一直等选择器。',
          });
+      }
+      // 后端服务必须有锁文件，否则容器内的离线安装无从谈起。
+      if (isBackend && label === 'answer') {
+         const hasLockfile = Object.keys(snapshot.files).some((key) =>
+            key.endsWith('/pnpm-lock.yaml'),
+         );
+         if (!hasLockfile) {
+            push({
+               rule: 'RUN003',
+               severity: 'error',
+               message: `后端服务参考答案缺少 pnpm-lock.yaml（应在 ${mountPath}/ 下）`,
+               file: relative,
+               hint: '离线安装依赖锁文件；没有它容器无法在断网环境下安装依赖。先在参考答案目录执行一次 pnpm install 生成。',
+            });
+         }
       }
       for (const ignored of snapshot.ignored) {
          push({
@@ -292,8 +334,20 @@ export const validateProblem = async (
       }
    };
 
-   await checkArtifact('template', config.paths.template, template, 'TPL');
-   await checkArtifact('answer', config.paths.answer, answer, 'ANS');
+   await checkArtifact(
+      'template',
+      config.paths.template,
+      template,
+      'TPL',
+      !isBackend,
+   );
+   await checkArtifact(
+      'answer',
+      config.paths.answer,
+      answer,
+      'ANS',
+      !isBackend,
+   );
 
    const maxUploadBytes = options.maxUploadBytes ?? Number.POSITIVE_INFINITY;
    const maxFileCount = options.maxFileCount ?? 500;

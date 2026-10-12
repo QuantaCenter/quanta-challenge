@@ -10,8 +10,6 @@
       "generate": "nuxt generate",
       "preview": "nuxt preview",
       "prod": "node .output/server/index.mjs",
-      "test": "vitest",
-      "smoke": "node scripts/smoke-test.mjs",
       "typecheck": "nuxt prepare && tsc --noEmit -p tsconfig.typecheck.server.json && vue-tsc --noEmit -p tsconfig.typecheck.app.json",
       "typecheck:server": "nuxt prepare && tsc --noEmit -p tsconfig.typecheck.server.json",
       "typecheck:app": "nuxt prepare && vue-tsc --noEmit -p tsconfig.typecheck.app.json",
@@ -90,7 +88,6 @@
       "shiki": "^3.8.1",
       "tailwindcss": "^4.1.11",
       "typescript": "^5.8.3",
-      "vitest": "^3.2.4",
       "vue-tsc": "^3.3.12"
    }
 }

@@ -90,11 +90,13 @@ quanta-challenge/
 │   │   │   └── services/            # 业务服务
 │   │   └── README.md
 │   ├── challenge-agents/            # 评测代理服务
-│   │   ├── judge-machine/           # Playwright 评测机
+│   │   ├── judge-machine/           # Playwright 评测机（前端题型）
 │   │   │   ├── protocol/            # JRTP 传输协议
 │   │   │   ├── src/                 # 评测逻辑
 │   │   │   └── README.md
-│   │   └── live-server/             # 用户代码运行容器
+│   │   ├── live-server/             # 前端题型：用户静态站点运行容器
+│   │   ├── backend-service/         # 后端服务题型：用户服务运行容器（离线安装 + 启动）
+│   │   └── backend-judge-machine/   # 后端服务题型：HTTP 判题机（无 Playwright）
 │   ├── database/                    # 数据库层
 │   │   ├── prisma/                  # Prisma Schema
 │   │   └── index.ts                 # 数据库客户端导出
@@ -150,6 +152,10 @@ pnpm install
 pnpm --filter @challenge/judge-machine-agent docker:build
 pnpm --filter @challenge/live-server-agent docker:build
 
+# 0.5 （可选）后端服务题型需要额外两个镜像；只有存在后端题目时才需要构建
+pnpm --filter @challenge/backend-service-agent docker:build
+pnpm --filter @challenge/backend-judge-machine-agent docker:build
+
 # 1. 构建并启动 Web 应用、调度器、PostgreSQL、Redis
 pnpm docker:up:dev
 
@@ -180,6 +186,10 @@ pnpm docker:build
 cd ../live-server
 pnpm docker:build
 
+# （可选）后端服务题型所需镜像，见 docs/BACKEND_SERVICE_PROBLEM.md
+cd ../backend-service && pnpm docker:build
+cd ../backend-judge-machine && pnpm docker:build
+
 # 4. 启动 Web 应用（终端 1）
 cd ../../challenge-web-app
 pnpm dev
@@ -188,6 +198,13 @@ pnpm dev
 cd ../challenge-judge-scheduler
 pnpm dev
 ```
+
+> **只开发后端服务题型？** 上面第 3 步里的 `judge-machine`（带 Playwright，体积大、构建慢）
+> 可以跳过：调度器在镜像不存在时会**降级运行**（启动只打 WARN，`/health` 返回
+> `status: degraded`），前端题型提交会以 `Judge machine WebSocket is not connected`
+> 明确失败，后端服务题型不受影响。
+> 需要前端判题时再补上 `pnpm --filter @challenge/judge-machine-agent docker:build`。
+> 若镜像在但 1889 端口被占、容器起不来，可用 `JUDGE_MACHINE_OPTIONAL=1` 同样降级。
 
 ### 访问应用
 
@@ -235,7 +252,8 @@ const result = await $trpc.protected.myEndpoint.query();
 在仓库根目录直接调用（`pnpm qpc` 等价于包内 `pnpm dev`，相对路径按仓库根解析）：
 
 ```bash
-pnpm qpc init my-problem --name "购物车合计"   # 生成题目骨架
+pnpm qpc init my-problem --name "购物车合计"   # 生成前端题骨架（默认）
+pnpm qpc init my-api --type backend_service   # 生成后端服务题骨架（含封面图）
 pnpm qpc check my-problem                      # 毫秒级预检（判题脚本/快照/分值）
 pnpm qpc login                                 # 默认设备码授权（浏览器里确认）
 pnpm qpc upload my-problem --wait              # 上传并打印审计的检查点明细

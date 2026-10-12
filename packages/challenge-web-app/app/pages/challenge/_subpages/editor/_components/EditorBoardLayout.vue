@@ -19,13 +19,18 @@ import { resizeBoardPair } from '~/utils/board-layout';
  */
 const layoutStore = useLayoutStore();
 
+const props = withDefaults(
+   defineProps<{ previewLabel?: string }>(),
+   { previewLabel: '实时预览' },
+);
+
 /** DOM 里固定的板块顺序（≠ 视觉顺序） */
 const BOARD_IDS: EditorBoardId[] = ['files', 'code', 'preview'];
-const BOARD_LABEL: Record<EditorBoardId, string> = {
+const BOARD_LABEL = computed<Record<EditorBoardId, string>>(() => ({
    files: '资源管理器',
    code: '代码编辑器 / 终端',
-   preview: '实时预览',
-};
+   preview: props.previewLabel,
+}));
 /** 三条板块之间有两条分隔条 */
 const DIVIDER_INDEXES = [0, 1];
 
@@ -39,6 +44,9 @@ const sizes = computed(() => layoutStore.editorBoardLayout.sizes);
 /** 拖拽分隔条期间的临时宽度（不落盘，避免高频写 localStorage） */
 const draggingSizes = ref<number[] | null>(null);
 const currentSizes = computed(() => draggingSizes.value ?? sizes.value);
+
+/** 正在拖拽的分隔条下标（仅用于把手的激活高亮） */
+const draggingDivider = ref<number | null>(null);
 
 const boardEl = (id: EditorBoardId) =>
    container.value?.querySelector(`[data-board="${id}"]`) as HTMLElement | null;
@@ -115,6 +123,7 @@ const handleDividerDown = (index: number, event: MouseEvent) => {
 
    event.preventDefault();
 
+   draggingDivider.value = index;
    const startSize = leftEl.offsetWidth;
    const endSize = rightEl.offsetWidth;
    const origin = event.clientX;
@@ -143,6 +152,7 @@ const handleDividerDown = (index: number, event: MouseEvent) => {
    const detach = () => {
       document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseup', onMouseUp);
+      draggingDivider.value = null;
       activeCleanup = null;
    };
 
@@ -178,6 +188,7 @@ watch(
    () => layoutStore.resetToken,
    () => {
       draggingSizes.value = null;
+      draggingDivider.value = null;
       draggingBoard.value = null;
       dragOverBoard.value = null;
    }
@@ -248,7 +259,12 @@ watch(
          </div>
       </div>
 
-      <!-- 分隔条 -->
+      <!--
+         分隔条：与 StSplitPanel 保持一致 —— 外层是一条透明的拖拽热区，内部再画一根
+         常驻可见的圆角短把手。
+         早先这里只有 `hover:bg-secondary`，静止状态下整条分隔条完全透明，看起来就像
+         "水平方向没有可拖动的控制柄"（竖直方向因为用的是 SplitPanel，一直有把手）。
+      -->
       <div
          v-for="index in DIVIDER_INDEXES"
          :key="`divider-${index}`"
@@ -262,9 +278,16 @@ watch(
          :aria-disabled="layoutStore.locked"
          :tabindex="layoutStore.locked ? -1 : 0"
          title="拖动调整两侧宽度；方向键微调（Shift 加速）"
-         class="w-1 h-full mx-1 shrink-0 rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-         :class="{ 'opacity-0 hover:!cursor-default': layoutStore.locked }"
+         class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         :class="{
+            'opacity-0 hover:!cursor-default': layoutStore.locked,
+            '!bg-secondary': draggingDivider === index,
+         }"
          @mousedown.left="handleDividerDown(index, $event)"
-         @keydown="handleDividerKeydown(index, $event)" />
+         @keydown="handleDividerKeydown(index, $event)">
+         <div
+            class="w-1 h-8 rounded-xl bg-accent-600 transition-colors group-hover/divider:bg-primary"
+            :class="{ '!bg-primary': draggingDivider === index }" />
+      </div>
    </div>
 </template>

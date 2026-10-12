@@ -89,7 +89,8 @@ $.expect(total === '10.50', '合计应为 10.50，实际为 "' + total + '"');
 
 ### 🟡 坑 5：脚本里不要写 `export default`
 
-判题机内部会把 `export default ` 文本替换成 `const run = `。
+判题机内部会把**代码里真正的** `export default ` 替换成 `const run = `（注释、字符串、
+模板串与正则字面量里的同名文本会被跳过）。
 所以正确写法是**直接写 `export default defineTestHandler(...)`**（会被替换）；
 如果自己写成裸函数声明，替换不生效反而多一层不确定性。照抄现有题目即可。
 
@@ -281,7 +282,7 @@ const arr = await redis.zrevrange(key, 0, -1, 'WITHSCORES');
 - [ ] `initCommand = 'npx -y serve@14.2.6 -l 3000 project'`（锁版本 + 免交互；**不要加** `--no-clipboard`，见坑 11 的真机验证表）
 - [ ] `buildCommand` **必须给**：没有构建步骤的静态题也写 `'echo built'`。
       留空时在线编辑器点「提交」会**毫无反应**（`CommitModal.vue` 里 `!props.buildCommand` 直接 return，
-      构建 / 打包 / 上传整条链路都不开始，且不报错）。`qpc check` 的 RUN002 会提醒这一条
+      构建 / 打包 / 上传整条链路都不开始，且不报错）。`qpc check` 的 RUN004 会提醒这一条
 - [ ] `totalScore` = 各检查点分值之和
 - [ ] `tagIds` 用**已存在的** tag id（当前库里只有 `1 = Vue3`）
 - [ ] `coverMode: 'default'` 时必须提供 `referenceAnswerSnapshot`
@@ -314,9 +315,51 @@ export default defineTestHandler(async ({ page, $ }) => {
 });
 ```
 
+### 等异步请求结束：`page.waitForNetworkIdle({ timeout })`
+
+点击后才会发请求的场景，**不要**用 `page.waitForLoadState('networkidle')`：Playwright 的
+networkidle 是导航期的 lifecycle 事件，页面早就加载完了，点完再等会立即返回。用平台补的：
+
+```js
+const idle = page.waitForNetworkIdle({ timeout: 5000 }); // 先挂等待（默认 3000，上限 5000）
+await page.click('#load-more');                          // 再触发请求
+$.expect(await idle, '点击后 5s 内网络仍未结束');
+```
+
+- 只统计**调用之后**发出的请求，所以顺序必须是“先挂等待、再触发动作”；反过来写会漏统计，
+  于是断言读到旧 DOM，表现为“偶发”失败。
+- 超时返回 `false` 而不是抛错：用 `$.expect` 决定要不要判这个检查点失败，
+  免得脚本级异常把**所有**检查点一起作废（总预算只有 20s，见 `src/services/judge.ts`）。
+- 它只保证“请求已结束”，不代表渲染完成；`$.expect` 之前仍应 `waitForSelector` 等目标元素。
+- `timeout` 上限 5000ms：写更大直接抛错，因为一次等待吃掉一半预算就等于把后面的检查点全作废。
+
 ---
 
-## 七、一句话总结
+## 七、后端服务题型（另一条链路）
+
+前端题目把用户代码当**静态站点**（live-server + Playwright）；后端服务题目把用户代码当
+**常驻进程**（离线安装依赖 → 启动服务 → 用 HTTP 断言）。出题方式差异：
+
+- 直接用 `qpc init --type backend_service` 生成后端骨架（配置、判题脚本、`detail.md`、
+  `template/` 与 `answer/` 两份工程 + `pnpm-lock.yaml`，以及本地渲染好的 `cover.png`），
+  再按下面的约定改。
+- `problem.config.ts` 里写 `type: 'backend_service'`，选择 `runtime.serviceImage`
+  （初始镜像，目前只有 `'node-24'`），声明 `runtime.servicePort`（默认 3000）与
+  `runtime.initCommand`（服务启动命令，编辑器与判题容器共用）。
+  只有 `runtime.bootCommand`（编辑器里的一次性准备步骤）由镜像决定、写了也会被覆盖
+  （`qpc check` 以 RUN002 提示），因为它必须与容器内的离线安装保持一致。详见
+  `docs/BACKEND_SERVICE_PROBLEM.md` §3.5。
+- 参考解目录里**必须有 `pnpm-lock.yaml`**：容器在断网环境用共享 store 装依赖，没有锁文件
+  就无从安装（`qpc check` 会以 RUN003 拦下）。
+- 不能用「默认封面」（首屏截图）—— 后端没有页面可截，必须用自定义封面。
+- 判题脚本不用 `page`，而是 `defineTestHandler(async ({ http, $ }) => {...})`；
+  同样**每个检查点必须 return 分数**，同样用 `$.expect` 写清「期望 vs 实际」。
+
+完整设计、镜像与调度流程见 `docs/BACKEND_SERVICE_PROBLEM.md`。
+
+---
+
+## 八、一句话总结
 
 > **判题的坑几乎全在"隐式约定"上**：分数要 return、路径要统一、按钮状态影响点击、
 > 封面由另一个进程写。凡是约定，都要么写进文档、要么在代码里强制校验 ——

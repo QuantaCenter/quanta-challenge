@@ -12,10 +12,12 @@ export interface CliRuntime {
    stdin: NodeJS.ReadStream;
    stdout: (chunk: string) => void;
    stderr: (chunk: string) => void;
+   // 交互式提示库需要可写流本体（TTY 判定 + 光标控制），与 stderr 函数同源。
+   stderrStream?: NodeJS.WriteStream;
    fetch: FetchLike;
    now: () => number;
    signal?: AbortSignal;
-   /** 默认取 process.stdout.isTTY */
+   // 默认取 process.stdout.isTTY
    isTTY?: boolean;
 }
 
@@ -27,6 +29,7 @@ export const createProcessRuntime = (
    stdin: process.stdin,
    stdout: (chunk) => process.stdout.write(chunk),
    stderr: (chunk) => process.stderr.write(chunk),
+   stderrStream: process.stderr,
    fetch: ((input: string, init?: RequestInit) =>
       globalThis.fetch(input, init)) as FetchLike,
    now: () => Date.now(),
@@ -39,7 +42,7 @@ export const createProcessRuntime = (
  *
  * 第一次 SIGINT：abort，让正在跑的请求与轮询尽快结束（而不是等 15s 超时）。
  * 第二次 SIGINT：用户明显不想等了，直接退出。
- * 不这样做的话，`qpc upload --wait` 期间按 Ctrl-C 会被 fetch 的超时吞掉，
+ * 不这样做的话，`qpc upload` 期间按 Ctrl-C 会被 fetch 的超时吞掉，
  * 终端看起来"没反应"。
  */
 export const installSignalHandlers = (

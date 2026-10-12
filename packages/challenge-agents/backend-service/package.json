@@ -1,0 +1,9 @@
+{
+   "name": "@challenge/backend-service-agent",
+   "scripts": {
+      "docker:build": "docker build -t challenge-backend-service-agent -f ./Dockerfile ../..",
+      "docker:build:proxy": "docker build -t challenge-backend-service-agent -f ./Dockerfile ../.. --build-arg http_proxy=http://host.docker.internal:7890 --build-arg https_proxy=http://host.docker.internal:7890"
+   },
+   "dependencies": {},
+   "devDependencies": {}
+}

@@ -1,4 +1,13 @@
+import {
+   BACKEND_SERVICE_IMAGE_IDS,
+   buildBackendBootCommand,
+   buildBackendInitCommand,
+   getBackendServiceDefaultPort,
+   normalizeBackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
 import { z } from 'zod';
+
+import { COVER_DEFAULTS } from './cover';
 
 /** 与 packages/challenge-web-app/server/trpc/schemas/publish-schema.ts 保持一致 */
 export const DIFFICULTIES = ['easy', 'medium', 'hard', 'very_hard'] as const;
@@ -16,13 +25,53 @@ export const DEFAULT_CONFIG_FILES = [
 export const DEFAULT_JUDGE_UPLOAD_PATH = 'project';
 export const DEFAULT_INIT_COMMAND = 'npx serve -l 3000 project';
 
+/** 题型：前端（静态站点 + Playwright）或后端服务（常驻进程 + HTTP 判题） */
+export const PROBLEM_TYPES = ['frontend', 'backend_service'] as const;
+export type ProblemType = (typeof PROBLEM_TYPES)[number];
+
+/**
+ * 本地生成封面的配色与排版。
+ *
+ * 这几项**不会**随上传发给服务端（服务端只认 imageId），因此可以自由增减：
+ * `qpc cover` 读它渲染 PNG，上传拿到 id 后由 `--write` 把 imageId 写回配置。
+ */
+export const coverGenerateSchema = z.object({
+   /** 背景色（纯色；配合 bgTo 变成对角线渐变） */
+   bg: z.string().default(COVER_DEFAULTS.bg),
+   /** 渐变终止色，留空 = 纯色背景 */
+   bgTo: z.string().optional(),
+   /** 强调色：左侧竖条 + 副标题 */
+   accent: z.string().default(COVER_DEFAULTS.accent),
+   /** 主标题颜色 */
+   text: z.string().default(COVER_DEFAULTS.text),
+   /** 副标题（建议写接口清单或一句话简介），留空则不渲染 */
+   subtitle: z.string().optional(),
+   /** 左下角页脚，默认 “Quanta Challenge” */
+   footer: z.string().optional(),
+   width: z.number().int().min(200).max(4096).default(COVER_DEFAULTS.width),
+   height: z.number().int().min(200).max(4096).default(COVER_DEFAULTS.height),
+   /** 输出文件（相对题目目录） */
+   out: z.string().default('cover.png'),
+});
+export type CoverGenerateOptions = z.output<typeof coverGenerateSchema>;
+
 export const coverSchema = z.union([
    z.object({ mode: z.literal('default') }),
-   z.object({ mode: z.literal('custom'), imageId: z.string().min(1) }),
+   z.object({
+      mode: z.literal('custom'),
+      /** 平台上的图片 id；`qpc cover --upload --write` 会把生成结果写回这里 */
+      imageId: z.string().min(1).optional(),
+      /** 配置了就能用 `qpc cover` 一键生成（后端题型必须自定义封面） */
+      generate: coverGenerateSchema.optional(),
+   }),
 ]);
 
 export const problemConfigSchema = z.object({
    title: z.string().min(1, 'title 不能为空'),
+   /** 平台题目 id（qpc upload 返回的 pid）：填了它就在该题目下追加新版本，否则每次新建 */
+   problemId: z.number().int().positive().optional(),
+   /** 题型；缺省为前端，老题目不需要改配置 */
+   type: z.enum(PROBLEM_TYPES).default('frontend'),
    /** 题面正文；与 detailFile 二选一 */
    detail: z.string().min(1).optional(),
    /** 题面文件（相对题目目录），便于把长题面单独放一个 markdown */
@@ -30,7 +79,7 @@ export const problemConfigSchema = z.object({
    difficulty: z.enum(DIFFICULTIES),
    tagIds: z
       .array(z.number().int().positive())
-      .min(1, 'tagIds 至少需要一个标签（库中现有 1 = Vue3）'),
+      .min(1, 'tagIds 至少需要一个标签（用 `qpc tag` 查看可用 id）'),
    /** 留空表示"以判题脚本里各检查点之和为准"；填写则必须与之和相等 */
    totalScore: z.number().int().positive().optional(),
    cover: coverSchema.default({ mode: 'default' }),
@@ -41,10 +90,15 @@ export const problemConfigSchema = z.object({
          initCommand: z.string().min(1).default(DEFAULT_INIT_COMMAND),
          buildCommand: z.string().min(1).optional(),
          bootCommand: z.string().min(1).optional(),
+         /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
+         serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
+         /** 后端服务：服务监听端口（也是判题机请求的端口） */
+         servicePort: z.number().int().positive().max(65535).default(3000),
       })
       .default({
          judgeUploadPath: DEFAULT_JUDGE_UPLOAD_PATH,
          initCommand: DEFAULT_INIT_COMMAND,
+         servicePort: 3000,
       }),
    paths: z
       .object({
@@ -57,3 +111,53 @@ export const problemConfigSchema = z.object({
 
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;
+
+/**
+ * 后端题的镜像与 bootCommand 由镜像决定（会覆盖作者写的值）；initCommand 只在作者
+ * 没写时填镜像默认值。回报被覆盖的字段，供 `qpc check` 提示。前端题型原样返回。
+ */
+export const applyBackendServiceImageDefaults = (
+   config: ProblemConfig,
+): { config: ProblemConfig; overridden: string[] } => {
+   if (config.type !== 'backend_service') {
+      return { config, overridden: [] };
+   }
+   const mountPath =
+      config.runtime.judgeUploadPath || DEFAULT_JUDGE_UPLOAD_PATH;
+   const serviceImage = normalizeBackendServiceImageId(
+      config.runtime.serviceImage,
+   );
+   const bootCommand = buildBackendBootCommand(serviceImage, mountPath);
+   const defaultInitCommand = buildBackendInitCommand(serviceImage, mountPath);
+
+   const overridden: string[] = [];
+   if (
+      config.runtime.bootCommand &&
+      config.runtime.bootCommand !== bootCommand
+   ) {
+      overridden.push('runtime.bootCommand');
+   }
+   // initCommand 的 schema 默认值是静态服务器命令（前端用），后端题没写时会落到它上面；
+   // 只有这种情况才用镜像默认值替掉它，作者写过的保留。
+   const initCommand =
+      !config.runtime.initCommand ||
+      config.runtime.initCommand === DEFAULT_INIT_COMMAND
+         ? defaultInitCommand
+         : config.runtime.initCommand;
+
+   return {
+      config: {
+         ...config,
+         runtime: {
+            ...config.runtime,
+            serviceImage,
+            servicePort:
+               config.runtime.servicePort ??
+               getBackendServiceDefaultPort(serviceImage),
+            bootCommand,
+            initCommand,
+         },
+      },
+      overridden,
+   };
+};

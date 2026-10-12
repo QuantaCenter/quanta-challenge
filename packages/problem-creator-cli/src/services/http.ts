@@ -89,7 +89,7 @@ export class HttpClient {
 
       // 服务端的 CSRF 校验要求 cookie 与 x-csrf-token 一致（见 server/trpc/context.ts）。
       // 只拿到 access token（例如 CI 里注入 QUANTA_TOKEN）时没有 csrf 值，
-      // 此时退回 `x-ssr: 1` —— 与仓库自带的 scripts/smoke-test.mjs 走的是同一条通道。
+      // 此时退回 `x-ssr: 1`。
       if (this.cookies.csrf) {
          headers['x-csrf-token'] = this.cookies.csrf;
       } else {

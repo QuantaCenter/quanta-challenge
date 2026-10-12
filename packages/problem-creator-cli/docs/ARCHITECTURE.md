@@ -42,6 +42,8 @@ answer/ ───────────┘                                    
 
 POST /api/trpc/admin.problem.upload  （裸 input → {result:{data}}）
         │                                  服务端会再调调度器 /code/extract 归一化脚本
+        │  配了 problemId 时改走 admin.problem.reupload（多一个 baseId，先去
+        │  getAuditDetail 按 pid 查出 baseId），在已有题目下追加新版本
         ▼
    problemId + 审计任务入队
         ▼
@@ -58,8 +60,7 @@ GET /api/trpc/admin.problem.getAuditDetail 轮询
   响应是 `{result:{data}}`（仓库未启用 transformer，因此没有 `json` 包装层）。
 - 查询用 `GET ...?input=<urlencoded json>`。
 - 会话鉴权同时要 cookie（`quanta_access_token` / `quanta_csrf_token`）
-  与请求头 `x-csrf-token`；只有 access token 时退回 `x-ssr: 1`
-  （与 `packages/challenge-web-app/scripts/smoke-test.mjs` 同一通道）。
+  与请求头 `x-csrf-token`；只有 access token 时退回 `x-ssr: 1`。
 - access token 15 分钟过期，401 时用 refresh token 调 `GET /api/refresh` 续期一次后重试。
 
 ## 四、判题脚本为什么用"打码 + 括号配对"而不是真解析器

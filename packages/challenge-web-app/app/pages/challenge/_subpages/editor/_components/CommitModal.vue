@@ -33,6 +33,24 @@ const toSnapshotPath = (path: string) =>
 
 const opened = defineModel<boolean>('opened');
 
+/**
+ * 打包快照时永远跳过的目录/文件。
+ *
+ * 依赖（node_modules）与版本库不是题目内容，而编辑器里的 `npm install` 会把它建在
+ * 题目目录下。不跳过会把整棵依赖树（含平台相关二进制）打进快照：既可能超过上传
+ * 上限，又会污染判题容器（判题侧本来就靠只读 store 离线安装）。
+ */
+const SNAPSHOT_IGNORE = new Set([
+   'node_modules',
+   '.git',
+   '.pnpm-store',
+   '.cache',
+   '.nuxt',
+   '.output',
+   '.DS_Store',
+   '.quanta',
+]);
+
 const steps = ref<IProgressStep[]>([]);
 const initSteps = () => {
    steps.value = [
@@ -106,6 +124,8 @@ const runPackStep = async (distDir: string) => {
          withFileTypes: true,
       });
       for (const file of files) {
+         // 跳过依赖/版本库等噪音（尤其是 node_modules）
+         if (SNAPSHOT_IGNORE.has(file.name)) continue;
          const path = `${dirPath}/${file.name}`;
 
          if (file.isDirectory()) {

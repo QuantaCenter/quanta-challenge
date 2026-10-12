@@ -78,6 +78,8 @@ X-Quanta-Signature: sha256=<hex>           # 见下一节
 | `cloud-function` | `challenge-cloud-function` | 同上。首发会先跑 `prisma migrate deploy`，部署机侧健康探测窗口放宽到 60s |
 | `judge-machine` | `null` | 跑在宿主机（端口 1889），不在默认 compose profile 里，部署机自行处理（如预拉镜像 + 重启宿主机进程） |
 | `live-server` | `null` | 该镜像是调度器判题时按需构建的，通常只需预拉到本地即可 |
+| `backend-service` | `null` | 后端服务题型的题目容器基础镜像（默认镜像），调度器按需使用，预拉到本地即可 |
+| `backend-judge-machine` | `null` | 后端服务题型判题机（宿主机端口 1891），同 judge-machine，预拉镜像后重启调度器即可 |
 
 ## 签名与校验
 

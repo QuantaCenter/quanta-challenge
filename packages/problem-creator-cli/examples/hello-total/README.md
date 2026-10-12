@@ -18,7 +18,7 @@ answer/             参考解：必须拿满分，首屏截图会当作封面
 qpc check
 
 # 2. 上传并等待审计（生成题目版本，审计约 20 秒）
-qpc upload --wait
+qpc upload
 
 # 3. 审计通过后发布
 qpc publish <problemId>
@@ -26,7 +26,7 @@ qpc publish <problemId>
 
 ## 需要人工确认的事（预检覆盖不到）
 
-- [ ] 参考解真的能拿满分（看 `qpc upload --wait` 的检查点明细）
+- [ ] 参考解真的能拿满分（看 `qpc upload` 的检查点明细）
 - [ ] 答案模板明显低分（证明判题能抓错）
 - [ ] 断言消息写清"期望 vs 实际"（预检只做启发式提醒）
 - [ ] 封面好看（默认封面 = 参考解首屏截图）

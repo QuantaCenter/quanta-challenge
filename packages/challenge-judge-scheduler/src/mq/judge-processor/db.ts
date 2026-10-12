@@ -22,6 +22,27 @@ export const getProblemInfoByRecordId = async (judgeRecordId: number) => {
    };
 };
 
+/**
+ * 题目的运行时配置，用来决定「用哪条链路判题」。
+ *
+ * 刻意由调度器从数据库反查，而不是相信任务创建方传入的 problemType：
+ * 前端 / CLI / 未来的入口只要保证 DB 里的题目配置正确，就不会出现
+ * 「传了 frontend 但题目其实是后端服务」的错配。
+ */
+export const getProblemRuntimeInfo = async (problemId: number) => {
+   return await prisma.problems.findUniqueOrThrow({
+      where: { pid: problemId },
+      select: {
+         problemType: true,
+         serviceImage: true,
+         servicePort: true,
+         bootCommand: true,
+         initCommand: true,
+         judgeUploadPath: true,
+      },
+   });
+};
+
 export const getTemplateJudgeRecordCacheFiles = async (problemId: number) => {
    const result = await prisma.templateJudgeRecords.findFirstOrThrow({
       where: {
@@ -156,6 +177,13 @@ export const saveErrorRecord = async (options: {
    startTime: number;
    job: JudgeJob;
 }) => {
+   // 防御性清洗：错误信息可能来自容器日志/二进制输出，带上 NUL(\u0000)。
+   // Postgres 的 text/jsonb 不接受 NUL，写入会直接失败（22P05 unsupported Unicode
+   // escape sequence），于是真正的判题错误被一个「写库失败」盖掉，更难排查。
+   const errorMessage = String(options.error?.message ?? options.error ?? '').replace(
+      /\u0000/g,
+      '',
+   );
    await prisma.judgeRecords.update({
       where: { id: options.job.data.judgeRecordId },
       data: {
@@ -163,7 +191,7 @@ export const saveErrorRecord = async (options: {
          judgingTime: Date.now() - options.startTime,
          result: 'failed',
          info: {
-            errorMessage: options.error.message,
+            errorMessage,
          },
          problem: {
             update: {

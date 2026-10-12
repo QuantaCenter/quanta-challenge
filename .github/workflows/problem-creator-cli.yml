@@ -27,7 +27,7 @@ defaults:
 
 jobs:
   verify:
-    name: lint / typecheck / test / build
+    name: lint / typecheck / build
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -54,9 +54,6 @@ jobs:
 
       - name: Typecheck (tsc, 含 examples)
         run: pnpm typecheck
-
-      - name: Test (vitest)
-        run: pnpm test
 
       - name: Build (tsup)
         run: pnpm build

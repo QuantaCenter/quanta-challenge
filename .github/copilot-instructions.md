@@ -223,7 +223,7 @@ import { prisma } from '@challenge/database';
 
 1. Edit judge script in `packages/app` problem detail
 2. Use exposed API: `defineTestHandler(async ({ page, $ }) => { ... })`
-3. Available methods: `$.saveOrCompare()`, `$.defineCheckPoint()`, `$.expect()`
+3. Available methods: `$.saveOrCompare()`, `$.defineCheckPoint()`, `$.expect()`, `page.waitForNetworkIdle({ timeout })`（上限 5000ms，先挂等待再触发动作）
 
 ### Debug Docker Containers
 
@@ -241,17 +241,10 @@ docker network inspect orange-network
 cd packages/judge && pnpm prod  # Auto-rebuilds container
 ```
 
-## Testing Patterns
+## Testing
 
-**Unit Tests:**
-
-- `packages/app/lib/test/` contains test utilities
-- Use Vitest: `cd packages/app && pnpm test`
-
-**Judge Testing:**
-
-- Standalone test: `packages/docker/judge-machine/test/link.ts`
-- Uses real WebSocket connection to validate judge protocol
+本仓库当前不包含自动化测试（单测 / e2e / 冒烟脚本已从版本库移除）。
+验证改动的方式：`pnpm typecheck`、各包 `pnpm build`，以及运行时的 `/healthz` 与日志。
 
 ## Environment Variables
 

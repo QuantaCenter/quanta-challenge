@@ -508,14 +508,10 @@ export class AchievementObserver {
       );
 
       const defineCheckFunc = (fn: Function) => fn;
-      // 校验脚本在库里通常以 ESM 片段保存（发布页模板见
-      // app/pages/app/publish/achievement/_drawers/ScriptEditingDrawer.vue：
-      // `export default defineCheckFunc((props) => {...})`）。
-      // 这里必须用**锚定**的正则替换：原先的 `script.replace('export default ', ...)`
-      // 是任意位置替换，脚本体里的字符串/注释只要出现同样字样就会被破坏。
-      // 同时兼容没有 `export default` 的裸函数写法（直接当作表达式赋给 check），
-      // 否则脚本会在 vm 里以 "check is not defined" 失败。
-      const scriptBody = script.replace(/^\s*export\s+default\s+/, '');
+      const scriptBody = script.replace(
+         /^(?:.*\n)*?\s*export\s+default\s+/,
+         ''
+      );
       const checkScript = `const check = ${scriptBody}; check(depData);`;
       try {
          const vm = new VM({

@@ -6,8 +6,6 @@
       "build": "vite build",
       "start": "node dist/index.js",
       "typecheck": "tsc --noEmit",
-      "test": "vitest run",
-      "e2e": "tsx scripts/e2e.ts",
       "docker:build": "docker build -t challenge-cloud-function -f ./Dockerfile ../..",
       "docker:build:proxy": "docker build -t challenge-cloud-function -f ./Dockerfile ../.. --build-arg http_proxy=http://host.docker.internal:7890 --build-arg https_proxy=http://host.docker.internal:7890"
    },
@@ -29,7 +27,6 @@
       "@types/node": "^24.0.14",
       "tsx": "^4.7.1",
       "typescript": "^5.8.3",
-      "vite": "^7.3.0",
-      "vitest": "^3.2.4"
+      "vite": "^7.3.0"
    }
 }

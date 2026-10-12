@@ -1,3 +1,10 @@
+import {
+   BACKEND_SERVICE_IMAGE_IDS,
+   buildBackendBootCommand,
+   DEFAULT_BACKEND_SERVICE_IMAGE_ID,
+   getBackendServiceDefaultPort,
+   type BackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
 import { Difficulty } from '@prisma/client';
 import z from 'zod';
 
@@ -33,6 +40,12 @@ const uploadShape = {
    buildCommand: z.string().optional(),
    judgeUploadPath: z.string().min(1, '必须填写打包上传路径'),
    enableCloudFunction: z.boolean().optional(),
+   /** 题型：前端（默认）或后端服务 */
+   problemType: z.enum(['frontend', 'backend_service']).optional(),
+   /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
+   serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
+   /** 后端服务：服务监听端口 */
+   servicePort: z.number().int().positive().max(65535).optional(),
 };
 
 const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
@@ -54,7 +67,43 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          { error: '自定义封面时必须选择一张封面图片' }
+      )
+      // 后端服务没有「首屏」可截，默认封面（首屏截图）永远生成不出来，
+      // 若允许选择会在题目详情页显示一张 404 的封面，因此在这里直接拦掉。
+      .refine(
+         (data: any) => {
+            return data.problemType === 'backend_service'
+               ? data.coverMode === 'custom'
+               : true;
+         },
+         { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
+      )
+      // 后端服务的启动命令必填（默认值由发布页按初始镜像回填，但不锁：
+      // 入口文件、参数、端口都因题而异）。
+      .refine(
+         (data: any) => {
+            return data.problemType === 'backend_service'
+               ? Boolean(data.initCommand && data.initCommand.trim())
+               : true;
+         },
+         { error: '后端服务题型必须填写初始化命令（服务启动命令）' }
       );
+
+export const resolveBackendServiceRuntime = (input: {
+   serviceImage?: BackendServiceImageId;
+   servicePort?: number;
+   judgeUploadPath: string;
+}) => {
+   const serviceImage = input.serviceImage ?? DEFAULT_BACKEND_SERVICE_IMAGE_ID;
+   const mountPath = input.judgeUploadPath || 'project';
+   return {
+      serviceImage,
+      servicePort:
+         input.servicePort ?? getBackendServiceDefaultPort(serviceImage),
+      bootCommand: buildBackendBootCommand(serviceImage, mountPath),
+      enableCloudFunction: false,
+   };
+};
 
 /** 上传新题目 */
 export const UploadSchema = withUploadRefinements(z.object(uploadShape));

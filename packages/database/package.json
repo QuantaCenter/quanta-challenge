@@ -5,7 +5,6 @@
    "description": "",
    "main": "index.js",
    "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1",
       "prisma:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
       "prisma:migrate:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
       "prisma:generate": "prisma generate --schema=./prisma/schema.prisma && node ./prisma/name-map/generate-script.mjs",

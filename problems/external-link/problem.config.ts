@@ -35,7 +35,7 @@ export default defineProblemConfig({
       judgeUploadPath: 'project',
       initCommand: 'npx serve -l 3000 project',
       // 在线编辑器点「提交」时会先跑这条命令，退出码非 0 即失败。
-      // 没有构建步骤的静态题也要给一条，否则编辑器里点提交不会有任何反应（RUN002）。
+      // 没有构建步骤的静态题也要给一条，否则编辑器里点提交不会有任何反应（RUN004）。
       buildCommand: 'echo built',
    },
    paths: {

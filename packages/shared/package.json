@@ -22,8 +22,14 @@
       "./utils/local-store-path": {
          "import": "./utils/local-store-path.ts"
       },
+      "./utils/repo-root": {
+         "import": "./utils/repo-root.ts"
+      },
       "./config": {
          "import": "./configs/search-config.ts"
+      },
+      "./backend-service-image": {
+         "import": "./service/backend-service-image.ts"
       },
       "./openapi": {
          "import": "./service/openapi/sign.ts"
@@ -36,9 +42,6 @@
       }
    },
    "main": "index.js",
-   "scripts": {
-      "test": "echo \"Error: no test specified\" && exit 1"
-   },
    "keywords": [],
    "author": "",
    "license": "ISC",

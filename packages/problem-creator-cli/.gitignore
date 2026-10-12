@@ -2,7 +2,6 @@
 dist/
 coverage/
 *.tsbuildinfo
-.turbo/
 
 # 本地临时目录（预检时展开的快照、下载的审计产物等）
 .tmp/

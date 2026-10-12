@@ -49,7 +49,7 @@ qpc upload problems/external-link           # 新建题目
 qpc publish <pid>
 ```
 
-`buildCommand` 已按 RUN002 写成 `echo built`：没有构建步骤也必须给，
+`buildCommand` 已按 RUN004 写成 `echo built`：没有构建步骤也必须给，
 否则在线编辑器里点「提交」不会有任何反应。
 
 更完整的踩坑清单见仓库 `docs/PROBLEM_AUTHORING.md`。

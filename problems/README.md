@@ -82,7 +82,7 @@ runtime: {
 
 - `problems/cart-total/problem.config.ts`、`problems/theme-switch/problem.config.ts` 都补上了；
 - `qpc init` 生成的脚手架默认带 `buildCommand: 'echo built'`，新题不会再漏；
-- `qpc check` 新增 **RUN002**（warn）：没配 `buildCommand` 就提醒，
+- `qpc check` 新增 **RUN004**（warn）：没配 `buildCommand` 就提醒，
   否则只能到编辑器里点一次才知道（见 `packages/problem-creator-cli/docs/RULES.md`）；
 - `qpc upload` 的内容摘要现在会打印「构建命令」，`--dry-run` 就能核对。
 

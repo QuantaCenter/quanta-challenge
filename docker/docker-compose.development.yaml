@@ -61,6 +61,8 @@ services:
       # 调度器在容器里，容器内的 localhost 指向自身，必须走 host.docker.internal
       # 才能连到宿主机上映射出来的判题机端口 1889。
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
+      # 后端题型判题机映射到宿主机 1891（与前端判题机的 1889 分开）。
+      - BACKEND_JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1891/link
       # 云函数服务：判题侧内部密钥自动认证，受 CF_JUDGE_ALLOWED_FUNCTIONS 白名单约束。
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=judge
@@ -70,6 +72,12 @@ services:
       # Docker daemon —— daemon 按宿主机文件系统解析，容器私有路径必然失败：
       #   invalid mount config for type "bind": bind source path does not exist
       - TEMP_DIR=/app/tmp
+      # 共享 pnpm 缓存：固定路径，调度器是唯一写入方（通过 /cache/update 预热）。
+      - PNPM_CACHE_DIR=/app/pnpm-cache
+      # 预热 / 门禁用哪个镜像起容器。必须是【题目容器镜像】：
+      # pnpm 缓存的 postinstall 产物（如 Prisma 引擎）依赖 openssl/libc/arch，
+      # 用别的镜像预热会在题目容器里 miss。不设置则退化为调度器进程内预热（仅调试）。
+      - PNPM_CACHE_PROBLEM_IMAGE=${PNPM_CACHE_PROBLEM_IMAGE:-}
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
@@ -83,6 +91,9 @@ services:
       # （判题首屏截图）Web 端 /api/static 读不到，所有封面都 404。
       - qtc_app_storage:/app/packages/challenge-web-app/local_store
       - /app/tmp:/app/tmp
+      # pnpm 缓存：宿主机路径与容器内路径保持一致，这样调度器创建题目容器时
+      # 可以直接把这个路径当作 bind mount 的 Source（daemon 按宿主机解析）。
+      - ${PNPM_CACHE_HOST_DIR:-/app/pnpm-cache}:/app/pnpm-cache
 
   challenge-cloud-function:
     build:
@@ -118,6 +129,25 @@ services:
       dockerfile: packages/challenge-agents/live-server/Dockerfile
     profiles:
       - ignore
+
+  # 后端服务题型：Node 24 题目容器镜像（注册表 id `node-24`、展示名「Node.js 24」，
+  # 见 packages/shared/service/backend-service-image.ts；换镜像要同时加注册表条目）
+  challenge-backend-service-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-service/Dockerfile
+    profiles:
+      - ignore
+
+  # 后端服务题型：判题机镜像（懒加载，只有后端题目会用到）
+  challenge-backend-judge-machine-agent:
+    build:
+      context: ../
+      dockerfile: packages/challenge-agents/backend-judge-machine/Dockerfile
+    profiles:
+      - ignore
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   redis:
     image: "redis:7-alpine"

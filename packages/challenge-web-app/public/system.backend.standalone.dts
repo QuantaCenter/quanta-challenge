@@ -1,0 +1,189 @@
+/**
+ * 后端服务题型的判题脚本类型声明（Monaco extra lib）。
+ *
+ * 与 system.frontend.standalone.dts 是两份**独立**声明：两个题型注入的运行时完全不同
+ * （前端是 Playwright 的 page，后端是受约束的 HTTP 客户端 http），写在一起会让出题人
+ * 看到不属于本题型的 API。改任意一份时，记得同步共有的部分（Buffer / 检查点 / 结果）。
+ */
+
+// === Buffer 类型定义 ===
+/**
+ * Buffer 类型接口
+ * 用于处理二进制数据的缓冲区
+ */
+interface Buffer<T extends ArrayBufferLike = ArrayBufferLike>
+   extends Uint8Array {
+   /** 底层的 ArrayBuffer */
+   readonly buffer: T;
+   /** 字节偏移量 */
+   readonly byteOffset: number;
+   /** 字节长度 */
+   readonly byteLength: number;
+   /** 数组长度 */
+   readonly length: number;
+}
+
+/**
+ * 检查点上下文接口
+ * 提供分数管理的方法
+ */
+interface IDefineCheckPointCtx {
+   score: {
+      /** 增加分数 */
+      increment: (increment: number) => void;
+      /** 设置分数 */
+      set: (value: number) => void;
+      /** 获取当前分数 */
+      get: () => number;
+   };
+}
+
+/**
+ * 系统核心类（后端判题机的 System）
+ */
+declare class System {
+   /** 判题过程中脚本主动保存的附带文件 */
+   files: Record<string, Buffer>;
+   getAndCleanupFiles(): Record<string, Buffer>;
+   constructor(mode: 'audit' | 'judge', info?: Record<string, string>);
+   /** 定义检查点 */
+   defineCheckPoint(
+      name: string,
+      totalScore: number,
+      handler: (
+         ctx: IDefineCheckPointCtx
+      ) => Promise<number | void> | number | void,
+      options?: {
+         /** 指定最低通过分数 */
+         passScore?: number;
+         /** 指定总分的特定比例为最低通过分数 */
+         passScoreRate?: number;
+      }
+   ): void;
+   /** 验证期望条件 */
+   expect(expression: any | (() => any), desc: string): void;
+   /** 把文本/二进制存为附件（排查现场用） */
+   save(content: string | Buffer, name?: string): number;
+   /** 计算分数 */
+   score(totalScore: number, rating: () => number): Promise<number>;
+}
+
+/**
+ * 获取暴露给脚本的系统接口（handler 里的 $）
+ */
+declare const getExposeSystem: (sys: System) => {
+   save: (content: string | Buffer, name?: string) => number;
+   score: (totalScore: number, rating: () => number) => Promise<number>;
+   defineCheckPoint: (
+      name: string,
+      totalScore: number,
+      handler: (
+         ctx: IDefineCheckPointCtx
+      ) => Promise<number | void> | number | void,
+      options?: {
+         /** 指定最低通过分数 */
+         passScore?: number;
+         /** 指定总分的特定比例为最低通过分数 */
+         passScoreRate?: number;
+      }
+   ) => void;
+   expect: (expression: any | (() => any), desc: string) => void;
+};
+
+// === HTTP 客户端（后端服务题型） ===
+
+/** HTTP 响应（后端判题机的 http 客户端，见 backend-judge-machine 的 HttpClient） */
+interface HttpResult {
+   status: number;
+   headers: Record<string, string>;
+   /** 原始文本（utf8 解码） */
+   text: string;
+   /** 原始字节 */
+   buffer: Buffer;
+   /** content-type 为 JSON 且解析成功时才有 */
+   json: any;
+}
+
+interface HttpRequestOptions {
+   headers?: Record<string, string>;
+   /** 单请求超时（毫秒），默认 10s */
+   timeoutMs?: number;
+}
+
+/**
+ * 受约束的 HTTP 客户端（后端服务题型的判题脚本用它请求被测服务）。
+ * `path` 相对被测服务地址，只能同源；单请求 10s、响应体上限 2MB。
+ */
+interface HttpClient {
+   get(path: string, options?: HttpRequestOptions): Promise<HttpResult>;
+   post(
+      path: string,
+      body?: unknown,
+      options?: HttpRequestOptions
+   ): Promise<HttpResult>;
+   put(
+      path: string,
+      body?: unknown,
+      options?: HttpRequestOptions
+   ): Promise<HttpResult>;
+   patch(
+      path: string,
+      body?: unknown,
+      options?: HttpRequestOptions
+   ): Promise<HttpResult>;
+   delete(path: string, options?: HttpRequestOptions): Promise<HttpResult>;
+}
+
+/**
+ * 处理器上下文接口
+ * 后端服务题型只注入 http 与 $；前端题型是 page，见 system.frontend.standalone.dts
+ */
+interface IHandlerCtx {
+   /** 受约束的 HTTP 客户端（只能请求被测服务的同源地址） */
+   http: HttpClient;
+   /** 系统接口 */
+   $: ReturnType<typeof getExposeSystem>;
+}
+
+/**
+ * 测试结果接口
+ * 包含分数、状态和详细信息
+ */
+interface ITestResult {
+   /** 得分 */
+   score: number;
+   /** 总分 */
+   totalScore: number;
+   /** 详细信息 */
+   details: string;
+   /** 状态（通过/失败） */
+   status: 'pass' | 'fail';
+}
+
+/**
+ * 定义测试处理器
+ *
+ * @example
+ * export default defineTestHandler(async ({ $, http }) => {
+ *    $.defineCheckPoint('GET /health 返回 ok', 10, async () => {
+ *       const res = await http.get('/health');
+ *       $.expect(res.status === 200, '期望 200，实际 ' + res.status);
+ *       return 10;
+ *    });
+ * });
+ */
+declare const defineTestHandler: (
+   handler: (ctx: IHandlerCtx) => Promise<void>
+) => (
+   http: HttpClient,
+   system: System
+) => Promise<{
+   /** 所有检查点的结果 */
+   results: ITestResult[];
+   /** 总得分 */
+   totalScore: number;
+   /** 最高单项得分 */
+   maxScore: number;
+   /** 整体测试状态 */
+   status: string;
+}>;

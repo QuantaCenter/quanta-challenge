@@ -4,6 +4,7 @@ import type { FormItemStatus } from '../Form/type';
 const props = defineProps<{
    outerClass?: string;
    status?: FormItemStatus;
+   disabled?: boolean;
 }>();
 
 const value = defineModel<string>('value');
@@ -23,6 +24,8 @@ const borderClass = computed(() => {
       <textarea
          v-model="value"
          v-bind="$attrs"
+         :disabled="props.disabled"
+         :class="{ 'opacity-60 cursor-not-allowed': props.disabled }"
          class="bg-transparent border-none outline-none placeholder:text-accent-300 text-white flex-1" />
    </div>
 </template>

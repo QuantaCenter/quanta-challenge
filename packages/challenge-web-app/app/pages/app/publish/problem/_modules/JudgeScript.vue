@@ -2,6 +2,10 @@
 import { Code } from '@icon-park/vue-next';
 import LazyScriptEditingDrawer from '../_drawers/ScriptEditingDrawer.vue';
 
+const props = defineProps<{
+   problemType?: 'frontend' | 'backend_service';
+}>();
+
 const ready = ref(false);
 const isEditing = ref(false);
 const script = defineModel<string>('script', { default: '' });
@@ -11,7 +15,8 @@ const script = defineModel<string>('script', { default: '' });
    <LazyScriptEditingDrawer
       hydrate-on-visible
       v-model:opened="isEditing"
-      v-model:script="script" />
+      v-model:script="script"
+      :problem-type="props.problemType" />
    <div
       class="p-[0.375rem] pb-4 border border-accent-300 rounded-lg flex flex-col items-center gap-3">
       <div

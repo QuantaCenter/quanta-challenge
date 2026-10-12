@@ -3,6 +3,38 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+### Added
+
+- `qpc init --type <frontend | backend_service>`：按题型生成不同骨架。后端服务题
+  （`backend_service`）生成 `type: 'backend_service'` 的配置、用 `http` 断言的后端
+  判题脚本、`detail.md` 题面，以及 `template/` / `answer/` 两份可离线安装的 Node
+  工程（含 `pnpm-lock.yaml`）；并默认写好 `cover: { mode: 'custom', generate }`
+  且**在本地渲染 `cover.png`**（后端没有首屏可截图）。上传换 `imageId` 仍由
+  `qpc cover --upload --write` 完成。**不传 `--type` 时用方向键菜单选择**
+  （基于 `@clack/prompts`：`↑/↓` 移动、回车确认、Ctrl-C 取消）；
+  非交互环境 / `--yes` / `--json` 下不提问，默认 `frontend`，脚本行为与之前一致。
+- `qpc upload` 支持在**已有题目下追加新版本**，不再一律新建题目。配置里填上
+  `problemId`（`qpc upload` 返回的 pid）后默认走服务端的 `reupload`；
+  `--problem <pid>` 临时指定目标，`--new` 强制新建，`--write` 把本次的题目 id
+  就地写回配置（写完重新加载校验，对不上就回滚）。未配置 `problemId` 时行为不变。
+- `qpc cover --random`：随机生成一套**合理**配色并打印可复现的 `seed`
+  （`--seed <n>` 可复现）。「合理」是硬约束而非口彩：主标题对背景 ≥ 7:1、
+  强调色对背景 ≥ 4.5:1 对比度；强调色色相按配色关系（同色系 / 邻近色 /
+  分裂互补 / 互补 / 三角）从背景色相推导；背景限制在深色 + 中等饱和的窄带。
+  颜色优先级为 显式参数 > `--random` > 配置 > 默认值。`--random --write` 会把
+  配色一并写进 `cover.generate`（保留 `subtitle`、`out` 等字段）；只 `--upload`
+  不改配置。
+- 新增 `qpc cover`：从题目配置生成封面图（`cover.generate` 声明配色/尺寸），
+  `--upload` 上传后返回 `cover.imageId`，`--write` 直接写回配置文件并在写完后
+  重新加载校验（对不上就回滚）。命令行参数（`--bg` / `--bg-to` / `--accent` /
+  `--text` / `--subtitle` / `--footer` / `--width` / `--height` / `--out`）
+  覆盖配置里的同名项。颜色只收十六进制。
+- `cover: { mode: 'custom' }` 的 `imageId` 变为可选，并可携带 `generate`
+  配色块：后端题型没有首屏可截图，以前必须去发布页手动传图再抄 id 回配置，
+  现在写配色 + 一条命令即可。
+
 ## [1.0.0] - 2026-10-07
 
 ### Changed

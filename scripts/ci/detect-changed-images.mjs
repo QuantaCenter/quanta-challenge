@@ -78,6 +78,22 @@ const IMAGES = [
       watches: ['packages/challenge-agents/live-server/Dockerfile'],
    },
    {
+      short: 'backend-service',
+      title: '后端服务题目容器',
+      dockerfile: 'packages/challenge-agents/backend-service/Dockerfile',
+      // 只 COPY 自己的 entrypoint.sh；pnpm 从 npm 装，不消费 workspace 源码。
+      watches: ['packages/challenge-agents/backend-service'],
+   },
+   {
+      short: 'backend-judge-machine',
+      title: '后端服务判题机',
+      dockerfile: 'packages/challenge-agents/backend-judge-machine/Dockerfile',
+      watches: [
+         'packages/challenge-agents/backend-judge-machine', // COPY . /app，实际只消费本目录源码
+         'tsconfig.json', // 整仓上下文里的构建配置
+      ],
+   },
+   {
       short: 'cloud-function',
       title: '云函数服务',
       dockerfile: 'packages/challenge-cloud-function/Dockerfile',
