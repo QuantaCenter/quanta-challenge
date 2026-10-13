@@ -4,6 +4,7 @@ import { shikiToMonaco } from '@shikijs/monaco';
 import { registerLanguageWorkers } from './workers';
 import * as editorActions from './editor-actions';
 import { useEventEmitter } from '~/composables/use-event-emitter';
+import { markMonacoThemeActive } from '~/composables/monaco-state';
 import {
    defaultEditorOptions,
    editorThemeRegistration,
@@ -203,6 +204,9 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       // 附加高亮器
       registerHighligher(monaco);
 
+      // 注册语言服务（须在创建编辑器 / 模型之前，保证语言与 worker 已就绪）
+      registerLanguageWorkers(monaco, options?.getWorker);
+
       // 自动重新测量字体
       autoRemeasureFont(monaco);
 
@@ -212,15 +216,15 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          ...options?.options,
       });
       editorInstance = instance;
+      markMonacoThemeActive(
+         options?.options?.theme ?? defaultEditorOptions.theme ?? 'ayu-dark'
+      );
       editorInstanceReadyCallbacks.forEach((callback) =>
          callback(editorInstance!, monaco!)
       );
 
       // 自定义编辑器打开器
       editorActions.customizeEditorOpener(monaco, instance, emitterKey);
-
-      // 注册语言服务
-      registerLanguageWorkers(monaco, options?.getWorker);
    });
 
    onUnmounted(() => {

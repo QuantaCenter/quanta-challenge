@@ -1,4 +1,8 @@
 import type monaco from 'monaco-editor';
+import {
+   getActiveMonacoTheme,
+   markMonacoThemeActive,
+} from './monaco-state';
 
 export interface IUseSimpleEditorOptions {
    script: string;
@@ -19,7 +23,28 @@ type EditorDisposedCallback = (
 
 type EditorContentChangedCallback = (content: string) => void;
 
+/** 定义并启用 simple editor 主题；全局已设置过主题时不再改动。 */
+const applySimpleEditorTheme = (monaco: typeof import('monaco-editor')) => {
+   if (getActiveMonacoTheme()) return;
+   monaco.editor.defineTheme('custom-theme', {
+      base: 'vs-dark',
+      inherit: true,
+      rules: [],
+      colors: {
+         'editor.background': '#1C1C1C',
+      },
+   });
+   try {
+      monaco.editor.setTheme('custom-theme');
+      markMonacoThemeActive('custom-theme');
+   } catch {
+      // 主题已被其它插件接管时忽略
+   }
+};
+
 const setEnvironment = () => {
+   // 已有环境（例如答题页的 Volar worker）时不覆盖
+   if (self.MonacoEnvironment?.getWorker) return;
    self.MonacoEnvironment = {
       getWorker: (_, label) => {
          if (label === 'typescript' || label === 'javascript') {
@@ -81,16 +106,21 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
 
       setEnvironment();
 
-      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-         target: monaco.languages.typescript.ScriptTarget.ES2020,
-         allowNonTsExtensions: true,
-         moduleResolution:
-            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-         module: monaco.languages.typescript.ModuleKind.ESNext,
-         strict: true,
-         noEmit: true,
-         importHelpers: true,
-      });
+      // 已经配置过编译器选项（例如答题页的 paths / typeRoots）时不覆盖
+      const compilerOptions =
+         monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
+      if (!compilerOptions.paths && !compilerOptions.typeRoots) {
+         monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+            target: monaco.languages.typescript.ScriptTarget.ES2020,
+            allowNonTsExtensions: true,
+            moduleResolution:
+               monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+            module: monaco.languages.typescript.ModuleKind.ESNext,
+            strict: true,
+            noEmit: true,
+            importHelpers: true,
+         });
+      }
 
       options.imports?.forEach(async (importPath) => {
          const content = await fetch(importPath).then((res) => res.text());
@@ -105,22 +135,13 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
          editor = monaco.editor.create(el, {
             model,
             language: options.language ?? 'typescript',
-            theme: 'vs-dark',
             automaticLayout: true,
             fontSize: 16,
             autoClosingBrackets: 'always',
             minimap: { enabled: false },
             ...options.options,
          });
-         monaco.editor.defineTheme('custom-theme', {
-            base: 'vs-dark',
-            inherit: true,
-            rules: [],
-            colors: {
-               'editor.background': '#1C1C1C',
-            },
-         });
-         monaco.editor.setTheme('custom-theme');
+         applySimpleEditorTheme(monaco);
       };
 
       createEditor(container.value);
