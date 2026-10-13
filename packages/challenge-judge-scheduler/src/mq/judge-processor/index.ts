@@ -8,7 +8,6 @@ import { EventType } from '../../events/index';
 import type { IStoreService } from '../../utils/store';
 import path from 'path';
 import { LocalStoreService } from '../../utils/local-store';
-import { delay } from '../../utils/wait';
 import { ignoreError } from '../../utils/ignore-error';
 import prisma from '../../utils/prisma';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
@@ -216,8 +215,12 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          );
          cleanup = liveServer.close;
 
-         // 等待容器启动稳定
-         await timer.measure(timingId, '等待 live-server 稳定', () => delay(1000));
+         // 等待容器就绪
+         await timer.measure(
+            timingId,
+            '等待 live-server 就绪',
+            () => liveServer.waitForReady
+         );
 
          networkUrl = liveServer.networkUrl;
          judgeWs = DockerService.instance.judgeMachineWs;

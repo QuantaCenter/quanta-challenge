@@ -286,11 +286,12 @@ export class DockerService extends Singleton {
          // 最终以 "Judge Machine response timeout" 失败。
          this.activeLiveServerIds.add(container.id);
 
+         let readyTimeout: ReturnType<typeof setTimeout> | undefined;
          const waitForReady = new Promise<void>((resolve, reject) => {
             let hasReady = false;
 
             // 设置超时，防止容器长时间未响应
-            setTimeout(() => {
+            readyTimeout = setTimeout(() => {
                if (hasReady) return;
                reject(new Error('Container did not start in time'));
                this.activeLiveServerIds.delete(container.id);
@@ -303,6 +304,7 @@ export class DockerService extends Singleton {
                const output: string = data.toString();
                if (output.includes('Ready')) {
                   hasReady = true;
+                  clearTimeout(readyTimeout);
                   resolve();
                   startProcess.off('data', onData);
                }
@@ -310,6 +312,8 @@ export class DockerService extends Singleton {
 
             startProcess.on('data', onData);
          });
+         // 就绪信号可能不被消费，此处兜底
+         waitForReady.catch(() => {});
 
          return {
             startProcess,
@@ -322,6 +326,7 @@ export class DockerService extends Singleton {
             close: async () => {
                // 先注销再做清理：否则清扫器可能在本容器仍被登记时反复尝试删除。
                this.activeLiveServerIds.delete(container.id);
+               clearTimeout(readyTimeout);
                await ignoreError(() => container.remove({ force: true }));
                await TempFileService.instance.cleanup(fsRootPath);
             },
