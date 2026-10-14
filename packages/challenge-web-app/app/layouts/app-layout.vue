@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Remind, Search, TableReport } from '@icon-park/vue-next';
+import { BookmarkOne, Remind, Search, TableReport } from '@icon-park/vue-next';
 import {
    useMessage,
    useMessageOutsideVue,
@@ -41,6 +41,10 @@ const handleSearchClick = () => {
 
 const handleNotificationClick = () => {
    navigateTo('/app/notifications');
+};
+
+const handleMyFavorites = () => {
+   navigateTo('/app/space/favorites');
 };
 
 const { $trpc } = useNuxtApp();
@@ -117,6 +121,11 @@ onMounted(() => {
                            {{ unreadCount > 99 ? '99+' : unreadCount }}
                         </div>
                      </div>
+                  </StHeaderButton>
+                  <StHeaderButton
+                     @click="handleMyFavorites"
+                     text="我的收藏">
+                     <BookmarkOne class="text-[1.25rem]" />
                   </StHeaderButton>
                   <StHeaderButton
                      v-if="isAdmin"

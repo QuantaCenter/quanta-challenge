@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { DocDetail, TableReport } from '@icon-park/vue-next';
 import { useFavorites } from '~/composables/use-favorites';
+import { useLearningContentStore } from '~/composables/use-learning-store';
 import { PassRate, Score, Difficulty } from '../problems/_components/CardInfo';
 
 useSeoMeta({
@@ -8,7 +9,20 @@ useSeoMeta({
    description: '我收藏的题目与文章。',
 });
 
-const { problemFavorites, articleFavorites, favoriteCount } = useFavorites();
+const { problemFavorites, articleFavorites } = useFavorites();
+
+// 与专题页的文章条目保持一致：LearningArticleRow 只有拿到完整 article 实体
+// 才会展示标签、题数、日期、作者与阅读进度。
+// 解析不到实体的条目（旧版预置收藏、已被删除的文章）是死数据，直接不展示。
+const content = useLearningContentStore();
+const articleRows = computed(() =>
+   articleFavorites.value.flatMap((favorite) => {
+      const article = content.articles.value.find(
+         (item) => item.id === favorite.articleId,
+      );
+      return article ? [{ favorite, article }] : [];
+   }),
+);
 
 // 文章是一等实体：收藏页直接进独立文章页，不要求它被某个专题收录
 const articleLink = (articleId: number) => `/app/articles/${articleId}`;
@@ -24,24 +38,11 @@ const articleLink = (articleId: number) => `/app/articles/${articleId}`;
       <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
          <StSpace align="end" gap="1rem" fill-x>
             <h1 class="text-[2.5rem] font-bold text-white">收藏</h1>
-            <span
-               class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
-               共 {{ favoriteCount }} 项
-            </span>
-            <NuxtLink
-               to="/app/space"
-               class="ml-auto mb-3 st-font-caption text-accent-300 hover:text-secondary transition-colors">
-               返回个人空间
-            </NuxtLink>
          </StSpace>
 
          <StSpace align="center" gap="0.625rem" class="mt-8">
             <TableReport class="text-[1.375rem] text-accent-200" />
             <h2 class="st-font-third-bold text-white">题目</h2>
-            <span
-               class="st-font-tooltip text-accent-300 bg-accent-600 px-2 py-0.5 rounded-full">
-               {{ problemFavorites.length }} 道
-            </span>
          </StSpace>
 
          <StGrid
@@ -98,10 +99,6 @@ const articleLink = (articleId: number) => `/app/articles/${articleId}`;
          <StSpace align="center" gap="0.625rem" class="mt-10">
             <DocDetail class="text-[1.375rem] text-accent-200" />
             <h2 class="st-font-third-bold text-white">文章</h2>
-            <span
-               class="st-font-tooltip text-accent-300 bg-accent-600 px-2 py-0.5 rounded-full">
-               {{ articleFavorites.length }} 篇
-            </span>
          </StSpace>
 
          <StSpace
@@ -111,10 +108,11 @@ const articleLink = (articleId: number) => `/app/articles/${articleId}`;
             fill-x
             class="mt-4">
             <LearningArticleRow
-               v-for="article in articleFavorites"
-               :key="article.articleId"
-               :favorite="article"
-               :to="articleLink(article.articleId)" />
+               v-for="row in articleRows"
+               :key="row.favorite.articleId"
+               :article="row.article"
+               :favorite="row.favorite"
+               :to="articleLink(row.favorite.articleId)" />
          </StSpace>
 
          <StEmptyStatus

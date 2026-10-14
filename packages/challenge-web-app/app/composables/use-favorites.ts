@@ -8,8 +8,9 @@ import type {
 /**
  * 收藏（题目 + 文章）。
  *
- * ⚠️ 静态预览：还没有收藏表与接口，收藏落在浏览器 localStorage 里。
- * 初始值预置了几条，好让收藏页一进去不是空的；用户自己的增删以本地为准。
+ * 收藏落在浏览器 localStorage 里；内容实体（文章 id、题目 baseId）以服务端为准。
+ * 不再预置演示条目：旧的预置 id 来自 localStorage 时代的静态种子，
+ * 在「服务端 cuid → 数字 id」的内容体系里永远解析不到实体，只会显示成死条目。
  */
 
 export interface FavoriteProblem {
@@ -97,40 +98,13 @@ export const toFavoriteProblemFromApi = (problem: {
 });
 
 const DEFAULT_FAVORITES: FavoriteState = {
-   problems: [
-      {
-         key: 'base:4001',
-         baseId: 4001,
-         title: '用 flex 实现等高三栏',
-         difficulty: 'easy',
-         totalScore: 100,
-      },
-      {
-         key: 'base:4201',
-         baseId: 4201,
-         title: '语义化一个产品卡片',
-         difficulty: 'easy',
-         totalScore: 100,
-      },
-   ],
-   articles: [
-      {
-         articleId: 104,
-         title: '语义化标签',
-         summary: '同一个视觉结果，只有一种写法是对的',
-         coverPreset: 'ember',
-      },
-      {
-         articleId: 305,
-         title: '事件循环',
-         summary: '宏任务与微任务分别插在哪里',
-         coverPreset: 'violet',
-      },
-   ],
+   problems: [],
+   articles: [],
 };
 
-// v2：层级重排后文章 id 变了，旧键里的快照会指向不存在的文章
-const STORAGE_KEY = 'quanta-learning-favorites-v2';
+// v3：数字 id 从「静态种子序号」换成「cuid 哈希」，旧键里的快照 id 全部失准，
+// 升键让旧的（含被预置数据污染的）收藏整体作废，用户重新点星标即可
+const STORAGE_KEY = 'quanta-learning-favorites-v3';
 
 const clone = (state: FavoriteState): FavoriteState => ({
    problems: state.problems.map((item) => ({ ...item })),
