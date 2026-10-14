@@ -4,6 +4,8 @@ import {
    registerProviders,
 } from '@volar/monaco';
 import * as languageConfigs from './language-configs';
+import type { WorkerLanguageService } from '@volar/monaco/worker';
+import type { editor, IRange, languages, Uri } from 'monaco-editor';
 import type { MonacoEditor } from '.';
 
 // 导入 worker 文件
@@ -17,6 +19,70 @@ import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&ur
 const createWorker = async (workerPath: string) => {
    return new Worker(workerPath, { type: 'module' });
 };
+
+interface LspRange {
+   start: { line: number; character: number };
+   end: { line: number; character: number };
+}
+interface LspTextEdit {
+   range: LspRange;
+   newText: string;
+}
+
+const toLspRange = (range: IRange): LspRange => ({
+   start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+   end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+});
+const toMonacoTextEdit = ({ range, newText }: LspTextEdit) => ({
+   range: {
+      startLineNumber: range.start.line + 1,
+      startColumn: range.start.character + 1,
+      endLineNumber: range.end.line + 1,
+      endColumn: range.end.character + 1,
+   },
+   text: newText,
+});
+
+/**
+ * @volar/monaco（截至 2.4.28）的 provideColorPresentations 从一个从未写入的 WeakMap 取颜色信息，
+ * 恒返回 undefined；Monaco 拿到空列表后颜色选择器标题为空，点选时读 `[0].textEdit` 直接抛错。
+ * 这里在注册时替换成按颜色自身范围请求的实现。
+ */
+const withColorPresentationsFix = (
+   monacoLanguages: MonacoEditor['languages'],
+   worker: editor.MonacoWebWorker<WorkerLanguageService>,
+   getSyncUris: () => Uri[]
+): MonacoEditor['languages'] =>
+   Object.create(monacoLanguages, {
+      registerColorProvider: {
+         value: (
+            selector: languages.LanguageSelector,
+            provider: languages.DocumentColorProvider
+         ) =>
+            monacoLanguages.registerColorProvider(selector, {
+               ...provider,
+               async provideColorPresentations(model, { color, range }) {
+                  const service = await worker.withSyncedResources(
+                     getSyncUris()
+                  );
+                  const presentations = await service.getColorPresentations(
+                     0,
+                     model.uri,
+                     color,
+                     toLspRange(range)
+                  );
+                  return (presentations ?? []).map((presentation) => ({
+                     label: presentation.label,
+                     textEdit:
+                        presentation.textEdit &&
+                        toMonacoTextEdit(presentation.textEdit),
+                     additionalTextEdits:
+                        presentation.additionalTextEdits?.map(toMonacoTextEdit),
+                  }));
+               },
+            }),
+      },
+   });
 
 export const registerLanguageWorkers = (
    monaco: MonacoEditor,
@@ -77,7 +143,7 @@ export const registerLanguageWorkers = (
       id: 'vue',
       extensions: ['.vue'],
    });
-   const worker = monaco.editor.createWebWorker({
+   const worker = monaco.editor.createWebWorker<WorkerLanguageService>({
       moduleId: 'vs/language/vue/vueWorker',
       label: 'vue',
    });
@@ -104,7 +170,12 @@ export const registerLanguageWorkers = (
       activateAutoInsertion(worker, languageId, getSyncUris, monaco.editor),
    ];
    // @ts-ignore
-   const providers = registerProviders(worker, languageId, getSyncUris, monaco.languages);
+   const providers = registerProviders(
+      worker,
+      languageId,
+      getSyncUris,
+      withColorPresentationsFix(monaco.languages, worker, getSyncUris)
+   );
 
    const vueShimDts = `
     declare module '*.vue' {
