@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import {
-   DocDetail,
-   FileCollection,
    SaveOne,
    UploadTwo,
 } from '@icon-park/vue-next';
@@ -58,7 +56,6 @@ const prefill = () => {
    if (!source) return;
    draft.value = {
       title: source.title,
-      slug: source.slug,
       summary: source.summary,
       body: articleMarkdown(source),
       coverMode: source.coverUrl ? 'custom' : 'preset',
@@ -72,14 +69,14 @@ watch(article, prefill, { immediate: true });
 
 const router = useRouter();
 // 提交后回上一页：上一页读的是同一份内容状态，内容一变它自然就是新的
-const backAfterSubmit = () => goBackOr(router, '/app/publish/content');
+const backAfterSubmit = () => goBackOr(router, '/app/manage/content');
 
 const saveDraft = () => {
    message.success(
       '草稿已保存',
       props.mode === 'create'
          ? '正文与封面存在浏览器本地，刷新后还在'
-         : '改动先留在表单里，点「保存修改」才会写回内容库',
+         : '改动先留在表单里，点「保存修改」才会写回内容管理',
    );
 };
 
@@ -97,7 +94,6 @@ const submitArticle = async () => {
 
    const payload = {
       title: draft.value.title,
-      slug: draft.value.slug,
       summary: draft.value.summary,
       body: draft.value.body,
       coverPreset: draft.value.coverPreset,
@@ -144,7 +140,7 @@ const submitArticle = async () => {
          v-else
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-[56rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem" fill-x>
             <h1 class="st-font-hero-bold">
                {{ mode === 'create' ? '发布文章' : '编辑文章' }}
@@ -168,7 +164,7 @@ const submitArticle = async () => {
                <NuxtLink
                   v-for="topic in owners"
                   :key="topic.id"
-                  :to="`/app/topics/${topic.id}`"
+                  :to="`/app/learning/${topic.id}`"
                   class="st-font-tooltip text-secondary hover:opacity-75 transition-opacity">
                   {{ topic.name }}
                </NuxtLink>
@@ -185,6 +181,12 @@ const submitArticle = async () => {
                direction="vertical"
                gap="1.75rem"
                class="w-full px-[0.625rem]">
+               <ArticleCoverPicker
+                  v-model:mode="draft.coverMode"
+                  v-model:preset="draft.coverPreset"
+                  v-model:url="draft.coverUrl"
+                  v-model:image-id="draft.coverImageId" />
+
                <StFormItem name="title" label="文章标题" required>
                   <StInput
                      v-model:value="draft.title"
@@ -193,28 +195,12 @@ const submitArticle = async () => {
                      :outer-class />
                </StFormItem>
 
-               <StSpace gap="1.5rem" fill-x>
-                  <StFormItem name="slug" label="英文标识">
-                     <StInput
-                        v-model:value="draft.slug"
-                        placeholder="例如：css-layout"
-                        :outer-class />
-                  </StFormItem>
-                  <StFormItem name="summary" label="一句话摘要" required>
-                     <StInput
-                        v-model:value="draft.summary"
-                        :maxlength="SUMMARY_MAX"
-                        placeholder="它出现在文章列表与专题页里"
-                        :outer-class />
-                  </StFormItem>
-               </StSpace>
-
-               <StFormItem name="cover" label="文章封面">
-                  <ArticleCoverPicker
-                     v-model:mode="draft.coverMode"
-                     v-model:preset="draft.coverPreset"
-                     v-model:url="draft.coverUrl"
-                     v-model:image-id="draft.coverImageId" />
+               <StFormItem name="summary" label="一句话摘要" required>
+                  <StInput
+                     v-model:value="draft.summary"
+                     :maxlength="SUMMARY_MAX"
+                     placeholder="它出现在文章列表与专题页里"
+                     :outer-class />
                </StFormItem>
 
                <StFormItem name="body" label="正文" required>
@@ -222,14 +208,6 @@ const submitArticle = async () => {
                </StFormItem>
 
             </StSpace>
-
-            <NuxtLink
-               to="/app/publish/content"
-               target="_blank"
-               class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1 px-2 mt-4">
-               <FileCollection size="0.875rem" />
-               内容库
-            </NuxtLink>
 
             <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">
                <StSpace gap="1rem" align="center">
