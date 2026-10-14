@@ -124,7 +124,6 @@ export interface LearningArticle {
    id: number;
    /** 服务端主键 */
    cuid?: string;
-   slug: string;
    title: string;
    summary: string;
    /** 发布时间（服务端 createdAt） */

@@ -14,8 +14,8 @@ import {
  * 所以这里从 `app/composables/learning-content.ts` 读同一份常量写库，
  * 保证「代码里的初始内容」与「库里的初始内容」永远一致。
  *
- * 幂等：按 slug upsert。重复执行只会把内容对齐到常量，不会产生重复行；
- * 用户自己新建的内容（slug 不在常量里）不受影响。
+ * 幂等：课程与专题按 slug upsert，文章按标题 upsert。重复执行只会把内容对齐到常量，
+ * 不会产生重复行；用户自己新建的内容（不在常量里）不受影响。
  */
 const COURSE_STATUS_FROM_SEED: CourseStatus = 'PUBLISHED';
 
@@ -92,29 +92,36 @@ export async function seedLearningContent() {
       }
    }
 
-   /* ---------- 文章（先建，专题要引用它的 id） ---------- */
-   const articleIdBySlug = new Map<string, string>();
+   /* ---------- 文章（先建，专题要引用它的 id；按标题幂等） ---------- */
+   const articleIdByTitle = new Map<string, string>();
    let skippedProblemRefs = 0;
    for (const article of SEED_ARTICLES) {
-      const row = await prisma.article.upsert({
-         where: { slug: article.slug },
-         update: {
-            title: article.title,
-            summary: article.summary,
-            source: article.body,
-            coverPreset: article.coverPreset,
-         },
-         create: {
-            authorId: author.id,
-            slug: article.slug,
-            title: article.title,
-            summary: article.summary,
-            source: article.body,
-            coverPreset: article.coverPreset,
-         },
+      const existing = await prisma.article.findFirst({
+         where: { title: article.title },
          select: { id: true },
       });
-      articleIdBySlug.set(article.slug, row.id);
+      const row = existing
+         ? await prisma.article.update({
+              where: { id: existing.id },
+              data: {
+                 title: article.title,
+                 summary: article.summary,
+                 source: article.body,
+                 coverPreset: article.coverPreset,
+              },
+              select: { id: true },
+           })
+         : await prisma.article.create({
+              data: {
+                 authorId: author.id,
+                 title: article.title,
+                 summary: article.summary,
+                 source: article.body,
+                 coverPreset: article.coverPreset,
+              },
+              select: { id: true },
+           });
+      articleIdByTitle.set(article.title, row.id);
 
       // 题目引用：正文是唯一真源，每次 seed 整体重算这张表
       const baseIds = parseProblemBaseIds(article.body);
@@ -167,8 +174,8 @@ export async function seedLearningContent() {
       });
       topicIdBySlug.set(topic.slug, row.id);
 
-      const articleRows = topic.articleSlugs
-         .map((slug) => articleIdBySlug.get(slug))
+      const articleRows = topic.articleTitles
+         .map((slug) => articleIdByTitle.get(title))
          .filter((id): id is string => id !== undefined);
 
       await prisma.$transaction([

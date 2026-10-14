@@ -7,13 +7,12 @@ import type { ArticleCoverPreset } from './use-learning';
  * 会让 `learning-content.ts` 变得很长；拆开后「改内容」只需要看这一个文件。
  *
  * 约定：
- *   · `slug` 是稳定标识，专题靠它引用文章，**不要随手改**；
+ *   · `title` 是稳定标识，种子专题靠它引用文章，**不要随手改**；
  *   · 正文里引用题目写 `<Problem baseId={…} />`，题号来自 `PROBLEM_REGISTRY`；
  *   · 每篇结构保持一致：小标题 → 说明 / 代码 / 列表 → 需要时收一句强调整句。
  */
 
 export interface SeedArticle {
-   slug: string;
    title: string;
    summary: string;
    coverPreset: ArticleCoverPreset;
@@ -25,7 +24,6 @@ export const SEED_ARTICLES: SeedArticle[] = [
    /* ================= HTML ================= */
 
    {
-      slug: 'document-tree',
       title: '文档树：浏览器眼里没有「文本」',
       summary: 'HTML 被解析成一棵 DOM 树，之后的一切都发生在这棵树上',
       coverPreset: 'ember',
@@ -58,7 +56,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    },
 
    {
-      slug: 'parsing-is-forgiving',
       title: '解析容错：为什么少了闭合标签也不报错',
       summary: 'HTML 解析器会按规范猜测意图，再把缺失的部分补完',
       coverPreset: 'slate',
@@ -88,7 +85,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    },
 
    {
-      slug: 'semantic-tags',
       title: '语义化标签：视觉相同，写法只有一种对',
       summary: '用对标签，键盘、读屏和搜索引擎都会受益',
       coverPreset: 'ember',
@@ -127,7 +123,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    },
 
    {
-      slug: 'forms-and-a11y',
       title: '表单可访问性：三个最常被忽略的细节',
       summary: 'label、错误提示、提交按钮，决定表单能不能被正常使用',
       coverPreset: 'slate',
@@ -173,7 +168,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    /* ================= CSS ================= */
 
    {
-      slug: 'flex-layout',
       title: 'Flex 布局：先把一维排列讲清楚',
       summary: '主轴、交叉轴与剩余空间，三件事决定一行怎么排',
       coverPreset: 'aurora',
@@ -210,7 +204,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    },
 
    {
-      slug: 'grid-layout',
       title: 'Grid 布局：二维排版与自适应卡片墙',
       summary: '当排列方向不止一个，就该交给 grid',
       coverPreset: 'mint',
@@ -237,7 +230,6 @@ CSS 选择器要找的是「树上的节点」，不是「文本里的字符串�
    },
 
    {
-      slug: 'custom-properties',
       title: 'CSS 变量：运行时可读写的样式参数',
       summary: '它是主题化的地基，也是 JS 与 CSS 之间的接口',
       coverPreset: 'violet',
@@ -279,7 +271,6 @@ html[data-theme='dark'] {
    },
 
    {
-      slug: 'dark-mode',
       title: '深色模式的三个坑',
       summary: '纯黑、图片过亮、刷新闪一下，都是上线后才暴露',
       coverPreset: 'aurora',
@@ -320,7 +311,6 @@ html[data-theme='dark'] {
    },
 
    {
-      slug: 'specificity',
       title: '优先级与层叠：样式为什么没生效',
       summary: '用三元组算权重，用 :where() 主动降低权重',
       coverPreset: 'mint',
@@ -354,7 +344,6 @@ html[data-theme='dark'] {
    },
 
    {
-      slug: 'attribute-selectors',
       title: '属性选择器：把状态直接写进选择器',
       summary: '[data-theme] 这类写法为什么好用',
       coverPreset: 'slate',
@@ -385,7 +374,6 @@ document.documentElement.dataset.theme = 'dark';
    /* ================= JavaScript ================= */
 
    {
-      slug: 'node-operations',
       title: 'DOM 节点操作：建、填、插三件套',
       summary: '记住三个动作，绝大多数列表渲染都能写出来',
       coverPreset: 'mint',
@@ -422,7 +410,6 @@ const render = (items) => {
    },
 
    {
-      slug: 'event-delegation',
       title: '事件委托：为什么给容器挂一个监听就够',
       summary: '冒泡加 closest，动态列表不再逐个绑定',
       coverPreset: 'violet',
@@ -451,7 +438,6 @@ list.addEventListener('click', (event) => {
    },
 
    {
-      slug: 'local-storage',
       title: 'localStorage：边界比你想象的多',
       summary: '只能存字符串、同步、隐私模式下可能直接抛异常',
       coverPreset: 'slate',
@@ -489,7 +475,6 @@ const readState = () => {
    },
 
    {
-      slug: 'async-basics',
       title: 'Promise 与 async/await：把回调压成直线',
       summary: '异步难读的不是异步，而是被打散的控制流',
       coverPreset: 'violet',
@@ -527,7 +512,6 @@ const load = async () => {
    },
 
    {
-      slug: 'promise-concurrency',
       title: '并发控制：Promise.all 与分批执行',
       summary: '一起等用 all，限流用分批加 await',
       coverPreset: 'aurora',
@@ -570,7 +554,6 @@ const inBatches = async (tasks, size = 3) => {
    /* ================= 浏览器调试 ================= */
 
    {
-      slug: 'devtools-panels',
       title: '调试面板：哪类问题去哪个面板',
       summary: 'Elements / Console / Network 各管一段',
       coverPreset: 'mint',
@@ -599,7 +582,6 @@ getComputedStyle($0).backgroundColor; // 最终生效的颜色
    },
 
    {
-      slug: 'breakpoints',
       title: '断点与调用栈：不写 log 也能看清现场',
       summary: '条件断点、debugger、从下往上读栈',
       coverPreset: 'slate',
@@ -627,7 +609,6 @@ onClick (list.js:41)      ← 入口
    /* ================= Git 与协作 ================= */
 
    {
-      slug: 'commit-message',
       title: '提交信息怎么写才经得起回看',
       summary: '半年后翻 git log 的人，就是你的读者',
       coverPreset: 'slate',
@@ -662,7 +643,6 @@ fix bug
    },
 
    {
-      slug: 'branch-model',
       title: '分支模型：让主干随时可发布',
       summary: '功能开分支，合回主干前先 rebase',
       coverPreset: 'ember',
@@ -690,7 +670,6 @@ git push -u origin feat/theme-switch
    },
 
    {
-      slug: 'merge-conflicts',
       title: '一次合并冲突的处理流程',
       summary: '看懂冲突标记，再决定保留什么',
       coverPreset: 'violet',

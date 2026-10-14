@@ -29,7 +29,6 @@ export interface LearningContentState {
 
 export interface ArticleInput {
    title: string;
-   slug: string;
    summary: string;
    body: string;
    coverPreset?: LearningArticle['coverPreset'];
@@ -59,8 +58,9 @@ export interface CourseInput {
 
 /* ---------- 初始内容 ---------- */
 
-const slugToArticleId = new Map(
-   SEED_ARTICLES.map((article, index) => [article.slug, seedArticleId(index)]),
+/** 种子专题靠文章标题引用文章（标题在种子常量里唯一） */
+const titleToArticleId = new Map(
+   SEED_ARTICLES.map((article, index) => [article.title, seedArticleId(index)]),
 );
 const slugToTopicId = new Map(
    SEED_TOPICS.map((topic, index) => [topic.slug, seedTopicId(index)]),
@@ -74,7 +74,6 @@ export const buildSeedArticles = (): LearningArticle[] =>
       const { blocks, problems } = parseArticleBody(article.body);
       return {
          id: seedArticleId(index),
-         slug: article.slug,
          title: article.title,
          summary: article.summary,
          content: blocks,
@@ -95,8 +94,8 @@ export const buildSeedTopics = (): LearningTopic[] =>
       prerequisites: topic.prerequisites
          .map((slug) => slugToTopicId.get(slug))
          .filter((id): id is number => id !== undefined),
-      articleIds: topic.articleSlugs
-         .map((slug) => slugToArticleId.get(slug))
+      articleIds: topic.articleTitles
+         .map((title) => titleToArticleId.get(title))
          .filter((id): id is number => id !== undefined),
       coverPreset: topic.coverPreset,
    }));
@@ -160,7 +159,6 @@ export const createArticle = (
    const { blocks, problems } = parseArticleBody(input.body);
    const article: LearningArticle = {
       id: nextId(state.articles),
-      slug: input.slug.trim() || nowSlug('article'),
       title: input.title.trim(),
       summary: input.summary.trim(),
       content: blocks,
@@ -183,7 +181,6 @@ export const updateArticle = (
    const { blocks, problems } = parseArticleBody(input.body);
    const next: LearningArticle = {
       ...current,
-      slug: input.slug.trim() || current.slug,
       title: input.title.trim(),
       summary: input.summary.trim(),
       content: blocks,

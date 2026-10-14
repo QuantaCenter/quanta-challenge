@@ -895,7 +895,6 @@ model TopicPrerequisite {
 model Article {
   id          String   @id @default(cuid())
   authorId    String
-  slug        String   @unique
   title       String
   summary     String   @default("")
   /// 正文的**真源**：Markdown，题目处写 `<Problem baseId={…} />`（§13.3）

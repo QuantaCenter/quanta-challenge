@@ -8,7 +8,7 @@ import type {
  * 学习内容的**真源**：课程 / 专题 / 文章的初始内容。
  *
  * 文章正文在 `learning-articles.ts`，本文件保留题库注册表、专题与课程。
- * 专题靠 `articleSlugs` 引用文章，两边用的是同一份 `slug`，不会出现对不上的情况。
+ * 专题靠 `articleTitles`（文章标题）引用文章，两边用的是同一份常量，不会出现对不上的情况。
  */
 
 /* ---------- 题库：两道已发布的题（本仓库 problems/ 下的目录） ---------- */
@@ -47,7 +47,7 @@ export interface SeedTopic {
    description: string;
    weight: number;
    prerequisites: string[];
-   articleSlugs: string[];
+   articleTitles: string[];
    coverPreset: ArticleCoverPreset;
 }
 
@@ -59,7 +59,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '先弄清文档是怎么被解析成一棵树的，再谈标签怎么写。',
       weight: 10,
       prerequisites: [],
-      articleSlugs: ['document-tree', 'parsing-is-forgiving'],
+      articleTitles: ['文档树：浏览器眼里没有「文本」', '解析容错：为什么少了闭合标签也不报错'],
       coverPreset: 'ember',
    },
    {
@@ -69,7 +69,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '语义化标签与可访问性：同一个视觉结果，只有一种写法是对的。',
       weight: 20,
       prerequisites: ['document-structure'],
-      articleSlugs: ['semantic-tags', 'forms-and-a11y'],
+      articleTitles: ['语义化标签：视觉相同，写法只有一种对', '表单可访问性：三个最常被忽略的细节'],
       coverPreset: 'slate',
    },
    {
@@ -79,7 +79,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: 'flex 与 grid 是两篇独立的文章，不是同一篇里的两节。',
       weight: 10,
       prerequisites: [],
-      articleSlugs: ['flex-layout', 'grid-layout'],
+      articleTitles: ['Flex 布局：先把一维排列讲清楚', 'Grid 布局：二维排版与自适应卡片墙'],
       coverPreset: 'aurora',
    },
    {
@@ -89,7 +89,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '自定义属性是运行时可读写的，主题切换靠的就是它。',
       weight: 20,
       prerequisites: ['layout'],
-      articleSlugs: ['custom-properties', 'dark-mode'],
+      articleTitles: ['CSS 变量：运行时可读写的样式参数', '深色模式的三个坑'],
       coverPreset: 'violet',
    },
    {
@@ -99,7 +99,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '优先级、层叠，以及用 :where() 主动降低权重。',
       weight: 30,
       prerequisites: ['layout'],
-      articleSlugs: ['specificity', 'attribute-selectors'],
+      articleTitles: ['优先级与层叠：样式为什么没生效', '属性选择器：把状态直接写进选择器'],
       coverPreset: 'mint',
    },
    {
@@ -109,7 +109,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '节点操作与事件模型，浏览器里最基础的一套 API。',
       weight: 10,
       prerequisites: [],
-      articleSlugs: ['node-operations', 'event-delegation'],
+      articleTitles: ['DOM 节点操作：建、填、插三件套', '事件委托：为什么给容器挂一个监听就够'],
       coverPreset: 'mint',
    },
    {
@@ -119,7 +119,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: 'localStorage 与它之外的选择，浏览器给的那几个全局对象。',
       weight: 20,
       prerequisites: ['dom'],
-      articleSlugs: ['local-storage'],
+      articleTitles: ['localStorage：边界比你想象的多'],
       coverPreset: 'slate',
    },
    {
@@ -129,7 +129,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: 'Promise、并发控制，卡人的地方都在这。',
       weight: 30,
       prerequisites: ['dom'],
-      articleSlugs: ['async-basics', 'promise-concurrency'],
+      articleTitles: ['Promise 与 async/await：把回调压成直线', '并发控制：Promise.all 与分批执行'],
       coverPreset: 'violet',
    },
    {
@@ -139,7 +139,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '不改代码就能看清页面到底发生了什么。',
       weight: 10,
       prerequisites: [],
-      articleSlugs: ['devtools-panels', 'breakpoints'],
+      articleTitles: ['调试面板：哪类问题去哪个面板', '断点与调用栈：不写 log 也能看清现场'],
       coverPreset: 'mint',
    },
    {
@@ -149,7 +149,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '提交信息是写给半年后的自己看的。',
       weight: 10,
       prerequisites: [],
-      articleSlugs: ['commit-message'],
+      articleTitles: ['提交信息怎么写才经得起回看'],
       coverPreset: 'slate',
    },
    {
@@ -159,7 +159,7 @@ export const SEED_TOPICS: SeedTopic[] = [
       description: '让主干随时可发布，冲突来了也别慌。',
       weight: 20,
       prerequisites: ['commit'],
-      articleSlugs: ['branch-model', 'merge-conflicts'],
+      articleTitles: ['分支模型：让主干随时可发布', '一次合并冲突的处理流程'],
       coverPreset: 'ember',
    },
 ];

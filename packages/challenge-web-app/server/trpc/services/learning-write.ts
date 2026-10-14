@@ -67,7 +67,6 @@ const assertProblemsPublished = async (source: string): Promise<number[]> => {
 
 export interface ArticleInput {
    title: string;
-   slug: string;
    summary: string;
    source: string;
    coverPreset: string;
@@ -79,16 +78,10 @@ export const createArticle = async (
    input: ArticleInput,
 ): Promise<ArticleDto> => {
    const baseIds = await assertProblemsPublished(input.source);
-   const existing = await prisma.article.findUnique({
-      where: { slug: input.slug },
-      select: { id: true },
-   });
-   if (existing) throw conflict(`英文标识 ${input.slug} 已被占用`, '换一个 slug');
 
    const row = await prisma.article.create({
       data: {
          authorId,
-         slug: input.slug,
          title: input.title,
          summary: input.summary,
          source: input.source,
@@ -117,20 +110,12 @@ export const updateArticle = async (
    if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: '没有这篇文章' });
 
    const baseIds = await assertProblemsPublished(input.source);
-   const slugOwner = await prisma.article.findUnique({
-      where: { slug: input.slug },
-      select: { id: true },
-   });
-   if (slugOwner && slugOwner.id !== id) {
-      throw conflict(`英文标识 ${input.slug} 已被占用`, '换一个 slug');
-   }
 
    // 正文是真源：引用表整体重算
    await prisma.$transaction([
       prisma.article.update({
          where: { id },
          data: {
-            slug: input.slug,
             title: input.title,
             summary: input.summary,
             source: input.source,

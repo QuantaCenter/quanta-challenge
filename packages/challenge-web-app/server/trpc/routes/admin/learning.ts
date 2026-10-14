@@ -31,11 +31,6 @@ import {
  */
 const articleInput = z.object({
    title: z.string().min(1, '标题不能为空').max(80),
-   slug: z
-      .string()
-      .min(1, '英文标识不能为空')
-      .max(80)
-      .regex(/^[a-z0-9-]+$/, '英文标识只能用小写字母、数字与连字符'),
    summary: z.string().max(160).default(''),
    source: z.string().min(1, '正文不能为空'),
    coverPreset: z.string().min(1).default('slate'),

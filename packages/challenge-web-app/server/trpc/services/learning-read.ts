@@ -47,7 +47,6 @@ export const topicSelect = {
 
 const articleSelect = {
    id: true,
-   slug: true,
    title: true,
    summary: true,
    source: true,
@@ -95,7 +94,6 @@ export const toTopicDto = (row: TopicRow) => ({
 
 export const toArticleDto = (row: ArticleRow) => ({
    id: row.id,
-   slug: row.slug,
    title: row.title,
    summary: row.summary,
    source: row.source,

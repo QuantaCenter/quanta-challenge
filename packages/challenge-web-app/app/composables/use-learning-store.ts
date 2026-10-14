@@ -289,7 +289,6 @@ export const useLearningContentStore = () => {
       const created = await mutation(() =>
          $trpc.admin.learning.createArticle.mutate({
             title: input.title,
-            slug: input.slug,
             summary: input.summary,
             source: input.body,
             coverPreset: input.coverPreset ?? 'slate',
@@ -315,7 +314,6 @@ export const useLearningContentStore = () => {
          $trpc.admin.learning.updateArticle.mutate({
             id: current.cuid!,
             title: input.title,
-            slug: input.slug,
             summary: input.summary,
             source: input.body,
             coverPreset: input.coverPreset ?? 'slate',

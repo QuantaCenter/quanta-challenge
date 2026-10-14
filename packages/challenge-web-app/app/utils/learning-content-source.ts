@@ -41,7 +41,6 @@ export interface ServerTopic {
 
 export interface ServerArticle {
    id: string;
-   slug: string;
    title: string;
    summary: string;
    /** 正文 Markdown（含 `<Problem baseId={…} />`） */
@@ -160,7 +159,6 @@ export const toArticle = (
    return {
       id: numericIdOf(row.id),
       cuid: row.id,
-      slug: row.slug,
       title: row.title,
       summary: row.summary,
       createdAt: row.createdAt ? String(row.createdAt) : undefined,

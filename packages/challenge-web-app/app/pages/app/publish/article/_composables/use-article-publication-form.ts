@@ -4,7 +4,6 @@ import type { ArticleCoverPreset } from '~/composables/use-learning';
 
 export interface IArticleDraft {
    title: string;
-   slug: string;
    summary: string;
    /** 正文源码：Markdown，插入题目处写 <Problem baseId={...} />（见设计文档 §13.3） */
    body: string;
@@ -20,7 +19,6 @@ export const SUMMARY_MAX = 80;
 
 export const createEmptyArticleDraft = (): IArticleDraft => ({
    title: '',
-   slug: '',
    summary: '',
    body: '',
    coverMode: 'preset',
