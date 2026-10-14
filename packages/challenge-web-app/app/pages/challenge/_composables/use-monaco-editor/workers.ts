@@ -171,6 +171,11 @@ export const registerLanguageWorkers = (
          ['javascript', languageConfigs.js],
          ['typescript', languageConfigs.ts],
          ['css', languageConfigs.css],
+         ['postcss', languageConfigs.css],
+         ['scss', languageConfigs.cssPreprocessor],
+         ['less', languageConfigs.cssPreprocessor],
+         ['sass', languageConfigs.cssPreprocessor],
+         ['stylus', languageConfigs.cssPreprocessor],
          ['html', languageConfigs.html],
       ] as const
    ).map(([id, createConfig]) =>

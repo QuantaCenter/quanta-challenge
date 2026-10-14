@@ -123,6 +123,20 @@ export const css = (_: MonacoEditor): languages.LanguageConfiguration => ({
    ),
 });
 
+/** SCSS / LESS / Sass / Stylus：在 CSS 基础上支持 `//` 行注释与 `$` 变量 */
+export const cssPreprocessor = (
+   monaco: MonacoEditor
+): languages.LanguageConfiguration => ({
+   ...css(monaco),
+   comments: {
+      lineComment: '//',
+      blockComment: ['/*', '*/'],
+   },
+   wordPattern: new RegExp(
+      '(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\\w-?]+%?|[@#!$.])'
+   ),
+});
+
 export const vue = ({
    languages,
 }: MonacoEditor): languages.LanguageConfiguration => ({
