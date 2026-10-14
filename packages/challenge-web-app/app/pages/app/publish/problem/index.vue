@@ -333,7 +333,7 @@ const handleSubmit = async () => {
                </StFormItem>
                <StFormItem
                   name="buildCommand"
-                  label="构建命令（提交时执行一次，必须自行退出；无构建步骤时填一条立即退出的命令）">
+                  label="构建命令（提交时执行一次，必须自行退出；留空则直接打包上传路径）">
                   <StInput
                      v-model:value="draft.buildCommand"
                      placeholder="例如：npm --prefix ./project run build"
