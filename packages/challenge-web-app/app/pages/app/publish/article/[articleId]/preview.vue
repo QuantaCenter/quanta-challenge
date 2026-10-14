@@ -100,11 +100,6 @@ useSeoMeta({
                <LearningProblemBlock
                   v-if="item.kind === 'problem'"
                   :problem="item.problem"
-                  :index="
-                     items
-                        .slice(0, idx + 1)
-                        .filter((entry) => entry.kind === 'problem').length - 1
-                  "
                   variant="source" />
 
                <h2

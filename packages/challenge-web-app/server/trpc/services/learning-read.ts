@@ -1,5 +1,6 @@
 import prisma from '~~/lib/prisma';
 import type { Prisma } from '@prisma/client';
+import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 
 /**
  * 学习内容的**读取**服务：课程 / 专题 / 文章。
@@ -55,6 +56,13 @@ const articleSelect = {
    authorId: true,
    createdAt: true,
    updatedAt: true,
+   Author: {
+      select: {
+         name: true,
+         displayName: true,
+         avatar: { select: { name: true } },
+      },
+   },
    Problems: {
       orderBy: { sort: 'asc' },
       select: { baseId: true, sort: true },
@@ -96,6 +104,12 @@ export const toArticleDto = (row: ArticleRow) => ({
    authorId: row.authorId,
    createdAt: row.createdAt,
    updatedAt: row.updatedAt,
+   author: {
+      name: row.Author.displayName || row.Author.name,
+      avatarUrl: row.Author.avatar?.name
+         ? `/api/static/${row.Author.avatar.name}`
+         : null,
+   },
    problems: row.Problems.map((item) => item.baseId),
 });
 
@@ -262,11 +276,15 @@ export const resolveArticleProblems = async (baseIds: number[]) => {
       totalScore: item.totalScore,
       // available=false 前端会渲染成「该题目不可用」且不给链接
       available: item.available,
+      imageName: item.imageName,
+      imageHash: item.imageHash,
+      imageThumbhashUrl: item.imageThumbhashUrl,
+      tags: item.tags,
    }));
 };
 
 /**
- * 题目摘要：学习侧要把 `baseId` 渲染成题目卡片（标题/难度/分值）
+ * 题目摘要：学习侧要把 `baseId` 渲染成题目卡片（标题/难度/分值/封面）
  * 与「引用已失效」的标记，所以单独给一个只读接口。
  * 只回**已发布**的题，其余标 `available: false`。
  */
@@ -283,13 +301,18 @@ export const listProblemSummaries = async (baseIds: number[]) => {
                difficulty: true,
                totalScore: true,
                status: true,
+               tags: { select: { name: true, color: true } },
+               CoverImage: { select: { name: true, thumbhash: true } },
+               ProblemDefaultCover: {
+                  select: { image: { select: { name: true, thumbhash: true } } },
+               },
             },
          },
       },
    });
 
    const byBaseId = new Map(rows.map((row) => [row.id, row]));
-   return baseIds.map((baseId) => {
+   const summaries = baseIds.map((baseId) => {
       const row = byBaseId.get(baseId);
       const current = row?.CurrentProblem;
       const published = current?.status === 'published';
@@ -300,6 +323,25 @@ export const listProblemSummaries = async (baseIds: number[]) => {
          difficulty: current?.difficulty ?? 'easy',
          totalScore: current?.totalScore ?? 0,
          available: published,
+         // 没有封面必须是 null 而不是空字符串：前端才能让 StImage 走占位图
+         imageName:
+            current?.CoverImage?.name ||
+            current?.ProblemDefaultCover?.[0]?.image?.name ||
+            null,
+         imageHash:
+            current?.CoverImage?.thumbhash ||
+            current?.ProblemDefaultCover?.[0]?.image?.thumbhash ||
+            null,
+         tags: current?.tags ?? [],
       };
    });
+
+   // 在服务端把 thumbhash 解码成 data URL（带缓存），SSR 首帧就能拿到占位图
+   const thumbhashUrls = await renderThumbhashDataUrls(
+      summaries.map((item) => item.imageHash),
+   );
+   return summaries.map((item, index) => ({
+      ...item,
+      imageThumbhashUrl: thumbhashUrls[index],
+   }));
 };

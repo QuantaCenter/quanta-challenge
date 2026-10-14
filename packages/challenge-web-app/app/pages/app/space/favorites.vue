@@ -104,18 +104,18 @@ const articleLink = (articleId: number) => `/app/articles/${articleId}`;
             </span>
          </StSpace>
 
-         <StGrid
+         <StSpace
             v-if="articleFavorites.length"
+            direction="vertical"
+            gap="0"
             fill-x
-            :cols="4"
-            gap="1rem"
             class="mt-4">
-            <LearningArticleCard
+            <LearningArticleRow
                v-for="article in articleFavorites"
                :key="article.articleId"
                :favorite="article"
                :to="articleLink(article.articleId)" />
-         </StGrid>
+         </StSpace>
 
          <StEmptyStatus
             v-else

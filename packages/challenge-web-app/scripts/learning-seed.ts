@@ -1,10 +1,10 @@
 import prisma from '@challenge/database';
 import type { CourseStatus } from '@prisma/client';
+import { SEED_ARTICLES } from '../app/composables/learning-articles.ts';
 import {
-   SEED_ARTICLES,
    SEED_COURSES,
    SEED_TOPICS,
-} from '../app/composables/learning-content';
+} from '../app/composables/learning-content.ts';
 
 /**
  * 把「学习内容」的初始内容灌进数据库：课程 / 专题 / 文章。

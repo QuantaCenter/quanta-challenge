@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Star } from '@icon-park/vue-next';
+import { useMessage } from '~/components/st/Message/use-message';
 import {
    useFavorites,
    type FavoriteArticle,
@@ -19,11 +20,14 @@ const props = withDefaults(
       size?: 'sm' | 'base';
       /** 浮在封面 / 卡片上时用：自带一层深色底，避免压在图上看不清 */
       raised?: boolean;
+      /** 卡片上的收藏位：默认隐藏，卡片 hover 或已收藏时常驻（父级需带 group） */
+      revealOnHover?: boolean;
    }>(),
-   { size: 'base', raised: false },
+   { size: 'base', raised: false, revealOnHover: false },
 );
 
 const favorites = useFavorites();
+const message = useMessage();
 
 const asProblem = computed(() => props.target as FavoriteProblem);
 const asArticle = computed(() => props.target as FavoriteArticle);
@@ -34,12 +38,19 @@ const active = computed(() =>
       : favorites.isArticleFavorite(asArticle.value.articleId),
 );
 
+const revealClass = computed(() => {
+   if (!props.revealOnHover) return '';
+   return active.value ? 'opacity-100' : 'opacity-0 group-hover:opacity-100';
+});
+
 // 卡片整块通常是链接，按钮必须自己吃掉这次点击
 const toggle = (event: MouseEvent) => {
    event.preventDefault();
    event.stopPropagation();
+   const adding = !active.value;
    if (props.kind === 'problem') favorites.toggleProblem(asProblem.value);
    else favorites.toggleArticle(asArticle.value);
+   message.success(adding ? '收藏成功' : '取消收藏成功');
 };
 
 const iconSize = computed(() => (props.size === 'sm' ? '0.875rem' : '1.125rem'));
@@ -52,9 +63,10 @@ const boxClass = computed(() => (props.size === 'sm' ? 'size-6' : 'size-8'));
       :title="active ? '取消收藏' : '收藏'"
       :aria-label="active ? '取消收藏' : '收藏'"
       :aria-pressed="active"
-      class="flex items-center justify-center rounded-full transition-colors"
+      class="flex items-center justify-center rounded-full cursor-pointer transition active:scale-95"
       :class="[
          boxClass,
+         revealClass,
          raised
             ? 'bg-background/55 backdrop-blur-xs hover:bg-background/80'
             : 'hover:bg-accent-500',

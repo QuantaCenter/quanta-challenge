@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { BookOne, CheckOne, Plus, Right } from '@icon-park/vue-next';
 import {
-   topicsOfArticle,
    useLearningActiveCourses,
    useLearningArticles,
    useLearningRecommendedCourses,
@@ -23,19 +22,13 @@ const recommendedCourses = useLearningRecommendedCourses(
 );
 
 // 文章页的地址要带一个专题上下文，所以取第一个引用它的专题
-const articleRows = useLearningArticles(content).map((article) => {
-   const owners = topicsOfArticle(article.id, content);
-   return {
-      article,
-      // 文章是一等实体：没有专题收录也能打开，所以一律指向独立文章页
-      to: `/app/articles/${article.id}`,
-      description: owners.length
-         ? `收录于 ${owners.map((topic) => topic.name).join(' · ')}`
-         : article.summary,
-   };
-});
+const allArticleRows = useLearningArticles(content).map((article) => ({
+   article,
+   // 文章是一等实体：没有专题收录也能打开，所以一律指向独立文章页
+   to: `/app/articles/${article.id}`,
+}));
+const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
 
-const articleCount = articleRows.length;
 </script>
 
 <template>
@@ -64,9 +57,6 @@ const articleCount = articleRows.length;
 
                <StSpace align="center" gap="0.75rem" fill-x class="mt-8">
                   <h2 class="st-font-third-bold text-white">文章</h2>
-                  <span class="st-font-tooltip text-accent-400">
-                     全部 {{ articleCount }} 篇
-                  </span>
                   <NuxtLink to="/app/publish/article" class="ml-auto">
                      <StButton size="sm" bordered>
                         <StSpace align="center" gap="0.375rem">
@@ -77,14 +67,15 @@ const articleCount = articleRows.length;
                   </NuxtLink>
                </StSpace>
 
-               <StGrid fill-x :cols="3" gap="1rem" class="mt-4">
-                  <LearningArticleCard
+               <StSpace direction="vertical" gap="0" fill-x class="mt-4">
+                  <LearningArticleRow
                      v-for="row in articleRows"
                      :key="row.article.id"
                      :article="row.article"
-                     :to="row.to"
-                     :description="row.description" />
-               </StGrid>
+                     :to="row.to" />
+               </StSpace>
+
+               <div ref="sentinelRef" class="h-1 w-full shrink-0"></div>
             </div>
 
             <!-- 右列：我学习的课程（比专题栏长，下面接推荐课程与全部课程入口） -->

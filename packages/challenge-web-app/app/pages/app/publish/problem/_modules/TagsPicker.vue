@@ -34,7 +34,9 @@ const fetchTags = async (): Promise<(ISelectOption & { color: string })[]> => {
          label: tag.name,
          value: tag.tid,
          color: tag.color ?? '#FA7C0E',
-         imageUrl: tag.url ? `http://localhost:3000${tag.url}` : undefined,
+         // 接口给的 url 本来就是根相对路径（/api/static/xxx），直接当图片地址用即可，
+         // 不能拼主机名：写死 localhost 会让线上也指向本机
+         imageUrl: tag.url ?? undefined,
       }))
       .toSorted((a, b) =>
          a.label.localeCompare(b.label)

@@ -5,7 +5,6 @@ import {
    articlesOfCourse,
    courseTopics,
    isCoursePublished,
-   topicsOfArticle,
    useLearningCourse,
 } from '~/composables/use-learning';
 import { useLearningVisits } from '~/composables/use-learning-visits';
@@ -30,20 +29,16 @@ const topics = computed(() =>
    course.value ? courseTopics(course.value.id, content) : [],
 );
 
-// 课程里的每篇文章都带一个专题上下文，方便点进文章页
-const articleRows = computed(() =>
-   (course.value ? articlesOfCourse(course.value.id, content) : []).map((article) => {
-      // 文章不依赖专题：统一指向独立文章页（专题上下文只用于「返回」时的去向）
-      const owner = topicsOfArticle(article.id, content).find(
-         (topic) => topic.courseId === course.value?.id,
-      );
-      return {
+const allArticleRows = computed(() =>
+   (course.value ? articlesOfCourse(course.value.id, content) : []).map(
+      (article) => ({
          article,
+         // 文章不依赖专题：统一指向独立文章页
          to: `/app/articles/${article.id}`,
-         description: owner ? `收录于 ${owner.name}` : article.summary,
-      };
-   }),
+      }),
+   ),
 );
+const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
 
 useSeoMeta({
    title: computed(() =>
@@ -143,17 +138,19 @@ useSeoMeta({
          <StSpace align="center" gap="0.75rem" fill-x class="mt-8">
             <h2 class="st-font-third-bold text-white">文章</h2>
             <span class="st-font-tooltip text-accent-400">
-               {{ articleRows.length }} 篇
+               {{ allArticleRows.length }} 篇
             </span>
          </StSpace>
 
-         <StGrid fill-x :cols="4" gap="1rem" class="mt-4">
-            <LearningArticleCard
+         <StSpace direction="vertical" gap="0" fill-x class="mt-4">
+            <LearningArticleRow
                v-for="row in articleRows"
                :key="row.article.id"
                :article="row.article"
                :to="row.to" />
-         </StGrid>
+         </StSpace>
+
+         <div ref="sentinelRef" class="h-1 w-full shrink-0"></div>
 
          <StSpacer fill flex no-shrink height="4rem" />
       </StSpace>

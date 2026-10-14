@@ -198,7 +198,7 @@ const {
             <StGrid v-else fill :cols="4" gap="1.25rem">
                <div
                   v-for="(problem, idx) in problems"
-                  class="relative h-fit"
+                  class="group relative h-fit"
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx">
                   <a
@@ -233,6 +233,7 @@ const {
                      kind="problem"
                      :target="toFavoriteProblemFromApi(problem)"
                      raised
+                     reveal-on-hover
                      class="absolute right-4 top-4 z-10" />
                </div>
             </StGrid>

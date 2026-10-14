@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { DocDetail, Left } from '@icon-park/vue-next';
-import {
-   topicsOfArticle,
-   useLearningArticles,
-} from '~/composables/use-learning';
+import { useLearningArticles } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
 
 /**
@@ -11,14 +8,8 @@ import { useLearningContentStore } from '~/composables/use-learning-store';
  * 与学习首页的「全站文章」栏是同一份数据，只是给了一个独立入口。
  */
 const content = useLearningContentStore();
-const articles = useLearningArticles(content);
-
-const rows = computed(() =>
-   articles.map((article) => ({
-      article,
-      owners: topicsOfArticle(article.id, content),
-   })),
-);
+const allArticles = useLearningArticles(content);
+const { items: articles, sentinelRef } = usePagedList(allArticles, 10);
 
 useSeoMeta({
    title: '文章 - Quanta Challenge',
@@ -45,7 +36,7 @@ useSeoMeta({
             <h1 class="text-[2.5rem] font-bold text-white">文章</h1>
             <span
                class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
-               共 {{ rows.length }} 篇
+               共 {{ allArticles.length }} 篇
             </span>
          </StSpace>
 
@@ -56,18 +47,15 @@ useSeoMeta({
             </span>
          </StSpace>
 
-         <StGrid fill-x :cols="3" gap="1rem" class="mt-6">
-            <LearningArticleCard
-               v-for="row in rows"
-               :key="row.article.id"
-               :article="row.article"
-               :to="`/app/articles/${row.article.id}`"
-               :description="
-                  row.owners.length
-                     ? `收录于 ${row.owners.map((t) => t.name).join(' · ')}`
-                     : row.article.summary
-               " />
-         </StGrid>
+         <StSpace direction="vertical" gap="0" fill-x class="mt-6">
+            <LearningArticleRow
+               v-for="article in articles"
+               :key="article.id"
+               :article="article"
+               :to="`/app/articles/${article.id}`" />
+         </StSpace>
+
+         <div ref="sentinelRef" class="h-1 w-full shrink-0"></div>
 
          <StSpacer fill flex no-shrink height="4rem" />
       </StSpace>

@@ -12,7 +12,7 @@ useSeoMeta({ title: '文章 - Quanta Challenge' });
       direction="vertical"
       align="center"
       gap="0"
-      class="hide-scrollbar overflow-auto">
+      class="hide-scrollbar">
       <LearningArticleReader
          :article-id="articleId"
          :topic-slug="topicId" />

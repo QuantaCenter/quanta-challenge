@@ -1,5 +1,5 @@
+import { SEED_ARTICLES } from '~/composables/learning-articles';
 import {
-   SEED_ARTICLES,
    SEED_COURSES,
    SEED_TOPICS,
    seedArticleId,

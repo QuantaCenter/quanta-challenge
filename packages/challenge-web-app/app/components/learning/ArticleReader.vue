@@ -1,30 +1,30 @@
 <script setup lang="ts">
-import { DocDetail, Left, Right } from '@icon-park/vue-next';
+import dayjs from 'dayjs';
+import { BookOne, Calendar, DocDetail, Right } from '@icon-park/vue-next';
 import { articleProgress, topicProgress } from '~/utils/learning-progress';
 import {
+   articlesOfTopic,
    topicsOfArticle,
    useLearningArticle,
+   useLearningArticles,
    useLearningTopic,
-   type ContentBlock,
-   type LearningArticle,
+   type LearningProblemRef,
 } from '~/composables/use-learning';
-import { useLearningContentStore } from '~/composables/use-learning-store';
-import {
+import { useLearningContentStore } from '~/composables/use-learning-store';import {
    useLearningVisits,
    useMarkContentDone,
    useRecordVisit,
 } from '~/composables/use-learning-visits';
-import { toFavoriteArticle } from '~/composables/use-favorites';
-import { articleContentItems } from '~/utils/learning-markdown';
-import { renderInline, renderParagraph } from '~/utils/inline-markdown';
+import {
+   PROBLEM_DIRECTIVE_PATTERN,
+   renderArticleSource,
+} from '~/utils/learning-markdown';
+import { ARTICLE_TEXT_SIZE_CLASS } from '~/utils/inline-markdown';
+import { useMarkdown } from '~/composables/use-markdown';
 
 /**
- * 文章阅读器。
- *
- * 文章是**一等实体**（设计文档 §6.7）：它可以不属于任何专题，
- * 所以这个组件不要求专题上下文 —— 传了 `topicSlug` 就显示「专题面包屑 + 返回专题」，
- * 没传就按「独立文章」渲染（返回全部文章）。两种入口共用同一份渲染逻辑，
- * 避免"只有从专题点进来才看得到"这种把文章绑回专题的做法。
+ * 文章阅读器。顶部居中标题 + 封面大图，正文分两栏：左侧作者信息卡、右侧正文。
+ * 正文里的 `<Problem baseId={…} />` 换成哨兵注释，渲染后再切回题目块。
  */
 const props = withDefaults(
    defineProps<{
@@ -38,6 +38,7 @@ const props = withDefaults(
 );
 
 const content = useLearningContentStore();
+const allArticles = useLearningArticles(content);
 const visits = useLearningVisits();
 const article = computed(() =>
    useLearningArticle(props.articleId, content),
@@ -59,9 +60,24 @@ const state = computed(() =>
       : undefined,
 );
 
-const items = computed(() =>
-   article.value ? articleContentItems(article.value) : [],
+const authorName = computed(() => article.value?.authorName ?? '匿名');
+const authorAvatarUrl = computed(
+   () => article.value?.authorAvatarUrl ?? undefined,
 );
+const publishDate = computed(() =>
+   article.value?.createdAt
+      ? dayjs(article.value.createdAt).format('YYYY-MM-DD')
+      : '',
+);
+const topicNames = computed(() =>
+   ownerTopics.value.map((item) => item.name).join(' · '),
+);
+const hasAuthor = computed(() => Boolean(article.value?.authorName));
+const authorArticleCount = computed(() => {
+   const name = article.value?.authorName;
+   if (!name) return 0;
+   return allArticles.filter((item) => item.authorName === name).length;
+});
 
 // 「最近学习」靠这条记录（按 cuid 存，跨刷新保留）
 useRecordVisit('article', () => article.value?.cuid);
@@ -86,17 +102,54 @@ useMarkContentDone({
    },
 });
 
-const textOf = (block: ContentBlock) => ('text' in block ? block.text : '');
-const itemsOf = (block: ContentBlock) => ('items' in block ? block.items : []);
-const html = (text: string) => renderInline(text);
-// 段落按 marked 的 breaks: true 渲染：段内换行 → <br>
-const paragraphHtml = (text: string) => renderParagraph(text);
+const PROBLEM_SLOT = '<!--learning-problem-slot-->';
+const ARTICLE_TEXT_PATTERN =
+   /<ArticleText size="(sm|base|lg)">([\s\S]*?)<\/ArticleText>/g;
+
+const markdownSource = computed(() => {
+   if (!article.value) return '';
+   const source = article.value.source ?? renderArticleSource(article.value);
+   return source
+      .replace(PROBLEM_DIRECTIVE_PATTERN, `\n\n${PROBLEM_SLOT}\n\n`)
+      .replace(ARTICLE_TEXT_PATTERN, (_match, size: string, inner: string) => {
+         const cls = ARTICLE_TEXT_SIZE_CLASS[size] ?? ARTICLE_TEXT_SIZE_CLASS.base;
+         return `<span class="${cls}">${inner}</span>`;
+      });
+});
+
+const { html: bodyHtml, update } = useMarkdown({ codeHeader: true });
+// setup 阶段先渲染一次：SSR 直出正文（服务端没有 shiki，代码块是纯文本）
+update(markdownSource.value);
+// 客户端挂载后再渲一次，这次能用 shiki 高亮代码
+onMounted(() => {
+   update(markdownSource.value);
+});
+watch(markdownSource, (value) => {
+   update(value);
+});
+
+type BodySegment =
+   | { kind: 'html'; html: string }
+   | { kind: 'problem'; problem: LearningProblemRef };
+
+const segments = computed<BodySegment[]>(() => {
+   const problems = article.value?.problems ?? [];
+   const parts = bodyHtml.value.split(PROBLEM_SLOT);
+   const result: BodySegment[] = [];
+   parts.forEach((part, index) => {
+      if (part.trim()) result.push({ kind: 'html', html: part });
+      const problem = problems[index];
+      if (index < parts.length - 1 && problem) {
+         result.push({ kind: 'problem', problem });
+      }
+   });
+   return result;
+});
 
 /** 返回目标：有专题上下文回专题，否则回全部文章 */
 const backTo = computed(() =>
    topic.value ? `/app/topics/${topic.value.id}` : '/app/articles',
 );
-const backLabel = computed(() => (topic.value ? topic.value.name : '全部文章'));
 
 useSeoMeta({
    title: computed(() =>
@@ -105,164 +158,116 @@ useSeoMeta({
          : '文章',
    ),
 });
-
 </script>
 
 <template>
-   <StEmptyStatus
-      v-if="!article"
-      content="没有这篇文章"
-      class="pt-[10rem]" />
+   <StEmptyStatus v-if="!article" content="没有这篇文章" class="pt-[10rem]" />
 
-   <StSpace v-else fill-y direction="vertical" class="mt-6 w-[80rem] max-w-full">
-      <StSpace align="center" gap="0.5rem" class="text-accent-300">
+   <StSpace v-else fill-y direction="vertical" class="mt-6 w-[65rem] max-w-full">
+      <StSpace align="center" gap="0.5rem" fill-x class="text-accent-300">
          <NuxtLink
             to="/app/articles"
-            class="st-font-caption hover:text-secondary transition-colors">
+            class="shrink-0 st-font-caption hover:text-secondary transition-colors">
             全部文章
          </NuxtLink>
          <template v-if="topic">
-            <Right size="0.75rem" class="text-accent-400" />
+            <Right size="0.75rem" class="shrink-0 text-accent-400" />
             <NuxtLink
                :to="`/app/topics/${topic.id}`"
-               class="st-font-caption hover:text-secondary transition-colors">
+               class="shrink-0 st-font-caption hover:text-secondary transition-colors">
                {{ topic.name }}
             </NuxtLink>
          </template>
-         <Right size="0.75rem" class="text-accent-400" />
-         <span class="st-font-caption text-accent-100">
+         <Right size="0.75rem" class="shrink-0 text-accent-400" />
+         <span class="min-w-0 truncate st-font-caption text-accent-100">
             {{ article.title }}
          </span>
       </StSpace>
 
-      <StSpace
-         align="start"
-         justify="between"
-         fill-x
-         gap="2rem"
-         class="mt-5 w-[65rem] max-w-full">
-         <StSpace direction="vertical" gap="0.5rem" class="min-w-0">
-            <StSpace align="center" gap="0.75rem">
-               <DocDetail
-                  class="text-secondary shrink-0"
-                  size="1.75rem"
-                  :strokeWidth="3" />
-               <h1 class="text-[2rem] font-bold text-white">
-                  {{ article.title }}
-               </h1>
-               <LearningFavoriteButton
-                  kind="article"
-                  :target="toFavoriteArticle(article)" />
-            </StSpace>
-            <p class="st-font-body-normal text-accent-300">
-               {{ article.summary }}
-            </p>
-            <StSpace align="center" gap="0.5rem" class="flex-wrap">
-               <template v-if="ownerTopics.length">
-                  <span class="st-font-tooltip text-accent-400">
-                     收录于
-                  </span>
-                  <NuxtLink
-                     v-for="owner in ownerTopics"
-                     :key="owner.id"
-                     :to="`/app/topics/${owner.id}/${article.id}`"
-                     class="st-font-tooltip text-secondary hover:opacity-75 transition-opacity">
-                     {{ owner.name }}
-                  </NuxtLink>
-               </template>
-               <span
-                  v-else-if="showStandaloneHint"
-                  class="st-font-tooltip text-accent-400">
-                  独立文章：还没有专题收录它
-               </span>
-            </StSpace>
-         </StSpace>
+      <h1
+         class="mt-6 w-full text-center text-[2.5rem] font-bold leading-tight text-white">
+         {{ article.title }}
+      </h1>
+      <p class="w-full text-center st-font-body-normal text-accent-300">
+         {{ article.summary }}
+      </p>
 
-         <div class="shrink-0 w-[15rem] p-5 rounded-[1.25rem] bg-accent-600">
-            <StSpace direction="vertical" gap="1rem" fill-x>
-               <StSpace align="center" justify="between" fill-x>
-                  <span class="st-font-body-bold text-accent-100">
-                     本篇进度
-                  </span>
-                  <LearningStatusAction
-                     :done="
-                        !!(
-                           state?.completed ||
-                           (state?.isReadingOnly && state?.read)
-                        )
-                     "
-                     size="sm" />
-               </StSpace>
-               <LearningProgressBar
-                  v-if="state"
-                  :progress="state.progress"
-                  :percent="state.percent"
-                  :completed="state.completed"
-                  :is-reading-only="state.isReadingOnly"
-                  :read="state.read" />
-               <span
-                  v-if="state && !state.isReadingOnly"
-                  class="st-font-tooltip text-accent-400">
-                  已完成 {{ state.done }} / {{ state.total }} 题
-               </span>
-            </StSpace>
-         </div>
-      </StSpace>
+      <div class="mt-4 w-full overflow-hidden rounded-[0.5rem]">
+         <LearningArticleCover
+            :preset="article.coverPreset ?? null"
+            :url="article.coverUrl ?? null"
+            height="20rem"
+            icon-size="6rem" />
+      </div>
 
-      <div class="w-full h-[1px] bg-accent-500 mt-8"></div>
-
-      <article class="article-body mt-8 w-full min-w-0">
-            <template v-for="(item, idx) in items" :key="idx">
+      <div class="mt-8 grid w-full grid-cols-[1fr_13rem] gap-6">
+         <!-- 左：正文 -->
+         <article class="min-w-0">
+            <template v-for="(segment, index) in segments" :key="index">
                <LearningProblemBlock
-                  v-if="item.kind === 'problem'"
-                  :problem="item.problem"
-                  :index="
-                     items
-                        .slice(0, idx + 1)
-                        .filter((entry) => entry.kind === 'problem').length - 1
-                  " />
-
-               <h2
-                  v-else-if="item.block.type === 'heading'"
-                  class="text-[1.375rem] font-bold text-white mt-10 mb-4 first:mt-0"
-                  v-html="html(textOf(item.block))" />
-
-               <p
-                  v-else-if="item.block.type === 'paragraph'"
-                  class="st-font-body-normal text-accent-200 leading-[1.9] my-5 w-full"
-                  v-html="paragraphHtml(textOf(item.block))" />
-
-               <ul
-                  v-else-if="item.block.type === 'list'"
-                  class="my-5 pl-5 list-disc text-accent-200 st-font-body-normal leading-[1.9] space-y-2 w-full">
-                  <li
-                     v-for="(entry, i) in itemsOf(item.block)"
-                     :key="i"
-                     v-html="html(entry)" />
-               </ul>
-
-               <pre
-                  v-else-if="item.block.type === 'code'"
-                  class="my-6 p-5 rounded-[0.75rem] border border-accent-500 bg-simple-editor-background overflow-x-auto"><code
-                  class="st-font-caption text-accent-100 font-family-mono">{{ textOf(item.block) }}</code></pre>
-
-               <div
-                  v-else-if="item.block.type === 'callout'"
-                  class="my-6 p-4 rounded-[0.75rem] bg-warning/10 border-l-2 border-warning st-font-caption text-accent-200 leading-[1.8]"
-                  v-html="html(textOf(item.block))" />
+                  v-if="segment.kind === 'problem'"
+                  :problem="segment.problem" />
+               <LearningArticleBody v-else :html="segment.html" />
             </template>
-
          </article>
 
-      <StSpace justify="end" align="center" fill-x class="mt-10">
-         <NuxtLink :to="backTo">
-            <StButton size="sm" bordered>
-               <StSpace align="center" gap="0.375rem">
-                  <Left size="0.875rem" />
-                  <span>返回{{ topic ? '专题' : '全部文章' }}</span>
+         <!-- 右：作者信息卡 -->
+         <aside class="sticky top-[5.75rem] min-w-0 self-start">
+            <div class="flex flex-col gap-4">
+               <div class="flex items-center gap-3">
+                  <StAvatar :url="authorAvatarUrl" size="3rem" />
+                  <div class="flex min-w-0 flex-col gap-0.5">
+                     <span class="st-font-body-bold truncate text-white">
+                        {{ authorName }}
+                     </span>
+                     <span class="st-font-caption text-accent-400">作者</span>
+                  </div>
+               </div>
+
+               <div class="h-[1px] w-full bg-accent-500" />
+
+               <StSpace
+                  direction="vertical"
+                  gap="0.75rem"
+                  fill-x
+                  class="st-font-body-normal">
+                  <StSpace v-if="hasAuthor" align="center" gap="6px">
+                     <DocDetail
+                        class="shrink-0 text-accent-200"
+                        :strokeWidth="3"
+                        :size="20" />
+                     <span class="shrink-0 text-accent-200">发文数量：</span>
+                     <span>{{ authorArticleCount }} 篇</span>
+                  </StSpace>
+
+                  <StSpace v-if="ownerTopics.length" align="center" gap="6px">
+                     <BookOne
+                        class="shrink-0 text-accent-200"
+                        :strokeWidth="3"
+                        :size="20" />
+                     <span class="shrink-0 text-accent-200">收录专题：</span>
+                     <span class="min-w-0 truncate">{{ topicNames }}</span>
+                  </StSpace>
+
+                  <StSpace v-if="publishDate" align="center" gap="6px">
+                     <Calendar
+                        class="shrink-0 text-accent-200"
+                        :strokeWidth="3"
+                        :size="20" />
+                     <span class="shrink-0 text-accent-200">发布时间：</span>
+                     <span class="min-w-0 truncate">{{ publishDate }}</span>
+                  </StSpace>
                </StSpace>
-            </StButton>
-         </NuxtLink>
-      </StSpace>
+            </div>
+         </aside>
+      </div>
+
+      <StSpacer fill flex no-shrink height="4rem" />
+
+      <!-- 右下角悬浮操作：点赞 / 收藏 / 返回 -->
+      <LearningArticleActions
+         v-if="article"
+         :article="article"
+         :back-to="backTo" />
    </StSpace>
 </template>

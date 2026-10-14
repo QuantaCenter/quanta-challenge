@@ -3,7 +3,6 @@ import { Left, Plus } from '@icon-park/vue-next';
 import {
    articlesOfTopic,
    courseTopics,
-   topicsOfArticle,
    useLearningCourse,
    useLearningTopic,
 } from '~/composables/use-learning';
@@ -26,21 +25,13 @@ const siblingTopics = computed(() =>
    topic.value ? courseTopics(topic.value.courseId, content) : [],
 );
 
-const articleRows = computed(() =>
-   (topic.value ? articlesOfTopic(topic.value, content) : []).map((article) => {
-      const others = topicsOfArticle(article.id, content)
-         .filter((item) => item.id !== topic.value?.id)
-         .map((item) => item.name);
-      return {
-         article,
-         to: `/app/topics/${topicId.value}/${article.id}`,
-         // 引用不是归属：一篇文章可能同时挂在别的专题下，悬浮时顺带说清
-         description: others.length
-            ? `${article.summary}（也见于 ${others.join(' · ')}）`
-            : article.summary,
-      };
-   }),
+const allArticleRows = computed(() =>
+   (topic.value ? articlesOfTopic(topic.value, content) : []).map((article) => ({
+      article,
+      to: `/app/topics/${topicId.value}/${article.id}`,
+   })),
 );
+const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
 
 useSeoMeta({
    title: computed(() =>
@@ -85,7 +76,7 @@ useSeoMeta({
                </p>
             </StSpace>
             <span class="shrink-0 st-font-tooltip text-accent-400 mb-2">
-               {{ articleRows.length }} 篇文章
+               {{ allArticleRows.length }} 篇文章
             </span>
          </StSpace>
 
@@ -106,7 +97,7 @@ useSeoMeta({
          <StSpace align="center" gap="0.75rem" fill-x class="mt-8">
             <h2 class="st-font-third-bold text-white">文章</h2>
             <span class="st-font-tooltip text-accent-400">
-               {{ articleRows.length }} 篇
+               {{ allArticleRows.length }} 篇
             </span>
             <NuxtLink to="/app/publish/article" class="ml-auto">
                <StButton size="sm" bordered>
@@ -118,17 +109,18 @@ useSeoMeta({
             </NuxtLink>
          </StSpace>
 
-         <StGrid fill-x :cols="4" gap="1rem" class="mt-4">
-            <LearningArticleCard
+         <StSpace direction="vertical" gap="0" fill-x class="mt-4">
+            <LearningArticleRow
                v-for="row in articleRows"
                :key="row.article.id"
                :article="row.article"
-               :to="row.to"
-               :description="row.description" />
-         </StGrid>
+               :to="row.to" />
+         </StSpace>
+
+         <div ref="sentinelRef" class="h-1 w-full shrink-0"></div>
 
          <StEmptyStatus
-            v-if="articleRows.length === 0"
+            v-if="allArticleRows.length === 0"
             content="这个专题还没有引用文章"
             class="py-10" />
 

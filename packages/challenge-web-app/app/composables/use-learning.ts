@@ -57,6 +57,12 @@ export interface LearningProblemRef {
    totalScore: number;
    // 引用已被删除：界面标注不可用，并按已完成计入进度
    unavailable?: boolean;
+   /** 题目封面（没有就是 null，界面走占位图） */
+   imageName?: string | null;
+   imageHash?: string | null;
+   imageThumbhashUrl?: string | null;
+   /** 题目标签（名称 + 颜色），题目块在正文里也把它们显示出来 */
+   tags?: Array<{ name: string; color: string | null }>;
 }
 
 export type ContentBlock =
@@ -121,6 +127,12 @@ export interface LearningArticle {
    slug: string;
    title: string;
    summary: string;
+   /** 发布时间（服务端 createdAt） */
+   createdAt?: string;
+   /** 发布人显示名 */
+   authorName?: string;
+   /** 发布人头像 URL；没有上传过则是 null */
+   authorAvatarUrl?: string | null;
    content: ContentBlock[];
    problems: LearningProblemRef[];
    /**
@@ -442,6 +454,9 @@ interface ApiProblem {
    title: string;
    difficulty: Difficulty;
    totalScore: number;
+   imageName?: string | null;
+   imageHash?: string | null;
+   imageThumbhashUrl?: string | null;
    tags?: Array<{ name: string; color: string }>;
 }
 
@@ -469,6 +484,10 @@ const fetchPublishedProblems = async (): Promise<LearningProblemRef[]> => {
             title: item.title,
             difficulty: item.difficulty,
             totalScore: item.totalScore,
+            imageName: item.imageName ?? null,
+            imageHash: item.imageHash ?? null,
+            imageThumbhashUrl: item.imageThumbhashUrl ?? null,
+            tags: item.tags ?? [],
          });
       }
       cursor = result.nextCursor ?? null;

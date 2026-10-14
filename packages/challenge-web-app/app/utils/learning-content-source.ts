@@ -49,6 +49,8 @@ export interface ServerArticle {
    coverPreset: string;
    coverUrl: string | null;
    authorId: string;
+   createdAt: string | Date;
+   author?: { name: string; avatarUrl: string | null } | null;
 }
 
 export interface ServerProblemSummary {
@@ -58,6 +60,12 @@ export interface ServerProblemSummary {
    difficulty: LearningProblemRef['difficulty'];
    totalScore: number;
    available: boolean;
+   /** 题目封面（没有就是 null，前端走占位图） */
+   imageName?: string | null;
+   imageHash?: string | null;
+   imageThumbhashUrl?: string | null;
+   /** 题目标签（名称 + 颜色） */
+   tags?: Array<{ name: string; color: string | null }>;
 }
 
 /**
@@ -155,6 +163,9 @@ export const toArticle = (
       slug: row.slug,
       title: row.title,
       summary: row.summary,
+      createdAt: row.createdAt ? String(row.createdAt) : undefined,
+      authorName: row.author?.name,
+      authorAvatarUrl: row.author?.avatarUrl ?? null,
       content: blocks,
       problems: baseIds.map((baseId) => {
          const summary = byBaseId.get(baseId);
@@ -178,6 +189,10 @@ export const toArticle = (
             difficulty: toDifficulty(summary.difficulty),
             totalScore: summary.totalScore,
             ...(summary.available ? {} : { unavailable: true }),
+            imageName: summary.imageName ?? null,
+            imageHash: summary.imageHash ?? null,
+            imageThumbhashUrl: summary.imageThumbhashUrl ?? null,
+            tags: summary.tags ?? [],
          };
       }),
       source: row.source,

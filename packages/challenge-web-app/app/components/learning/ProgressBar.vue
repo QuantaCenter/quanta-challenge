@@ -16,7 +16,7 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
 <template>
    <div
       v-if="props.isReadingOnly"
-      class="h-[1.75rem] flex-1 min-w-0 flex items-center justify-center rounded-full st-font-tooltip transition-colors"
+      class="h-[1.25rem] flex-1 min-w-0 flex items-center justify-center rounded-full st-font-tooltip transition-colors"
       :class="
          props.read
             ? 'bg-secondary/20 text-secondary'
@@ -28,12 +28,12 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
 
    <div v-else class="flex-1 min-w-0 flex items-center gap-2">
       <div
-         class="w-[2.5rem] shrink-0 h-[1.75rem] flex items-center justify-center rounded-full bg-secondary text-accent-700 st-font-tooltip font-bold font-family-manrope">
+         class="w-[2.5rem] shrink-0 h-[1.25rem] flex items-center justify-center rounded-full bg-secondary text-accent-700 st-font-tooltip font-bold font-family-manrope">
          {{ props.percent }}%
       </div>
 
       <div
-         class="relative flex-1 min-w-0 h-[1.75rem] rounded-full bg-accent-400/50 overflow-hidden">
+         class="relative flex-1 min-w-0 h-[1.25rem] rounded-full bg-accent-400/50 overflow-hidden">
          <div
             class="absolute inset-y-0 left-0 transition-[width] duration-500"
             :class="[
@@ -44,7 +44,7 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
 
          <span
             v-if="showMosaic"
-            class="learning-bar-mosaic absolute inset-y-0 w-[0.35rem]"
+            class="learning-bar-mosaic absolute inset-y-0"
             :style="{ left: `${props.percent}%` }" />
       </div>
    </div>
@@ -54,6 +54,8 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
 .learning-bar-fill,
 .learning-bar-mosaic {
    --bar-color: var(--color-secondary, #a6fb1d);
+   /* 方格边长：竖向 5 格正好铺满 1.25rem 的条高 */
+   --mosaic-size: 0.25rem;
 }
 
 .learning-bar-fill-plain {
@@ -65,8 +67,8 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
    background-image:
       linear-gradient(
          to right,
-         var(--bar-color) 0 calc(100% - 0.35rem),
-         transparent calc(100% - 0.35rem)
+         var(--bar-color) 0 calc(100% - var(--mosaic-size)),
+         transparent calc(100% - var(--mosaic-size))
       ),
       linear-gradient(
          to bottom,
@@ -78,7 +80,7 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
       );
    background-size:
       100% 100%,
-      0.35rem 100%;
+      var(--mosaic-size) 100%;
    background-position:
       left top,
       right top;
@@ -86,6 +88,7 @@ const showMosaic = computed(() => props.percent >= 10 && !isFull.value);
 }
 
 .learning-bar-mosaic {
+   width: var(--mosaic-size);
    background-image: linear-gradient(
       to bottom,
       transparent 0 20%,
