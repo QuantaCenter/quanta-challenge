@@ -21,7 +21,7 @@ const registerHighligher = (monaco: MonacoEditor) => {
       engine: createJavaScriptRegexEngine(),
    });
    langs.forEach((lang) => {
-      monaco.languages.register({ id: lang });
+      monaco.languages.register(lang);
    });
    shikiToMonaco(highlighter, monaco);
 };

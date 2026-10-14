@@ -5,7 +5,13 @@ import {
 } from '@volar/monaco';
 import * as languageConfigs from './language-configs';
 import type { WorkerLanguageService } from '@volar/monaco/worker';
-import type { editor, IRange, languages, Uri } from 'monaco-editor';
+import type {
+   editor,
+   IDisposable,
+   IRange,
+   languages,
+   Uri,
+} from 'monaco-editor';
 import type { MonacoEditor } from '.';
 
 // 导入 worker 文件
@@ -84,6 +90,47 @@ const withColorPresentationsFix = (
       },
    });
 
+/**
+ * Monaco 自带的基础语言包（basic-languages）在语言首次被用到时才异步加载，随后用自己的配置
+ * 覆盖已注册的同名字段。例如 html 会把 `<` `>` 加进 brackets，括号着色把找不到配对的 `<`
+ * 标成红色，`<script>` 里的 `i < 20` 因此变红。这里等基础语言包加载完再注册一次，保证我们的配置最后生效。
+ *
+ * 必须调用 Monaco 登记的 loader，而不是自己 import 同一路径：Vite 预打包后两者可能不是同一个模块实例。
+ */
+const setLanguageConfigurationAfterBasic = (
+   monaco: MonacoEditor,
+   languageId: string,
+   configuration: languages.LanguageConfiguration
+): IDisposable => {
+   const disposables = [
+      monaco.languages.setLanguageConfiguration(languageId, configuration),
+   ];
+   const { loader } = (monaco.languages
+      .getLanguages()
+      .find((language) => language.id === languageId) ?? {}) as {
+      loader?: () => Promise<unknown>;
+   };
+   let disposed = false;
+   if (loader) {
+      disposables.push(
+         monaco.languages.onLanguageEncountered(languageId, async () => {
+            await loader();
+            await new Promise((resolve) => setTimeout(resolve));
+            if (disposed) return;
+            disposables.push(
+               monaco.languages.setLanguageConfiguration(languageId, configuration)
+            );
+         })
+      );
+   }
+   return {
+      dispose() {
+         disposed = true;
+         disposables.forEach((disposable) => disposable.dispose());
+      },
+   };
+};
+
 export const registerLanguageWorkers = (
    monaco: MonacoEditor,
    getWorker?: (label: string) => Promise<Worker | undefined>
@@ -118,25 +165,21 @@ export const registerLanguageWorkers = (
    typescriptDefaults.setCompilerOptions(typescriptDefaults.getCompilerOptions());
    javascriptDefaults.setCompilerOptions(javascriptDefaults.getCompilerOptions());
 
-   monaco.languages.setLanguageConfiguration(
-      'vue',
-      languageConfigs.vue(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'javascript',
-      languageConfigs.js(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'typescript',
-      languageConfigs.ts(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'css',
-      languageConfigs.css(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'html',
-      languageConfigs.html(monaco)
+   const languageConfigDisposables = (
+      [
+         ['vue', languageConfigs.vue],
+         ['javascript', languageConfigs.js],
+         ['typescript', languageConfigs.ts],
+         ['css', languageConfigs.css],
+         ['postcss', languageConfigs.css],
+         ['scss', languageConfigs.cssPreprocessor],
+         ['less', languageConfigs.cssPreprocessor],
+         ['sass', languageConfigs.cssPreprocessor],
+         ['stylus', languageConfigs.cssPreprocessor],
+         ['html', languageConfigs.html],
+      ] as const
+   ).map(([id, createConfig]) =>
+      setLanguageConfigurationAfterBasic(monaco, id, createConfig(monaco))
    );
 
    monaco.languages.register({
@@ -190,6 +233,7 @@ export const registerLanguageWorkers = (
 
    return () => {
       disposables.forEach((disposable) => disposable.dispose());
+      languageConfigDisposables.forEach((disposable) => disposable.dispose());
       providers.then((disposable) => disposable.dispose());
       worker.dispose();
       htmlDefaults.setModeConfiguration(htmlModeConfiguration);
