@@ -1,4 +1,3 @@
-import { createNpmFileSystem } from '@volar/jsdelivr';
 import { createTypeScriptWorkerLanguageService } from '@volar/monaco/worker';
 import {
    createVueLanguagePlugin,
@@ -15,6 +14,7 @@ import typescript, {
 } from 'typescript';
 import { URI } from 'vscode-uri';
 import { createHtmlLanguagePlugin } from './html-language-plugin';
+import { createProjectNpmFileSystem } from './project-npm-fs';
 
 import type { FileSystem, LanguageServiceEnvironment } from '@volar/monaco/worker';
 import type * as monaco from 'monaco-editor';
@@ -34,8 +34,8 @@ const tsLibs = new Map(
 const TS_PACKAGE_DIR = '/node_modules/typescript';
 const TS_LIB_DIR = `${TS_PACKAGE_DIR}/lib`;
 
-const createFileSystem = (): FileSystem => {
-   const npmFs = createNpmFileSystem();
+const createFileSystem = (ctx: monaco.worker.IWorkerContext): FileSystem => {
+   const npmFs = createProjectNpmFileSystem(() => ctx.getMirrorModels());
    const isTsPath = (uri: URI) =>
       uri.path === TS_PACKAGE_DIR || uri.path.startsWith(`${TS_PACKAGE_DIR}/`);
    const getLibName = (uri: URI) =>
@@ -71,7 +71,7 @@ self.onmessage = () => {
    initialize((ctx: monaco.worker.IWorkerContext) => {
       const env: LanguageServiceEnvironment = {
          workspaceFolders: [URI.file('/')],
-         fs: createFileSystem(),
+         fs: createFileSystem(ctx),
       };
       const asUri = (fileName: string) => URI.file(fileName);
       const asFileName = (uri: URI) => uri.fsPath;
