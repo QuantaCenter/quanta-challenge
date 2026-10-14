@@ -23,6 +23,7 @@ export const defaultEditorOptions: editor.IStandaloneEditorConstructionOptions =
       minimap: { enabled: false },
       cursorSmoothCaretAnimation: 'on',
       autoClosingQuotes: 'languageDefined',
+      linkedEditing: true,
       stickyScroll: {
          enabled: false,
       },
