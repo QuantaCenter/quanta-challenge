@@ -231,12 +231,9 @@ export const useProblemPublicationForm = (storageName: string) => {
       },
       {
          field: 'initCommand',
-         required: draft.value.problemType === 'backend_service',
+         required: true,
          validator(value) {
-            return (
-               draft.value.problemType !== 'backend_service' ||
-               (typeof value === 'string' && value.trim().length > 0)
-            );
+            return typeof value === 'string' && value.trim().length > 0;
          },
       },
       {

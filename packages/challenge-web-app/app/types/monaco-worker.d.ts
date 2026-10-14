@@ -19,8 +19,11 @@ declare module 'monaco-editor/esm/vs/language/html/html.worker' {
 }
 
 declare module 'monaco-editor/esm/vs/language/typescript/ts.worker' {
-   const content: any;
-   export default content;
+   export function initialize(callback: any): void;
+   export class TypeScriptWorker {
+      constructor(ctx: any, createData: any);
+      getScriptFileNames(): string[];
+   }
 }
 
 // Worker URL 类型声明

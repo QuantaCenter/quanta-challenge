@@ -36,7 +36,7 @@ const uploadShape = {
    coverMode: z.enum(['default', 'custom']),
    coverImageId: z.string().optional(),
    bootCommand: z.string().optional(),
-   initCommand: z.string().optional(),
+   initCommand: z.string().trim().min(1, '初始化命令不能为空'),
    buildCommand: z.string().optional(),
    judgeUploadPath: z.string().min(1, '必须填写打包上传路径'),
    enableCloudFunction: z.boolean().optional(),
@@ -77,16 +77,6 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
-      )
-      // 后端服务的启动命令必填（默认值由发布页按初始镜像回填，但不锁：
-      // 入口文件、参数、端口都因题而异）。
-      .refine(
-         (data: any) => {
-            return data.problemType === 'backend_service'
-               ? Boolean(data.initCommand && data.initCommand.trim())
-               : true;
-         },
-         { error: '后端服务题型必须填写初始化命令（服务启动命令）' }
       );
 
 export const resolveBackendServiceRuntime = (input: {

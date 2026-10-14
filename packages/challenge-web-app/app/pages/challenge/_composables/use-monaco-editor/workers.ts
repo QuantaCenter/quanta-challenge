@@ -4,11 +4,19 @@ import {
    registerProviders,
 } from '@volar/monaco';
 import * as languageConfigs from './language-configs';
+import type { WorkerLanguageService } from '@volar/monaco/worker';
+import type {
+   editor,
+   IDisposable,
+   IRange,
+   languages,
+   Uri,
+} from 'monaco-editor';
 import type { MonacoEditor } from '.';
 
 // 导入 worker 文件
 import vueWorkerUrl from './vue.worker?worker&url';
-import tsWorkerUrl from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker&url';
+import tsWorkerUrl from './builtin-ts.worker?worker&url';
 import jsonWorkerUrl from 'monaco-editor/esm/vs/language/json/json.worker?worker&url';
 import cssWorkerUrl from 'monaco-editor/esm/vs/language/css/css.worker?worker&url';
 import htmlWorkerUrl from 'monaco-editor/esm/vs/language/html/html.worker?worker&url';
@@ -16,6 +24,111 @@ import editorWorkerUrl from 'monaco-editor/esm/vs/editor/editor.worker?worker&ur
 
 const createWorker = async (workerPath: string) => {
    return new Worker(workerPath, { type: 'module' });
+};
+
+interface LspRange {
+   start: { line: number; character: number };
+   end: { line: number; character: number };
+}
+interface LspTextEdit {
+   range: LspRange;
+   newText: string;
+}
+
+const toLspRange = (range: IRange): LspRange => ({
+   start: { line: range.startLineNumber - 1, character: range.startColumn - 1 },
+   end: { line: range.endLineNumber - 1, character: range.endColumn - 1 },
+});
+const toMonacoTextEdit = ({ range, newText }: LspTextEdit) => ({
+   range: {
+      startLineNumber: range.start.line + 1,
+      startColumn: range.start.character + 1,
+      endLineNumber: range.end.line + 1,
+      endColumn: range.end.character + 1,
+   },
+   text: newText,
+});
+
+/**
+ * @volar/monaco（截至 2.4.28）的 provideColorPresentations 从一个从未写入的 WeakMap 取颜色信息，
+ * 恒返回 undefined；Monaco 拿到空列表后颜色选择器标题为空，点选时读 `[0].textEdit` 直接抛错。
+ * 这里在注册时替换成按颜色自身范围请求的实现。
+ */
+const withColorPresentationsFix = (
+   monacoLanguages: MonacoEditor['languages'],
+   worker: editor.MonacoWebWorker<WorkerLanguageService>,
+   getSyncUris: () => Uri[]
+): MonacoEditor['languages'] =>
+   Object.create(monacoLanguages, {
+      registerColorProvider: {
+         value: (
+            selector: languages.LanguageSelector,
+            provider: languages.DocumentColorProvider
+         ) =>
+            monacoLanguages.registerColorProvider(selector, {
+               ...provider,
+               async provideColorPresentations(model, { color, range }) {
+                  const service = await worker.withSyncedResources(
+                     getSyncUris()
+                  );
+                  const presentations = await service.getColorPresentations(
+                     0,
+                     model.uri,
+                     color,
+                     toLspRange(range)
+                  );
+                  return (presentations ?? []).map((presentation) => ({
+                     label: presentation.label,
+                     textEdit:
+                        presentation.textEdit &&
+                        toMonacoTextEdit(presentation.textEdit),
+                     additionalTextEdits:
+                        presentation.additionalTextEdits?.map(toMonacoTextEdit),
+                  }));
+               },
+            }),
+      },
+   });
+
+/**
+ * Monaco 自带的基础语言包（basic-languages）在语言首次被用到时才异步加载，随后用自己的配置
+ * 覆盖已注册的同名字段。例如 html 会把 `<` `>` 加进 brackets，括号着色把找不到配对的 `<`
+ * 标成红色，`<script>` 里的 `i < 20` 因此变红。这里等基础语言包加载完再注册一次，保证我们的配置最后生效。
+ *
+ * 必须调用 Monaco 登记的 loader，而不是自己 import 同一路径：Vite 预打包后两者可能不是同一个模块实例。
+ */
+const setLanguageConfigurationAfterBasic = (
+   monaco: MonacoEditor,
+   languageId: string,
+   configuration: languages.LanguageConfiguration
+): IDisposable => {
+   const disposables = [
+      monaco.languages.setLanguageConfiguration(languageId, configuration),
+   ];
+   const { loader } = (monaco.languages
+      .getLanguages()
+      .find((language) => language.id === languageId) ?? {}) as {
+      loader?: () => Promise<unknown>;
+   };
+   let disposed = false;
+   if (loader) {
+      disposables.push(
+         monaco.languages.onLanguageEncountered(languageId, async () => {
+            await loader();
+            await new Promise((resolve) => setTimeout(resolve));
+            if (disposed) return;
+            disposables.push(
+               monaco.languages.setLanguageConfiguration(languageId, configuration)
+            );
+         })
+      );
+   }
+   return {
+      dispose() {
+         disposed = true;
+         disposables.forEach((disposable) => disposable.dispose());
+      },
+   };
 };
 
 export const registerLanguageWorkers = (
@@ -31,7 +144,7 @@ export const registerLanguageWorkers = (
             return await createWorker(jsonWorkerUrl);
          }
          if (label === 'typescript' || label === 'javascript') {
-            return await createWorker(vueWorkerUrl);
+            return await createWorker(tsWorkerUrl);
          }
          if (label === 'css' || label === 'scss' || label === 'less') {
             return await createWorker(cssWorkerUrl);
@@ -46,49 +159,66 @@ export const registerLanguageWorkers = (
       },
    };
 
-   monaco.languages.setLanguageConfiguration(
-      'vue',
-      languageConfigs.vue(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'javascript',
-      languageConfigs.js(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'typescript',
-      languageConfigs.ts(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'css',
-      languageConfigs.css(monaco)
-   );
-   monaco.languages.setLanguageConfiguration(
-      'html',
-      languageConfigs.html(monaco)
+   // 重新设置一次编译选项会让内置 TS 服务丢弃旧 worker，
+   // 之前由 simple editor 的环境创建的 worker 并不会跳过答题页的 file:// 模型
+   const { typescriptDefaults, javascriptDefaults } = monaco.languages.typescript;
+   typescriptDefaults.setCompilerOptions(typescriptDefaults.getCompilerOptions());
+   javascriptDefaults.setCompilerOptions(javascriptDefaults.getCompilerOptions());
+
+   const languageConfigDisposables = (
+      [
+         ['vue', languageConfigs.vue],
+         ['javascript', languageConfigs.js],
+         ['typescript', languageConfigs.ts],
+         ['css', languageConfigs.css],
+         ['postcss', languageConfigs.css],
+         ['scss', languageConfigs.cssPreprocessor],
+         ['less', languageConfigs.cssPreprocessor],
+         ['sass', languageConfigs.cssPreprocessor],
+         ['stylus', languageConfigs.cssPreprocessor],
+         ['html', languageConfigs.html],
+      ] as const
+   ).map(([id, createConfig]) =>
+      setLanguageConfigurationAfterBasic(monaco, id, createConfig(monaco))
    );
 
    monaco.languages.register({
       id: 'vue',
       extensions: ['.vue'],
    });
-   const worker = monaco.editor.createWebWorker({
+   const worker = monaco.editor.createWebWorker<WorkerLanguageService>({
       moduleId: 'vs/language/vue/vueWorker',
       label: 'vue',
    });
 
-   const languageId = ['vue', 'typescript', 'javascript'];
+   // html 也交给 Volar：内置 HTML 服务不处理 <style> / <script> / style="" 里的内嵌语言
+   const languageId = ['vue', 'typescript', 'javascript', 'html'];
+   const htmlDefaults = monaco.languages.html.htmlDefaults;
+   const htmlModeConfiguration = htmlDefaults.modeConfiguration;
+   htmlDefaults.setModeConfiguration(
+      Object.fromEntries(
+         Object.keys(htmlModeConfiguration).map((key) => [key, false])
+      )
+   );
 
    const getSyncUris = () => {
       const res = monaco.editor.getModels().map((model) => model.uri);
       return res;
    };
 
+   const disposables = [
+      // @ts-ignore
+      activateMarkers(worker, languageId, 'vue', getSyncUris, monaco.editor),
+      // @ts-ignore
+      activateAutoInsertion(worker, languageId, getSyncUris, monaco.editor),
+   ];
    // @ts-ignore
-   activateMarkers(worker, languageId, 'vue', getSyncUris, monaco.editor);
-   // @ts-ignore
-   activateAutoInsertion(worker, languageId, getSyncUris, monaco.editor);
-   // @ts-ignore
-   registerProviders(worker, languageId, getSyncUris, monaco.languages);
+   const providers = registerProviders(
+      worker,
+      languageId,
+      getSyncUris,
+      withColorPresentationsFix(monaco.languages, worker, getSyncUris)
+   );
 
    const vueShimDts = `
     declare module '*.vue' {
@@ -100,4 +230,12 @@ export const registerLanguageWorkers = (
       vueShimDts,
       'file:///node_modules/vue-shim.d.ts'
    );
+
+   return () => {
+      disposables.forEach((disposable) => disposable.dispose());
+      languageConfigDisposables.forEach((disposable) => disposable.dispose());
+      providers.then((disposable) => disposable.dispose());
+      worker.dispose();
+      htmlDefaults.setModeConfiguration(htmlModeConfiguration);
+   };
 };

@@ -325,7 +325,7 @@ const handleSubmit = async () => {
                         ? '初始化命令（服务启动命令，判题与预览共用）'
                         : '初始化命令（在线预览的 dev server）'
                   "
-                  :required="problemType === 'backend_service'">
+                  required>
                   <StInput
                      placeholder="例如：[dev-server] cd ./project && npm start"
                      v-model:value="draft.initCommand"
@@ -333,7 +333,7 @@ const handleSubmit = async () => {
                </StFormItem>
                <StFormItem
                   name="buildCommand"
-                  label="构建命令（提交时执行一次，必须自行退出；无构建步骤时填一条立即退出的命令）">
+                  label="构建命令（提交时执行一次，必须自行退出；留空则直接打包上传路径）">
                   <StInput
                      v-model:value="draft.buildCommand"
                      placeholder="例如：npm --prefix ./project run build"

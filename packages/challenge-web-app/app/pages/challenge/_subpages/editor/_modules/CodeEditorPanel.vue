@@ -201,7 +201,12 @@ const setModel = (path: string | null, forceRecreate = false) => {
    });
 };
 
-defineExpose({ setModel, onModelContentChange, addExtraLibs });
+defineExpose({
+   setModel,
+   onModelContentChange,
+   addExtraLibs,
+   onEditorInstanceReady,
+});
 </script>
 
 <template>

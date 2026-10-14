@@ -51,13 +51,26 @@ const SNAPSHOT_IGNORE = new Set([
    '.quanta',
 ]);
 
+const buildCommand = computed(() => props.buildCommand?.trim() || undefined);
+
 const steps = ref<IProgressStep[]>([]);
 const initSteps = () => {
    steps.value = [
-      { title: '构建', status: 'inProgress' },
-      { title: '快照', status: 'waiting' },
-      { title: '上传', status: 'waiting' },
-   ];
+      ...(buildCommand.value ? [{ title: '构建' }] : []),
+      { title: '快照' },
+      { title: '上传' },
+   ].map((step, index): IProgressStep => ({
+      ...step,
+      status: index === 0 ? 'inProgress' : 'waiting',
+   }));
+};
+
+const advanceStep = () => {
+   const index = steps.value.findIndex((step) => step.status === 'inProgress');
+   if (index < 0) return;
+   steps.value[index]!.status = 'completed';
+   const next = steps.value[index + 1];
+   if (next) next.status = 'inProgress';
 };
 
 const editorStore = useEditorStore();
@@ -76,7 +89,7 @@ watch(event, async () => {
    }
    opened.value = true;
 
-   if (isCommitting.value || !props.buildCommand || !props.uploadDir) return;
+   if (isCommitting.value || !props.uploadDir) return;
    isCommitting.value = true;
 
    initSteps();
@@ -84,7 +97,7 @@ watch(event, async () => {
       terminal.clear();
       nextTick(() => fitAddon.fit());
       try {
-         await runBuildStep();
+         if (buildCommand.value) await runBuildStep(buildCommand.value);
          const pack = await runPackStep(props.uploadDir!);
          const recordId = await runUploadStep(pack);
          close(recordId);
@@ -99,8 +112,8 @@ watch(event, async () => {
 });
 
 let runningProcess: WebContainerProcess | null = null;
-const runBuildStep = async () => {
-   runningProcess = await props.runCommands(props.buildCommand!);
+const runBuildStep = async (command: string) => {
+   runningProcess = await props.runCommands(command);
    await attachProcess(runningProcess);
 
    const code = await runningProcess.exit;
@@ -109,8 +122,7 @@ const runBuildStep = async () => {
       throw new Error('Failed to build');
    }
 
-   steps.value[0]!.status = 'completed';
-   steps.value[1]!.status = 'inProgress';
+   advanceStep();
 };
 
 const runPackStep = async (distDir: string) => {
@@ -145,8 +157,7 @@ const runPackStep = async (distDir: string) => {
    };
 
    const pack = await traverse();
-   steps.value[1]!.status = 'completed';
-   steps.value[2]!.status = 'inProgress';
+   advanceStep();
 
    return pack;
 };
@@ -160,7 +171,7 @@ const runUploadStep = async (pack: Record<string, string>) => {
          snapshot: pack,
       })
    );
-   steps.value[2]!.status = 'completed';
+   advanceStep();
 
    return judgeRecordId;
 };

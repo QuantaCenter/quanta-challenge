@@ -35,7 +35,7 @@ const CFG = {
    stateFile: env.STATE_FILE || '/var/lib/quanta-deploy/state.json',
    logFile: env.LOG_FILE || '/var/log/quanta-deploy-webhook.log',
    // ghcr.io 本机直连不可用（约 0.01 MiB/s），按序回退
-   mirrors: (env.GHCR_MIRRORS || 'ghcr.nju.edu.cn,ghcr.dockerproxy.net').split(',').map((s) => s.trim()).filter(Boolean),
+   mirrors: (env.GHCR_MIRRORS || 'ghcr.dockerproxy.net,ghcr.nju.edu.cn').split(',').map((s) => s.trim()).filter(Boolean),
    alertUrl: env.ALERT_WEBHOOK_URL || '',
 };
 
@@ -165,6 +165,17 @@ const waitHealthy = async (service) => {
    throw new Error(`${service} 健康检查未通过（${health}）：${last}`);
 };
 
+/**
+ * 移除占用宿主机 1889 的容器：调度器启动时会自己创建前端判题机容器占这个端口，
+ * 上一轮残留的容器不退出会让新实例初始化失败。
+ */
+const freeJudgeMachinePort = async () => {
+   const ids = (await docker(['ps', '-aq', '--filter', 'publish=1889'])).split('\n').filter(Boolean);
+   if (!ids.length) return;
+   await docker(['rm', '-f', ...ids]);
+   log(`[cleanup] 移除占用 1889 的容器 ${ids.length} 个`);
+};
+
 const composeUp = async (services, refs) => {
    const extra = {};
    for (const s of services) {
@@ -173,6 +184,7 @@ const composeUp = async (services, refs) => {
    }
    // --no-deps：只动本次变化的服务。本机 override 的依赖图里 web-app 的条件被基座 list 形式
    // 覆盖，带动依赖重起会卡在 "scheduler has no healthcheck configured"，且重启依赖也没必要
+   if (services.includes('challenge-judge-scheduler')) await freeJudgeMachinePort();
    await docker([...composeArgs, 'up', '-d', '--no-deps', ...services], { env: extra });
    for (const s of services) {
       const cid = await docker(['ps', '-q', '--filter', `label=com.docker.compose.service=${s}`]);

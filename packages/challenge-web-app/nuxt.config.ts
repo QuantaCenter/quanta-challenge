@@ -95,6 +95,8 @@ export default defineNuxtConfig({
             '@volar/jsdelivr',
             '@vue/language-service',
             'vscode-uri',
+            'vscode-html-languageservice',
+            'typescript',
             // 答题页其它依赖
             '@webcontainer/api',
             'xterm',
@@ -190,6 +192,12 @@ export default defineNuxtConfig({
          },
       },
       '/_nuxt/**': {
+         // security.headers 只在 SSR 渲染响应时生效，静态资源拿不到；
+         // 跨源隔离页面创建的 worker 脚本缺少 COEP 会被浏览器直接拦截（Monaco 补全全部失效）
+         headers: {
+            'Cross-Origin-Embedder-Policy': 'require-corp',
+            'Cross-Origin-Resource-Policy': 'cross-origin',
+         },
          security: {
             headers: {
                crossOriginOpenerPolicy: 'same-origin',
