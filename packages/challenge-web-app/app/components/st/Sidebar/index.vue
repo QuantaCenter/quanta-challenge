@@ -36,8 +36,8 @@ const role = computed(() => authStore.user?.role ?? 'USER');
                   <DashboardTwo />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
-            <StSidebarSidePopper content="专题">
-               <StSidebarNavigationButton to="/app/topics">
+            <StSidebarSidePopper content="学习">
+               <StSidebarNavigationButton to="/app/learning">
                   <BookOne />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>

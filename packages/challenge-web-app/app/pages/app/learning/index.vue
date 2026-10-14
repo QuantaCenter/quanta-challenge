@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { BookOne, CheckOne, Plus, Right } from '@icon-park/vue-next';
+import { BookOne, CheckOne, Right } from '@icon-park/vue-next';
 import {
    useLearningActiveCourses,
    useLearningArticles,
@@ -8,7 +8,7 @@ import {
 } from '~/composables/use-learning';
 
 useSeoMeta({
-   title: '专题 - Quanta Challenge',
+   title: '学习 - Quanta Challenge',
    description: '按专题学习前端知识；课程是专题的集合，专题引用文章。',
 });
 
@@ -39,31 +39,39 @@ const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
       gap="0"
       class="hide-scrollbar overflow-auto">
       <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
-         <h1 class="text-[2.5rem] font-bold text-white">专题</h1>
+         <h1 class="text-[2.5rem] font-bold text-white">学习</h1>
 
          <StSpace align="start" gap="1.5rem" fill-x class="mt-5">
-            <!-- 左列：专题栏 + 文章（文章跟在专题栏下面，同一列） -->
+            <!-- 左列：课程栏 + 文章（文章跟在课程栏下面，同一列） -->
             <div class="flex-1 min-w-0">
-               <LearningCoverRail>
+               <StSpace align="center" gap="0.75rem" fill-x>
+                  <h2 class="st-font-third-bold text-white">课程</h2>
+                  <NuxtLink
+                     to="/app/courses"
+                     class="ml-auto st-font-caption text-secondary hover:opacity-75 transition-opacity flex items-center gap-[0.25rem]">
+                     <span>全部课程</span>
+                     <Right size="0.875rem" />
+                  </NuxtLink>
+               </StSpace>
+
+               <LearningCoverRail class="mt-4">
                   <div
                      v-for="topic in topics"
                      :key="topic.id"
                      class="w-[15rem] shrink-0">
                      <LearningTopicCard
                         :topic="topic"
-                        :to="`/app/topics/${topic.id}`" />
+                        :to="`/app/learning/${topic.id}`" />
                   </div>
                </LearningCoverRail>
 
                <StSpace align="center" gap="0.75rem" fill-x class="mt-8">
                   <h2 class="st-font-third-bold text-white">文章</h2>
-                  <NuxtLink to="/app/publish/article" class="ml-auto">
-                     <StButton size="sm" bordered>
-                        <StSpace align="center" gap="0.375rem">
-                           <Plus size="1rem" />
-                           <span>发布文章</span>
-                        </StSpace>
-                     </StButton>
+                  <NuxtLink
+                     to="/app/articles"
+                     class="ml-auto st-font-caption text-secondary hover:opacity-75 transition-opacity flex items-center gap-[0.25rem]">
+                     <span>全部文章</span>
+                     <Right size="0.875rem" />
                   </NuxtLink>
                </StSpace>
 
@@ -78,12 +86,12 @@ const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
                <div ref="sentinelRef" class="h-1 w-full shrink-0"></div>
             </div>
 
-            <!-- 右列：我学习的课程（比专题栏长，下面接推荐课程与全部课程入口） -->
+            <!-- 右列：最近学习（比课程栏长，下面接推荐课程） -->
             <aside class="w-[17rem] shrink-0">
-               <div class="w-full p-5 rounded-[1.25rem] bg-accent-600">
+               <div class="w-full p-5 rounded-[0.75rem] bg-accent-600">
                   <StSpace direction="vertical" gap="0.875rem" fill-x>
                      <span class="st-font-body-bold text-accent-100">
-                        我学习的课程
+                        最近学习
                      </span>
 
                      <NuxtLink
@@ -119,7 +127,8 @@ const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
                               :completed="row.progress.completed"
                               :is-reading-only="row.progress.isReadingOnly"
                               :read="row.progress.read" />
-                           <span class="st-font-tooltip text-accent-400">
+                           <span
+                              class="mt-1 st-font-tooltip text-accent-400">
                               {{ row.progress.finishedTopics }} /
                               {{ row.progress.topicCount }} 个专题 ·
                               {{ row.progress.finishedArticles }} /
@@ -134,9 +143,7 @@ const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
                         暂无在学习中的课程
                      </div>
 
-                     <div class="h-[1px] w-full bg-accent-500" />
-
-                     <span class="st-font-tooltip text-accent-400">
+                     <span class="st-font-body-bold text-accent-100">
                         推荐课程
                      </span>
 
@@ -173,15 +180,6 @@ const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
                         class="w-full p-3 rounded-[0.75rem] bg-accent-500/40 st-font-tooltip text-accent-300">
                         全部课程都已经开始了
                      </div>
-
-                     <NuxtLink
-                        to="/app/courses"
-                        class="block w-full mt-1 st-font-caption text-secondary hover:opacity-75 transition-opacity">
-                        <StSpace align="center" gap="0.25rem">
-                           <span>全部课程</span>
-                           <Right size="0.875rem" />
-                        </StSpace>
-                     </NuxtLink>
                   </StSpace>
                </div>
             </aside>

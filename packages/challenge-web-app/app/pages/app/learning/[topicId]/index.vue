@@ -28,14 +28,14 @@ const siblingTopics = computed(() =>
 const allArticleRows = computed(() =>
    (topic.value ? articlesOfTopic(topic.value, content) : []).map((article) => ({
       article,
-      to: `/app/topics/${topicId.value}/${article.id}`,
+      to: `/app/learning/${topicId.value}/${article.id}`,
    })),
 );
 const { items: articleRows, sentinelRef } = usePagedList(allArticleRows, 10);
 
 useSeoMeta({
    title: computed(() =>
-      topic.value ? `${topic.value.name} - 专题 - Quanta Challenge` : '专题',
+      topic.value ? `${topic.value.name} - 学习 - Quanta Challenge` : '学习',
    ),
 });
 </script>
@@ -88,7 +88,7 @@ useSeoMeta({
                   class="w-[15rem] shrink-0">
                   <LearningTopicCard
                      :topic="item"
-                     :to="`/app/topics/${item.id}`"
+                     :to="`/app/learning/${item.id}`"
                      :selected="item.id === topic.id" />
                </div>
             </LearningCoverRail>
@@ -99,7 +99,7 @@ useSeoMeta({
             <span class="st-font-tooltip text-accent-400">
                {{ allArticleRows.length }} 篇
             </span>
-            <NuxtLink to="/app/publish/article" class="ml-auto">
+            <NuxtLink to="/app/publish/article/new" class="ml-auto">
                <StButton size="sm" bordered>
                   <StSpace align="center" gap="0.375rem">
                      <Plus size="1rem" />

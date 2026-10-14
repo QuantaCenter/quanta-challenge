@@ -148,7 +148,7 @@ const segments = computed<BodySegment[]>(() => {
 
 /** 返回目标：有专题上下文回专题，否则回全部文章 */
 const backTo = computed(() =>
-   topic.value ? `/app/topics/${topic.value.id}` : '/app/articles',
+   topic.value ? `/app/learning/${topic.value.id}` : '/app/articles',
 );
 
 useSeoMeta({
@@ -173,7 +173,7 @@ useSeoMeta({
          <template v-if="topic">
             <Right size="0.75rem" class="shrink-0 text-accent-400" />
             <NuxtLink
-               :to="`/app/topics/${topic.id}`"
+               :to="`/app/learning/${topic.id}`"
                class="shrink-0 st-font-caption hover:text-secondary transition-colors">
                {{ topic.name }}
             </NuxtLink>

@@ -91,7 +91,7 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateListEdges));
                         :is-reading-only="item.isReadingOnly"
                         :read="item.read" />
                      <NuxtLink
-                        :to="`/app/topics/${item.topicId}`"
+                        :to="`/app/learning/${item.topicId}`"
                         class="shrink-0 inline-flex rounded-full transition-transform duration-150 hover:opacity-80 active:scale-90">
                         <LearningStatusAction :done="false" size="sm" />
                      </NuxtLink>

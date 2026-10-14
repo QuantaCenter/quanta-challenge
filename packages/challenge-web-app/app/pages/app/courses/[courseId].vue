@@ -130,7 +130,7 @@ useSeoMeta({
                   class="w-[15rem] shrink-0">
                   <LearningTopicCard
                      :topic="topic"
-                     :to="`/app/topics/${topic.id}`" />
+                     :to="`/app/learning/${topic.id}`" />
                </div>
             </LearningCoverRail>
          </div>
