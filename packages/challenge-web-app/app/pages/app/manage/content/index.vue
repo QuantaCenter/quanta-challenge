@@ -17,15 +17,15 @@ import { useLearningContentStore } from '~/composables/use-learning-store';
 import { useMessage } from '~/components/st/Message/use-message';
 
 /**
- * 内容库总览：课程 / 专题 / 文章三张表放在一页里。
+ * 内容管理总览：课程 / 专题 / 文章三张表放在一页里。
  *
  * 为什么需要这一页：三者的编辑页各自独立，若没有总览，
  * 「刚发布的东西去哪了 / 在哪改」就只能靠记忆。
  * 这里每一行都直达编辑页，并按引用链标注它被谁引用。
  */
 useSeoMeta({
-   title: '内容库 - Quanta Challenge',
-   description: '课程 / 专题 / 文章的统一入口，包含待审核的课程。',
+   title: '内容管理 - Quanta Challenge',
+   description: '课程 / 专题 / 文章的统一入口，课程审核也在这里。',
 });
 
 const message = useMessage();
@@ -104,7 +104,7 @@ const downloadBackup = () => {
          gap="1.5rem"
          class="w-[46rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem" fill-x>
-            <h1 class="st-font-hero-bold">内容库</h1>
+            <h1 class="st-font-hero-bold">内容管理</h1>
             <span class="st-font-caption text-accent-300 mb-2">
                课程 {{ courseRows.length }} · 专题 {{ topicRows.length }} ·
                文章 {{ articleRows.length }}
@@ -215,6 +215,12 @@ const downloadBackup = () => {
             <StSpace align="center" gap="0.5rem" fill-x>
                <School class="text-accent-200" size="1rem" :strokeWidth="3" />
                <span class="st-font-body-bold text-accent-100 flex-1">课程</span>
+               <!-- 课程是唯一需要审核的实体（设计文档 §17.1），审核入口收在这里 -->
+               <NuxtLink
+                  to="/app/manage/course"
+                  class="st-font-caption text-secondary hover:opacity-75 transition-opacity">
+                  内容审核
+               </NuxtLink>
                <NuxtLink to="/app/publish/course">
                   <StButton size="sm" bordered>
                      <StSpace align="center" gap="0.375rem">
@@ -262,10 +268,10 @@ const downloadBackup = () => {
 
          <StSpace align="center" gap="0.5rem" fill-x class="mt-4">
             <NuxtLink
-               to="/app/publish"
+               to="/app/manage"
                class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1 flex-1">
                <FileEditingOne size="0.875rem" />
-               返回发布流程
+               返回管理流程
             </NuxtLink>
             <StButton size="sm" bordered @click="downloadBackup">
                <span>导出备份</span>

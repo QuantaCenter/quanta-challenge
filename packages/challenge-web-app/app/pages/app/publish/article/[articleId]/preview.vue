@@ -14,7 +14,7 @@ import { useLearningVisits } from '~/composables/use-learning-visits';
  * 文章预览（创作侧）。
  *
  * 为什么需要它：学习侧的文章页地址必须带专题上下文
- * （`/app/topics/:topicId/:articleId`，§7.1），所以**还没被任何专题引用的文章
+ * （`/app/learning/:topicId/:articleId`，§7.1），所以**还没被任何专题引用的文章
  * 在学习侧是点不开的**。写完之后想看一眼效果，就得有这么一个不带上下文的预览页。
  */
 const route = useRoute();
@@ -56,10 +56,10 @@ useSeoMeta({
          class="w-[52rem] pb-[10rem] my-6">
          <StSpace align="center" gap="0.5rem" fill-x>
             <NuxtLink
-               to="/app/publish/content"
+               to="/app/manage/content"
                class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1">
                <Left size="0.875rem" />
-               内容库
+               内容管理
             </NuxtLink>
             <Right size="0.75rem" class="text-accent-400" />
             <span class="st-font-caption text-accent-100">预览</span>

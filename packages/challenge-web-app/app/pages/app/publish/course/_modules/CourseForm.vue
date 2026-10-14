@@ -86,7 +86,7 @@ const publishable = computed(() =>
 );
 
 const router = useRouter();
-const backAfterSubmit = () => goBackOr(router, '/app/publish/content');
+const backAfterSubmit = () => goBackOr(router, '/app/manage/content');
 
 const submitting = ref(false);
 
@@ -240,11 +240,11 @@ const resetForm = () => {
             </StSpace>
 
             <NuxtLink
-               to="/app/publish/content"
+               to="/app/manage/content"
                target="_blank"
                class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1 px-2 mt-4">
                <FileCollection size="0.875rem" />
-               内容库
+               内容管理
             </NuxtLink>
 
             <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">

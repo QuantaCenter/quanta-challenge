@@ -3,9 +3,7 @@ import {
    BookOne,
    Code,
    DocDetail,
-   FileCollection,
    GoldMedalTwo,
-   Right,
    School,
    TableReport,
    Tag,
@@ -31,40 +29,6 @@ const options = [
    },
 ];
 
-const articleEntry = {
-   title: '发布文章',
-   description: '写正文并插入题库中的题目——文章是内容的原子，独立于专题存在',
-   url: '/app/publish/article',
-   icon: DocDetail,
-   iconColor: '#4ADE80',
-};
-
-/** 三张表的统一入口：在哪改、被谁引用，都在这一页里看 */
-const contentEntry = {
-   title: '内容库',
-   description: '课程 / 专题 / 文章放在一起：直达编辑页，含待审核的课程',
-   url: '/app/publish/content',
-   icon: FileCollection,
-   iconColor: '#38BDF8',
-};
-
-const articleChildren = [
-   {
-      title: '创建专题',
-      description: '专题引用文章：把若干篇文章组织成一个知识领域，例如「布局」',
-      url: '/app/publish/topic',
-      icon: BookOne,
-      iconColor: '#38BDF8',
-   },
-   {
-      title: '创建课程',
-      description: '课程集合专题：把若干专题编成一门可完整学完的课程，例如「CSS」',
-      url: '/app/publish/course',
-      icon: School,
-      iconColor: '#F472B6',
-   },
-];
-
 const tailOptions = [
    {
       title: '创建成就',
@@ -75,14 +39,38 @@ const tailOptions = [
    },
    {
       title: '发布云函数',
-      description: '发布可被成员与内部服务通过 HTTP 调用的 JS/TS 云函数',
+      description: '编写并发布 JS/TS 函数，供题目代码通过 HTTP 凭令牌调用',
       url: '/app/publish/cloud-function',
       icon: Code,
       iconColor: '#C267FF',
    },
 ];
 
-const expanded = ref(false);
+/** 学习内容相关入口：文章是一等实体，专题引用文章，课程集合专题 */
+const contentOptions = [
+   {
+      title: '发布文章',
+      description: '创建一篇新文章，并可在正文中插入题库中的题目',
+      url: '/app/publish/article/new',
+      icon: DocDetail,
+      iconColor: '#4ADE80',
+   },
+   {
+      title: '创建专题',
+      description: '创建一个新的专题，将若干篇文章组织为一个知识领域',
+      url: '/app/publish/topic',
+      icon: BookOne,
+      iconColor: '#38BDF8',
+   },
+   {
+      title: '创建课程',
+      description: '创建一门新的课程，将若干个专题编排为完整的学习路径',
+      url: '/app/publish/course',
+      icon: School,
+      iconColor: '#F472B6',
+   },
+];
+
 </script>
 
 <template>
@@ -93,30 +81,13 @@ const expanded = ref(false);
          <StSpace direction="vertical" gap="1.5rem" fill-x>
             <PublishOptionCard v-for="option in options" :key="option.title" v-bind="option" />
 
-            <PublishOptionCard v-bind="contentEntry" />
-
-            <div class="relative w-full">
-               <button type="button" :title="expanded ? '收起专题与课程' : '展开创建专题与创建课程'" :aria-label="expanded ? '收起' : '展开'"
-                  :aria-expanded="expanded"
-                  class="absolute -left-12 top-1/2 -translate-y-1/2 mr-3 flex items-center justify-center size-9 rounded-[0.5rem] border transition-colors cursor-pointer"
-                  :class="expanded
-                     ? 'border-secondary text-secondary'
-                     : 'border-accent-300 text-accent-300 hover:border-secondary hover:text-secondary'
-                     " @click="expanded = !expanded">
-                  <Right size="1.125rem" :strokeWidth="3" class="transition-transform duration-200"
-                     :class="expanded ? 'rotate-90' : ''" />
-               </button>
-               <PublishOptionCard v-bind="articleEntry" />
-            </div>
-
-            <div v-if="expanded" class="relative w-full">
-               <!-- 树状连接线 -->
-               <StSpace direction="vertical" gap="1rem" fill-x>
-                  <PublishOptionCard v-for="option in articleChildren" :key="option.title" v-bind="option" />
-               </StSpace>
-            </div>
-
             <PublishOptionCard v-for="option in tailOptions" :key="option.title" v-bind="option" />
+         </StSpace>
+
+         <h2 class="st-font-third-bold text-white">内容创作</h2>
+
+         <StSpace direction="vertical" gap="1.5rem" fill-x>
+            <PublishOptionCard v-for="option in contentOptions" :key="option.title" v-bind="option" />
          </StSpace>
 
       </StSpace>

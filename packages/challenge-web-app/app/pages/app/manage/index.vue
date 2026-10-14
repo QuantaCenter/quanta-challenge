@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import {
    Code,
+   FileCollection,
    GoldMedalTwo,
    Peoples,
-   School,
    TableReport,
    Tag,
 } from '@icon-park/vue-next';
@@ -21,13 +21,11 @@ type ProcessOption = {
 
 const options: ProcessOption[] = [
    {
-      // 只有课程需要审核（设计文档 §17.1）。专题/文章保存即可见，
-      // 它们的「审核页」是早期静态预览，已随本次清理删除。
-      title: '课程审核',
-      description: '课程是唯一需要审核的实体：通过后才会出现在学习侧的课程列表里',
-      url: '/app/manage/course',
-      icon: School,
-      iconColor: '#F472B6',
+      title: '内容管理',
+      description: '查看与编辑课程 / 专题 / 文章，并进行课程审核',
+      url: '/app/manage/content',
+      icon: FileCollection,
+      iconColor: '#38BDF8',
    },
    {
       title: '题目管理',
