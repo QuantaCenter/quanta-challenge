@@ -19,6 +19,7 @@ import CommitModal from './_components/CommitModal.vue';
 import EditorBoardLayout from './_components/EditorBoardLayout.vue';
 import { useCommands } from '../../_composables/use-commands/index';
 import { useFileChangeSync } from './_composables/use-file-change-sync';
+import { useManifestSync } from './_composables/use-manifest-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
 
@@ -195,6 +196,12 @@ const {
    workdirName: 'workspace',
 });
 const terminal = useTemplateRef('terminal');
+
+useManifestSync({
+   getWebContainerInstance: getInstance,
+   onEditorInstanceReady: (callback) =>
+      codeEditor.value?.onEditorInstanceReady(callback),
+});
 
 // 容器启动失败时的提示状态（由 runProject 与 webcontainer 失败回调共同写入）
 const unsupportedReason = ref<string | null>(null);

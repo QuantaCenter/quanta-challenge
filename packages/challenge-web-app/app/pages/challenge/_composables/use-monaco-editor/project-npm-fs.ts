@@ -215,11 +215,7 @@ const readProjectManifests = (files: ProjectFile[]) => {
    const ranges = new Map<string, string>();
    const locked = createLockedVersions();
    const manifests = files
-      .filter(
-         (file) =>
-            MANIFEST_NAMES.has(baseName(file.uri.path)) &&
-            !file.uri.path.includes(`${NODE_MODULES}/`)
-      )
+      .filter(isManifest)
       .sort((a, b) => depth(a.uri.path) - depth(b.uri.path));
 
    for (const file of manifests) {
@@ -257,17 +253,26 @@ const registerDependencies = (ranges: Map<string, string>, manifest: unknown) =>
    }
 };
 
-const resolveRange = async (name: string, range: string) => {
-   try {
-      const res = await fetch(
-         `https://data.jsdelivr.com/v1/package/resolve/npm/${name}@${encodeURIComponent(range || 'latest')}`
-      );
-      if (!res.ok) return;
-      const { version } = (await res.json()) as { version?: string };
-      return version && EXACT_VERSION.test(version) ? version : undefined;
-   } catch {
-      return;
+const resolvedRanges = new Map<string, Promise<string | undefined>>();
+const resolveRange = (name: string, range: string) => {
+   const key = `${name}@${range}`;
+   let promise = resolvedRanges.get(key);
+   if (!promise) {
+      promise = (async () => {
+         try {
+            const res = await fetch(
+               `https://data.jsdelivr.com/v1/package/resolve/npm/${name}@${encodeURIComponent(range || 'latest')}`
+            );
+            if (!res.ok) return;
+            const { version } = (await res.json()) as { version?: string };
+            return version && EXACT_VERSION.test(version) ? version : undefined;
+         } catch {
+            return;
+         }
+      })();
+      resolvedRanges.set(key, promise);
    }
+   return promise;
 };
 
 const createProjectPackages = (files: ProjectFile[]) => {
@@ -328,61 +333,109 @@ const parseModulePath = (path: string) => {
    return { name, rest };
 };
 
-export const createProjectNpmFileSystem = (
-   getProjectFiles: () => ProjectFile[]
-): FileSystem => {
-   let manifestKey: string | undefined;
-   let packages: ReturnType<typeof createProjectPackages>;
+const hashVersion = (mtime: number, version: string) => {
+   let hash = mtime | 0;
+   for (let i = 0; i < version.length; i++) {
+      hash = (Math.imul(hash, 31) + version.charCodeAt(i)) | 0;
+   }
+   return hash;
+};
 
-   const getPackages = () => {
-      const files = getProjectFiles();
-      const key = files
-         .filter((file) => MANIFEST_NAMES.has(baseName(file.uri.path)))
-         .map((file) => `${file.uri.path}@${file.version}`)
-         .sort()
-         .join('|');
-      if (key !== manifestKey) {
-         manifestKey = key;
-         packages = createProjectPackages(files);
+const isManifest = (file: ProjectFile) =>
+   MANIFEST_NAMES.has(baseName(file.uri.path)) &&
+   !file.uri.path.includes(`${NODE_MODULES}/`);
+
+/**
+ * 依赖清单的摘要：只有依赖声明或锁文件内容变化时才会改变。
+ * package.json 只取依赖字段，改 scripts 等无关字段、或编辑途中 JSON 暂时不合法时摘要保持不变。
+ */
+export const createManifestDigest = () => {
+   let lastSignature: string | undefined;
+   let lastDigest = '';
+   const lastValidPackageJson = new Map<string, string>();
+
+   const digestOf = (file: ProjectFile) => {
+      const path = file.uri.path;
+      const text = file.getValue();
+      if (baseName(path) !== 'package.json') return text;
+      try {
+         const manifest = JSON.parse(text) as Record<string, unknown>;
+         const digest = JSON.stringify(
+            DEPENDENCY_FIELDS.map((field) => {
+               const deps = manifest?.[field];
+               return deps && typeof deps === 'object'
+                  ? Object.entries(deps).sort(([a], [b]) => (a < b ? -1 : 1))
+                  : [];
+            })
+         );
+         lastValidPackageJson.set(path, digest);
+         return digest;
+      } catch {
+         return lastValidPackageJson.get(path) ?? '';
       }
-      return packages;
    };
 
-   /** 返回可以交给 jsDelivr 文件系统的包；未声明或无法确定版本时返回 undefined */
+   return (files: ProjectFile[]) => {
+      const manifests = files
+         .filter(isManifest)
+         .sort((a, b) => (a.uri.path < b.uri.path ? -1 : 1));
+      const signature = manifests
+         .map((file) => `${file.uri.path}@${file.version}`)
+         .join('|');
+      if (signature !== lastSignature) {
+         lastSignature = signature;
+         lastDigest = manifests
+            .map((file) => `${file.uri.path}\n${digestOf(file)}`)
+            .join('\0');
+      }
+      return lastDigest;
+   };
+};
+
+/** 依赖清单在创建时读取一次；清单变化后由调用方重建（见 vue.worker.ts） */
+export const createProjectNpmFileSystem = (files: ProjectFile[]): FileSystem => {
+   const packages = createProjectPackages(files);
+
+   /** 未声明或无法确定版本的包返回 undefined */
    const resolvePackage = async (uri: URI) => {
       if (!uri.path.startsWith(`${NODE_MODULES}/`)) return;
       const { name, rest } = parseModulePath(uri.path);
-      const current = getPackages();
-      if (!name || !current.isDeclared(name)) return;
-      if (!(await current.resolveVersion(name))) return;
-      return { packages: current, rest };
+      if (!name || !packages.isDeclared(name)) return;
+      if (!(await packages.resolveVersion(name))) return;
+      return rest;
    };
 
    return {
       async stat(uri) {
-         if (uri.path === NODE_MODULES) return getPackages().npmFs.stat(uri);
+         if (uri.path === NODE_MODULES) return packages.npmFs.stat(uri);
          const { name, scope } = parseModulePath(uri.path);
-         if (!name && scope) return getPackages().npmFs.stat(uri);
-         const resolved = await resolvePackage(uri);
-         return resolved?.packages.npmFs.stat(uri);
+         if (!name && scope) return packages.npmFs.stat(uri);
+         if ((await resolvePackage(uri)) === undefined) return;
+         const stat = await packages.npmFs.stat(uri);
+         const version = await packages.resolveVersion(name!);
+         // Volar 在模块级按 uri + mtime 缓存文件快照，重建语言服务也不会清空；
+         // npm 打包会把文件时间统一成固定值，不把版本混进 mtime，换版本后会读到旧内容
+         return stat && version
+            ? { ...stat, mtime: hashVersion(stat.mtime, version) }
+            : stat;
       },
       async readFile(uri) {
-         const resolved = await resolvePackage(uri);
-         if (!resolved) return;
-         const text = await resolved.packages.npmFs.readFile(uri);
-         if (text !== undefined && resolved.rest === 'package.json') {
-            resolved.packages.registerPackageJson(text);
+         const rest = await resolvePackage(uri);
+         if (rest === undefined) return;
+         const text = await packages.npmFs.readFile(uri);
+         if (text !== undefined && rest === 'package.json') {
+            packages.registerPackageJson(text);
          }
          return text;
       },
       async readDirectory(uri) {
          if (uri.path === `${NODE_MODULES}/@types`) {
-            return getPackages().directTypes.map(
+            return packages.directTypes.map(
                (name) => [name.slice('@types/'.length), 2] as [string, 2]
             );
          }
-         const resolved = await resolvePackage(uri);
-         return resolved ? resolved.packages.npmFs.readDirectory(uri) : [];
+         if ((await resolvePackage(uri)) === undefined) return [];
+         return packages.npmFs.readDirectory(uri);
       },
    };
 };
