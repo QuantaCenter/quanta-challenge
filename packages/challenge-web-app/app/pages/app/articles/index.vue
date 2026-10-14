@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DocDetail, Left } from '@icon-park/vue-next';
+import { Left } from '@icon-park/vue-next';
 import { useLearningArticles } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
 
@@ -26,26 +26,13 @@ useSeoMeta({
       class="hide-scrollbar overflow-auto">
       <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
          <NuxtLink
-            to="/app/topics"
+            to="/app/learning"
             class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1">
             <Left size="0.875rem" />
             返回学习首页
          </NuxtLink>
 
-         <StSpace align="end" gap="1rem" fill-x class="mt-4">
-            <h1 class="text-[2.5rem] font-bold text-white">文章</h1>
-            <span
-               class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
-               共 {{ allArticles.length }} 篇
-            </span>
-         </StSpace>
-
-         <StSpace align="center" gap="0.5rem" fill-x class="mt-4">
-            <DocDetail class="shrink-0 text-accent-300" size="1rem" :strokeWidth="3" />
-            <span class="st-font-tooltip text-accent-400">
-               文章不依赖专题：没有被任何专题收录也能打开
-            </span>
-         </StSpace>
+         <h1 class="mt-4 text-[2.5rem] font-bold text-white">文章</h1>
 
          <StSpace direction="vertical" gap="0" fill-x class="mt-6">
             <LearningArticleRow
