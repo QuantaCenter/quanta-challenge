@@ -92,14 +92,16 @@ self.onmessage = () => {
          compilerOptions,
          uriConverter: { asFileName, asUri },
          workerContext: ctx,
+         // html 插件必须排在 Vue 前面：Vue 会把所有 html 文件当作 petite-vue 模板解析，
+         // 导致 hover 重复、出现 Vue 指令补全，<script> 也被当成 TS 检查
          languagePlugins: [
+            createHtmlLanguagePlugin(typescript),
             createVueLanguagePlugin(
                typescript,
                compilerOptions,
                vueCompilerOptions,
                asFileName
             ),
-            createHtmlLanguagePlugin(typescript),
          ],
          languageServicePlugins: [...getFullLanguageServicePlugins(typescript)],
          // Vue 的模板 / HTML 补全等插件依赖 project.vue，缺失时会直接跳过
