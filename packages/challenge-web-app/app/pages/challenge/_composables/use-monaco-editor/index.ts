@@ -56,6 +56,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
 
    let monaco: MonacoEditor | null = null;
    let editorInstance: editor.IStandaloneCodeEditor | null = null;
+   let disposeLanguageWorkers: (() => void) | null = null;
 
    // 编辑器准备回调
    const monacoReadyCallbacks = new Set<MonacoReadyCallback>();
@@ -171,22 +172,6 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       monaco = monacoModule;
       monacoReadyCallbacks.forEach((callback) => callback(monaco!));
 
-      monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-         target: monaco.languages.typescript.ScriptTarget.ES2020,
-         allowNonTsExtensions: true,
-         moduleResolution:
-            monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-         module: monaco.languages.typescript.ModuleKind.ESNext,
-         noEmit: true,
-         esModuleInterop: true,
-         jsx: monaco.languages.typescript.JsxEmit.React,
-         allowJs: true,
-         typeRoots: ['node_modules/@types'],
-         paths: {
-            '*': ['*', 'node_modules/*'], // 模块查找路径映射
-         },
-      });
-
       // 监听所有模型的修改
       monaco.editor.onDidCreateModel((model) => {
          model.onDidChangeContent(() => {
@@ -205,7 +190,10 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       registerHighligher(monaco);
 
       // 注册语言服务（须在创建编辑器 / 模型之前，保证语言与 worker 已就绪）
-      registerLanguageWorkers(monaco, options?.getWorker);
+      disposeLanguageWorkers = registerLanguageWorkers(
+         monaco,
+         options?.getWorker
+      );
 
       // 自动重新测量字体
       autoRemeasureFont(monaco);
@@ -235,6 +223,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          );
       monaco && monaco.editor.getModels().forEach((model) => model.dispose());
       editorInstance?.dispose();
+      disposeLanguageWorkers?.();
    });
 
    return {

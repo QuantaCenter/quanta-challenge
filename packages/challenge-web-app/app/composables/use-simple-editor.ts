@@ -106,7 +106,7 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
 
       setEnvironment();
 
-      // 已经配置过编译器选项（例如答题页的 paths / typeRoots）时不覆盖
+      // 已经配置过编译器选项（paths / typeRoots）时不覆盖
       const compilerOptions =
          monaco.languages.typescript.typescriptDefaults.getCompilerOptions();
       if (!compilerOptions.paths && !compilerOptions.typeRoots) {
