@@ -45,11 +45,9 @@ const parseCookies = (cookieString: string): Record<string, string> => {
 const createSetCookieHeader = (
    name: string,
    value: string,
-   isProduction: boolean,
+   secure: boolean,
 ): string => {
-   const sameSite = isProduction ? 'lax' : 'strict';
-   const secure = isProduction ? '; Secure' : '';
-   return `${name}=${value}; HttpOnly; Path=/; SameSite=${sameSite}${secure}`;
+   return `${name}=${value}; HttpOnly; Path=/; SameSite=lax${secure ? '; Secure' : ''}`;
 };
 
 /**
@@ -60,7 +58,7 @@ const setSSRCookies = (
    accessToken: string,
    refreshToken: string,
 ): void => {
-   const isProduction = import.meta.env.NODE_ENV === 'production';
+   const isProduction = process.env.NODE_ENV === 'production';
    const newCookies = [
       createSetCookieHeader(TOKEN_KEYS.ACCESS, accessToken, isProduction),
       createSetCookieHeader(TOKEN_KEYS.REFRESH, refreshToken, isProduction),
@@ -149,18 +147,25 @@ const redirectToLogin = (
    event?: H3Event,
    currentPath?: string,
 ): void => {
+   const target = (isServer ? event?.node.req.url : currentPath) || '/';
+   // 已经在登录流程页时不再重定向：登录接口本身返回 401（密码错误）、
+   // 或登录页上的其他请求 401 时，若也走重定向，会把 /auth/login 塞进
+   // redirect 参数，登录成功后又被弹回登录页，URL 自我嵌套无限循环。
+   // 此时直接抛错即可，登录页会展示「登录失败」提示。
+   if (target.startsWith('/auth/login')) {
+      return;
+   }
    if (isServer && event) {
       event.node.res.writeHead(302, {
          Location:
-            '/auth/login?redirect=' +
-            encodeURIComponent(event.node.req.url || '/'),
+            '/auth/login?redirect=' + encodeURIComponent(target),
       });
       event.node.res.end();
       return;
    }
    if (!isServer) {
       location.replace(
-         '/auth/login?redirect=' + encodeURIComponent(currentPath || '/'),
+         '/auth/login?redirect=' + encodeURIComponent(target),
       );
    }
 };
