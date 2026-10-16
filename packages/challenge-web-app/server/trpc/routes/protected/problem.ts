@@ -90,6 +90,14 @@ const getProblemDetailProcedure = protectedProcedure
             message: 'Problem not found',
          });
       }
+      // 服务端状态判定：未发布（含发布后被取消发布）的题目一律按不存在处理，
+      // 防止通过 URL 直达继续作答。与 NOT_FOUND 同错误码，避免暴露题目存在性。
+      if (problem.status !== 'published') {
+         throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Problem not found',
+         });
+      }
       const imageName =
          problem.CoverImage?.name ??
          problem.ProblemDefaultCover?.[0]?.image.name ??
@@ -125,7 +133,7 @@ const commitAnswerProcedure = protectedProcedure
          });
          createdJudgeRecordId = judgeRecordId;
 
-         const { JudgeFile } = await tx.problems.findUniqueOrThrow({
+         const { JudgeFile, status } = await tx.problems.findUniqueOrThrow({
             where: {
                pid: input.problemId,
             },
@@ -135,8 +143,16 @@ const commitAnswerProcedure = protectedProcedure
                      judgeScript: true,
                   },
                },
+               status: true,
             },
          });
+         // 未发布（含被取消发布）的题目不允许提交判题；在事务内抛错会一并回滚上面创建的判题记录
+         if (status !== 'published') {
+            throw new TRPCError({
+               code: 'NOT_FOUND',
+               message: 'Problem not found',
+            });
+         }
          const judgeScript = JudgeFile[0].judgeScript;
 
          await fetch(`${judge.serverUrl}/task/create`, {
