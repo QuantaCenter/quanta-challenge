@@ -138,9 +138,11 @@ curl -s http://127.0.0.1:9310/healthz
 
 ## 业务接入
 
-### 后端 API 指标（Hono 服务）
+> 三个业务服务（judge-scheduler / cloud-function / web-app）**均已接入**，以下为各自的接入方式与相关环境变量，供排查或新增服务时参考。
 
-以 `@challenge/judge-scheduler` 为例：
+### 后端 API 指标（Hono 服务，已接入）
+
+`challenge-judge-scheduler` 与 `challenge-cloud-function` 均已通过埋点中间件接入：
 
 ```ts
 import { createApiInstrumentation } from '@challenge/observation/instrumentation'
@@ -150,35 +152,44 @@ app.use('*', api.middleware) // 放在所有业务路由之前
 app.get('/metrics', api.metricsHandler)
 ```
 
-抓取目标在 `deploy/prometheus/targets/backends.json` 中维护（file_sd，30s 自动刷新，无需重启）。
+抓取目标在 `deploy/prometheus/targets/backends.json` 中维护（file_sd，30s 自动刷新，无需重启），
+当前包含 `challenge-judge-scheduler:1888`、`challenge-cloud-function:1890`、`challenge-web-app:3000`。
 
-### 前端 SDK（web-app / Nuxt）
+judge-scheduler 另有判题业务自有指标（`src/metrics/index.ts`）：
 
-```ts
-// plugins/observation.client.ts
-import { initObservation } from '@challenge/observation/sdk'
+| 指标 | 类型 | 说明 |
+| --- | --- | --- |
+| `judge_queue_depth{queue,state}` | Gauge | BullMQ 队列各状态任务数（waiting/active/completed/failed/...） |
+| `judge_machine_available{kind}` | Gauge | 判题机可用性，1/0；`kind=frontend` 与 `/health` 的 degraded 同源 |
+| `judge_results_total{mode,outcome}` | Counter | 判题结果计数（pass / fail / error） |
+| `judge_task_duration_seconds{mode,outcome}` | Histogram | 单个判题任务总耗时 |
+| `judge_task_pending_seconds{mode}` | Histogram | 任务在队列中的等待时长 |
 
-export default defineNuxtPlugin(() => {
-  initObservation({
-    endpoint: 'https://obs.example.com/api/v1/report', // 反代指向 127.0.0.1:9310
-    app: 'challenge-web-app',
-    release: useRuntimeConfig().public.release,
-    sampleRate: 1,
-  })
-})
-```
+### 前端 SDK（web-app / Nuxt，已接入）
 
-采集内容：
+- 浏览器侧：`app/plugins/observation.client.ts` 调用 `initObservation`，采集 JS 异常 /
+  Web Vitals（LCP / FCP / TTFB / INP / CLS）/ fetch+XHR API 追踪；
+- 上报链路：SDK 同源上报到 Nitro 路由 `/api/observation/report`
+  （`server/api/observation/report.post.ts`），由 web-app 服务端转发到 observation 服务
+  —— 因为生产环境 observation 只绑定 `127.0.0.1:9310`，浏览器无法直连，也免去 CORS 与额外反代；
+- 服务端侧：`server/middleware/metrics.ts` + `server/routes/metrics.get.ts` 提供
+  Nitro HTTP 指标与 `/metrics` 抓取入口（指标名与 Hono 后端一致，Dashboard 直接复用）。
 
-- **JS 异常**：`window.onerror`、`unhandledrejection`、资源加载失败；异常详情同步转发到 Loki（`{source="frontend"}` 流），可在 Grafana Explore 检索；
-- **页面性能**：LCP / FCP / TTFB / INP / CLS（PerformanceObserver 实现，零依赖）；
-- **API 请求异常**：fetch + XHR 包装，记录状态码分类（2xx/4xx/5xx/network_error）与耗时；默认只追踪同源请求，可通过 `trackApi` 扩展。
+相关环境变量（web-app）：
 
-也提供 IIFE 产物 `dist/observation-sdk.iife.js`（全局 `ObservationSDK.initObservation`）供非打包页面直接 `<script>` 引入。
+| 变量名 | 说明 | 默认值 |
+| --- | --- | --- |
+| `OBSERVATION_SERVER_URL` | observation 服务地址（服务端转发用） | `http://localhost:9310`（生产 compose 注入 `http://observation:9310`） |
+| `OBSERVATION_ENDPOINT` | 浏览器上报地址 | `/api/observation/report` |
+| `OBSERVATION_SAMPLE_RATE` | 采样率 0-1 | `1` |
+| `OBSERVATION_REPORT_TOKEN` | 与服务端 `OBS_REPORT_TOKEN` 一致的上报令牌（可选） | 空 |
+| `RELEASE_VERSION` | 发布版本标识（git sha 等） | `dev` |
+
+未部署监控栈时上报会静默失败（502 丢弃批次），不影响业务。
 
 ## 告警
 
-- 规则：`deploy/grafana/provisioning/alerting/rules.yml`（Grafana 统一告警，无需 Alertmanager 组件），已内置：主机失联 / CPU / 内存 / 磁盘 / 容器重启 / API 5xx 错误率 / API P95 延迟 / 前端 JS 异常激增；
+- 规则：`deploy/grafana/provisioning/alerting/rules.yml`（Grafana 统一告警，无需 Alertmanager 组件），已内置：主机失联 / CPU / 内存 / 磁盘 / 容器重启 / API 5xx 错误率 / API P95 延迟 / 前端 JS 异常激增 / 判题机不可用（调度器 degraded）/ 判题队列积压 / 判题执行异常率；
 - 记录：所有告警经 webhook（`contact-points.yml`）写入 observation 服务 SQLite（`alert_records` / `alert_events` 表），提供 REST 查询：
 
 ```bash

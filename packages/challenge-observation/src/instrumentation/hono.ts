@@ -1,10 +1,6 @@
 import type { MiddlewareHandler } from 'hono'
 import client from 'prom-client'
 
-// 后端 API 埋点（请求量/错误率/延迟）：
-//   const api = createApiInstrumentation({ service: 'xxx' })
-//   app.use('*', api.middleware)      // 业务路由之前
-//   app.get('/metrics', api.metricsHandler)
 export interface ApiInstrumentationOptions {
    /** 服务名，作为 service 标签 */
    service: string
@@ -20,32 +16,34 @@ export function createApiInstrumentation(options: ApiInstrumentationOptions) {
    const registry = options.registry ?? client.register
    const labels = { service: options.service }
 
-   const requests = new client.Counter({
-      name: 'http_requests_total',
-      help: 'HTTP 请求总数',
-      labelNames: ['service', 'route', 'method', 'status'] as const,
-      registers: [registry],
-   })
+   // 幂等注册：避免 HMR 重载时同名指标重复注册
+   const requests =
+      (registry.getSingleMetric('http_requests_total') as client.Counter | undefined) ??
+      new client.Counter({
+         name: 'http_requests_total',
+         help: 'HTTP 请求总数',
+         labelNames: ['service', 'route', 'method', 'status'] as const,
+         registers: [registry],
+      })
 
-   const duration = new client.Histogram({
-      name: 'http_request_duration_seconds',
-      help: 'HTTP 请求耗时（秒）',
-      labelNames: ['service', 'route', 'method'] as const,
-      buckets: options.buckets ?? DEFAULT_BUCKETS,
-      registers: [registry],
-   })
+   const duration =
+      (registry.getSingleMetric('http_request_duration_seconds') as client.Histogram | undefined) ??
+      new client.Histogram({
+         name: 'http_request_duration_seconds',
+         help: 'HTTP 请求耗时（秒）',
+         labelNames: ['service', 'route', 'method'] as const,
+         buckets: options.buckets ?? DEFAULT_BUCKETS,
+         registers: [registry],
+      })
 
    const middleware: MiddlewareHandler = async (c, next) => {
       const start = performance.now()
       try {
          await next()
-      }
-      finally {
-         const route = c.req.routePath
-         const method = c.req.method
-         const status = String(c.res?.status ?? 500)
-         requests.inc({ ...labels, route, method, status })
-         duration.observe({ ...labels, route, method }, (performance.now() - start) / 1000)
+      } finally {
+         const routeLabels = { ...labels, route: c.req.routePath, method: c.req.method }
+         requests.inc({ ...routeLabels, status: String(c.res?.status ?? 500) })
+         duration.observe(routeLabels, (performance.now() - start) / 1000)
       }
    }
 

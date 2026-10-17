@@ -338,3 +338,130 @@ groups:
           scope: frontend
         annotations:
           summary: 最近 10 分钟前端 JS 异常超过 50 条，请到 Grafana Explore 查看 Loki 中详情
+
+  # ---------- 判题业务指标 ----------
+  - orgId: 1
+    name: judge-alerts
+    folder: Observation Alerts
+    interval: 1m
+    rules:
+      - uid: obs-judge-machine-down
+        title: 前端判题机不可用（调度器降级）
+        condition: C
+        for: 5m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: max(judge_machine_available{kind="frontend"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [1], type: lt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: critical
+          scope: judge
+        annotations:
+          summary: >-
+            前端判题机持续 5 分钟不可用（缺镜像 / 1889 端口被占 / 容器异常），
+            前端题型提交将全部失败，后端服务题型不受影响
+
+      - uid: obs-judge-queue-backlog
+        title: 判题队列积压 (waiting > 20)
+        condition: C
+        for: 5m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: max(judge_queue_depth{state="waiting"})
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [20], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: judge
+        annotations:
+          summary: 判题队列 waiting 任务持续 5 分钟超过 20，处理能力不足或判题机异常
+
+      - uid: obs-judge-error-rate
+        title: 判题执行异常率过高 (5 分钟 > 30%)
+        condition: C
+        for: 5m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: >-
+                sum(increase(judge_results_total{outcome="error"}[5m]))
+                / clamp_min(sum(increase(judge_results_total[5m])), 1)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [0.3], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: judge
+        annotations:
+          summary: 判题执行异常（outcome=error）占比持续 5 分钟超过 30%，多为判题机 / 容器 / 数据库故障
