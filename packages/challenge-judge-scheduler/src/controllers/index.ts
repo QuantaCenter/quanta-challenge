@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createApiInstrumentation } from '@challenge/observation/instrumentation';
 import { loadEnv } from '../middlewares/env';
 import taskRoute from './task';
 import codeRoute from './code';
@@ -7,6 +8,10 @@ import { globalExpectionFilter } from '../filters/gloabl-expection-filter';
 import { DockerService } from '../services/docker';
 
 const app = new Hono();
+
+// API 指标埋点，需先于其他中间件注册
+const apiInstrumentation = createApiInstrumentation({ service: 'challenge-judge-scheduler' });
+app.use('*', apiInstrumentation.middleware);
 
 app.use('*', loadEnv());
 
@@ -28,5 +33,8 @@ app.get('/health', (c) => {
       judgeMachine,
    });
 });
+
+// Prometheus 抓取入口
+app.get('/metrics', apiInstrumentation.metricsHandler);
 
 export default app;
