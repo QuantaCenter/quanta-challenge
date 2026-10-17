@@ -27,6 +27,11 @@ services:
       - OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
       - OBSERVATION_REPORT_TOKEN=${OBS_REPORT_TOKEN:-}
       - RELEASE_VERSION=${RELEASE_VERSION:-}
+      # nuxt build 会把 runtimeConfig 烘焙成字面量，运行时只有 NUXT_ 前缀的变量能覆盖
+      # （Nitro 按 runtimeConfig 键路径映射 NUXT_<KEY>），compose 里只配原名读不到，
+      # 上报会一直打默认的 http://localhost:9310。这里必须同时注入 NUXT_ 键。
+      - NUXT_OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
+      - NUXT_PUBLIC_OBSERVATION_RELEASE=${RELEASE_VERSION:-}
     depends_on:
       - challenge-judge-scheduler
       - challenge-cloud-function
