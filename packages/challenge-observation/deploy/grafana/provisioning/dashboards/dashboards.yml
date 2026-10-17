@@ -1,0 +1,13 @@
+apiVersion: 1
+
+providers:
+  - name: observation
+    orgId: 1
+    folder: Observation
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /etc/grafana/dashboards
+      foldersFromFilesStructure: false

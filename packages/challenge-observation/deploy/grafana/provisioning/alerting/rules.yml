@@ -1,0 +1,340 @@
+# Grafana 统一告警规则；告警经 webhook 写入 observation SQLite
+apiVersion: 1
+
+groups:
+  # ---------- 主机资源 ----------
+  - orgId: 1
+    name: host-alerts
+    folder: Observation Alerts
+    interval: 1m
+    rules:
+      - uid: obs-host-down
+        title: 主机失联 (node-exporter down)
+        condition: C
+        for: 3m
+        noDataState: Alerting
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: up{job="node-exporter"}
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [1], type: lt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: critical
+          scope: host
+        annotations:
+          summary: node-exporter 超过 3 分钟无数据，主机可能宕机
+
+      - uid: obs-host-cpu-high
+        title: 主机 CPU 过高 (>90%)
+        condition: C
+        for: 10m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [90], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: host
+        annotations:
+          summary: 主机 CPU 使用率持续 10 分钟高于 90%
+
+      - uid: obs-host-mem-high
+        title: 主机内存过高 (>90%)
+        condition: C
+        for: 10m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [90], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: host
+        annotations:
+          summary: 主机内存使用率持续 10 分钟高于 90%
+
+      - uid: obs-host-disk-full
+        title: 磁盘空间不足 (根分区 >90%)
+        condition: C
+        for: 10m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: (1 - node_filesystem_avail_bytes{mountpoint="/",fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{mountpoint="/",fstype!~"tmpfs|overlay"}) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [90], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: critical
+          scope: host
+        annotations:
+          summary: 根分区使用率高于 90%，请清理或扩容
+
+  # ---------- 容器 ----------
+  - orgId: 1
+    name: container-alerts
+    folder: Observation Alerts
+    interval: 1m
+    rules:
+      - uid: obs-container-restart
+        title: 容器发生重启 (1h 内)
+        condition: C
+        for: 1m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: changes(container_start_time_seconds{image!=""}[1h]) > 0
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [0], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: container
+        annotations:
+          summary: 容器 {{ $labels.name }} 最近 1 小时内发生过重启
+
+  # ---------- 业务后端 API ----------
+  - orgId: 1
+    name: api-alerts
+    folder: Observation Alerts
+    interval: 1m
+    rules:
+      - uid: obs-api-5xx-ratio
+        title: 后端 API 5xx 错误率过高 (>5%)
+        condition: C
+        for: 5m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m])) * 100
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [5], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: critical
+          scope: api
+        annotations:
+          summary: 后端 API 5xx 错误率持续 5 分钟高于 5%
+
+      - uid: obs-api-latency-p95
+        title: 后端 API P95 延迟过高 (>2s)
+        condition: C
+        for: 5m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) * 1000
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [2000], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: api
+        annotations:
+          summary: 后端 API P95 延迟持续 5 分钟超过 2s
+
+  # ---------- 前端 ----------
+  - orgId: 1
+    name: frontend-alerts
+    folder: Observation Alerts
+    interval: 1m
+    rules:
+      - uid: obs-frontend-js-error-spike
+        title: 前端 JS 异常激增 (10 分钟 > 50 条)
+        condition: C
+        for: 0m
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              datasource: { type: prometheus, uid: prometheus }
+              editorMode: code
+              expr: sum(increase(frontend_errors_total{type="js"}[10m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [50], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { params: [], type: last }
+                  type: query
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              settings: { mode: dropNN }
+              type: threshold
+              refId: C
+        labels:
+          severity: warning
+          scope: frontend
+        annotations:
+          summary: 最近 10 分钟前端 JS 异常超过 50 条，请到 Grafana Explore 查看 Loki 中详情

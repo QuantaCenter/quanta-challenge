@@ -1,0 +1,37 @@
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # 主机资源
+  - job_name: node-exporter
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  # 容器资源
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  # Alloy 自身
+  - job_name: alloy
+    static_configs:
+      - targets: ["alloy:12345"]
+
+  # 前端上报指标（observation 聚合）
+  - job_name: observation-server
+    static_configs:
+      - targets: ["observation:9310"]
+
+  # 业务后端（接入 @challenge/observation/instrumentation 后暴露 /metrics）
+  # file_sd 维护，编辑 targets/backends.json 自动生效
+  - job_name: backend-services
+    file_sd_configs:
+      - files:
+          - /etc/prometheus/targets/*.json
+        refresh_interval: 30s

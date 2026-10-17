@@ -1,0 +1,9 @@
+[
+   {
+      "targets": ["challenge-judge-scheduler:1888", "challenge-cloud-function:1890"],
+      "labels": {
+         "env": "production",
+         "project": "quanta-challenge"
+      }
+   }
+]

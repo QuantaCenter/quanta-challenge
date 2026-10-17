@@ -1,0 +1,15 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: observation-webhook
+    receivers:
+      - uid: observation-webhook-receiver
+        type: webhook
+        disableResolveMessage: false
+        settings:
+          url: http://observation:9310/api/v1/alerts/webhook
+          httpMethod: POST
+          # 与 .env 的 OBS_API_TOKEN 一致（provisioning 不支持环境变量插值）
+          authorization_scheme: Bearer
+          authorization_credentials: REPLACE_WITH_OBS_API_TOKEN
