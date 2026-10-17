@@ -158,12 +158,9 @@ export const deleteArticle = async (id: string) => {
 export interface TopicInput {
    courseId: string;
    name: string;
-   slug: string;
    description: string;
-   weight: number;
    coverPreset: string;
    articleIds: string[];
-   prerequisites: string[];
 }
 
 const assertArticleIdsExist = async (articleIds: string[]) => {
@@ -176,51 +173,27 @@ const assertArticleIdsExist = async (articleIds: string[]) => {
    }
 };
 
-const assertTopicRefsValid = async (
-   courseId: string,
-   topicId: string | null,
-   prerequisites: string[],
-) => {
+const assertTopicRefsValid = async (courseId: string) => {
    const course = await prisma.course.findUnique({
       where: { id: courseId },
       select: { id: true },
    });
    if (!course) throw badRequest('归属的课程不存在');
-
-   if (topicId && prerequisites.includes(topicId)) {
-      throw badRequest('专题不能把自己设为前置');
-   }
-   if (prerequisites.length > 0) {
-      const found = await prisma.topic.count({
-         where: { id: { in: prerequisites } },
-      });
-      if (found !== prerequisites.length) {
-         throw badRequest('前置专题里有不存在的专题');
-      }
-   }
 };
 
 export const createTopic = async (
    authorId: string,
    input: TopicInput,
 ): Promise<TopicDto> => {
-   await assertTopicRefsValid(input.courseId, null, input.prerequisites);
+   await assertTopicRefsValid(input.courseId);
    await assertArticleIdsExist(input.articleIds);
-
-   const existing = await prisma.topic.findUnique({
-      where: { courseId_slug: { courseId: input.courseId, slug: input.slug } },
-      select: { id: true },
-   });
-   if (existing) throw conflict('同一课程下 slug 已存在', '换一个英文标识');
 
    const row = await prisma.topic.create({
       data: {
          authorId,
          courseId: input.courseId,
-         slug: input.slug,
          name: input.name,
          description: input.description,
-         weight: input.weight,
          coverPreset: input.coverPreset,
          Articles: {
             create: input.articleIds.map((articleId, index) => ({
@@ -228,25 +201,17 @@ export const createTopic = async (
                sort: index,
             })),
          },
-         Prerequisites: {
-            create: input.prerequisites.map((prerequisiteId) => ({
-               prerequisiteId,
-            })),
-         },
       },
       select: {
          id: true,
-         slug: true,
          name: true,
          description: true,
-         weight: true,
          coverPreset: true,
          courseId: true,
          authorId: true,
          createdAt: true,
          updatedAt: true,
          Articles: { orderBy: { sort: 'asc' }, select: { articleId: true, sort: true } },
-         Prerequisites: { select: { prerequisiteId: true } },
       },
    });
    return toTopicDto(row);
@@ -262,7 +227,7 @@ export const updateTopic = async (
    });
    if (!current) throw new TRPCError({ code: 'NOT_FOUND', message: '没有这个专题' });
 
-   await assertTopicRefsValid(input.courseId, id, input.prerequisites);
+   await assertTopicRefsValid(input.courseId);
    await assertArticleIdsExist(input.articleIds);
 
    const row = await prisma.$transaction(async (tx) => {
@@ -270,10 +235,8 @@ export const updateTopic = async (
          where: { id },
          data: {
             courseId: input.courseId,
-            slug: input.slug,
             name: input.name,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset,
          },
       });
@@ -285,21 +248,12 @@ export const updateTopic = async (
             sort: index,
          })),
       });
-      await tx.topicPrerequisite.deleteMany({ where: { topicId: id } });
-      await tx.topicPrerequisite.createMany({
-         data: input.prerequisites.map((prerequisiteId) => ({
-            topicId: id,
-            prerequisiteId,
-         })),
-      });
       return tx.topic.findUniqueOrThrow({
          where: { id },
          select: {
             id: true,
-            slug: true,
             name: true,
             description: true,
-            weight: true,
             coverPreset: true,
             courseId: true,
             authorId: true,
@@ -309,7 +263,6 @@ export const updateTopic = async (
                orderBy: { sort: 'asc' },
                select: { articleId: true, sort: true },
             },
-            Prerequisites: { select: { prerequisiteId: true } },
          },
       });
    });
@@ -317,14 +270,6 @@ export const updateTopic = async (
 };
 
 export const deleteTopic = async (id: string) => {
-   const prerequisites = await prisma.topicPrerequisite.findMany({
-      where: { prerequisiteId: id },
-      select: { Topic: { select: { name: true } } },
-   });
-   if (prerequisites.length > 0) {
-      const owners = prerequisites.map((row) => row.Topic.name).join('、');
-      throw conflict('还有专题把它当作前置，不能删除', `依赖它的专题：${owners}`);
-   }
    await prisma.topic.delete({ where: { id } });
    return { id };
 };
@@ -333,25 +278,22 @@ export const deleteTopic = async (id: string) => {
 
 export interface CourseInput {
    name: string;
-   slug: string;
    description: string;
-   weight: number;
    coverPreset: string;
    topicIds: string[];
 }
 
 const courseDetail = {
    id: true,
-   slug: true,
    name: true,
    description: true,
-   weight: true,
    status: true,
    coverPreset: true,
    authorId: true,
    createdAt: true,
    updatedAt: true,
    reviewedAt: true,
+   topicIds: true,
 } as const;
 
 const writeReviewRecord = async (
@@ -390,22 +332,16 @@ const assignTopics = async (
 };
 
 export const createCourse = async (authorId: string, input: CourseInput) => {
-   const existing = await prisma.course.findUnique({
-      where: { slug: input.slug },
-      select: { id: true },
-   });
-   if (existing) throw conflict(`英文标识 ${input.slug} 已被占用`, '换一个 slug');
-
    return prisma.$transaction(async (tx) => {
       const course = await tx.course.create({
          data: {
             authorId,
-            slug: input.slug,
             name: input.name,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset,
             status: 'DRAFT',
+            // 专题编排顺序只存在课程上：拖拽排序的结果随课程一起落库
+            topicIds: input.topicIds,
          },
          select: courseDetail,
       });
@@ -431,11 +367,11 @@ export const updateCourse = async (id: string, input: CourseInput) => {
       const course = await tx.course.update({
          where: { id },
          data: {
-            slug: input.slug,
             name: input.name,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset,
+            // 专题编排顺序只存在课程上：拖拽排序的结果随课程一起落库
+            topicIds: input.topicIds,
          },
          select: courseDetail,
       });

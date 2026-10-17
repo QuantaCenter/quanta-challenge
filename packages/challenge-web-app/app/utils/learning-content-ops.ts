@@ -37,20 +37,15 @@ export interface ArticleInput {
 
 export interface TopicInput {
    name: string;
-   slug: string;
    description: string;
-   weight: number;
    courseId: number;
-   prerequisites: number[];
    articleIds: number[];
    coverPreset?: LearningTopic['coverPreset'];
 }
 
 export interface CourseInput {
    name: string;
-   slug: string;
    description: string;
-   weight: number;
    topicIds: number[];
    status?: LearningCourse['status'];
    coverPreset?: LearningCourse['coverPreset'];
@@ -61,9 +56,6 @@ export interface CourseInput {
 /** 种子专题靠文章标题引用文章（标题在种子常量里唯一） */
 const titleToArticleId = new Map(
    SEED_ARTICLES.map((article, index) => [article.title, seedArticleId(index)]),
-);
-const slugToTopicId = new Map(
-   SEED_TOPICS.map((topic, index) => [topic.slug, seedTopicId(index)]),
 );
 const slugToCourseId = new Map(
    SEED_COURSES.map((course, index) => [course.slug, seedCourseId(index)]),
@@ -87,28 +79,28 @@ export const buildSeedTopics = (): LearningTopic[] =>
    SEED_TOPICS.map((topic, index) => ({
       id: seedTopicId(index),
       courseId: slugToCourseId.get(topic.courseSlug) ?? 0,
-      slug: topic.slug,
       name: topic.name,
       description: topic.description,
-      weight: topic.weight,
-      prerequisites: topic.prerequisites
-         .map((slug) => slugToTopicId.get(slug))
-         .filter((id): id is number => id !== undefined),
       articleIds: topic.articleTitles
          .map((title) => titleToArticleId.get(title))
          .filter((id): id is number => id !== undefined),
       coverPreset: topic.coverPreset,
    }));
 
+/** 课程内专题的编排顺序 = 种子里专题在 SEED_TOPICS 里的先后（按 courseSlug 过滤） */
+const seedTopicIdsOfCourse = (courseSlug: string): number[] =>
+   SEED_TOPICS.flatMap((topic, index) =>
+      topic.courseSlug === courseSlug ? [seedTopicId(index)] : [],
+   );
+
 export const buildSeedCourses = (): LearningCourse[] =>
    SEED_COURSES.map((course, index) => ({
       id: seedCourseId(index),
-      slug: course.slug,
       name: course.name,
       description: course.description,
-      weight: course.weight,
       status: 'published',
       coverPreset: course.coverPreset,
+      topicIds: seedTopicIdsOfCourse(course.slug),
    }));
 
 /** 每次调用都返回全新的对象（避免调用方改动污染「初始内容」） */
@@ -129,10 +121,12 @@ export const cloneContent = (
    })),
    topics: state.topics.map((topic) => ({
       ...topic,
-      prerequisites: [...topic.prerequisites],
       articleIds: [...topic.articleIds],
    })),
-   courses: state.courses.map((course) => ({ ...course })),
+   courses: state.courses.map((course) => ({
+      ...course,
+      topicIds: [...course.topicIds],
+   })),
 });
 
 /* ---------- id 分配 ---------- */
@@ -147,8 +141,6 @@ export const cloneContent = (
  */
 export const nextId = (list: { id: number }[]): number =>
    list.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-
-const nowSlug = (prefix: string) => `${prefix}-${Date.now().toString(36)}`;
 
 /* ---------- 文章 ---------- */
 
@@ -208,11 +200,8 @@ export const createTopic = (
    const topic: LearningTopic = {
       id: nextId(state.topics),
       courseId: input.courseId,
-      slug: input.slug.trim() || nowSlug('topic'),
       name: input.name.trim(),
       description: input.description.trim(),
-      weight: input.weight,
-      prerequisites: [...input.prerequisites],
       articleIds: [...input.articleIds],
       coverPreset: input.coverPreset ?? 'slate',
    };
@@ -230,11 +219,8 @@ export const updateTopic = (
    const next: LearningTopic = {
       ...current,
       courseId: input.courseId,
-      slug: input.slug.trim() || current.slug,
       name: input.name.trim(),
       description: input.description.trim(),
-      weight: input.weight,
-      prerequisites: [...input.prerequisites],
       articleIds: [...input.articleIds],
       coverPreset: input.coverPreset ?? current.coverPreset,
    };
@@ -265,13 +251,13 @@ export const createCourse = (
    const id = nextId(state.courses);
    const course: LearningCourse = {
       id,
-      slug: input.slug.trim() || nowSlug('course'),
       name: input.name.trim(),
       description: input.description.trim(),
-      weight: input.weight,
       // 课程是唯一需要审核的实体：默认进待审，而不是直接上架
       status: input.status ?? 'pending',
       coverPreset: input.coverPreset ?? 'slate',
+      // 专题编排顺序只存课程：拖拽排序的结果就在这里
+      topicIds: [...input.topicIds],
    };
    return {
       articles: state.articles,
@@ -290,12 +276,12 @@ export const updateCourse = (
 
    const next: LearningCourse = {
       ...current,
-      slug: input.slug.trim() || current.slug,
       name: input.name.trim(),
       description: input.description.trim(),
-      weight: input.weight,
       status: input.status ?? current.status,
       coverPreset: input.coverPreset ?? current.coverPreset,
+      // 专题编排顺序只存课程：拖拽排序的结果就在这里
+      topicIds: [...input.topicIds],
    };
    return {
       articles: state.articles,
@@ -322,14 +308,12 @@ export const pruneDanglingRefs = (
    const courses = dedupeById(state.courses);
 
    const articleIds = new Set(articles.map((article) => article.id));
-   const topicIds = new Set(topics.map((topic) => topic.id));
    return {
       articles,
       courses,
       topics: topics.map((topic) => ({
          ...topic,
          articleIds: topic.articleIds.filter((id) => articleIds.has(id)),
-         prerequisites: topic.prerequisites.filter((id) => topicIds.has(id)),
       })),
    };
 };

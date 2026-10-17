@@ -15,24 +15,21 @@ import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 /** 学习侧与创作侧共用的课程字段 */
 const courseSelect = {
    id: true,
-   slug: true,
    name: true,
    description: true,
-   weight: true,
    status: true,
    coverPreset: true,
    authorId: true,
    createdAt: true,
    updatedAt: true,
    reviewedAt: true,
+   topicIds: true,
 } satisfies Prisma.CourseSelect;
 
 export const topicSelect = {
    id: true,
-   slug: true,
    name: true,
    description: true,
-   weight: true,
    coverPreset: true,
    courseId: true,
    authorId: true,
@@ -42,7 +39,6 @@ export const topicSelect = {
       orderBy: { sort: 'asc' },
       select: { articleId: true, sort: true },
    },
-   Prerequisites: { select: { prerequisiteId: true } },
 } satisfies Prisma.TopicSelect;
 
 const articleSelect = {
@@ -79,17 +75,14 @@ export const toCourseDto = (row: CourseRow) => ({ ...row, status: row.status });
 
 export const toTopicDto = (row: TopicRow) => ({
    id: row.id,
-   slug: row.slug,
    name: row.name,
    description: row.description,
-   weight: row.weight,
    coverPreset: row.coverPreset,
    courseId: row.courseId,
    authorId: row.authorId,
    createdAt: row.createdAt,
    updatedAt: row.updatedAt,
    articleIds: row.Articles.map((item) => item.articleId),
-   prerequisites: row.Prerequisites.map((item) => item.prerequisiteId),
 });
 
 export const toArticleDto = (row: ArticleRow) => ({
@@ -121,7 +114,7 @@ export const listPublishedCourses = async () =>
    (
       await prisma.course.findMany({
          where: { status: 'PUBLISHED' },
-         orderBy: [{ weight: 'asc' }, { id: 'asc' }],
+         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
          select: courseSelect,
       })
    ).map(toCourseDto);
@@ -142,7 +135,7 @@ export const listPublishedTopics = async (courseId?: string) =>
             Course: { status: 'PUBLISHED' },
             ...(courseId ? { courseId } : {}),
          },
-         orderBy: [{ courseId: 'asc' }, { weight: 'asc' }, { id: 'asc' }],
+         orderBy: [{ courseId: 'asc' }, { id: 'asc' }],
          select: topicSelect,
       })
    ).map(toTopicDto);
@@ -163,7 +156,7 @@ export const findPublishedTopic = async (id: string) => {
 export const listAllTopics = async () =>
    (
       await prisma.topic.findMany({
-         orderBy: [{ weight: 'asc' }, { id: 'asc' }],
+         orderBy: [{ courseId: 'asc' }, { id: 'asc' }],
          select: topicSelect,
       })
    ).map(toTopicDto);

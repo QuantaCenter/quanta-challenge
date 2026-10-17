@@ -5,7 +5,6 @@ import {
    Close,
    DocDetail,
    Search,
-   Star,
    TableReport,
 } from '@icon-park/vue-next';
 import {
@@ -14,16 +13,23 @@ import {
    useLearningProblemBank,
    useAllTopics,
    type Difficulty,
+   type LearningArticle,
+   type LearningProblemRef,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
-import { useFavorites } from '~/composables/use-favorites';
+import {
+   useFavorites,
+   type FavoriteArticle,
+} from '~/composables/use-favorites';
+import DrawerWrapper from '../st/Drawer/index.vue';
 
 /**
- * 内容选择器（浮窗）：在**题库 / 文章库**里搜索，或从**收藏**里挑。
+ * 内容选择器（右侧抽屉）：在**题库 / 文章库**里搜索，或从**收藏**里挑。
  *
- * 「插入题目」「引用题目」「引用文章」三处共用这一个组件：
+ * 「插入题目」「引用文章」「编排专题」三处共用这一个组件：
  * - 单选（`multiple` 为 false）：点一条就直接 emit `pick`；
  * - 多选：勾选后点「确定」emit `confirm`。
+ * - 全部走右侧 drawer；作为二级抽屉（叠在专题抽屉上）时传更窄的 `width`。
  */
 const props = withDefaults(
    defineProps<{
@@ -31,8 +37,10 @@ const props = withDefaults(
       multiple?: boolean;
       /** 多选时的已选项，用于回显 */
       selectedIds?: number[];
+      /** 抽屉宽度；一级抽屉用默认值，二级抽屉传更窄的值以露出下层 */
+      width?: string;
    }>(),
-   { multiple: false, selectedIds: () => [] },
+   { multiple: false, selectedIds: () => [], width: '35rem' },
 );
 
 const opened = defineModel<boolean>('opened', { default: false });
@@ -50,6 +58,11 @@ interface PickerItem {
    totalScore?: number;
    disabled?: boolean;
    disabledReason?: string;
+   /** 题目类型时携带完整题目信息，用文章内同款的题目块渲染 */
+   problem?: LearningProblemRef;
+   /** 文章类型时携带完整文章 / 收藏快照，用学习页同款的文章条目渲染 */
+   article?: LearningArticle;
+   favorite?: FavoriteArticle;
 }
 
 const DIFFICULTY_LABEL: Record<Difficulty, string> = {
@@ -75,10 +88,21 @@ const bankStatus = useLearningProblemBankStatus();
 
 const tab = ref('library');
 const keyword = ref('');
+const keywordInput = ref('');
 const draftIds = ref<number[]>([]);
+
+// 搜索防抖：输入停顿 300ms 后才真正过滤
+const PAGE_SIZE = 20;
+const page = ref(1);
+const applyKeyword = useDebounceFn(() => {
+   keyword.value = keywordInput.value;
+   page.value = 1;
+}, 300);
+watch(keywordInput, () => applyKeyword());
 
 const isProblem = computed(() => props.kind === 'problem');
 const isTopic = computed(() => props.kind === 'topic');
+const isArticle = computed(() => props.kind === 'article');
 
 const libraryLabel = computed(() =>
    isProblem.value ? '题库' : isTopic.value ? '专题库' : '文章库',
@@ -88,12 +112,22 @@ const libraryIcon = computed(() =>
    isProblem.value ? TableReport : isTopic.value ? BookOne : DocDetail,
 );
 
-// 收藏只有题目与文章两类，选专题时不显示这个页签
+// 专题保留图标，题目与文章的页签纯文字
 const tabs = computed(() => {
    const list = [
-      { label: libraryLabel.value, value: 'library', icon: libraryIcon.value },
+      {
+         label: libraryLabel.value,
+         value: 'library',
+         icon: isTopic.value ? libraryIcon.value : undefined,
+      },
    ];
-   if (!isTopic.value) list.push({ label: '收藏', value: 'favorite', icon: Star });
+   if (!isTopic.value) {
+      list.push({
+         label: '收藏',
+         value: 'favorite',
+         icon: undefined,
+      });
+   }
    return list;
 });
 
@@ -105,6 +139,7 @@ const libraryItems = computed<PickerItem[]>(() => {
          summary: `base ${problem.baseId}`,
          difficulty: problem.difficulty,
          totalScore: problem.totalScore,
+         problem,
       }));
    }
 
@@ -120,6 +155,7 @@ const libraryItems = computed<PickerItem[]>(() => {
       id: article.id,
       title: article.title,
       summary: `${article.problems.length} 道题 · ${article.summary}`,
+      article,
    }));
 });
 
@@ -136,11 +172,23 @@ const favoriteItems = computed<PickerItem[]>(() =>
            // 文章引用题目靠 baseId；只有版本号的题没法写进正文
            disabled: problem.baseId === undefined,
            disabledReason: '缺少题号，不能写进正文',
+           problem: {
+              baseId: problem.baseId ?? 0,
+              pid: problem.pid ?? 0,
+              title: problem.title,
+              difficulty: problem.difficulty ?? 'medium',
+              totalScore: problem.totalScore ?? 0,
+              unavailable: problem.baseId === undefined,
+              imageName: problem.imageName ?? null,
+              imageHash: problem.imageHash ?? null,
+              imageThumbhashUrl: problem.imageThumbhashUrl ?? null,
+           },
         }))
       : favorites.articleFavorites.value.map((article) => ({
            id: article.articleId,
            title: article.title,
            summary: article.summary,
+           favorite: article,
         })),
 );
 
@@ -156,6 +204,20 @@ const items = computed(() => {
         )
       : source;
 });
+
+// 题目 / 文章列表分页加载：滚到列表底部自动加载下一页（专题一次性全出）
+const paginated = computed(() => isProblem.value || isArticle.value);
+const visibleItems = computed(() =>
+   paginated.value ? items.value.slice(0, page.value * PAGE_SIZE) : items.value,
+);
+const hasMore = computed(
+   () => paginated.value && visibleItems.value.length < items.value.length,
+);
+const onListScroll = (event: Event) => {
+   const el = event.target as HTMLElement;
+   if (el.scrollTop + el.clientHeight < el.scrollHeight - 40) return;
+   if (hasMore.value) page.value += 1;
+};
 
 const isSelected = (id: number) => draftIds.value.includes(id);
 
@@ -178,29 +240,47 @@ const confirm = () => {
    opened.value = false;
 };
 
+// 切页签回到第一页
+watch(tab, () => {
+   page.value = 1;
+});
+
+// 文章库打开时重拉：刚发布的文章不用刷新页面就能搜到（对齐题库的行为）
+const articlesLoading = ref(false);
+const articlesFailed = ref(false);
+const reloadArticles = async () => {
+   articlesLoading.value = true;
+   articlesFailed.value = false;
+   articlesFailed.value = (await content.refresh()) === null;
+   articlesLoading.value = false;
+};
+
 watch(opened, (value) => {
    if (!value) return;
    draftIds.value = [...props.selectedIds];
    keyword.value = '';
+   keywordInput.value = '';
    tab.value = 'library';
    // 题库每次打开都重新拉：刚发布的题不用刷新页面就能搜到
    if (isProblem.value) void bankStatus.reload();
+   if (isArticle.value) void reloadArticles();
 });
 </script>
 
 <template>
-   <StModal v-model:opened="opened">
-      <div
-         class="w-[42rem] max-h-[34rem] flex flex-col rounded-[1rem] bg-accent-700 border border-accent-500 text-white overflow-hidden shadow-2xl">
+   <DrawerWrapper v-model:opened="opened" global :width="props.width">
+      <div class="flex flex-col h-full bg-accent-700 text-white overflow-hidden">
          <StSpace
             align="center"
             justify="between"
             gap="1rem"
             fill-x
-            class="px-5 py-4 border-b border-accent-500">
+            class="px-5 py-4"
+            :class="isProblem ? 'border-b border-accent-500' : ''">
             <StSpace align="center" gap="0.5rem">
                <component
                   :is="libraryIcon"
+                  v-if="isProblem"
                   class="text-secondary"
                   size="1.25rem"
                   :strokeWidth="3" />
@@ -209,7 +289,9 @@ watch(opened, (value) => {
                      isProblem ? '选择题目' : isTopic ? '选择专题' : '选择文章'
                   }}
                </span>
-               <span class="st-font-tooltip text-accent-400">
+               <span
+                  v-if="isProblem"
+                  class="st-font-tooltip text-accent-400">
                   {{ multiple ? '可多选' : '点一条即选中' }}
                </span>
             </StSpace>
@@ -224,15 +306,18 @@ watch(opened, (value) => {
             </button>
          </StSpace>
 
-         <StTabs
-            v-if="tabs.length > 1"
-            v-model="tab"
-            :options="tabs"
-            class="px-5 pt-4" />
+         <!-- padding 放外层：下划线绝对定位在 StTabs 根上，根上挂 px 会让下划线整体偏移 -->
+         <div class="px-5 pt-4">
+            <StTabs
+               v-if="tabs.length > 1"
+               v-model="tab"
+               :options="tabs"
+               centered />
+         </div>
 
          <div class="px-5 pt-4">
             <StInput
-               v-model:value="keyword"
+               v-model:value="keywordInput"
                :placeholder="
                   isProblem
                      ? '按标题或题号搜索题库'
@@ -247,61 +332,86 @@ watch(opened, (value) => {
             </StInput>
          </div>
 
-         <div class="flex-1 min-h-0 overflow-auto p-5 flex flex-col gap-2">
-            <button
-               v-for="item in items"
-               :key="item.id"
-               type="button"
-               :disabled="item.disabled"
-               class="w-full p-3 rounded-[0.5rem] border text-left transition-colors flex items-center gap-3"
-               :class="[
-                  item.disabled
-                     ? 'border-accent-500 bg-accent-600/30 cursor-not-allowed opacity-60'
-                     : isSelected(item.id)
-                       ? 'border-secondary bg-accent-600 cursor-pointer'
-                       : 'border-accent-400 bg-accent-600/40 hover:border-secondary/60 cursor-pointer',
-               ]"
-               @click="choose(item)">
+         <div
+            class="flex-1 min-h-0 overflow-auto p-5 flex flex-col gap-2"
+            @scroll="onListScroll">
+            <template v-for="item in visibleItems" :key="item.id">
+               <!-- 题目：文章内同款的题目块，选中时加高亮描边 -->
                <div
-                  class="shrink-0 size-5 rounded-full border-2 flex items-center justify-center"
-                  :class="
-                     isSelected(item.id)
-                        ? 'border-secondary text-secondary'
-                        : 'border-accent-400'
-                  ">
-                  <Check
-                     v-if="isSelected(item.id)"
-                     size="0.75rem"
-                     :strokeWidth="4" />
+                  v-if="isProblem"
+                  class="cursor-pointer rounded-[0.75rem] [&>*]:!my-0"
+                  :class="isSelected(item.id) ? 'ring-2 ring-secondary' : ''"
+                  @click.prevent="choose(item)">
+                  <LearningProblemBlock :problem="item.problem!" />
                </div>
 
-               <StSpace direction="vertical" gap="0.25rem" class="min-w-0 flex-1">
-                  <span class="st-font-body-bold text-accent-100 truncate">
-                     {{ item.title }}
-                  </span>
-                  <StSpace align="center" gap="0.5rem">
-                     <StTag
-                        v-if="item.difficulty"
-                        size="small"
-                        :color="DIFFICULTY_COLOR[item.difficulty]"
-                        :content="DIFFICULTY_LABEL[item.difficulty]" />
-                     <span
-                        v-if="item.totalScore"
-                        class="st-font-tooltip text-accent-400 font-family-manrope">
-                        {{ item.totalScore }} 分
-                     </span>
-                     <span class="st-font-tooltip text-accent-400 truncate">
-                        {{ item.disabled ? item.disabledReason : item.summary }}
-                     </span>
-                  </StSpace>
-               </StSpace>
+               <!-- 文章：学习页同款的文章条目，选中时加高亮描边；
+                    收藏按钮自己吃掉点击，不会误触发选中。
+                    清掉 ArticleRow 自带的 py-4，让容器上下留白与左右一致 -->
+               <div
+                  v-else-if="isArticle"
+                  class="cursor-pointer rounded-[0.75rem] p-2 [&>div]:!py-0"
+                  :class="isSelected(item.id) ? 'ring-2 ring-secondary' : ''"
+                  @click="choose(item)">
+                  <LearningArticleRow
+                     :article="item.article"
+                     :favorite="item.favorite" />
+               </div>
 
-               <StTag
-                  v-if="tab === 'favorite'"
-                  size="small"
-                  color="#2b3a1a"
-                  content="已收藏" />
-            </button>
+               <button
+                  v-else
+                  type="button"
+                  :disabled="item.disabled"
+                  class="w-full p-3 rounded-[0.5rem] border text-left transition-colors flex items-center gap-3"
+                  :class="[
+                     item.disabled
+                        ? 'border-accent-500 bg-accent-600/30 cursor-not-allowed opacity-60'
+                        : isSelected(item.id)
+                          ? 'border-secondary bg-accent-600 cursor-pointer'
+                          : 'border-accent-400 bg-accent-600/40 hover:border-secondary/60 cursor-pointer',
+                  ]"
+                  @click="choose(item)">
+                  <div
+                     class="shrink-0 size-5 rounded-full border-2 flex items-center justify-center"
+                     :class="
+                        isSelected(item.id)
+                           ? 'border-secondary text-secondary'
+                           : 'border-accent-400'
+                     ">
+                     <Check
+                        v-if="isSelected(item.id)"
+                        size="0.75rem"
+                        :strokeWidth="4" />
+                  </div>
+
+                  <StSpace direction="vertical" gap="0.25rem" class="min-w-0 flex-1">
+                     <span class="st-font-body-bold text-accent-100 truncate">
+                        {{ item.title }}
+                     </span>
+                     <StSpace align="center" gap="0.5rem">
+                        <StTag
+                           v-if="item.difficulty"
+                           size="small"
+                           :color="DIFFICULTY_COLOR[item.difficulty]"
+                           :content="DIFFICULTY_LABEL[item.difficulty]" />
+                        <span
+                           v-if="item.totalScore"
+                           class="st-font-tooltip text-accent-400 font-family-manrope">
+                           {{ item.totalScore }} 分
+                        </span>
+                        <span class="st-font-tooltip text-accent-400 truncate">
+                           {{ item.disabled ? item.disabledReason : item.summary }}
+                        </span>
+                     </StSpace>
+                  </StSpace>
+
+                  <StTag
+                     v-if="tab === 'favorite'"
+                     size="small"
+                     color="#2b3a1a"
+                     content="已收藏" />
+               </button>
+            </template>
 
             <StEmptyStatus
                v-if="items.length === 0"
@@ -314,11 +424,15 @@ watch(opened, (value) => {
                        ? bankStatus.loading.value
                           ? '正在加载题库…'
                           : bankStatus.failed.value
-                            ? '题库加载失败，重新打开这个浮窗会再试一次'
+                            ? '题库加载失败，重新打开会再试一次'
                             : '题库里还没有已发布的题目'
                        : isTopic
-                         ? '没有匹配的专题'
-                         : '没有匹配的文章'
+                       ? '没有匹配的专题'
+                       : articlesLoading
+                         ? '正在加载文章…'
+                         : articlesFailed
+                           ? '文章加载失败，重新打开会再试一次'
+                           : '没有匹配的文章'
                "
                class="py-10" />
          </div>
@@ -342,5 +456,5 @@ watch(opened, (value) => {
             </StSpace>
          </StSpace>
       </div>
-   </StModal>
+   </DrawerWrapper>
 </template>

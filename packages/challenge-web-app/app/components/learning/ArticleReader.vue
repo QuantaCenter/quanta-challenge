@@ -29,12 +29,12 @@ import { useMarkdown } from '~/composables/use-markdown';
 const props = withDefaults(
    defineProps<{
       articleId: string | number;
-      /** 所属专题（有上下文时传）：用于面包屑与「返回专题」 */
-      topicSlug?: string | number;
+      /** 所属专题的数字 id（有上下文时传）：用于面包屑与「返回专题」 */
+      topicId?: string | number;
       /** 没有任何专题引用它时（独立文章），是否显示"未被引用"的说明 */
       showStandaloneHint?: boolean;
    }>(),
-   { topicSlug: undefined, showStandaloneHint: true },
+   { topicId: undefined, showStandaloneHint: true },
 );
 
 const content = useLearningContentStore();
@@ -44,9 +44,9 @@ const article = computed(() =>
    useLearningArticle(props.articleId, content),
 );
 const topic = computed(() =>
-   props.topicSlug === undefined
+   props.topicId === undefined
       ? undefined
-      : useLearningTopic(props.topicSlug, content),
+      : useLearningTopic(props.topicId, content),
 );
 
 /** 引用了这篇文章的全部专题（含当前这个） */

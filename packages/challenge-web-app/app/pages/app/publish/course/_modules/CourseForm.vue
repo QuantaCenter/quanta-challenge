@@ -1,25 +1,26 @@
 <script setup lang="ts">
+import { GoldMedalTwo } from '@icon-park/vue-next';
 import {
-   FileCollection,
-   FileEditingOne,
-   GoldMedalTwo,
-   TableReport,
-} from '@icon-park/vue-next';
-import {
-   canPublishCourse,
    useAllCourses,
    courseTopics,
+   useAllTopics,
    type LearningCourse,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
 import { useMessage } from '~/components/st/Message/use-message';
 import ReferencedTopicsField from './ReferencedTopicsField.vue';
+import TopicEditingDrawer, {
+   type TopicEditingDraft,
+   type PendingTopic,
+} from './TopicEditingDrawer.vue';
 
 /**
  * 创建 / 编辑课程。
  *
  * 课程是**唯一需要审核**的实体：保存默认进「待审核」，审核通过才上架到学习侧。
- * 文章与专题保存即可见（见各自表单）。
+ * 专题的创建与编辑也在这里完成（专题与课程总是一同出现）：
+ * 课程已保存时专题立即落库并挂到课程上；课程还没保存时，
+ * 新专题先作为本地草稿暂存，随课程一起提交。
  */
 const props = withDefaults(
    defineProps<{
@@ -38,7 +39,7 @@ useSeoMeta({
 });
 
 const message = useMessage();
-const { addCourse, editCourse } = useLearningContentStore();
+const { addCourse, editCourse, addTopic, editTopic } = useLearningContentStore();
 
 const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
@@ -48,6 +49,7 @@ const editing = computed(
 );
 const content = useLearningContentStore();
 const allCourses = useAllCourses(content);
+const allTopics = useAllTopics(content);
 const course = computed<LearningCourse | undefined>(() =>
    editing.value
       ? allCourses.find((item) => item.id === Number(props.courseId))
@@ -56,33 +58,36 @@ const course = computed<LearningCourse | undefined>(() =>
 
 const form = reactive({
    name: '',
-   slug: '',
    description: '',
-   weight: 10,
    topicIds: [] as number[],
 });
+
+/** 课程还没保存时新建的专题，随课程一起落库 */
+const pendingTopics = ref<PendingTopic[]>([]);
 
 const prefill = () => {
    const source = course.value;
    if (!source) return;
    form.name = source.name;
-   form.slug = source.slug;
    form.description = source.description;
-   form.weight = source.weight;
    form.topicIds = courseTopics(source.id, content).map((topic) => topic.id);
 };
 
-watch(course, prefill, { immediate: true });
+// 只在课程首次载入时回填，避免之后 store 刷新把正在编辑的内容冲掉
+let prefilledCourseId: string | number | undefined;
+watchEffect(() => {
+   if (editing.value && course.value && prefilledCourseId !== props.courseId) {
+      prefilledCourseId = props.courseId;
+      prefill();
+   }
+});
 
-const canSubmit = computed(
-   () => form.name.trim().length > 0 && form.topicIds.length > 0,
+const topicCount = computed(
+   () => form.topicIds.length + pendingTopics.value.length,
 );
 
-/** 发布校验（设计文档 §15）：0 专题的课程只能存草稿 */
-const publishable = computed(() =>
-   course.value
-      ? form.topicIds.length > 0
-      : canSubmit.value,
+const canSubmit = computed(
+   () => form.name.trim().length > 0 && topicCount.value > 0,
 );
 
 const router = useRouter();
@@ -92,27 +97,40 @@ const submitting = ref(false);
 
 const save = async (status: LearningCourse['status']) => {
    if (submitting.value) return;
-   if (status === 'published' && !publishable.value) {
+   if (status === 'published' && !canSubmit.value) {
       message.error('还不能上架', '课程至少要编排 1 个专题');
       return;
    }
 
    const payload = {
       name: form.name,
-      slug: form.slug,
       description: form.description,
-      weight: Number(form.weight) || 10,
       topicIds: form.topicIds,
       status,
    };
+   const totalTopics = topicCount.value;
 
    submitting.value = true;
-   let saved;
+   let saved: LearningCourse | undefined;
    try {
-      saved =
-         editing.value && course.value
-            ? await editCourse(course.value.id, payload)
-            : await addCourse(payload);
+      if (editing.value && course.value) {
+         saved = await editCourse(course.value.id, payload);
+      } else {
+         saved = await addCourse(payload);
+         // 随课程一起创建的专题先落库，再回填进课程的编排列表
+         const createdIds: number[] = [];
+         for (const draft of pendingTopics.value) {
+            const topic = await addTopic({ ...draft, courseId: saved.id });
+            createdIds.push(topic.id);
+         }
+         if (createdIds.length) {
+            saved = await editCourse(saved.id, {
+               ...payload,
+               topicIds: [...form.topicIds, ...createdIds],
+            });
+         }
+         pendingTopics.value = [];
+      }
    } catch (error) {
       message.error('保存失败', (error as Error).message);
       return;
@@ -129,7 +147,7 @@ const save = async (status: LearningCourse['status']) => {
       status === 'published' ? '课程已上架' : '课程已提交审核',
       status === 'published'
          ? `《${saved.name}》已出现在「全部课程」里`
-         : `《${saved.name}》编排了 ${form.topicIds.length} 个专题，等待超管审核`,
+         : `《${saved.name}》编排了 ${totalTopics} 个专题，等待超管审核`,
    );
    backAfterSubmit();
 };
@@ -140,10 +158,84 @@ const resetForm = () => {
       return;
    }
    form.name = '';
-   form.slug = '';
    form.description = '';
-   form.weight = 10;
    form.topicIds = [];
+   pendingTopics.value = [];
+};
+
+/* ----- 专题抽屉 ----- */
+
+const drawerOpened = ref(false);
+const drawerSaving = ref(false);
+const drawerTarget = ref<
+   { kind: 'existing'; id: number } | { kind: 'pending'; index: number } | null
+>(null);
+
+let pendingKey = 0;
+
+const drawerDraft = computed<TopicEditingDraft | null>(() => {
+   const target = drawerTarget.value;
+   if (!target) return null;
+   if (target.kind === 'pending')
+      return pendingTopics.value[target.index] ?? null;
+   const topic = allTopics.find((item) => item.id === target.id);
+   if (!topic) return null;
+   return {
+      name: topic.name,
+      description: topic.description,
+      articleIds: [...topic.articleIds],
+   };
+});
+
+const onDrawerConfirm = async (draft: TopicEditingDraft) => {
+   const target = drawerTarget.value;
+
+   // 待创建草稿：只改本地，随课程一起保存
+   if (target?.kind === 'pending') {
+      const current = pendingTopics.value[target.index];
+      if (current) {
+         pendingTopics.value[target.index] = { ...draft, key: current.key };
+      }
+      drawerOpened.value = false;
+      return;
+   }
+
+   // 编辑已有专题：立即落库，归属改为当前课程
+   if (target?.kind === 'existing') {
+      if (!course.value) return;
+      drawerSaving.value = true;
+      try {
+         await editTopic(target.id, { ...draft, courseId: course.value.id });
+      } catch (error) {
+         message.error('保存失败', (error as Error).message);
+         return;
+      } finally {
+         drawerSaving.value = false;
+      }
+      drawerOpened.value = false;
+      return;
+   }
+
+   // 新建专题：课程已存在就立即落库并挂到课程上
+   if (course.value) {
+      drawerSaving.value = true;
+      let savedTopic;
+      try {
+         savedTopic = await addTopic({ ...draft, courseId: course.value.id });
+      } catch (error) {
+         message.error('创建专题失败', (error as Error).message);
+         return;
+      } finally {
+         drawerSaving.value = false;
+      }
+      form.topicIds.push(savedTopic.id);
+      drawerOpened.value = false;
+      return;
+   }
+
+   // 课程还没保存：先记成本地草稿
+   pendingTopics.value.push({ ...draft, key: `pending-${pendingKey++}` });
+   drawerOpened.value = false;
 };
 </script>
 
@@ -158,7 +250,7 @@ const resetForm = () => {
          v-else
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-[44.8rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem" fill-x>
             <h1 class="st-font-hero-bold">
                {{ editing ? '编辑课程' : '创建课程' }}
@@ -184,19 +276,6 @@ const resetForm = () => {
                      :outer-class />
                </StFormItem>
 
-               <StSpace gap="1.5rem" fill-x>
-                  <StFormItem name="slug" label="英文标识">
-                     <StInput v-model:value="form.slug" :outer-class />
-                  </StFormItem>
-                  <StFormItem name="weight" label="排序权重">
-                     <StInput
-                        v-model:value="form.weight"
-                        type="number"
-                        placeholder="10"
-                        :outer-class />
-                  </StFormItem>
-               </StSpace>
-
                <StFormItem name="description" label="一句话描述" required>
                   <StTextarea
                      v-model:value="form.description"
@@ -206,74 +285,51 @@ const resetForm = () => {
                </StFormItem>
 
                <StFormItem name="topics" label="编排专题" required>
-                  <ReferencedTopicsField v-model:value="form.topicIds" />
+                  <ReferencedTopicsField
+                     v-model:value="form.topicIds"
+                     v-model:pending="pendingTopics"
+                     @create="drawerTarget = null; drawerOpened = true"
+                     @edit-existing="
+                        (id) => {
+                           drawerTarget = { kind: 'existing', id };
+                           drawerOpened = true;
+                        }
+                     "
+                     @edit-pending="
+                        (index) => {
+                           drawerTarget = { kind: 'pending', index };
+                           drawerOpened = true;
+                        }
+                     " />
                </StFormItem>
             </StSpace>
 
-            <StSpace
-               align="center"
-               gap="0.75rem"
-               fill-x
-               class="mt-6 px-4 py-3 rounded-[0.5rem] bg-accent-600">
-               <TableReport
-                  class="text-accent-300 shrink-0"
-                  size="1rem"
-                  :strokeWidth="3" />
-               <span class="st-font-tooltip text-accent-300 flex-1">
-                  {{
-                     form.topicIds.length
-                        ? `已编排 ${form.topicIds.length} 个专题`
-                        : '还没有编排专题'
-                  }}
-               </span>
-               <NuxtLink
-                  to="/app/publish/topic"
-                  target="_blank"
-                  class="shrink-0">
-                  <StButton size="sm" bordered>
-                     <StSpace align="center" gap="0.375rem">
-                        <FileEditingOne size="1rem" />
-                        <span>去创建新专题</span>
-                     </StSpace>
-                  </StButton>
-               </NuxtLink>
-            </StSpace>
-
-            <NuxtLink
-               to="/app/manage/content"
-               target="_blank"
-               class="st-font-caption text-accent-300 hover:text-secondary transition-colors flex items-center gap-1 px-2 mt-4">
-               <FileCollection size="0.875rem" />
-               内容管理
-            </NuxtLink>
-
-            <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">
-               <div class="text-accent-300">
-                  {{
-                     canSubmit ? '' : '填好课程名称，并至少编排 1 个专题'
-                  }}
-               </div>
-               <StSpace gap="1rem" align="center">
-                  <StButton bordered @click="resetForm">
-                     <span>{{ editing ? '还原' : '清空' }}</span>
-                  </StButton>
-                  <StButton
-                     :disabled="!canSubmit || submitting"
-                     bordered
-                     @click="save('pending')">
-                     <span>提交审核</span>
-                  </StButton>
-                  <StButton
-                     :disabled="!publishable || submitting"
-                     @click="save('published')">
-                     <StSpace align="center" gap="0.375rem">
-                        <GoldMedalTwo size="1rem" />
-                        <span>直接上架</span>
-                     </StSpace>
-                  </StButton>
-               </StSpace>
+            <StSpace justify="end" align="center" gap="1rem" class="px-2 mt-[2.13rem]">
+               <StButton bordered @click="resetForm">
+                  <span>{{ editing ? '还原' : '清空' }}</span>
+               </StButton>
+               <StButton
+                  :disabled="!canSubmit || submitting"
+                  bordered
+                  @click="save('pending')">
+                  <span>提交审核</span>
+               </StButton>
+               <StButton
+                  :disabled="!canSubmit || submitting"
+                  @click="save('published')">
+                  <StSpace align="center" gap="0.375rem">
+                     <GoldMedalTwo size="1rem" />
+                     <span>直接上架</span>
+                  </StSpace>
+               </StButton>
             </StSpace>
          </StForm>
       </StSpace>
+
+      <TopicEditingDrawer
+         v-model:opened="drawerOpened"
+         :topic="drawerDraft"
+         :saving="drawerSaving"
+         @confirm="onDrawerConfirm" />
    </StSpace>
 </template>

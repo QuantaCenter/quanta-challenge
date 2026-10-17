@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import {
-   BookOne,
    Code,
    DocDetail,
    GoldMedalTwo,
@@ -56,15 +55,8 @@ const contentOptions = [
       iconColor: '#4ADE80',
    },
    {
-      title: '创建专题',
-      description: '创建一个新的专题，将若干篇文章组织为一个知识领域',
-      url: '/app/publish/topic',
-      icon: BookOne,
-      iconColor: '#38BDF8',
-   },
-   {
       title: '创建课程',
-      description: '创建一门新的课程，将若干个专题编排为完整的学习路径',
+      description: '创建一门新课程，编排专题并组织文章，构成完整的学习路径',
       url: '/app/publish/course',
       icon: School,
       iconColor: '#F472B6',

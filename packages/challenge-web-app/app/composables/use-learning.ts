@@ -146,82 +146,34 @@ export interface LearningArticle {
    coverUrl?: string;
 }
 
-// 专题是一个知识领域的**文章引用集合**，归属一个课程
+// 专题是一个知识领域的**文章引用集合**，归属一个课程，用数字 id 标识
 export interface LearningTopic {
    id: number;
    /** 服务端主键 */
    cuid?: string;
    courseId: number;
-   slug: string;
    name: string;
    description: string;
-   weight: number;
-   // 只影响同一课程内的排列顺序，不做访问控制
-   prerequisites: number[];
    // 引用，不是归属：同一篇文章可以出现在多个专题里，也可以一个都不出现
    articleIds: number[];
    coverPreset?: ArticleCoverPreset;
 }
 
-// 课程是一门可被完整学完的知识体系，是专题的集合
+// 课程是一门可被完整学完的知识体系，是专题的集合，用数字 id 标识
 export interface LearningCourse {
    id: number;
    /** 服务端主键。前端 id 是数字（历史原因），写接口要的是这个 cuid */
    cuid?: string;
-   slug: string;
    name: string;
    description: string;
-   weight: number;
    status: 'draft' | 'pending' | 'published';
    coverPreset?: ArticleCoverPreset;
+   /** 编排的专题顺序（前端数字 id）：拖拽排序的结果存在课程上，不存专题 */
+   topicIds: number[];
 }
 
 export function canPublishCourse(course: LearningCourse): boolean {
    return courseTopics(course.id).length > 0;
-}
-
-export function sortTopicsByPrecedence(
-   topics: LearningTopic[],
-): LearningTopic[] {
-   const byId = new Map(topics.map((t) => [t.id, t]));
-   const indegree = new Map<number, number>(topics.map((t) => [t.id, 0]));
-
-   for (const topic of topics) {
-      for (const pre of topic.prerequisites) {
-         if (byId.has(pre)) {
-            indegree.set(topic.id, (indegree.get(topic.id) ?? 0) + 1);
-         }
-      }
-   }
-
-   const compare = (a: LearningTopic, b: LearningTopic) =>
-      a.weight - b.weight || a.id - b.id;
-
-   const ready = topics
-      .filter((t) => (indegree.get(t.id) ?? 0) === 0)
-      .sort(compare);
-   const sorted: LearningTopic[] = [];
-
-   while (ready.length > 0) {
-      const current = ready.shift()!;
-      sorted.push(current);
-
-      for (const topic of topics) {
-         if (!topic.prerequisites.includes(current.id)) continue;
-         const left = (indegree.get(topic.id) ?? 0) - 1;
-         indegree.set(topic.id, left);
-         if (left === 0) {
-            ready.push(topic);
-            ready.sort(compare);
-         }
-      }
-   }
-
-   if (sorted.length !== topics.length) {
-      throw new Error('[learning] 专题先后关系里存在环，拓扑排序失败');
-   }
-
-   return sorted;
 }
 
 /* 对外的读取接口 */
@@ -233,22 +185,19 @@ export function sortTopicsByPrecedence(
 export const isCoursePublished = (course: LearningCourse): boolean =>
    course.status === 'published';
 
-/** 学习侧：只列已上架的课程（待审 / 草稿留在创作侧） */
+/** 学习侧：只列已上架的课程（待审 / 草稿留在创作侧）。顺序 = 数据来源给的顺序（服务端按创建时间） */
 export function useLearningCourses(
    content?: LearningContentSlice,
 ): LearningCourse[] {
    const courses = list(resolveContent(content).courses, []);
-   return [...courses]
-      .filter(isCoursePublished)
-      .sort((a, b) => a.weight - b.weight || a.id - b.id);
+   return [...courses].filter(isCoursePublished);
 }
 
-/** 创作侧：全部课程，含待审与草稿 */
+/** 创作侧：全部课程，含待审与草稿。顺序 = 数据来源给的顺序（服务端按创建时间） */
 export function useAllCourses(
    content?: LearningContentSlice,
 ): LearningCourse[] {
-   const courses = list(resolveContent(content).courses, []);
-   return [...courses].sort((a, b) => a.weight - b.weight || a.id - b.id);
+   return [...list(resolveContent(content).courses, [])];
 }
 
 export function useLearningCourse(
@@ -259,17 +208,32 @@ export function useLearningCourse(
    return list(resolveContent(content).courses, []).find((c) => c.id === id);
 }
 
+/**
+ * 课程下的专题：顺序 = 课程编排的 topicIds（创建/编辑课程时拖出来的顺序），
+ * 编排里没有的专题（历史数据兜底）排在后面，按 id 稳定排序。
+ */
 export function courseTopics(
    courseId: number | string,
    content?: LearningContentSlice,
 ): LearningTopic[] {
+   const slice = resolveContent(content);
    const id = Number(courseId);
-   const topics = list(resolveContent(content).topics, []);
-   return sortTopicsByPrecedence(topics.filter((t) => t.courseId === id));
+   const mine = list(slice.topics, []).filter((t) => t.courseId === id);
+   const order = list(slice.courses, []).find((c) => c.id === id)?.topicIds;
+   if (!order || order.length === 0) {
+      return [...mine].sort((a, b) => a.id - b.id);
+   }
+   const indexOf = new Map(order.map((topicId, index) => [topicId, index]));
+   return [...mine].sort(
+      (a, b) =>
+         (indexOf.get(a.id) ?? order.length) -
+            (indexOf.get(b.id) ?? order.length) ||
+         a.id - b.id,
+   );
 }
 
 /**
- * 学习侧的全部专题：按课程顺序平铺，课程内的顺序由先后关系决定。
+ * 学习侧的全部专题：按课程顺序平铺，课程内按课程的编排顺序。
  *
  * 只包含**已上架课程**下的专题：新建的课程是待审状态，
  * 它的专题在审核通过前不该出现在学习侧（文章与专题本身不需要审核）。
@@ -283,10 +247,10 @@ export function useLearningTopics(
    );
 }
 
-/** 创作侧：全部专题，含待审 / 草稿课程下的 */
+/** 创作侧：全部专题，含待审 / 草稿课程下的。没有专题级排序了，按归属课程 + id 稳定排序 */
 export function useAllTopics(content?: LearningContentSlice): LearningTopic[] {
    const topics = list(resolveContent(content).topics, []);
-   return [...topics].sort((a, b) => a.weight - b.weight || a.id - b.id);
+   return [...topics].sort((a, b) => a.courseId - b.courseId || a.id - b.id);
 }
 
 export function useLearningTopic(

@@ -334,12 +334,9 @@ export const useLearningContentStore = () => {
          $trpc.admin.learning.createTopic.mutate({
             courseId: course.cuid!,
             name: input.name,
-            slug: input.slug,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset ?? 'slate',
             articleIds: articleCuids(input.articleIds),
-            prerequisites: topicCuids(input.prerequisites),
          }),
       );
       await refresh();
@@ -364,12 +361,9 @@ export const useLearningContentStore = () => {
             id: current.cuid!,
             courseId: course.cuid!,
             name: input.name,
-            slug: input.slug,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset ?? 'slate',
             articleIds: articleCuids(input.articleIds),
-            prerequisites: topicCuids(input.prerequisites),
          }),
       );
       await refresh();
@@ -385,9 +379,7 @@ export const useLearningContentStore = () => {
       const created = await mutation(() =>
          $trpc.admin.learning.createCourse.mutate({
             name: input.name,
-            slug: input.slug,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset ?? 'slate',
             topicIds: topicCuids(input.topicIds),
          }),
@@ -411,9 +403,7 @@ export const useLearningContentStore = () => {
          $trpc.admin.learning.updateCourse.mutate({
             id: current.cuid!,
             name: input.name,
-            slug: input.slug,
             description: input.description,
-            weight: input.weight,
             coverPreset: input.coverPreset ?? 'slate',
             topicIds: topicCuids(input.topicIds),
          }),

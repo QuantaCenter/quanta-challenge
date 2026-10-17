@@ -15,6 +15,6 @@ useSeoMeta({ title: '文章 - Quanta Challenge' });
       class="hide-scrollbar">
       <LearningArticleReader
          :article-id="articleId"
-         :topic-slug="topicId" />
+         :topic-id="topicId" />
    </StSpace>
 </template>

@@ -1,15 +1,14 @@
 <script setup lang="ts">
-import {
-   SaveOne,
-   UploadTwo,
-} from '@icon-park/vue-next';
+import { PreviewOpen, UploadTwo } from '@icon-park/vue-next';
+import dayjs from 'dayjs';
 import {
    articleMarkdown,
-   topicsOfArticle,
    useLearningArticle,
+   useLearningArticles,
    useLearningProblemBank,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
+import useAuthStore from '~/stores/auth-store';
 import { useMessage } from '~/components/st/Message/use-message';
 import {
    SUMMARY_MAX,
@@ -18,6 +17,7 @@ import {
 } from '../_composables/use-article-publication-form';
 import ArticleBodyEditor from './ArticleBodyEditor.vue';
 import ArticleCoverPicker from './ArticleCoverPicker.vue';
+import ArticlePreviewPage from './ArticlePreviewPage.vue';
 
 const props = withDefaults(
    defineProps<{
@@ -30,6 +30,7 @@ const props = withDefaults(
 const message = useMessage();
 const bank = useLearningProblemBank();
 const { addArticle, editArticle } = useLearningContentStore();
+const authStore = useAuthStore();
 
 const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
@@ -41,8 +42,36 @@ const article = computed(() =>
       : undefined,
 );
 
-const owners = computed(() =>
-   article.value ? topicsOfArticle(article.value.id, content) : [],
+// ---- 整页预览：布局对齐文章详情页，数据全部来自本地草稿 ----
+const previewOpened = ref(false);
+const allArticles = useLearningArticles(content);
+
+// 作者：编辑时沿用原文章的作者；新建时是当前登录用户
+const previewAuthorName = computed(() =>
+   props.mode === 'edit'
+      ? article.value?.authorName
+      : (authStore.user?.displayName || authStore.user?.name),
+);
+const previewAuthorAvatarUrl = computed(() => {
+   if (props.mode === 'edit') return article.value?.authorAvatarUrl ?? null;
+   // 必须用数据库里的文件名（avatar.name），与 app-layout 的头像逻辑一致
+   const user = authStore.user as
+      | (typeof authStore.user & { avatar?: { name?: string } | null })
+      | null;
+   const name = user?.avatar?.name;
+   if (name) return `/api/static/${name}`;
+   return user?.imageId ? `/api/static/${user.imageId}` : '';
+});
+const previewAuthorCount = computed(() => {
+   const name = previewAuthorName.value;
+   if (!name) return 0;
+   return allArticles.filter((item) => item.authorName === name).length;
+});
+// 发布时间：编辑沿用原时间；新建按「今天」预览
+const previewPublishDate = computed(() =>
+   props.mode === 'edit' && article.value?.createdAt
+      ? dayjs(article.value.createdAt).format('YYYY-MM-DD')
+      : dayjs().format('YYYY-MM-DD'),
 );
 
 const { draft, formKey, form, rules, blockedReason, canSubmit, reset } =
@@ -71,14 +100,20 @@ const router = useRouter();
 // 提交后回上一页：上一页读的是同一份内容状态，内容一变它自然就是新的
 const backAfterSubmit = () => goBackOr(router, '/app/manage/content');
 
-const saveDraft = () => {
-   message.success(
-      '草稿已保存',
-      props.mode === 'create'
-         ? '正文与封面存在浏览器本地，刷新后还在'
-         : '改动先留在表单里，点「保存修改」才会写回内容管理',
+// 新建时草稿经 useLocalStorage 自动落在浏览器里：只记录最近一次落盘的时间
+const lastSavedAt = ref<Date | null>(null);
+if (props.mode === 'create') {
+   watch(
+      draft,
+      () => {
+         lastSavedAt.value = new Date();
+      },
+      { deep: true },
    );
-};
+   onMounted(() => {
+      lastSavedAt.value = new Date();
+   });
+}
 
 // 文章不需要审核：保存即可见（只有课程需要审核）。
 const submitting = ref(false);
@@ -145,31 +180,6 @@ const submitArticle = async () => {
             <h1 class="st-font-hero-bold">
                {{ mode === 'create' ? '发布文章' : '编辑文章' }}
             </h1>
-            <StTag
-               v-if="article"
-               size="small"
-               color="#434343"
-               :content="`#${article.id}`" />
-         </StSpace>
-
-         <StSpace direction="vertical" gap="0.5rem" fill-x>
-            <StSpace
-               v-if="owners.length"
-               align="center"
-               gap="0.375rem"
-               class="flex-wrap">
-               <span class="st-font-tooltip text-accent-400">
-                  当前已被
-               </span>
-               <NuxtLink
-                  v-for="topic in owners"
-                  :key="topic.id"
-                  :to="`/app/learning/${topic.id}`"
-                  class="st-font-tooltip text-secondary hover:opacity-75 transition-opacity">
-                  {{ topic.name }}
-               </NuxtLink>
-               <span class="st-font-tooltip text-accent-400">引用</span>
-            </StSpace>
          </StSpace>
 
          <StForm
@@ -210,11 +220,17 @@ const submitArticle = async () => {
             </StSpace>
 
             <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">
+               <span
+                  v-if="lastSavedAt"
+                  class="st-font-body-normal text-accent-300">
+                  草稿已自动保存 · {{ dayjs(lastSavedAt).format('HH:mm:ss') }}
+               </span>
+               <span v-else />
                <StSpace gap="1rem" align="center">
-                  <StButton bordered @click="saveDraft">
+                  <StButton bordered @click="previewOpened = true">
                      <StSpace align="center" gap="0.375rem">
-                        <SaveOne size="1.25rem" />
-                        <span>保存草稿</span>
+                        <PreviewOpen size="1.25rem" />
+                        <span>预览</span>
                      </StSpace>
                   </StButton>
                   <StButton
@@ -222,12 +238,32 @@ const submitArticle = async () => {
                      @click="submitArticle">
                      <StSpace align="center" gap="0.375rem">
                         <UploadTwo size="1.25rem" />
-                        <span>{{ mode === 'edit' ? '保存' : '发布' }}</span>
+                        <span>{{ mode === 'edit' ? '保存' : '发布文章' }}</span>
                      </StSpace>
                   </StButton>
                </StSpace>
             </StSpace>
          </StForm>
       </StSpace>
+
+      <!-- 整页预览：数据只在本地，不记录浏览、不上服务器 -->
+      <div
+         v-if="previewOpened"
+         class="fixed inset-0 z-[10010] overflow-auto bg-background">
+         <StSpace direction="vertical" align="center" class="min-h-full">
+            <ArticlePreviewPage
+               :title="draft.title"
+               :summary="draft.summary"
+               :body="draft.body"
+               :cover-preset="draft.coverPreset"
+               :cover-url="draft.coverMode === 'custom' ? draft.coverUrl : ''"
+               :bank="bank"
+               :author-name="previewAuthorName"
+               :author-avatar-url="previewAuthorAvatarUrl"
+               :author-article-count="previewAuthorCount"
+               :publish-date="previewPublishDate"
+               @back="previewOpened = false" />
+         </StSpace>
+      </div>
    </StSpace>
 </template>

@@ -40,27 +40,14 @@ const articleInput = z.object({
 const topicInput = z.object({
    courseId: z.string().min(1, '必须选择归属课程'),
    name: z.string().min(1, '专题名称不能为空').max(40),
-   slug: z
-      .string()
-      .min(1)
-      .max(80)
-      .regex(/^[a-z0-9-]+$/),
    description: z.string().max(200).default(''),
-   weight: z.number().int().min(0).max(9999).default(10),
    coverPreset: z.string().min(1).default('slate'),
    articleIds: z.array(z.string()).default([]),
-   prerequisites: z.array(z.string()).default([]),
 });
 
 const courseInput = z.object({
    name: z.string().min(1, '课程名称不能为空').max(40),
-   slug: z
-      .string()
-      .min(1)
-      .max(80)
-      .regex(/^[a-z0-9-]+$/),
    description: z.string().max(200).default(''),
-   weight: z.number().int().min(0).max(9999).default(10),
    coverPreset: z.string().min(1).default('slate'),
    topicIds: z.array(z.string()).default([]),
 });
@@ -75,19 +62,19 @@ export const learningAdminRouter = router({
    /** 全部课程（含草稿与待审），创作侧列表用 */
    courses: protectedAdminProcedure.query(async () =>
       prisma.course.findMany({
-         orderBy: [{ weight: 'asc' }, { id: 'asc' }],
+         orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
          select: {
             id: true,
-            slug: true,
             name: true,
             description: true,
-            weight: true,
             status: true,
             coverPreset: true,
             authorId: true,
             createdAt: true,
             updatedAt: true,
             reviewedAt: true,
+            // 编排的专题顺序，创作侧编排要按它排序
+            topicIds: true,
          },
       }),
    ),
@@ -198,10 +185,8 @@ export const learningAdminRouter = router({
          orderBy: { updatedAt: 'asc' },
          select: {
             id: true,
-            slug: true,
             name: true,
             description: true,
-            weight: true,
             status: true,
             coverPreset: true,
             authorId: true,

@@ -14,29 +14,26 @@ import { parseArticleBody } from '~/utils/learning-markdown';
 /** 服务端 `public.learning.*` / `admin.learning.*` 返回的形状 */
 export interface ServerCourse {
    id: string;
-   slug: string;
    name: string;
    description: string;
-   weight: number;
    status: 'DRAFT' | 'PENDING' | 'PUBLISHED';
    coverPreset: string;
    authorId: string;
    createdAt: Date | string;
    updatedAt: Date | string;
    reviewedAt?: Date | string | null;
+   /** 编排的专题顺序（topic cuid 有序数组），拖拽排序存在课程上 */
+   topicIds: string[];
 }
 
 export interface ServerTopic {
    id: string;
-   slug: string;
    name: string;
    description: string;
-   weight: number;
    coverPreset: string;
    courseId: string;
    authorId: string;
    articleIds: string[];
-   prerequisites: string[];
 }
 
 export interface ServerArticle {
@@ -116,10 +113,8 @@ const toDifficulty = (value: string): LearningProblemRef['difficulty'] =>
 export const toCourse = (row: ServerCourse) => ({
    id: numericIdOf(row.id),
    cuid: row.id,
-   slug: row.slug,
    name: row.name,
    description: row.description,
-   weight: row.weight,
    status:
       row.status === 'PUBLISHED'
          ? ('published' as const)
@@ -127,17 +122,16 @@ export const toCourse = (row: ServerCourse) => ({
            ? ('pending' as const)
            : ('draft' as const),
    coverPreset: row.coverPreset as never,
+   // 编排顺序随课程走：cuid 映射成前端数字 id
+   topicIds: (Array.isArray(row.topicIds) ? row.topicIds : []).map(numericIdOf),
 });
 
 export const toTopic = (row: ServerTopic) => ({
    id: numericIdOf(row.id),
    cuid: row.id,
    courseId: numericIdOf(row.courseId),
-   slug: row.slug,
    name: row.name,
    description: row.description,
-   weight: row.weight,
-   prerequisites: row.prerequisites.map(numericIdOf),
    articleIds: row.articleIds.map(numericIdOf),
    coverPreset: row.coverPreset as never,
 });

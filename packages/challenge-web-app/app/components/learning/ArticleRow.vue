@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs';
 import { CheckOne, DocDetail, Round } from '@icon-park/vue-next';
+import { NuxtLink } from '#components';
 import { articleProgress } from '~/utils/learning-progress';
 import {
    topicsOfArticle,
@@ -16,16 +17,22 @@ import {
 /**
  * 文章条状列表项：左封面、右标题 + 摘要 + 信息。
  * 与 `LearningArticleCard` 共用数据，只是排布不同。
+ * 传 `to` 时渲染成链接（列表页用）；不传时渲染成普通块
+ * （选题抽屉用，点击行为交给外层容器）。
  */
 const props = withDefaults(
    defineProps<{
       article?: LearningArticle;
       favorite?: FavoriteArticle;
-      to: string;
+      to?: string;
+      /** 传 `to` 时是否在下方渲染分隔线（默认渲染） */
+      divider?: boolean;
    }>(),
    {
       article: undefined,
       favorite: undefined,
+      to: undefined,
+      divider: true,
    },
 );
 
@@ -105,7 +112,8 @@ const favoriteTarget = computed(() =>
 </script>
 
 <template>
-   <NuxtLink
+   <component
+      :is="to ? NuxtLink : 'div'"
       :to="to"
       class="group flex w-full items-stretch gap-4 py-4">
       <div
@@ -184,7 +192,7 @@ const favoriteTarget = computed(() =>
             </div>
          </div>
       </div>
-   </NuxtLink>
+   </component>
 
-   <StDivider simple class="last:hidden opacity-30" />
+   <StDivider v-if="to && divider" simple class="last:hidden opacity-30" />
 </template>

@@ -51,33 +51,34 @@ export async function seedLearningContent() {
       ).map((row) => row.id),
    );
 
-   /* ---------- 课程 ---------- */
+   /* ---------- 课程（没有 slug/weight；slug 只作种子内部分组键，按「名称」幂等） ---------- */
    const courseIdBySlug = new Map<string, string>();
    for (const course of SEED_COURSES) {
-      const existing = await prisma.course.findUnique({
-         where: { slug: course.slug },
+      const existing = await prisma.course.findFirst({
+         where: { name: course.name },
          select: { id: true },
       });
-      const row = await prisma.course.upsert({
-         where: { slug: course.slug },
-         update: {
-            name: course.name,
-            description: course.description,
-            weight: course.weight,
-            coverPreset: course.coverPreset,
-         },
-         create: {
-            authorId: author.id,
-            slug: course.slug,
-            name: course.name,
-            description: course.description,
-            weight: course.weight,
-            coverPreset: course.coverPreset,
-            status: COURSE_STATUS_FROM_SEED,
-            reviewedAt: new Date(),
-         },
-         select: { id: true },
-      });
+      const row = existing
+         ? await prisma.course.update({
+              where: { id: existing.id },
+              data: {
+                 name: course.name,
+                 description: course.description,
+                 coverPreset: course.coverPreset,
+              },
+              select: { id: true },
+           })
+         : await prisma.course.create({
+              data: {
+                 authorId: author.id,
+                 name: course.name,
+                 description: course.description,
+                 coverPreset: course.coverPreset,
+                 status: COURSE_STATUS_FROM_SEED,
+                 reviewedAt: new Date(),
+              },
+              select: { id: true },
+           });
       courseIdBySlug.set(course.slug, row.id);
       if (!existing) {
          await prisma.courseReviewRecord.create({
@@ -143,8 +144,8 @@ export async function seedLearningContent() {
       ]);
    }
 
-   /* ---------- 专题（引用文章 + 前置专题） ---------- */
-   const topicIdBySlug = new Map<string, string>();
+   /* ---------- 专题（引用文章；专题没有 slug，按「课程 + 名称」幂等） ---------- */
+   const topicIdByName = new Map<string, string>();
    for (const topic of SEED_TOPICS) {
       const courseId = courseIdBySlug.get(topic.courseSlug);
       if (!courseId) {
@@ -152,30 +153,35 @@ export async function seedLearningContent() {
          continue;
       }
 
-      const row = await prisma.topic.upsert({
-         where: { courseId_slug: { courseId, slug: topic.slug } },
-         update: {
-            name: topic.name,
-            description: topic.description,
-            weight: topic.weight,
-            coverPreset: topic.coverPreset,
-            courseId,
-         },
-         create: {
-            authorId: author.id,
-            courseId,
-            slug: topic.slug,
-            name: topic.name,
-            description: topic.description,
-            weight: topic.weight,
-            coverPreset: topic.coverPreset,
-         },
+      const existing = await prisma.topic.findFirst({
+         where: { courseId, name: topic.name },
          select: { id: true },
       });
-      topicIdBySlug.set(topic.slug, row.id);
+      const row = existing
+         ? await prisma.topic.update({
+              where: { id: existing.id },
+              data: {
+                 name: topic.name,
+                 description: topic.description,
+                 coverPreset: topic.coverPreset,
+                 courseId,
+              },
+              select: { id: true },
+           })
+         : await prisma.topic.create({
+              data: {
+                 authorId: author.id,
+                 courseId,
+                 name: topic.name,
+                 description: topic.description,
+                 coverPreset: topic.coverPreset,
+              },
+              select: { id: true },
+           });
+      topicIdByName.set(topic.name, row.id);
 
       const articleRows = topic.articleTitles
-         .map((slug) => articleIdByTitle.get(title))
+         .map((title) => articleIdByTitle.get(title))
          .filter((id): id is string => id !== undefined);
 
       await prisma.$transaction([
@@ -190,23 +196,20 @@ export async function seedLearningContent() {
       ]);
    }
 
-   // 前置专题要等所有专题都有 id 之后再写
-   for (const topic of SEED_TOPICS) {
-      const topicId = topicIdBySlug.get(topic.slug);
-      if (!topicId) continue;
-      const prerequisiteIds = topic.prerequisites
-         .map((slug) => topicIdBySlug.get(slug))
-         .filter((id): id is string => id !== undefined);
-
-      await prisma.$transaction([
-         prisma.topicPrerequisite.deleteMany({ where: { topicId } }),
-         prisma.topicPrerequisite.createMany({
-            data: prerequisiteIds.map((prerequisiteId) => ({
-               topicId,
-               prerequisiteId,
-            })),
-         }),
-      ]);
+   /* ---------- 课程编排顺序（存在课程的 topicIds 上，专题自身无排序） ---------- */
+   for (const course of SEED_COURSES) {
+      const courseId = courseIdBySlug.get(course.slug);
+      if (!courseId) continue;
+      await prisma.course.update({
+         where: { id: courseId },
+         data: {
+            topicIds: SEED_TOPICS.flatMap((topic) =>
+               topic.courseSlug === course.slug && topicIdByName.has(topic.name)
+                  ? [topicIdByName.get(topic.name)!]
+                  : [],
+            ),
+         },
+      });
    }
 
    console.log(
