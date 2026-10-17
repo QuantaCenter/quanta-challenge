@@ -797,11 +797,8 @@ model CloudFunctionInvocation {
 model Course {
   id          String       @id @default(cuid())
   authorId    String
-  slug        String       @unique
   name        String
   description String       @default("")
-  /// 学习侧按它排序（同一批里小的在前）
-  weight      Int          @default(10)
   status      CourseStatus @default(DRAFT)
   coverPreset String       @default("slate")
   createdAt   DateTime     @default(now())
@@ -809,11 +806,14 @@ model Course {
   /// 最近一次审核动作的时间，卡片/列表按它倒序时用
   reviewedAt  DateTime?
 
+  /// 编排的专题顺序（topic cuid 的有序数组）：拖拽排序的结果存在课程上，不存专题
+  topicIds    Json         @default("[]")
+
   Author        User                 @relation(fields: [authorId], references: [id], onDelete: Cascade)
   Topics        Topic[]
   ReviewRecords CourseReviewRecord[]
 
-  @@index([status, weight])
+  @@index([status])
   @@map("courses")
 }
 
@@ -842,10 +842,8 @@ model Topic {
   authorId    String
   /// 归属：非空。删除课程时 Restrict，必须先安置专题（§17.2）
   courseId    String
-  slug        String
   name        String
   description String   @default("")
-  weight      Int      @default(10)
   coverPreset String   @default("slate")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -853,11 +851,8 @@ model Topic {
   Author        User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
   Course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
   Articles      TopicArticle[]
-  Prerequisites TopicPrerequisite[] @relation("TopicPrerequisites")
-  RequiredBy    TopicPrerequisite[] @relation("TopicRequiredBy")
 
-  @@unique([courseId, slug])
-  @@index([courseId, weight])
+  @@index([courseId])
   @@map("topics")
 }
 
@@ -876,19 +871,6 @@ model TopicArticle {
   @@index([topicId, sort])
   @@index([articleId])
   @@map("topic_articles")
-}
-
-/// 专题 → 前置专题（只用于排序与展示，不做访问控制，§9.1）
-model TopicPrerequisite {
-  id            String @id @default(cuid())
-  topicId       String
-  prerequisiteId String
-
-  Topic        Topic @relation("TopicPrerequisites", fields: [topicId], references: [id], onDelete: Cascade)
-  Prerequisite Topic @relation("TopicRequiredBy", fields: [prerequisiteId], references: [id], onDelete: Restrict)
-
-  @@unique([topicId, prerequisiteId])
-  @@map("topic_prerequisites")
 }
 
 /// 文章：一等实体，独立存在、可被 0..n 个专题引用，**不需要审核**（§6.7、§17.1）
