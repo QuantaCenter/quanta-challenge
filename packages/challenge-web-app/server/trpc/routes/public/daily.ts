@@ -17,6 +17,7 @@ const problemQuery = {
          title: true,
          difficulty: true,
          totalScore: true,
+         status: true,
          tags: { select: { color: true, name: true } },
          CoverImage: { select: { name: true, thumbhash: true } },
          JudgeStatus: { select: { totalCount: true, passedCount: true } },
@@ -37,7 +38,8 @@ type BaseProblemRecord = Awaited<ReturnType<typeof findBaseProblemById>>;
 
 const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
    const dailyProblem = baseProblem.CurrentProblem;
-   if (!dailyProblem) {
+   // 状态过滤：题目可能在入选每日一题后被取消发布，此处不外露任何内容
+   if (!dailyProblem || dailyProblem.status !== 'published') {
       return null;
    }
 
@@ -103,13 +105,18 @@ const getDailyProblemProcedure = publicProcedure
          });
       }
 
-      // 今日：查不到记录时自动抽取并落库
+      // 今日：查不到记录时自动抽取并落库；已抽到但随后被取消发布时换题替补
       if (targetKey === todayKey) {
          const result = await prisma.dailyProblem.findFirst({
             where: { date: toDailyDate(targetKey) },
             select: { baseProblem: { select: problemQuery } },
          });
          if (result) {
+            if (result.baseProblem.CurrentProblem?.status !== 'published') {
+               const newId =
+                  await dailyService.replaceUnpublishedDailyProblem(todayKey);
+               return await formatDailyProblem(await findBaseProblemById(newId));
+            }
             return await formatDailyProblem(result.baseProblem);
          }
 

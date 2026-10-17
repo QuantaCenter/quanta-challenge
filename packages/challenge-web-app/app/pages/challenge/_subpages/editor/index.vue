@@ -417,10 +417,22 @@ const getProblemDetail = async () => {
       problemId: props.id,
    });
 };
-const { data: problem } = await useAsyncData(
+const { data: problem, error: problemError } = await useAsyncData(
    `problem-detail-${props.id}`,
    getProblemDetail,
 );
+// 服务端判定：题目不存在或未发布（含被取消发布）时，SSR 阶段直接渲染 404 页面，
+// 防止通过 URL 直达未发布题目。其他错误原样抛出，避免掩盖真实故障。
+if (problemError.value) {
+   if ((problemError.value as any)?.data?.code === 'NOT_FOUND') {
+      throw createError({
+         statusCode: 404,
+         fatal: true,
+         statusMessage: '题目不存在或未发布',
+      });
+   }
+   throw problemError.value;
+}
 const loaded = (() => { let r; const p = new Promise<void>(res => { r = res; }); return { promise: p, resolve: r! }; })();
 watch(problem, () => problem.value && loaded.resolve(), { immediate: true });
 

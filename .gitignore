@@ -190,3 +190,6 @@ tmp/
 
 # 共享 pnpm 缓存（本地开发时默认落在仓库根，见 docs/PNPM_CACHE.md）
 .pnpm-cache/
+
+# agent
+.agent/AGENTS.md

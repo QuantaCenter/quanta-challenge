@@ -16,8 +16,17 @@ const {
 } = useWebAuthnLogin();
 
 const redirect = useQuery<string>('redirect');
+// 与密码登录页同一套净化规则：只跟随站内非 /auth/** 路径，防开放重定向与自我嵌套回跳
+const safeRedirect = computed(() => {
+   const target = redirect.value;
+   // 只接受单个 / 开头的站内路径：/\ 与 \/ 会被浏览器当作 // 跳外站，必须一并拒绝
+   if (!target || !/^\/[^/\\]/.test(target) || target.startsWith('/auth/')) {
+      return null;
+   }
+   return target;
+});
 onAuthenticateSuccess(() => {
-   window.location.href = redirect.value ?? '/app/dashboard';
+   window.location.href = safeRedirect.value ?? '/app/dashboard';
 });
 onAuthenticateError(() => {
    alert('Authentication Failed');

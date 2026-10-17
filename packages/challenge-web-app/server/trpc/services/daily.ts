@@ -14,6 +14,22 @@ const isUniqueConstraintError = (error: unknown): boolean =>
    error !== null &&
    (error as { code?: string }).code === 'P2002';
 
+/** 从「未被当日抽取过且当前已发布」的题目里随机挑一道 */
+const pickUnusedPublishedBaseProblemId = async () => {
+   return (
+      await prisma.$queryRaw<{ id: number }[]>`
+         SELECT id FROM base_problems
+         LEFT JOIN problems
+           ON base_problems."currentPid" = problems.pid
+         WHERE id NOT IN (SELECT "baseProblemId" FROM daily_problems)
+           AND problems.pid IS NOT NULL
+           AND problems.status = 'published'
+         ORDER BY RANDOM()
+         LIMIT 1
+      `
+   )[0]?.id;
+};
+
 const selectDailyProblemFallback = async () => {
    const fallbackBaseProblemId = (
       await prisma.$queryRaw<{ id: number }[]>`
@@ -56,18 +72,7 @@ const selectDailyProblem = async () => {
       return parseInt(cached, 10);
    }
 
-   let unusedBaseProblemId = (
-      await prisma.$queryRaw<{ id: number }[]>`
-         SELECT id FROM base_problems
-         LEFT JOIN problems
-           ON base_problems."currentPid" = problems.pid
-         WHERE id NOT IN (SELECT "baseProblemId" FROM daily_problems)
-           AND problems.pid IS NOT NULL
-           AND problems.status = 'published'
-         ORDER BY RANDOM()
-         LIMIT 1
-      `
-   )[0]?.id;
+   let unusedBaseProblemId = await pickUnusedPublishedBaseProblemId();
    if (unusedBaseProblemId === void 0) {
       unusedBaseProblemId = await selectDailyProblemFallback();
    }
@@ -169,7 +174,38 @@ const countContinuesCheckin = async (userId: string) => {
    return count;
 };
 
+/**
+ * 当日每日一题被取消发布时换题：清 Redis 缓存 → 重选已发布题 → 覆盖当日记录与缓存。
+ * 必须先清缓存，否则换题后仍会读回旧题目 ID。
+ */
+const replaceUnpublishedDailyProblem = async (dateKey: string) => {
+   const date = toDailyDate(dateKey);
+   const redis = useRedis();
+   const key = `daily_problem:${dateKey.replace(/-/g, '')}`;
+
+   await redis.del(key);
+
+   let newId = await pickUnusedPublishedBaseProblemId();
+   if (newId === void 0) {
+      newId = await selectDailyProblemFallback();
+   }
+
+   await prisma.dailyProblem.update({
+      where: { date },
+      data: { baseProblemId: newId },
+   });
+   await redis.set(
+      key,
+      newId.toString(),
+      'EX',
+      secondsUntilDailyCacheExpiry(dateKey),
+   );
+
+   return newId;
+};
+
 export const dailyService = {
    countContinuesCheckin,
    selectDailyProblem,
+   replaceUnpublishedDailyProblem,
 };

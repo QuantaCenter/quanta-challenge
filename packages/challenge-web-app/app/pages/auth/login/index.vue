@@ -28,9 +28,18 @@ onBeforeMount(() => {
 });
 
 const redirect = useQuery<string>('redirect');
+// 只跟随站内非 /auth/** 路径：外链会造成开放重定向，指向登录页会自我嵌套回跳
+const safeRedirect = computed(() => {
+   const target = redirect.value;
+   // 只接受单个 / 开头的站内路径：/\ 与 \/ 会被浏览器当作 // 跳外站，必须一并拒绝
+   if (!target || !/^\/[^/\\]/.test(target) || target.startsWith('/auth/')) {
+      return null;
+   }
+   return target;
+});
 onLoginSuccess(() => {
    // navigateTo(redirect.value ?? '/app/dashboard', { replace: true });
-   window.location.href = redirect.value ?? '/app/dashboard';
+   window.location.href = safeRedirect.value ?? '/app/dashboard';
 });
 
 const rules: IRule[] = [
