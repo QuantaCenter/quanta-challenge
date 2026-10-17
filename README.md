@@ -305,6 +305,9 @@ pnpm docker:down
 | `SUPER_ACCOUNT` | 超级管理员账号 | `admin` |
 | `SUPER_PASSWORD` | 超级管理员密码 | `admin123` |
 | `SUPER_EMAIL` | 超级管理员邮箱 | `admin@example.com` |
+| `OBSERVATION_SERVER_URL` | 监控采集服务地址（前端上报转发用，见 `packages/challenge-observation`） | `http://observation:9310` |
+| `OBSERVATION_REPORT_TOKEN` | 监控上报令牌（与监控栈 `OBS_REPORT_TOKEN` 一致，可选） | - |
+| `RELEASE_VERSION` | 发布版本标识（前端监控打标用） | - |
 
 ### 评测调度器 (challenge-judge-scheduler)
 

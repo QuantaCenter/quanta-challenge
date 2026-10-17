@@ -23,6 +23,10 @@ services:
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=web-app
       - CF_INTERNAL_SECRET=${CF_WEBAPP_SECRET:?请设置 CF_WEBAPP_SECRET}
+      # 前端监控上报代理目标
+      - OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
+      - OBSERVATION_REPORT_TOKEN=${OBS_REPORT_TOKEN:-}
+      - RELEASE_VERSION=${RELEASE_VERSION:-}
     depends_on:
       - challenge-judge-scheduler
       - challenge-cloud-function
