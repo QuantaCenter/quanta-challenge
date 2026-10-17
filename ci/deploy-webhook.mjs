@@ -20,6 +20,7 @@ import { dirname, join, isAbsolute } from 'node:path';
 
 const IDLE_MS = 20_000; // 普通操作（inspect/tag/compose up/健康探测/HTTP 收发）的静默上限
 const PULL_IDLE_MS = 8 * 60_000; // docker pull 的静默上限：大镜像冷拉会长时间无输出，给足 8 分钟
+const KEEPALIVE_MS = 60_000; // TCP keepalive 探测间隔：回包前的长静默不能被中间 NAT 按空闲回收
 const SKEW_S = 300; // 时间戳窗口（防重放，非超时）
 const MAX_BODY = 1 << 20;
 
@@ -34,7 +35,7 @@ const CFG = {
    envFile: env.ENV_FILE || '/www/qc-secrets/prod.env',
    stateFile: env.STATE_FILE || '/var/lib/quanta-deploy/state.json',
    logFile: env.LOG_FILE || '/var/log/quanta-deploy-webhook.log',
-   // ghcr.io 本机直连不可用（约 0.01 MiB/s），按序回退
+   // ghcr.io 本机直连不可用（约 0.01 MiB/s），按序回退（部署机实测 dockerproxy 成功率更高，放前面）
    mirrors: (env.GHCR_MIRRORS || 'ghcr.dockerproxy.net,ghcr.nju.edu.cn').split(',').map((s) => s.trim()).filter(Boolean),
    alertUrl: env.ALERT_WEBHOOK_URL || '',
 };
@@ -141,6 +142,42 @@ const pullByDigest = async ({ image, digest, name }) => {
    throw new Error(`所有镜像源均失败：${name} ${digest}`);
 };
 
+// 并行拉取上限：全并行（7 个）容易触发镜像源限流，4 路足以把总耗时压到「最慢的那个镜像」附近，
+// 而不是串行求和——镜像一多这正是 CI 侧超时的主因
+const PULL_CONCURRENCY = 4;
+
+/** 并行拉取这批镜像，返回 name -> 本地镜像 ID；任一失败则抛出聚合错误 */
+const pullAll = async (images) => {
+   const ids = new Map();
+   const queue = [...images];
+   const failures = [];
+   await Promise.all(
+      Array.from({ length: Math.min(PULL_CONCURRENCY, queue.length) }, async () => {
+         while (queue.length) {
+            const image = queue.shift();
+            try {
+               ids.set(image.name, await pullByDigest(image));
+            } catch (e) {
+               failures.push(e.message);
+            }
+         }
+      }),
+   );
+   if (failures.length) throw new Error(failures.join('；'));
+   return ids;
+};
+
+/**
+ * 移除占用宿主机 1889 的容器：调度器启动时会自己创建前端判题机容器占这个端口，
+ * 上一轮残留的容器不退出会让新实例初始化失败。
+ */
+const freeJudgeMachinePort = async () => {
+   const ids = (await docker(['ps', '-aq', '--filter', 'publish=1889'])).split('\n').filter(Boolean);
+   if (!ids.length) return;
+   await docker(['rm', '-f', ...ids]);
+   log(`[cleanup] 移除占用 1889 的容器 ${ids.length} 个`);
+};
+
 const snapshot = async (service) => {
    const cid = await docker(['ps', '-q', '--filter', `label=com.docker.compose.service=${service}`]);
    if (!cid) return { service, ref: '', imageId: '', containerId: '' };
@@ -163,17 +200,6 @@ const waitHealthy = async (service) => {
       await new Promise((r) => setTimeout(r, 2_000));
    }
    throw new Error(`${service} 健康检查未通过（${health}）：${last}`);
-};
-
-/**
- * 移除占用宿主机 1889 的容器：调度器启动时会自己创建前端判题机容器占这个端口，
- * 上一轮残留的容器不退出会让新实例初始化失败。
- */
-const freeJudgeMachinePort = async () => {
-   const ids = (await docker(['ps', '-aq', '--filter', 'publish=1889'])).split('\n').filter(Boolean);
-   if (!ids.length) return;
-   await docker(['rm', '-f', ...ids]);
-   log(`[cleanup] 移除占用 1889 的容器 ${ids.length} 个`);
 };
 
 const composeUp = async (services, refs) => {
@@ -199,6 +225,13 @@ const alert = async (text) => {
 
 let busy = false;
 
+/**
+ * 进行中/已完成的部署任务（内存态，delivery -> {status, tag, commit, error}）。
+ * 异步模式（CI 发 X-Quanta-Async: 1）下 POST 先回 202，CI 轮询 GET /hooks/images?delivery= 拿终态。
+ * 服务重启会丢内存态：GET 时用落盘的 state.delivery 兜底判断该次发布是否已成功。
+ */
+const jobs = new Map();
+
 const deploy = async (payload) => {
    const targets = payload.images.filter((i) => SERVICES[i.service]);
    const refs = {};
@@ -206,8 +239,7 @@ const deploy = async (payload) => {
    for (const t of targets) saved.push(await snapshot(t.service));
 
    try {
-      const ids = new Map();
-      for (const image of payload.images) ids.set(image.name, await pullByDigest(image));
+      const ids = await pullAll(payload.images);
 
       // 非 compose 管理的镜像：把调度器使用的本地名 :latest 指到本次拉取的镜像
       for (const image of payload.images) {
@@ -287,6 +319,18 @@ const server = createServer((req, res) => {
    if (req.method === 'GET' && req.url === '/health') {
       return json(res, 200, { status: 'ok', busy, deployed: { commit: state.commit || '', tag: state.tag || '', at: state.at || '', status: state.status || '' } });
    }
+   // 异步模式的状态查询：GET /hooks/images?delivery=<uuid> -> {status: running|ok|failed|unknown}
+   if (req.method === 'GET' && req.url.startsWith('/hooks/images')) {
+      const delivery = new URL(req.url, 'http://localhost').searchParams.get('delivery') || '';
+      if (!delivery) return json(res, 400, { error: 'missing delivery' });
+      const job = jobs.get(delivery);
+      if (job) {
+         return json(res, 200, { delivery, status: job.status, tag: job.tag, commit: job.commit, error: job.error || undefined, finishedAt: job.finishedAt || undefined });
+      }
+      // 重启后内存态丢失：state.delivery 是最近一次成功发布的 delivery，命中即视为成功
+      if (state.delivery === delivery) return json(res, 200, { delivery, status: 'ok', tag: state.tag || '', commit: state.commit || '' });
+      return json(res, 200, { delivery, status: 'unknown' });
+   }
    if (req.method !== 'POST' || req.url !== '/hooks/images') return json(res, 404, { error: 'not found' });
 
    const chunks = [];
@@ -328,7 +372,23 @@ const server = createServer((req, res) => {
 
       busy = true;
       log(`[hook] 接受 ${payload.tag} ${payload.commit.slice(0, 7)} images=${payload.images.map((i) => i.name).join(',')}`);
-      // 同步等待部署结束再回包：成功 200、失败（含已回滚）500，CI 据此判定发布是否生效
+      // 异步模式：先回 202，CI 轮询上面的 GET 拿终态。同步回包要一条连接静默扛住整个
+      // 拉取过程，镜像一多就会被中间 NAT / 代理在几分钟内掐断，CI 只能看到超时假失败。
+      if (req.headers['x-quanta-async'] === '1') {
+         const job = { status: 'running', tag: payload.tag, commit: payload.commit, error: '', startedAt: new Date().toISOString() };
+         jobs.set(payload.delivery, job);
+         json(res, 202, { accepted: true, delivery: payload.delivery, commit: payload.commit, tag: payload.tag, status: 'running' });
+         deploy(payload)
+            .then((r) => Object.assign(job, { status: r.ok ? 'ok' : 'failed', error: r.error || '' }))
+            .catch((e) => Object.assign(job, { status: 'failed', error: e.message }))
+            .finally(() => {
+               busy = false;
+               job.finishedAt = new Date().toISOString();
+               log(`[job] ${payload.delivery} ${payload.tag} -> ${job.status}${job.error ? `（${job.error}）` : ''}`);
+            });
+         return;
+      }
+      // 兼容旧客户端：同步等部署结束再回包（成功 200 / 失败 500）
       deploy(payload)
          .then((r) => (r.ok
             ? json(res, 200, { ok: true, status: r.status, tag: payload.tag, commit: payload.commit })
@@ -341,6 +401,7 @@ const server = createServer((req, res) => {
 server.headersTimeout = IDLE_MS;
 server.requestTimeout = IDLE_MS;
 server.keepAliveTimeout = IDLE_MS;
+server.on('connection', (socket) => socket.setKeepAlive(true, KEEPALIVE_MS));
 
 if (!CFG.secret) {
    console.error('缺少 DEPLOY_WEBHOOK_SECRET，拒绝启动');
