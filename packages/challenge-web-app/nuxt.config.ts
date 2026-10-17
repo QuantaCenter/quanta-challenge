@@ -260,6 +260,18 @@ export default defineNuxtConfig({
    runtimeConfig: {
       public: {
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
+         // 前端监控 SDK，浏览器经同源代理路由上报，由服务端转发
+         observation: {
+            endpoint: env('OBSERVATION_ENDPOINT', '/api/observation/report'),
+            release: env('RELEASE_VERSION', 'dev'),
+            sampleRate: envInt('OBSERVATION_SAMPLE_RATE', 1),
+            // 与 observation 服务的 OBS_REPORT_TOKEN 一致（可选）
+            token: env('OBSERVATION_REPORT_TOKEN', ''),
+         },
+      },
+      observation: {
+         // observation 服务地址
+         serverUrl: env('OBSERVATION_SERVER_URL', 'http://localhost:9310'),
       },
       secret: {
          // 这两个必须是显式配置的真实密钥，不能用内置默认值（见 envSecret 说明）
