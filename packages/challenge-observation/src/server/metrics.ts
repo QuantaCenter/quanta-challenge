@@ -1,0 +1,38 @@
+import client from 'prom-client'
+
+// 前端上报指标（由 Prometheus 抓取）
+export const register = client.register
+client.collectDefaultMetrics({ register, prefix: 'observation_' })
+
+export const frontendErrorsTotal = new client.Counter({
+   name: 'frontend_errors_total',
+   help: '前端异常总数（SDK 上报，按应用与类型）',
+   labelNames: ['app', 'type'] as const,
+})
+
+export const frontendApiRequestsTotal = new client.Counter({
+   name: 'frontend_api_requests_total',
+   help: '前端 API 请求总数（按应用与状态分类：2xx/3xx/4xx/5xx/network_error）',
+   labelNames: ['app', 'status'] as const,
+})
+
+export const frontendApiDurationSeconds = new client.Histogram({
+   name: 'frontend_api_duration_seconds',
+   help: '前端 API 请求耗时分布（浏览器侧测量）',
+   labelNames: ['app'] as const,
+   buckets: [0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+})
+
+export const frontendWebVitalsSeconds = new client.Histogram({
+   name: 'frontend_web_vitals_seconds',
+   help: '页面性能指标分布（lcp/fcp/ttfb/inp，单位秒）',
+   labelNames: ['app', 'metric'] as const,
+   buckets: [0.1, 0.25, 0.5, 1, 2.5, 4, 10],
+})
+
+export const frontendClsScore = new client.Histogram({
+   name: 'frontend_cls_score',
+   help: '累计布局偏移 CLS 分布',
+   labelNames: ['app'] as const,
+   buckets: [0.05, 0.1, 0.25, 0.5, 1],
+})
