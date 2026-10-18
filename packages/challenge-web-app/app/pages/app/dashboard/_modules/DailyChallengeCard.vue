@@ -18,12 +18,7 @@ export type DailyProblem = NonNullable<
    Awaited<ReturnType<typeof $trpc.public.daily.getProblem.query>>
 >;
 
-// 业务口径的「今天」以服务端为准。
-//
-// SSR 渲染跑在容器本地时区（线上是 UTC），而水合后跑在浏览器本地时区，
-// 两端各自 `dayjs()` 在北京时间 00:00–08:00 会差一天（日历选中的日期、
-// 可见区间、签到状态全部错位）。这里先拿到服务端业务日期，SSR 与客户端
-// 共用同一份 payload，不再依赖运行环境时区。
+// 业务口径的「今天」以服务端为准。 SSR 渲染跑在容器本地时区（线上是 UTC），而水合后跑在浏览器本地时区， 两端各自 `dayjs()` 在北京时间 00:00–08:00 会差一天（日历选中的日期、 可见区间、签到状态全部错位）。这里先拿到服务端业务日期，SSR 与客户端 共用同一份 payload，不再依赖运行环境时区。
 const { data: serverToday } = await useAsyncData('daily-today', () =>
    $trpc.public.daily.getToday.query()
 );

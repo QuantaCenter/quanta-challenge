@@ -86,12 +86,7 @@ export interface CurrentUser {
    role?: string;
 }
 
-/**
- * 出题相关的 admin tRPC 接口封装。
- *
- * 只包这一层的目的：命令里不出现 URL 字符串，
- * 接口签名变化时改一处即可（并且能被单元测试用假 fetch 覆盖）。
- */
+/** 出题相关的 admin tRPC 接口封装：命令里不出现 URL 字符串，接口变化改一处即可。 */
 export interface AdminApi {
    login(input: { email: string; password: string }): Promise<{
       user: CurrentUser;
@@ -208,10 +203,7 @@ interface RawTag {
 export const auditRecordOf = (detail: AuditDetail): AuditRecord | undefined =>
    detail.TemplateJudgeRecord?.[0]?.judgeRecord;
 
-/**
- * 审计是否已到终局。status 离开 draft 即算结束：调度器在任务失败时只改 status、
- * 不补写判题记录，只看记录会让这类失败一直轮询到超时。
- */
+/** 审计是否已到终局：status 离开 draft 即算结束（失败时调度器只改 status 不补判题记录）。 */
 export const isAuditSettled = (detail: AuditDetail): boolean => {
    if (detail.status !== 'draft') return true;
    const record = auditRecordOf(detail);

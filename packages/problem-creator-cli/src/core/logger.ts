@@ -6,6 +6,17 @@ type Colors = ReturnType<typeof createColors>;
 export const LOG_LEVELS = ['silent', 'error', 'warn', 'info', 'debug'] as const;
 export type LogLevel = (typeof LOG_LEVELS)[number];
 
+/** 语义级别 -> OTel severity_number / severity_text（docs/LOG_REPORTING_PROTOCOL.md §5）。 */
+const OTEL_SEVERITY: Record<
+   Exclude<LogLevel, 'silent'>,
+   { number: number; text: string }
+> = {
+   error: { number: 17, text: 'ERROR' },
+   warn: { number: 13, text: 'WARN' },
+   info: { number: 9, text: 'INFO' },
+   debug: { number: 5, text: 'DEBUG' },
+};
+
 export const LOG_LEVEL_RANK: Record<LogLevel, number> = {
    silent: 0,
    error: 1,
@@ -52,20 +63,12 @@ export interface LoggerOptions {
 const write = (target: (chunk: string) => void, line: string) =>
    target(`${line}\n`);
 
-/**
- * 输出通道约定：
- *
- * · stdout = **命令结果**（报告表格、预检结论、`--json` 的 JSON）。
- * · stderr = **诊断信息**（错误、警告、debug、以及 `--json` 模式下的全部日志）。
- *
- * 这样 `qpc status 12 --json | jq .status` 永远只拿到一份 JSON，不会被日志污染；
- * 而管道里看不到的进度信息仍然会打到终端上。
- * `--json` 时表格不再输出（数据已经在 JSON 里），避免 stdout 出现两种格式。
- */
+/** 输出通道约定：stdout = 命令结果（含 --json），stderr = 诊断信息；保证 `qpc --json | jq` 拿到干净的 JSON。 */
 export const createLogger = (options: LoggerOptions = {}): Logger => {
    const level = options.level ?? 'info';
    const json = options.json ?? false;
-   const colors = createColors(options.color ?? true);
+   // --json 模式下禁用着色：body 与 attributes 会被机器消费，ANSI 码会污染字段值。
+   const colors = createColors(json ? false : (options.color ?? true));
    const stdout =
       options.stdout ?? ((chunk: string) => process.stdout.write(chunk));
    const stderr =
@@ -83,9 +86,21 @@ export const createLogger = (options: LoggerOptions = {}): Logger => {
    ) => {
       if (!enabled(candidate)) return;
       if (json) {
+         // --json 模式：按 LOG_REPORTING_PROTOCOL 输出 OTel 风格 JSON Lines 到
+         // stderr（stdout 仍保留给命令结果，见上方通道约定）。
+         const severity = OTEL_SEVERITY[candidate];
+         const attributes =
+            meta && Object.keys(meta).length > 0 ? meta : undefined;
          write(
             stderr,
-            JSON.stringify({ level: candidate, msg: message, ...meta }),
+            JSON.stringify({
+               timestamp: new Date().toISOString(),
+               severity_number: severity.number,
+               severity_text: severity.text,
+               body: message,
+               ...(attributes ? { attributes } : {}),
+               resource: { 'service.name': 'challenge-problem-creator-cli' },
+            }),
          );
          return;
       }

@@ -12,10 +12,7 @@ import {
    problemConfigSchema,
 } from './problem-config-schema';
 
-// 配置的「形状」与「加载」分在两个文件：
-//   · problem-config-schema.ts 只依赖 zod，因此 program 入口（给配置文件 import 的
-//     那个模块）不会把 node:fs / jiti 也拖进打包产物。
-//   · 这里负责读文件、跑 jiti、解析路径。
+// 配置的「形状」与「加载」分在两个文件： · problem-config-schema.ts 只依赖 zod，因此 program 入口（给配置文件 import 的 那个模块）不会把 node:fs / jiti 也拖进打包产物。 · 这里负责读文件、跑 jiti、解析路径。
 export * from './problem-config-schema';
 
 export interface ResolvedProblemConfig extends ProblemConfig {
@@ -35,13 +32,7 @@ export interface ResolvedProblemConfig extends ProblemConfig {
    overriddenByImage: string[];
 }
 
-/**
- * 加载题目配置。
- *
- * 用 jiti 而不是 import()：配置文件是 **TypeScript**，而构建产物是普通 Node 进程，
- * 原生 import 不认 `.ts`。jiti 同时负责把 `@challenge/problem-creator-cli`
- * 别名到本地 program 模块，让 `defineProblemConfig` 在仓库之外的目录里也能解析。
- */
+/** 加载题目配置：用 jiti 而非 import()（原生 import 不认 .ts），并把 @challenge/problem-creator-cli 别名到本地 program 模块。 */
 export const loadProblemConfig = async (
    rootDir: string,
    options: { file?: string } = {},
@@ -130,14 +121,7 @@ const importConfig = async (file: string): Promise<unknown> => {
    }
 };
 
-/**
- * 定位 program 模块（导出 `defineProblemConfig` 的那个文件）。
- *
- * 三种可能的布局都要兼容，因此按顺序探测而不是写死相对路径：
- *   · 打包后：dist/index.js → dist/program.js（本模块被打进 bin 入口）
- *   · 未打包的 dist：dist/domain/problem-config.js → dist/program.js
- *   · 源码直跑（tsx）：src/domain/problem-config.ts → src/program.ts
- */
+/** 定位 program 模块（导出 defineProblemConfig 的文件）；三种布局（打包后 / 未打包 dist / 源码直跑）按顺序探测。 */
 const programModulePath = (): string => {
    const candidates = [
       './program.js',

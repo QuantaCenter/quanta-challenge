@@ -19,14 +19,7 @@ export const summarizeUser = (user: {
    [user.nickname, user.email, user.role].filter(Boolean).join(' · ') ||
    '<unknown>';
 
-/**
- * 交互确认。
- *
- * 只在"确实要改服务端状态"的命令里用，并且：
- *   · --yes 直接放行（CI 必须能跑）
- *   · 非 TTY 且没有 --yes 时**放行**，因为 CI 里没人能回答提示，
- *     卡住比误操作更糟；此时日志里会留一行"已跳过确认"。
- */
+/** 交互确认（仅在改服务端状态的命令里用）：--yes 直接放行；非 TTY 且无 --yes 也放行，避免 CI 卡死并记录"已跳过确认"。 */
 export const confirmOrSkip = async (
    ctx: CommandContext,
    question: string,

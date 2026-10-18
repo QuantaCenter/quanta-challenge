@@ -1,14 +1,4 @@
-/**
- * 前端监控上报的同源代理。
- *
- * 为什么不让浏览器直连 observation 服务（127.0.0.1:9310）：
- *  - 生产环境 observation 只绑定回环地址，公网浏览器根本到不了；
- *  - 直连是跨源请求，需要给采集服务加 CORS 与额外反代。
- * 走本路由后 SDK 始终同源上报，服务端在 compose 网络内转发到
- * runtimeConfig.observation.serverUrl（生产为 http://observation:9310）。
- *
- * 代理失败时静默返回 502：监控上报绝不影响业务页面。
- */
+/** 前端监控上报的同源代理：服务端在 compose 网络内转发到 observation；代理失败静默返回 502，监控上报绝不影响业务页面。 */
 export default defineEventHandler(async (event) => {
    const config = useRuntimeConfig(event);
 

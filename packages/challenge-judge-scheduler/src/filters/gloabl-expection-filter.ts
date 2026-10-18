@@ -1,8 +1,9 @@
 import type { ErrorHandler } from 'hono';
 import { HTTPException } from 'hono/http-exception';
+import { logger } from '../utils/logger';
 
 export const globalExpectionFilter: ErrorHandler = (err) => {
-   console.log('[ERROR]', err.cause, err.message);
+   logger.error({ err }, `Unhandled request error: ${err.message}`);
    if (err instanceof HTTPException) {
       return err.getResponse();
    }

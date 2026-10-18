@@ -32,12 +32,7 @@ export interface PollOptions<T> {
    onTick?: (elapsedMs: number, attempt: number) => void;
 }
 
-/**
- * 轮询直到 probe 返回非 undefined 或超时。
- *
- * 超时返回 undefined 而不是抛错：调用方才知道"超时意味着什么"
- * （审计超时要提示去看调度器日志，而不是当成通用失败）。
- */
+/** 轮询直到 probe 返回非 undefined 或超时；超时返回 undefined 而非抛错，让调用方自行区分超时语义。 */
 export const poll = async <T>(
    options: PollOptions<T>,
 ): Promise<T | undefined> => {

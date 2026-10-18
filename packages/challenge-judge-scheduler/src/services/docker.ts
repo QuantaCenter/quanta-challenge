@@ -6,6 +6,7 @@ import {
    resolveBackendServiceImageName,
 } from '@challenge/shared/backend-service-image';
 import { Singleton } from '../utils/singleton';
+import { logger } from '../utils/logger';
 import { TempFileService } from './temp-file';
 import JRTP from '@challenge/judge-machine-agent';
 import type z from 'zod';
@@ -22,13 +23,7 @@ import { TimingService } from './timing';
 /** 调度器启动阶段的固定计时 ID。 */
 const STARTUP_TIMING_ID = 'scheduler-boot';
 
-/**
- * 判题相关容器的资源上限。
- *
- * 用户提交的代码会在 live-server 容器里执行，之前这些容器没有任何 CPU / 内存 / 进程数
- * 限制：一段 while(true) 或 fork 炸弹就能把宿主机拖垮，影响同机器上的所有判题与其他服务。
- * 这里给出保守但足够的上限，可通过环境变量覆盖以便在更强/更弱的机器上调整。
- */
+/** 判题相关容器的资源上限。 */
 const numEnv = (key: string, fallback: number) => {
    const raw = process.env[key];
    const parsed = raw ? Number(raw) : NaN;
@@ -50,12 +45,7 @@ const JUDGE_MACHINE_LIMITS = {
    pidsLimit: numEnv('JUDGE_MACHINE_PIDS_LIMIT', 512),
 };
 
-/**
- * 后端服务容器的资源上限。
- *
- * 用户代码是一个常驻进程，比静态文件的 live-server 危险得多（死循环 / 内存泄漏 /
- * fork 炸弹都会长期占着资源），因此这里显式设上限，可通过环境变量覆盖。
- */
+/** 后端服务容器的资源上限。 */
 const BACKEND_SERVICE_LIMITS = {
    memoryBytes: numEnv('BACKEND_SERVICE_MEMORY_MB', 1024) * 1024 * 1024,
    cpuShares: numEnv('BACKEND_SERVICE_CPU_SHARES', 1024),
@@ -75,14 +65,7 @@ const JUDGE_MACHINE_IMAGE = 'challenge-judge-machine-agent';
 /** 后端判题机镜像。 */
 const BACKEND_JUDGE_MACHINE_IMAGE = 'challenge-backend-judge-machine-agent';
 
-/**
- * 判断 Docker 抛出的错误是不是「镜像不存在」。
- *
- * 镜像没构建时 dockerode 在 createContainer 阶段抛出的是：
- *   (HTTP code 404) no such container - No such image: challenge-judge-machine-agent:latest
- * 文案里既有 "container" 又有 "image"，与「容器跑不起来」这类真故障必须区分开，
- * 否则调度器会把「镜像可选未构建」当成环境损坏（详见 init()）。
- */
+/** 判断 Docker 抛出的错误是不是「镜像不存在」。 */
 const isImageMissingError = (error: any): boolean => {
    const message = String(error?.message ?? error ?? '');
    return /no such image/i.test(message) || (error?.statusCode === 404 && /image/i.test(message));
@@ -107,32 +90,20 @@ export class DockerService extends Singleton {
       public readonly docker = new Docker(),
       public readonly networkName = 'orange-network',
       public liveServerStartTimeout = 10 * 1000,
-      /**
-       * 后端服务容器就绪超时。
-       *
-       * 明显大于 live-server 的 10s：后端容器启动时要先做一次离线 `pnpm install`，
-       * 依赖树较大时 10s 根本不够。90s 覆盖「安装 + 服务冷启动」。
-       */
+      /** 后端服务容器就绪超时。 */
       public backendServiceStartTimeout = Number(
          process.env.BACKEND_SERVICE_START_TIMEOUT_MS ?? 90 * 1000
       ),
       public judgeMachineWs: WebSocket | null = null,
       public judgeMachineContainer: Docker.Container | null = null,
-      // 后端判题机懒加载：没有后端题目的部署不需要构建这个镜像，
-      // 因此不能放进 init()（那样会让所有存量部署因为一个用不到的镜像而启动失败）。
+      // 后端判题机懒加载：没有后端题目的部署不需要构建这个镜像，故不能放进 init()。
       public backendJudgeMachineWs: WebSocket | null = null,
       public backendJudgeMachineContainer: Docker.Container | null = null
    ) {
       super();
    }
 
-   /**
-    * 前端判题机的可用性快照，供 `/health` 与启动日志使用。
-    *
-    * 缺镜像时调度器会「降级启动」而不是直接退出（理由见 init()），但降级绝不能是
-    * 静默的：它必须同时出现在启动 WARN 与 /health 里，否则就又回到
-    * 「服务看着是好的、前端判题全挂」那个陷阱。
-    */
+   /** 前端判题机的可用性快照，供 `/health` 与启动日志使用。 */
    public judgeMachine = {
       available: false,
       reason: '尚未初始化',
@@ -149,8 +120,8 @@ export class DockerService extends Singleton {
          void this.sweepStaleLiveServers({ minAgeMs: graceMs });
       }, intervalMs);
       this.sweepTimer.unref?.();
-      console.log(
-         `[INFO] Live-server sweeper started (every ${intervalMs / 1000}s, grace ${graceMs / 1000}s)`
+      logger.info(
+         `Live-server sweeper started (every ${intervalMs / 1000}s, grace ${graceMs / 1000}s)`
       );
    }
 
@@ -173,16 +144,18 @@ export class DockerService extends Singleton {
                CheckDuplicate: true,
                Driver: 'bridge',
             });
-            console.log('[INFO] Created network:', network.id);
+            logger.info(
+               { 'quanta.judge.network_id': network.id },
+               `Created network: ${network.id}`
+            );
          } else {
-            console.log(`[INFO] Network ${this.networkName} already exists`);
+            logger.info(`Network ${this.networkName} already exists`);
          }
       } catch (error) {
-         console.error('[ERROR] Error creating network:', error);
+         logger.error({ err: error }, 'Error creating network');
       }
 
-      // 注意：不能在建网后提前 return，否则全新环境下判题机永远不会启动，
-      // 所有判题任务都会以 "Judge machine WebSocket is not connected" 失败。
+      // 不能在建网后提前 return，否则全新环境下判题机永远不会启动。
       try {
          const result = await TimingService.instance.measure(
             STARTUP_TIMING_ID,
@@ -193,23 +166,11 @@ export class DockerService extends Singleton {
          this.judgeMachineContainer = result.container;
          this.judgeMachine = { available: true };
 
-         console.log(
-            '[INFO] Judge machine container started:',
-            result.containerId,
+         logger.info(
+            { 'quanta.judge.container_id': result.containerId },
+            'Judge machine container started',
          );
       } catch (error: any) {
-         // 两种「降级启动」，其余错误仍然 fail-fast：
-         //
-         // 1. 镜像不存在（no such image）—— 这是「这个环境不跑前端题型」，而不是环境坏了。
-         //    后端服务题型只需要 backend-service-agent / backend-judge-machine-agent，
-         //    而这台机器上很可能从没构建过带 Playwright 的前端判题机镜像（体积大、构建慢）。
-         //    此时让整个调度器退出，等于「一个用不到的镜像把后端判题也一起废掉」——
-         //    与 ensureBackendJudgeMachine() 对后端判题机的懒加载策略自相矛盾。
-         //    降级后前端任务仍会以明确错误失败（judge-processor: "Judge machine
-         //    WebSocket is not connected"），不会静默挂起，且 /health 会报 degraded。
-         //
-         // 2. JUDGE_MACHINE_OPTIONAL=1 —— 明知不要前端判题时的显式选择，
-         //    也用于绕过「1889 端口被占 / 容器起不来」这类没必要阻塞后端的错误。
          const imageMissing = isImageMissingError(error);
          const optional = process.env.JUDGE_MACHINE_OPTIONAL === '1';
 
@@ -220,8 +181,9 @@ export class DockerService extends Singleton {
                available: false,
                reason: imageMissing ? `前端判题机镜像 ${JUDGE_MACHINE_IMAGE} 不存在` : error.message,
             };
-            console.warn(
-               `[WARN] 前端判题机未启动，调度器降级运行（${cause}）：${error.message}\n` +
+            logger.warn(
+               { err: error },
+               `前端判题机未启动，调度器降级运行（${cause}）：${error.message}\n` +
                   '       影响：前端题型提交后会以 "Judge machine WebSocket is not connected" 失败，' +
                   '后端服务题型不受影响；/health 现在会返回 status=degraded。',
             );
@@ -280,10 +242,7 @@ export class DockerService extends Singleton {
             stderr: true,
          });
          await container.start();
-         // 立刻登记为"使用中"，不能等 waitForReady 之后再登记：
-         // 否则在"容器已存在但尚未登记"的窗口里，定时清扫器会把它当孤儿删掉，
-         // 判题机随即解析不到该容器的网络别名（ERR_NAME_NOT_RESOLVED），
-         // 最终以 "Judge Machine response timeout" 失败。
+         // 立刻登记为"使用中"，否则清扫器会在登记前的窗口把它当孤儿删掉。
          this.activeLiveServerIds.add(container.id);
 
          let readyTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -295,8 +254,7 @@ export class DockerService extends Singleton {
                if (hasReady) return;
                reject(new Error('Container did not start in time'));
                this.activeLiveServerIds.delete(container.id);
-               // 用 remove 而非 stop：容器带 AutoRemove，stop 触发的自动删除与显式删除
-               // 会互相竞争，容易只删掉一半；force 能保证容器确实被回收。
+               // 用 remove 而非 stop：AutoRemove 下二者会竞争，force 保证容器确实被回收。
                ignoreError(() => container.remove({ force: true }));
             }, this.liveServerStartTimeout);
 
@@ -342,9 +300,8 @@ export class DockerService extends Singleton {
          // 容器在创建过程中（container.start() 之后）就已登记，这里不再重复登记。
          return result;
       } catch (error) {
-         console.error('Error starting live server container:', error);
-         // 兜底：createContainer 内部任何一步失败（attach / start / waitForReady / 之后的异常）
-         // 都必须把容器删掉。实测中漏掉这一步会在集中提交时迅速堆积出上百个容器。
+         logger.error({ err: error }, 'Error starting live server container');
+         // 兜底：createContainer 任何一步失败都必须删掉容器，否则集中提交时会堆积大量容器。
          await this.removeLiveServersWithAliasPrefix(
             'challenge-live-server-agent',
             fsName,
@@ -354,12 +311,7 @@ export class DockerService extends Singleton {
       }
    }
 
-   /**
-    * 删除指定网络别名对应的残留 live-server 容器。
-    *
-    * 用于 startLiveServerContainer 失败后的兜底清理：此时可能拿不到 container 句柄
-    * （例如 createContainer 中途抛出），只能按别名反查。
-    */
+   /** 删除指定网络别名对应的残留 live-server 容器（startLiveServerContainer 失败兜底，此时拿不到容器句柄）。 */
    private async removeLiveServersWithAliasPrefix(image: string, fsName: string) {
       await ignoreError(async () => {
          const containers = await this.listContainersByImage(image);
@@ -368,8 +320,9 @@ export class DockerService extends Singleton {
             const aliases = Object.values(info.NetworkSettings?.Networks ?? {})
                .flatMap((n) => n.Aliases ?? []);
             if (!aliases.includes(fsName)) continue;
-            console.log(
-               `[INFO] Removing leftover live-server container ${info.Id.slice(0, 12)} (alias ${fsName})`,
+            logger.info(
+               { 'quanta.judge.container_id': info.Id },
+               `Removing leftover live-server container ${info.Id.slice(0, 12)} (alias ${fsName})`,
             );
             await ignoreError(() =>
                this.docker.getContainer(info.Id).remove({ force: true }),
@@ -378,15 +331,7 @@ export class DockerService extends Singleton {
       });
    }
 
-   /**
-    * 按镜像名查找运行中的容器。
-    *
-    * 不能用 `listContainers({ filters: { ancestor: [tag] } })`：一旦镜像被重建，
-    * 旧容器引用的镜像 ID 变成 dangling，ancestor=<tag> 就再也匹配不到它。
-    * 后果是调度器以为"没有旧容器"，于是尝试再创建一个并绑定 1889 端口，
-    * 直接失败（Bind for 0.0.0.0:1889 failed: port is already allocated）。
-    * 因此这里按"镜像名 + 端口绑定"双重匹配。
-    */
+   /** 按镜像名查找容器；不能用 ancestor 过滤（镜像重建后旧容器变 dangling 匹配不到），按"镜像名 + 端口绑定"双重匹配。 */
    private async listContainersByImage(imageName: string) {
       const [byAncestor, all] = await Promise.all([
          ignoreError(() =>
@@ -395,8 +340,7 @@ export class DockerService extends Singleton {
                filters: { ancestor: [imageName] },
             }),
          ).then((r) => r ?? []),
-         // 必须带 all: true。默认只列"运行中"容器，而泄漏的 live-server 容器
-         // 往往是已退出/创建后未启动的状态，用默认查询根本扫不到它们。
+         // 必须带 all: true，默认只列运行中容器，扫不到已退出的泄漏容器。
          this.docker.listContainers({ all: true }),
       ]);
 
@@ -411,26 +355,13 @@ export class DockerService extends Singleton {
       return all.filter((c) => ids.has(c.Id));
    }
 
-   /**
-    * 清理残留的 live-server 容器。
-    *
-    * 正常路径由 judge-processor 调用 close() 回收；但 job 失败、调度器被强杀、
-    * 或 startLiveServerContainer 中途失败时都可能漏掉，容器会一直占着内存与网络别名。
-    *
-    * 判断依据是 activeLiveServerIds 而不是容器年龄：
-    * 实测一次集中提交会在十几秒内建出上百个同龄容器，用年龄阈值无法区分
-    * "还在用"与"已泄漏"，且 5 分钟阈值对突发积压完全无效（积压时每秒都在新建）。
-    *
-    * @param minAgeMs 仅启动时兜底用（默认 5 分钟，避免误删上一次进程遗留但仍在使用的容器）；
-    *                 定时清扫传 0，因为未被登记的容器一定是孤儿。
-    */
+   /** 清理残留的 live-server 容器（job 失败、强杀或启动失败时可能泄漏）；以 activeLiveServerIds 而非容器年龄判断泄漏，minAgeMs 仅启动兜底用。 */
    async sweepStaleLiveServers(options?: { minAgeMs?: number }) {
       const minAgeMs = options?.minAgeMs ?? 5 * 60 * 1000;
       const nowSec = Date.now() / 1000;
       let removed = 0;
 
-      // 同时清扫前端 live-server 与后端服务容器：两者都会因为 job 失败 /
-      // 调度器被强杀而泄漏，且都不会自动消失（AutoRemove 只在正常 remove 时生效）。
+      // 同时清扫前端 live-server 与后端服务容器：二者都可能因 job 失败或强杀而泄漏。
       for (const image of PROBLEM_CONTAINER_IMAGES) {
          try {
             const containers = await this.listContainersByImage(image);
@@ -440,8 +371,9 @@ export class DockerService extends Singleton {
                const ageMs = (nowSec - info.Created) * 1000;
                if (ageMs < minAgeMs) continue;
 
-               console.log(
-                  `[INFO] Removing stale problem container ${info.Id.slice(0, 12)} (image ${image}, age ${Math.round(ageMs / 1000)}s)`,
+               logger.info(
+                  { 'quanta.judge.container_id': info.Id },
+                  `Removing stale problem container ${info.Id.slice(0, 12)} (image ${image}, age ${Math.round(ageMs / 1000)}s)`,
                );
                const ok = await ignoreError(() =>
                   this.docker.getContainer(info.Id).remove({ force: true }),
@@ -449,16 +381,16 @@ export class DockerService extends Singleton {
                if (ok !== null) removed++;
             }
          } catch (error) {
-            console.error(
-               `[ERROR] Failed to sweep stale ${image} containers:`,
-               error,
+            logger.error(
+               { err: error },
+               `Failed to sweep stale ${image} containers`,
             );
          }
       }
 
       if (removed > 0) {
-         console.log(
-            `[INFO] Swept ${removed} stale problem container(s), ${this.activeLiveServerIds.size} still active`,
+         logger.info(
+            `Swept ${removed} stale problem container(s), ${this.activeLiveServerIds.size} still active`,
          );
       }
    }
@@ -467,14 +399,6 @@ export class DockerService extends Singleton {
       const imageName = JUDGE_MACHINE_IMAGE;
       let container: Docker.Container;
 
-      // 优先复用已占着 1889 端口 / 同名镜像的容器。
-      //
-      // 只按镜像名匹配不够：镜像名被重新指向新镜像（重新发布）后，旧容器在列表里就只剩
-      // 镜像 ID（`ancestor=` 也匹配不到），于是会误判为「无旧容器」并重复绑定 1889，
-      // 调度器启动即失败。端口是独占资源，占着 1889 的必然是旧判题机，故再按端口兜底查一次。
-      //
-      // listContainersByImage 会连已退出的容器一起返回（清扫需要），
-      // 但这里只能复用**正在运行**的，否则会把已退出的容器当成判题机去连 WebSocket。
       const [byImage, byPort] = await Promise.all([
          this.listContainersByImage(imageName),
          ignoreError(() =>
@@ -494,14 +418,13 @@ export class DockerService extends Singleton {
 
       if (reusable) {
          const containerId = reusable.Id;
-         console.log(
-            `[INFO] Using existing container ${containerId} with image ${imageName}`,
+         logger.info(
+            { 'quanta.judge.container_id': containerId },
+            `Using existing container ${containerId} with image ${imageName}`,
          );
          container = this.docker.getContainer(containerId);
       } else {
-         // 镜像不存在时 dockerode 只给一句
-         //   (HTTP code 404) no such container - No such image: challenge-judge-machine-agent:latest
-         // 既不说是哪个包、也不说怎么修。这里补成可执行的提示（与后端判题机同一写法）。
+         // 镜像不存在时 dockerode 报错不明确，这里补成可执行的提示。
          try {
             container = await this.docker.createContainer({
                Image: imageName,
@@ -600,8 +523,6 @@ export class DockerService extends Singleton {
       const jrtp = new JRTP();
       type JudgeResultType = z.infer<typeof JudgeResultSchema>;
       ws.addEventListener('message', async (event) => {
-         // 使用 Web 标准事件接口（Node 22 内置全局 WebSocket），
-         // event.data 可能是 Buffer/ArrayBuffer/Blob，统一归一化为 Buffer。
          const raw = event.data as unknown;
          const buffer = Buffer.isBuffer(raw)
             ? raw
@@ -615,12 +536,7 @@ export class DockerService extends Singleton {
       return ws;
    }
 
-   /**
-    * 确保后端判题机容器已就绪，并返回它的 WebSocket。
-    *
-    * 懒加载的理由见构造函数注释：只有存在后端题目的部署才需要这个镜像。
-    * 镜像缺失时异常只会在这一次后端判题里抛出，不影响前端判题。
-    */
+   /** 确保后端判题机容器已就绪，并返回它的 WebSocket。 */
    async ensureBackendJudgeMachine(): Promise<WebSocket> {
       if (
          this.backendJudgeMachineWs &&
@@ -640,8 +556,9 @@ export class DockerService extends Singleton {
          candidates[0];
 
       if (reusable) {
-         console.log(
-            `[INFO] Using existing backend judge machine ${reusable.Id.slice(0, 12)}`
+         logger.info(
+            { 'quanta.judge.container_id': reusable.Id },
+            `Using existing backend judge machine ${reusable.Id.slice(0, 12)}`
          );
          container = this.docker.getContainer(reusable.Id);
       } else {
@@ -710,19 +627,7 @@ export class DockerService extends Singleton {
       return ws;
    }
 
-   /**
-    * 启动一个后端服务容器。
-    *
-    * 顺序是硬约束（见 docs/BACKEND_SERVICE_PROBLEM.md §1）：
-    *   ① 恢复快照到临时目录
-    *   ② 用题目镜像热更新共享 pnpm 缓存（联网，可复用的是缓存不是安装结果）
-    *   ③ 启动容器，容器内用【只读 store】【离线】安装，再跑题目自定义启动命令
-    *   ④ 等容器打印 `[quanta] Ready`
-    *
-    * 为什么②必须走 PnpmCacheService（而不是在容器里直接联网装）：
-    * 缓存是跨判题共享的，预热一次后续判题都命中；而消费端（③）永远离线，
-    * 保证「判题时依赖 = 审计时依赖」，不会因为 registry 抖动而随机变少。
-    */
+   /** 启动一个后端服务容器。 */
    async startBackendServiceContainer(options: {
       fsSnapshot: Record<string, string>;
       image?: string;
@@ -747,8 +652,6 @@ export class DockerService extends Singleton {
       const projectDir = path.join(fsRootPath, judgeUploadPath);
 
       try {
-         // ② 热更新缓存：这就是「调用特定 API 更新缓存库」——HTTP 侧入口是
-         //    POST /cache/update，这里进程内直接调用同一个服务。
          const hasLockfile = fs.existsSync(
             path.join(projectDir, 'pnpm-lock.yaml')
          );
@@ -761,13 +664,12 @@ export class DockerService extends Singleton {
                })
             );
          } else {
-            console.warn(
-               `[WARN] 后端题目缺少 pnpm-lock.yaml（${projectDir}），跳过缓存预热；` +
+            logger.warn(
+               `后端题目缺少 pnpm-lock.yaml（${projectDir}），跳过缓存预热；` +
                   '容器内也将跳过离线安装。无法离线安装的题目在断网环境下不可复现。'
             );
          }
 
-         // ③ 启动服务容器
          timer.start(timingId, '创建后端服务容器');
          const container = await this.docker.createContainer({
             Image: image,
@@ -830,7 +732,6 @@ export class DockerService extends Singleton {
             const onData = (data: Buffer) => {
                const output = data.toString();
                collectedLogs += output;
-               // 入口脚本的固定就绪信号（entrypoint.sh），格式不要改。
                if (output.includes('[quanta] Ready')) {
                   hasReady = true;
                   clearTimeout(timer);
@@ -855,7 +756,7 @@ export class DockerService extends Singleton {
             },
          };
       } catch (error) {
-         console.error('Error starting backend service container:', error);
+         logger.error({ err: error }, 'Error starting backend service container');
          await this.removeLiveServersWithAliasPrefix(image, fsName);
          await TempFileService.instance.cleanup(fsRootPath);
          throw error;
@@ -882,7 +783,7 @@ export class DockerService extends Singleton {
             await this.docker.getNetwork(network.Id).remove();
          }
       } catch (error) {
-         console.error('Error during DockerService cleanup:', error);
+         logger.error({ err: error }, 'Error during DockerService cleanup');
       }
    }
 }

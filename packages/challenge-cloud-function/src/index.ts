@@ -6,12 +6,7 @@ import { closeRedis, getRedis } from './services/redis';
 import { initRegistrySubscriber } from './services/registry';
 import { logger } from './utils/logger';
 
-/**
- * 依赖初始化。
- *
- * 与 judge-scheduler 的教训一致：依赖没就绪时**必须启动失败**，
- * 而不是让服务在端口上"看似正常"却什么都做不了。
- */
+/** 依赖初始化：依赖没就绪时必须启动失败，而不是让服务"看似正常"却什么都做不了。 */
 const initServices = async (): Promise<void> => {
    logger.info('正在初始化云函数服务依赖...');
 

@@ -5,9 +5,7 @@ import prisma from '../utils/prisma';
 
 const healthRoute = new Hono();
 
-/**
- * 健康检查。
- */
+/** 健康检查。 */
 healthRoute.get('/', async (c) => {
    let redisOk = false;
    let dbOk = false;

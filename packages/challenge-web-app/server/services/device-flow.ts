@@ -20,18 +20,7 @@ import {
 
 import { useRedis } from '~~/server/utils/redis';
 
-/**
- * 设备授权流程（RFC 8628）的服务端状态机。
- *
- * 两条数据各存一份 Redis 键，因为查询方向不同：
- *   · `oauth:user:<code>`     —— 用户在确认页输入 code，从这里查到 device_code
- *   · `oauth:device:<code>`   —— CLI 轮询时用 device_code 查会话状态
- * 两者 TTL 相同，写入时一并设置，避免出现"user 键还在但 device 键已过期"的
- * 半死状态（那会让用户看到"确认成功"而 CLI 永远轮询不到）。
- *
- * 所有"取走即失效"的操作都用 Redis 原子命令（GETDEL / 条件删除），
- * 不用"先 GET 再 DEL"——那中间存在竞态窗口，攻击者可以在窗口内重复消费。
- */
+/** 设备授权流程（RFC 8628）服务端状态机：user/device 两个 Redis 键同步写 TTL；"取走即失效"的操作一律用原子命令（GETDEL），避免先 GET 再 DEL 的竞态窗口。 */
 
 export interface DeviceAuthorizationIssue {
    deviceCode: string;
@@ -39,12 +28,7 @@ export interface DeviceAuthorizationIssue {
    expiresIn: number;
 }
 
-/**
- * 批准结果。区分三种情况，让调用方能给出准确反馈：
- *   · approved        —— 本次绑定成功
- *   · already_decided —— 会话已被处理（可能是另一个账号已批准），**不能**改绑
- *   · not_found       —— 码不存在/已过期/格式非法
- */
+/** 批准结果：approved 绑定成功；already_decided 已被处理不能改绑；not_found 码无效。 */
 export type ApproveOutcome =
    | { outcome: 'approved'; session: DeviceSession }
    | { outcome: 'already_decided'; session: DeviceSession }
@@ -53,12 +37,7 @@ export type ApproveOutcome =
 /** 生成高熵 device_code（RFC §5.2：不展示给用户，因此可以用长随机串） */
 const createDeviceCode = (): string => randomBytes(32).toString('base64url');
 
-/**
- * 生成人可读的 user_code（RFC §6.1：base20、8 位、去掉易混字符）。
- *
- * 用 rejection sampling 而不是 `% 20`：`% 20` 会让前 16 个字符出现的概率
- * 比后 4 个略高，熵不再是均匀的 log2(20)。对这个场景差异很小，
- * 但既然要按熵来定限速策略，就不该用有偏的生成方式。
+/** 生成人可读的 user_code（RFC §6.1：base20、8 位、去掉易混字符）；用 rejection sampling 保证熵均匀。 */
  */
 const createUserCode = (): string => {
    const alphabetSize = USER_CODE_ALPHABET.length;
@@ -85,14 +64,7 @@ const deserialize = (raw: string | null): DeviceSession | null => {
    }
 };
 
-/**
- * 常量时间比较，避免用字符串比较泄露 device_code 的前缀匹配长度。
- *
- * 用 Uint8Array 视图而不是直接传 Buffer：`timingSafeEqual` 要求
- * `ArrayBufferView`，而当前 TS 版本下 `Buffer<ArrayBufferLike>` 与
- * `Uint8Array<ArrayBufferLike>` 的泛型参数不兼容（仓库里 authn.ts 的
- * 同类报错就是这个原因）。包一层 Uint8Array 两边都满足。
- */
+/** 常量时间比较，避免字符串比较泄露前缀匹配长度；包一层 Uint8Array 规避 Buffer 泛型不兼容。 */
 const safeEqual = (a: string, b: string): boolean => {
    const left = new Uint8Array(Buffer.from(a, 'utf8'));
    const right = new Uint8Array(Buffer.from(b, 'utf8'));
@@ -143,13 +115,7 @@ export const createDeviceFlowService = (): DeviceFlowService => {
       ]);
    };
 
-   /**
-    * 用 user_code 查会话。
-    *
-    * 抽成独立函数而不是在方法里 `this.findByUserCode(...)`：
-    * 对象字面量内部通过 `this` 互相调用时，TS 无法从对象字面量的
-    * 返回类型推断出非空，会把每个调用点都报成 "Object is possibly 'undefined'"。
-    */
+   /** 用 user_code 查会话；抽成独立函数而非 this 互调，规避 TS 对对象字面量返回类型的空值误报。 */
    const findSessionByUserCode = async (
       input: string,
    ): Promise<DeviceSession | null> => {
@@ -212,12 +178,7 @@ export const createDeviceFlowService = (): DeviceFlowService => {
 
       approve: async (userCode, userId): Promise<ApproveOutcome> => {
          const session = await findSessionByUserCode(userCode);
-         // 已经 approved / consumed / denied 的会话不允许改绑到另一个账号，
-         // 否则拿到 user_code 的人可以把别人的授权会话转给自己。
-         //
-         // 这里**必须把"本来就已批准"与"本次批准成功"区分开**：调用方
-         // （确认页端点）需要据此告知第二个账号"这块码已被处理"，
-         // 若统一返回 approved，第二个用户会看到"授权成功"却拿不到任何东西。
+         // 已处理的会话不允许改绑（防会话被转给他人）；须区分"本来已批准"与"本次批准成功"，统一返回 approved 会让第二个用户误以为授权成功。
          if (session && session.status !== DEVICE_SESSION_STATUS.pending) {
             return { outcome: 'already_decided', session };
          }
@@ -254,9 +215,7 @@ export const createDeviceFlowService = (): DeviceFlowService => {
          if (session.status === DEVICE_SESSION_STATUS.pending) return session;
          if (session.status === DEVICE_SESSION_STATUS.denied) return session;
 
-         // approved / consumed 都走这里：只有**第一次**能把 approved 翻成 consumed。
-         // 用条件删除保证原子性 —— 读到 consumed 就直接返回，
-         // 让调用方按 invalid_grant 处理，token 不会被重复签发。
+         // 只有第一次能把 approved 翻成 consumed：用条件删除保证原子性，token 不被重复签发。
          if (session.status === DEVICE_SESSION_STATUS.consumed) return session;
 
          const removed = await redis.del(deviceCodeKey(deviceCode));

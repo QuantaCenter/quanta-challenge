@@ -24,11 +24,7 @@ export interface ICreateProjectOptions {
    tx?: Tx;
 }
 
-/**
- * 使用指定的选项创建一个新项目。
- * @param options 创建项目所需的选项
- * @returns 返回创建的项目ID、文件系统ID和虚拟文件ID列表
- */
+/** 创建一个新项目，返回项目 ID、文件系统 ID 和虚拟文件 ID 列表。 */
 const create = async (options: ICreateProjectOptions) => {
    const result = {
       projectId: '',
@@ -117,11 +113,7 @@ export interface IForkProjectOptions {
    tx?: Tx;
 }
 
-/**
- * 使用指定的选项克隆一个项目。
- * @param options 克隆项目所需的选项
- * @returns 返回克隆的项目ID、文件系统ID和虚拟文件ID列表
- */
+/** 克隆一个项目，返回项目 ID、文件系统 ID 和虚拟文件 ID 列表。 */
 const fork = async (options: IForkProjectOptions) => {
    const result = {
       projectId: '',

@@ -9,18 +9,7 @@ import { generateTokens } from '~~/server/utils/jwt';
 import { logger } from '~~/lib/logger';
 import prisma from '~~/lib/prisma';
 
-/**
- * RFC 8628 §3.4 令牌端点：CLI 用 device_code 轮询换取 token。
- *
- * ⚠️ 这个端点**故意不做 cookie / csrf 鉴权**。
- * 它的鉴权凭据就是 `device_code` 本身（高熵随机串，只有发起授权的 CLI 知道），
- * 而调用方是**没有浏览器会话的 CLI**。如果按仓库其它写入接口的惯例给它加上
- * `x-csrf-token` 校验，设备码流程会直接失效 —— 这正是当初设计时要避开的坑，
- * 所以在此显式说明。
- *
- * 换来的 token 直接放在响应体里（不复用 cookie 通道）：CLI 会自己保存到
- * ~/.config 下的 0600 文件，全程不经过浏览器。
- */
+/** RFC 8628 §3.4 令牌端点：鉴权凭据就是 device_code 本身，故意不做 cookie/CSRF 校验（调用方是无浏览器会话的 CLI）；token 放响应体，由 CLI 存入 0600 文件。 */
 const BodySchema = z.object({
    grant_type: z.string().min(1),
    device_code: z.string().min(1),

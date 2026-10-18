@@ -552,9 +552,7 @@ const getDetailProcedure = protectedAdminProcedure
       return problem;
    });
 
-// 创建一个新的模板工程
-// 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套
-// 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
+// 创建一个新的模板工程 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
 const reuploadProcedure = protectedAdminProcedure
    .input(ReuploadSchema)
    .mutation(async ({ ctx, input }) => {

@@ -18,11 +18,7 @@ export default defineConfig({
       outDir: 'dist',
       emptyOutDir: true,
       rollupOptions: {
-         // 两个入口：
-         //  - index          服务本体
-         //  - runtime/worker 沙箱 Worker。它**不是**通过 import 引用的（我们只在运行时
-         //    用文件路径去 spawn），所以必须显式列为构建入口，否则产物里根本没有这个文件，
-         //    生产环境启动时找不到 worker 源码。
+         // 两个入口：index（服务本体）+ runtime/worker（沙箱 Worker，运行时按路径 spawn，必须显式列为构建入口）。
          input: {
             index: entry('./src/index.ts'),
             'runtime/worker': entry('./src/runtime/worker.ts'),

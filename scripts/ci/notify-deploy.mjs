@@ -1,33 +1,11 @@
 #!/usr/bin/env node
-/**
- * 构建并发送「镜像已发布」的部署 webhook（契约见 docs/IMAGE_WEBHOOK.md）。
- *
- * 为什么单独成脚本：
- * 1. 报文要签 HMAC 且签的是「时间戳 + 原始 body」，shell 里拼 JSON + 算签名很容易写出
- *    签名与报文不一致（换行、引号转义）的坑，而这种错误在服务端只表现为「签名无效」，
- *    极难定位；
- * 2. 可以用 --dry-run 在本地打印出**真实**的报文与签名，服务端照着联调。
- *
- * 用法：
- *   node scripts/ci/notify-deploy.mjs --images-file /tmp/images.txt --tag sha-abc1234
- *   node scripts/ci/notify-deploy.mjs --images-file ... --dry-run   # 只打印，不发送
- *
- * images 文件的每行格式：<name>|<image>|<digest>
- * 环境变量：WEBHOOK_URL、WEBHOOK_SECRET（dry-run 可省略）以及 GITHUB_* 系列。
- */
+/** 构建并发送「镜像已发布」的部署 webhook（契约见 docs/IMAGE_WEBHOOK.md）：单独成脚本以避免 shell 里拼 JSON + 算 HMAC 的一致性坑；--dry-run 可本地打印真实报文。images 文件每行 <name>|<image>|<digest>。 */
 import { createHmac, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
 
-/**
- * 镜像 → docker compose 服务名的映射。
- *
- * 注意只有 web-app / judge-scheduler / cloud-function 是默认 compose profile 里的服务；
- * judge-machine 跑在宿主机（端口 1889），live-server 镜像是调度器在判题时按需构建的，
- * 两者都不由 `docker compose up` 管理，因此 service 为 null，服务端自行决定怎么处理
- * （预拉镜像 / 重启宿主机进程）。
- */
+/** 镜像 → docker compose 服务名映射：service 为 null 的镜像不由 compose 管理（judge-machine 跑宿主机，live-server 按需构建），由服务端自行处理。 */
 const COMPOSE_SERVICE = {
    'web-app': 'challenge-web-app',
    'judge-scheduler': 'challenge-judge-scheduler',
@@ -44,8 +22,7 @@ const REQUEST_TIMEOUT_MS = 15 * 60_000;
 const KEEPALIVE_MS = 60_000;
 // 响应体只用于日志，超出部分丢弃
 const MAX_RESPONSE_BYTES = 64 * 1024;
-// 异步模式：POST 回 202 后按此间隔轮询结果。每次轮询都是独立的短请求，
-// 不再依赖一条可能被中间 NAT 静默回收的长连接（10-17 两次发布失败正是这个原因）
+// 异步模式轮询间隔：每次都是独立短请求，不再依赖可能被 NAT 静默回收的长连接
 const POLL_INTERVAL_MS = 15_000;
 // 部署总体上限（并行拉 7 个镜像 + 重启 + 健康检查）；到点仍 running 则报失败退出
 const DEPLOY_DEADLINE_MS = 40 * 60_000;

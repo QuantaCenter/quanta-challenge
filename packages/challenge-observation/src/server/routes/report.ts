@@ -10,10 +10,7 @@ import {
    frontendWebVitalsSeconds,
 } from '../metrics.ts'
 
-// ---------- SDK 上报事件模型 ----------
-// { kind: 'error', type: 'js'|'promise'|'resource', message, stack?, source?, lineno?, colno?, path? }
-// { kind: 'api',   method, url, status?, duration?, ok }
-// { kind: 'perf',  path?, metrics: { lcp?, fcp?, ttfb?, inp?, cls? } }
+// SDK 上报事件模型：kind=error（js/promise/resource）、kind=api（method/url/status/duration/ok）、kind=perf（lcp/fcp/ttfb/inp/cls）
 
 const errorEvent = z.object({
    kind: z.literal('error'),

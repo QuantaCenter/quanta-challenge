@@ -33,12 +33,7 @@ export class JudgeService extends Singleton {
       process.env.BACKEND_JUDGE_MAX_RESPONSE_BYTES ?? 2 * 1024 * 1024
    );
 
-   /**
-    * 脚本总预算。
-    *
-    * 与前端判题机同样的理由：VM2 的 timeout 只能中断同步执行，无法打断 await 里的
-    * 慢请求。这里再套一层硬超时，确保一定能在调度器 30s 超时前发出响应。
-    */
+   /** 脚本总预算：VM2 的 timeout 打不断 await 里的慢请求，再套一层硬超时确保能在调度器超时前回包。 */
    private readonly scriptBudgetMs = Number(
       process.env.BACKEND_JUDGE_SCRIPT_BUDGET_MS ?? 20_000
    );

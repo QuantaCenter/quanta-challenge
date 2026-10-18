@@ -53,14 +53,7 @@ const selectDailyProblemFallback = async () => {
    return fallbackBaseProblemId;
 };
 
-/**
- * 抽取当日的每日一题
- * 1. 检查 Redis 缓存中是否已有今日题目。
- * 2. 若无缓存，从数据库中随机选择一个未被使用过的题目。
- * 3. 用 SET NX EX 原子地抢到当日选举锁，并设置过期时间为**次日**凌晨1点。
- * 4. 将选中的题目记录到数据库的 `daily_problems` 表中。
- * @returns 选中的题目 ID
- */
+/** 抽取当日每日一题：查缓存 → 随机选未用题 → SET NX EX 抢选举锁（过期次日 01:00）→ 记入 daily_problems。 */
 const selectDailyProblem = async () => {
    const dateKey = getDailyDateKey();
    const today = toDailyDate(dateKey);
@@ -132,13 +125,7 @@ const selectDailyProblem = async () => {
    });
 };
 
-/**
- * 计算当月连续签到天数
- * 1. 获取用户当月的所有签到记录，按日期降序排列。
- * 2. 遍历签到记录，计算从最近一次签到开始的连续签到天数。
- * 3. 如果遇到未连续的日期，则停止计数。
- * @param userId 用户 ID
- */
+/** 计算当月连续签到天数（按日期降序遍历，遇到不连续即停止）。 */
 const countContinuesCheckin = async (userId: string) => {
    // 按业务时区确定当月一号；落库值是 UTC 零点，查询也必须用它构造。
    const nowKey = getDailyDateKey();

@@ -35,9 +35,7 @@ export const useRegister = () => {
             confirmPassword: formdata.confirmPassword,
          });
          authStore.setCsrfToken(result.csrfToken);
-         // 这里是为了"注册成功后立刻进入已登录状态"而构造的本地对象，
-         // 只用于首屏展示；真实数据由后续 authStore.fetchUserInfo() 从服务端拉取。
-         // score 因此在本地写 0（注册接口返回值里没有该字段），不代表真实积分。
+         // 这里是为了"注册成功后立刻进入已登录状态"而构造的本地对象， 只用于首屏展示；真实数据由后续 authStore.fetchUserInfo() 从服务端拉取。 score 因此在本地写 0（注册接口返回值里没有该字段），不代表真实积分。
          authStore.user = {
             name: result.user.name,
             displayName: result.user.displayName,

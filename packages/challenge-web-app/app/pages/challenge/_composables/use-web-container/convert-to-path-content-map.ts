@@ -22,10 +22,7 @@ const uint8ArrayToBase64 = (bytes: Uint8Array) => {
    return btoa(binary);
 };
 
-/**
- * 将 WebContainer 的 FileSystemTree 转换为路径内容映射
- * 所有路径都以 / 开头（规范化格式）
- */
+/** 将 FileSystemTree 转换为路径内容映射，所有路径以 / 开头。 */
 export const convertToPathContentMap = (fsTree: FileSystemTree) => {
    const pathContentMap: Record<string, string> = {};
 

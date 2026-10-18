@@ -53,13 +53,7 @@ export const registerLoginCommand = (registry: CommandRegistry): void => {
       });
 };
 
-/**
- * 密码登录是**显式**选项：默认走设备码。
- *
- * 只有给了 `--email` / `--password-stdin` 才认为用户要密码流程；
- * 环境变量（QUANTA_EMAIL / QUANTA_PASSWORD）只是这些参数的值来源，
- * 不单独切换流程——否则 CI 里残留的环境变量会意外改变本地交互行为。
- */
+/** 密码登录是显式选项（默认走设备码）：只有给了 --email / --password-stdin 才走密码流程，环境变量不单独切换流程。 */
 const wantsPasswordFlow = (options: LoginOptions): boolean =>
    Boolean(options.email || options.passwordStdin);
 
@@ -159,15 +153,7 @@ export const runLogin = async (
    }
 };
 
-/**
- * 设备码登录（RFC 8628）—— `qpc login` 的默认流程。
- *
- * 流程：申请验证码 → 浏览器授权 → 轮询换 token → 写入凭据文件。
- * 相比邮箱密码登录：
- *   · 密码不经过 CLI（由浏览器在正规登录页处理）；
- *   · 可以复用浏览器里已有的登录态；
- *   · 在远程/无 GUI 环境下仍然可用（--no-browser 后到别的设备手动打开）。
- */
+/** 设备码登录（RFC 8628）—— `qpc login` 的默认流程：申请验证码 → 浏览器授权 → 轮询换 token → 写入凭据；密码不经过 CLI 且可复用已有登录态。 */
 const runDeviceLogin = async (
    ctx: CommandContext,
    options: LoginOptions,
@@ -183,9 +169,7 @@ const runDeviceLogin = async (
    ctx.logger.step(`向 ${ctx.env.apiUrl} 申请设备授权码`);
    const auth = await flow.requestCodes();
 
-   // RFC §3.3：必须同时展示 verification_uri 与 user_code。
-   // verification_uri_complete 只是便利（预填码），不能替代这两项 ——
-   // 用户需要用验证码核对"待授权的设备就是眼前这台"（也是 RFC §5.4 的防钓鱼要求）。
+   // RFC §3.3：必须同时展示 verification_uri 与 user_code。 verification_uri_complete 只是便利（预填码），不能替代这两项 —— 用户需要用验证码核对"待授权的设备就是眼前这台"（也是 RFC §5.4 的防钓鱼要求）。
    ctx.logger.blank();
    ctx.logger.info('请在浏览器中完成授权：');
    ctx.logger.info(`  地址：${auth.verification_uri}`);
@@ -224,9 +208,7 @@ const runDeviceLogin = async (
       cookies: { ...ctx.client.cookies },
    });
 
-   // 立刻用拿到的 token 查一次用户信息：
-   // token 到底能不能用、角色是不是 ADMIN，现在就能告诉用户，
-   // 而不是等他跑 upload 时才失败。
+   // 立刻用拿到的 token 查一次用户信息： token 到底能不能用、角色是不是 ADMIN，现在就能告诉用户， 而不是等他跑 upload 时才失败。
    const api = createAdminApi(ctx.client);
    let summary = '已登录';
    try {

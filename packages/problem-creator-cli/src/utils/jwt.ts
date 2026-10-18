@@ -5,13 +5,7 @@ export interface JwtClaims {
    iat?: number;
 }
 
-/**
- * 只解码 JWT 的 payload 用于**展示**（过期时间、角色）。
- *
- * 刻意不校验签名：CLI 没有签名密钥，而且它本来就不该信任本地解码的结果 ——
- * 真正的鉴权发生在服务端。这里仅用于在 `qpc login --show` / `qpc doctor`
- * 里告诉用户"令牌什么时候过期"，避免把"服务端 401"误解成网络问题。
- */
+/** 只解码 JWT 的 payload 用于展示（过期时间、角色）；刻意不校验签名，真正鉴权在服务端。 */
 export const decodeJwt = (token: string): JwtClaims | undefined => {
    const segments = token.split('.');
    if (segments.length < 2 || !segments[1]) return undefined;

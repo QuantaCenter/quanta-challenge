@@ -1,6 +1,4 @@
-/**
- * 搜索类型定义
- */
+/** 搜索类型定义 */
 export type SearchType =
    | 'all'
    | 'problem'
@@ -9,9 +7,7 @@ export type SearchType =
    | 'page-section'
    | 'daily-problem';
 
-/**
- * 搜索类型配置
- */
+/** 搜索类型配置 */
 export interface SearchTypeConfig {
    value: SearchType;
    label: string;
@@ -20,10 +16,7 @@ export interface SearchTypeConfig {
    description?: string; // 描述
 }
 
-/**
- * 搜索类型配置表
- * 集中管理所有搜索类型的配置
- */
+/** 搜索类型配置表，集中管理所有搜索类型的配置 */
 export const SEARCH_TYPE_CONFIGS: Record<
    Exclude<SearchType, 'all'>,
    SearchTypeConfig
@@ -65,16 +58,12 @@ export const SEARCH_TYPE_CONFIGS: Record<
    },
 };
 
-/**
- * 获取所有搜索类型（不包括 'all'）
- */
+/** 获取所有搜索类型（不包括 'all'） */
 export const getAllSearchTypes = (): SearchType[] => {
    return Object.keys(SEARCH_TYPE_CONFIGS) as SearchType[];
 };
 
-/**
- * 获取搜索类型配置
- */
+/** 获取搜索类型配置 */
 export const getSearchTypeConfig = (
    type: SearchType
 ): SearchTypeConfig | null => {
@@ -82,18 +71,14 @@ export const getSearchTypeConfig = (
    return SEARCH_TYPE_CONFIGS[type] || null;
 };
 
-/**
- * 获取按顺序排列的搜索类型
- */
+/** 获取按顺序排列的搜索类型 */
 export const getSortedSearchTypes = (): SearchType[] => {
    return Object.values(SEARCH_TYPE_CONFIGS)
       .sort((a, b) => a.order - b.order)
       .map((config) => config.value);
 };
 
-/**
- * 验证搜索类型是否有效
- */
+/** 验证搜索类型是否有效 */
 export const isValidSearchType = (type: string): type is SearchType => {
    return (
       type === 'all' ||
@@ -101,16 +86,12 @@ export const isValidSearchType = (type: string): type is SearchType => {
    );
 };
 
-/**
- * 验证搜索类型数组是否有效
- */
+/** 验证搜索类型数组是否有效 */
 export const validateSearchTypes = (types: string[]): boolean => {
    return types.every(isValidSearchType);
 };
 
-/**
- * 搜索限制配置
- */
+/** 搜索限制配置 */
 export const SEARCH_LIMITS = {
    MIN_QUERY_LENGTH: 1,
    MAX_QUERY_LENGTH: 100,
@@ -119,9 +100,7 @@ export const SEARCH_LIMITS = {
    DEFAULT_LIMIT: 20,
 } as const;
 
-/**
- * 搜索相关的常量
- */
+/** 搜索相关的常量 */
 export const SEARCH_CONSTANTS = {
    RECENT_SEARCH_KEY: 'recent-searches',
    MAX_RECENT_SEARCHES: 5,

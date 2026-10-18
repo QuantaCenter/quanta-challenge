@@ -1,6 +1,7 @@
 import path from 'path';
 import os from 'os';
 import { Singleton } from '../utils/singleton';
+import { logger } from '../utils/logger';
 import fs from 'fs/promises';
 
 export class TempFileService extends Singleton {
@@ -9,26 +10,14 @@ export class TempFileService extends Singleton {
    }
 
    private constructor(
-      // 默认用 os.tmpdir() 而不是硬编码 '/tmp'。
-      //
-      // '/tmp' 在 Windows 上会被 path.isAbsolute() 判定为「绝对路径」（因为它以 '/' 开头），
-      // 但它并不是合法的 Windows 路径；把它交给 Docker daemon 做 bind mount 会直接报
-      //   server error - \tmp\<uuid> is not a valid Windows path
-      // os.tmpdir() 在 Linux 上是 /tmp，在 Windows 上是 %TEMP%，两边都是本机合法路径。
+      // 默认用 os.tmpdir()：硬编码 '/tmp' 在 Windows 上会误判为绝对路径，bind mount 直接报错。
       public readonly tempDir: string = process.env.TEMP_DIR || os.tmpdir()
    ) {
       super();
    }
 
    resolvePath(fileName: string): string {
-      // 必须区分绝对路径与相对路径：
-      // TEMP_DIR 配成绝对路径（容器部署的必需做法，例如 /app/tmp）时必须原样使用。
-      // 原实现无条件 path.join(process.cwd(), this.tempDir, fileName) 会把绝对路径当成
-      // 普通目录名拼在 cwd 后面，得到
-      //   /app/packages/challenge-judge-scheduler/app/tmp/<uuid>
-      // —— 既不是配置值，宿主机上也必然不存在，判题机启动容器时直接失败：
-      //   invalid mount config for type "bind": bind source path does not exist
-      // 相对路径仍按 cwd 解析，保持原有行为。
+      // TEMP_DIR 为绝对路径时必须原样使用（容器部署必需），相对路径仍按 cwd 解析。
       if (path.isAbsolute(this.tempDir)) {
          return path.join(this.tempDir, fileName);
       }
@@ -64,9 +53,9 @@ export class TempFileService extends Singleton {
       try {
          await fs.rm(fsRootPath, { recursive: true, force: true });
       } catch (error) {
-         console.error(
-            `Error cleaning up temporary file system at ${fsRootPath}:`,
-            error
+         logger.error(
+            { err: error },
+            `Error cleaning up temporary file system at ${fsRootPath}`
          );
       }
    }

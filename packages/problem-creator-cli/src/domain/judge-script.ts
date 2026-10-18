@@ -1,17 +1,4 @@
-/**
- * 判题脚本的**静态分析**。
- *
- * 为什么要在本地做这件事：`docs/PROBLEM_AUTHORING.md` 记录的几个坑
- * （检查点忘记 return 分数、`page.click` 打到 disabled 按钮卡满 30 秒、
- * 断言消息没写"期望 vs 实际"）都能在不启动判题机的情况下静态发现。
- * 线上审计一轮要 20 秒且需要等调度器，本地静态检查是**毫秒级**的，
- * 因此能提前挡掉的错误绝不留给线上。
- *
- * 分析策略：先把注释、字符串、模板串、正则整体"打码"成等长空格，
- * 得到一个只剩代码结构的 mask，然后在 mask 上做括号配对与调用点查找，
- * 需要真实内容时再用相同下标回原串切片。
- * 这样不必写完整的 JS 解析器，也不会被字符串里的括号带偏。
- */
+/** 判题脚本的静态分析：把常见坑（检查点不 return、点击 disabled 按钮、断言消息缺信息）在本地毫秒级挡住。策略是先把注释/字符串"打码"成等长 mask，再做括号配对与调用点查找，避免被字符串里的括号带偏。 */
 
 export interface Checkpoint {
    name: string;
@@ -229,10 +216,7 @@ const splitArgs = (
    return args.map((arg) => arg.trim()).filter((arg) => arg.length > 0);
 };
 
-/**
- * 查找 `callee(` 形式的调用点。`callee` 支持点号路径（如 `page.click`），
- * 也支持后缀匹配 `$.defineCheckPoint` 这类带美元前缀的写法。
- */
+/** 查找 `callee(` 形式的调用点，支持点号路径与 `$.xxx` 美元前缀写法。 */
 const findCalls = (code: string, mask: string, callee: string): CallSite[] => {
    const sites: CallSite[] = [];
    let i = 0;

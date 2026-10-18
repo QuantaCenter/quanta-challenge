@@ -1,26 +1,10 @@
-/**
- * OAuth 2.0 设备授权流程（RFC 8628）的共享协议定义。
- *
- * 放在 shared 而不是 web-app 里，是因为**两端都必须用同一份常量**：
- *   · 服务端按这些值校验 device_code / user_code 的格式；
- *   · CLI 按这些值做输入归一化与轮询节奏控制。
- * 一旦两边各写一份，"服务端把横线去掉但客户端没有"这类不一致会表现为
- * 间歇性的 `invalid_grant`，且只在用户手输了小写/带空格时才复现。
- *
- * 本文件只放**纯数据与纯函数**，不依赖 Node 或浏览器 API。
- */
+/** OAuth 2.0 设备授权流程（RFC 8628）共享协议定义：服务端与 CLI 必须用同一份常量，否则会出现间歇性 invalid_grant；只放纯数据与纯函数。 */
 
 /** RFC 8628 §3.4：设备码流程专用的 grant_type */
 export const DEVICE_CODE_GRANT_TYPE =
    'urn:ietf:params:oauth:grant-type:device_code';
 
-/**
- * RFC 8628 §6.1 推荐的 base20 字符集。
- *
- * 去掉的原因：元音（避免随机拼出单词）以及易混字符 0/O、1/I/L。
- * 8 位字符 ≈ 34.5 bit 熵，配合"5 次尝试上限 + 10 分钟有效期"
- * 恰好达到 RFC §5.1 给出的 2^-32 成功概率算例。
- */
+/** RFC 8628 §6.1 推荐的 base20 字符集（去掉元音与易混字符 0/O、1/I/L）。 */
 export const USER_CODE_ALPHABET = 'BCDFGHJKLMNPQRSTVWXZ';
 export const USER_CODE_LENGTH = 8;
 /** 展示用分组：显示 WDJB-MJHT，但比对时横线是可选的 */
@@ -28,10 +12,7 @@ export const USER_CODE_GROUP_SIZE = 4;
 
 /** 设备码存活时间（秒）。RFC §5.4 要求"够用但尽量短"以限制钓鱼码的可利用期。 */
 export const DEVICE_CODE_TTL_SECONDS = 600;
-/**
- * user_code 允许的失败尝试次数（RFC §5.1）。
- * 超出后作废整条授权会话，而不是只锁那一次输入 —— 否则攻击者可以换 IP 继续爆破。
- */
+/** user_code 允许的失败尝试次数（RFC §5.1）；超出作废整条会话，防换 IP 爆破。 */
 export const USER_CODE_MAX_ATTEMPTS = 5;
 /** RFC §3.2 的 interval 默认值 */
 export const DEVICE_CODE_POLL_INTERVAL_SECONDS = 5;
@@ -44,15 +25,7 @@ export const DEVICE_FLOW_CLIENT_ID = 'quanta-problem-creator-cli';
 /** 给 CLI 展示、并用于校验申请的权限范围 */
 export const DEVICE_FLOW_SCOPE = 'problem:write';
 
-/**
- * 规范化用户输入的 user_code（RFC §6.1 明确要求）：
- *   1. 去掉服务端为可读性插入的横线等标点
- *   2. 统一转大写（用户可能输小写）
- *   3. 剔除字符集之外的字符（多余的空格、误触字符不应让合法输入作废）
- *
- * 反例说明为什么必须剔除而不是拒绝：用户从终端复制 "WDJB-MJHT " 时末尾带
- * 空格是常态，直接判非法会让"看起来完全正确的码"登录失败。
- */
+/** 规范化用户输入的 user_code（RFC §6.1）：去横线、转大写、剔除字符集外字符（复制的末尾空格不应让合法输入作废）。 */
 export const normalizeUserCode = (input: string): string =>
    [...input.toUpperCase()].filter((char) => USER_CODE_ALPHABET.includes(char)).join('');
 

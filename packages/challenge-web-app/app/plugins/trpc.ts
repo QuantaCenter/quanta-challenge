@@ -148,10 +148,7 @@ const redirectToLogin = (
    currentPath?: string,
 ): void => {
    const target = (isServer ? event?.node.req.url : currentPath) || '/';
-   // 已经在登录流程页时不再重定向：登录接口本身返回 401（密码错误）、
-   // 或登录页上的其他请求 401 时，若也走重定向，会把 /auth/login 塞进
-   // redirect 参数，登录成功后又被弹回登录页，URL 自我嵌套无限循环。
-   // 此时直接抛错即可，登录页会展示「登录失败」提示。
+   // 已经在登录流程页时不再重定向：登录接口本身返回 401（密码错误）、 或登录页上的其他请求 401 时，若也走重定向，会把 /auth/login 塞进 redirect 参数，登录成功后又被弹回登录页，URL 自我嵌套无限循环。 此时直接抛错即可，登录页会展示「登录失败」提示。
    if (target.startsWith('/auth/login')) {
       return;
    }
@@ -290,11 +287,7 @@ export default defineNuxtPlugin(() => {
                   );
                }
 
-               // 客户端显示 5xx 服务器错误提示
-               // 必须读**克隆体**：直接 await res.text() 会把响应体消费掉，
-               // tRPC 之后再去 res.json() 只会抛
-               // "Failed to execute 'json' on 'Response': body stream already read"，
-               // 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
+               // 客户端显示 5xx 服务器错误提示 必须读**克隆体**：直接 await res.text() 会把响应体消费掉， tRPC 之后再去 res.json() 只会抛 "Failed to execute 'json' on 'Response': body stream already read"， 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
                if (res.status >= 500 && !isServer) {
                   showServerError(await res.clone().text());
                }

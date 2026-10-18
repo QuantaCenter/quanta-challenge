@@ -3,10 +3,7 @@ import type { MonacoEditor } from '.';
 import { CustomCodeEditorOpener } from './providers/editor-opener-impl';
 import type * as monaco from 'monaco-editor';
 
-/**
- * 自定义代码编辑器打开器
- * @param monaco monaco 命名空间
- */
+/** 自定义代码编辑器打开器。 */
 export const customizeEditorOpener = (
    monaco: MonacoEditor,
    instance: monaco.editor.IStandaloneCodeEditor,

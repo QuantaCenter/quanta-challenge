@@ -13,14 +13,7 @@ export interface ResolvedKey {
    restricted: boolean;
 }
 
-/**
- * 外部 API Key 的派生。
- *
- *   secret = base64url( HMAC_SHA256( CF_MASTER_SECRETS[version], keyId ) )
- *
- * 数据库里**不保存任何 secret**：签发时算一次给用户，校验时用同一个式子重算。
- * 数据库泄露 ≠ 密钥泄露（攻击者还需要进程内的主密钥）。
- */
+/** 外部 API Key 的派生：secret = base64url(HMAC_SHA256(CF_MASTER_SECRETS[version], keyId))；库中不存 secret，数据库泄露 ≠ 密钥泄露。 */
 export const deriveSecret = (
    keyId: string,
    masterVersion: number,
@@ -30,12 +23,7 @@ export const deriveSecret = (
    return createHmac('sha256', master).update(keyId).digest('base64url');
 };
 
-/**
- * 解析 keyId → 可用于验签的密钥信息。
- *
- * 内部密钥（部署环境注入）与外部密钥（数据库）走**同一条**返回路径，
- * 因此签名校验逻辑只有一份，不存在"内部免签"的旁路。
- */
+/** 解析 keyId → 可用于验签的密钥信息；内部与外部密钥走同一条返回路径，签名校验只有一份逻辑。 */
 export const resolveKey = async (
    keyId: string,
 ): Promise<ResolvedKey | null> => {

@@ -7,21 +7,11 @@ export interface ITokenPayload {
    role: UserRole;
 }
 
-/**
- * 读取运行时密钥。
- *
- * 为什么不能只依赖 useRuntimeConfig()：nuxt.config 在**构建期**执行，其 process.env 的值会被
- * 烤进 runtimeConfig，容器启动时注入的 ACCESS_TOKEN_SECRET 覆盖不了它（只有 NUXT_ 前缀的
- * 变量名才能覆盖，而本仓库统一使用真实变量名，见 nuxt.config.ts 顶部说明）。
- * 因此这里以 process.env 为准，runtimeConfig 仅作兜底；缺失时的拦截见
- * server/plugins/validate-secrets.ts。
- */
+/** 读取运行时密钥：以 process.env 为准（nuxt.config 在构建期执行，烤进 runtimeConfig 的值会被环境变量覆盖不了），缺失拦截见 validate-secrets.ts。 */
 const runtimeSecret = (envKey: string, fallback?: string) =>
    process.env[envKey] || fallback || '';
 
-/**
- * 生成双 token
- */
+/** 生成双 token */
 export const generateTokens = (payload: ITokenPayload) => {
    const {
       accessToken: accessTokenFallback,
@@ -45,17 +35,7 @@ export const generateTokens = (payload: ITokenPayload) => {
    return { accessToken, refreshToken };
 };
 
-/**
- * 滑动续签 token
- */
-/**
- * 滑动续签 token
- *
- * 角色以**数据库**为准，而不是直接沿用旧 refresh token 里的角色：
- * 否则管理员被降权/删号后，只要还在用应用（access token 一过期就来续签），
- * 就会把旧角色一直续签下去，“切换权限”事实上永远不生效。
- * 代价是每次续签多一次主键查询（每人约 15 分钟一次，可接受）。
- */
+/** 滑动续签 token：角色以数据库为准（避免降权后旧角色被一直续签），代价是每次续签多一次主键查询。 */
 export const renewTokens = async (refreshToken: string) => {
    const refreshSecret = runtimeSecret(
       'REFRESH_TOKEN_SECRET',

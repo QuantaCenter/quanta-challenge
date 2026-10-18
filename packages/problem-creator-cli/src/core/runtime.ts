@@ -1,11 +1,7 @@
 import type { FetchLike } from '../services/http';
 import { CanceledError } from './errors';
 
-/**
- * 运行环境的一切外部依赖都从 runtime 取，**不直接读 process**。
- * 这样单元测试可以注入临时 cwd、假 fetch、捕获输出，
- * 不需要真的起进程或 mock 全局对象。
- */
+/** 运行环境的一切外部依赖都从 runtime 取、不直接读 process，便于单元测试注入假依赖。 */
 export interface CliRuntime {
    cwd: string;
    env: NodeJS.ProcessEnv;
@@ -37,14 +33,7 @@ export const createProcessRuntime = (
    ...overrides,
 });
 
-/**
- * 安装 Ctrl-C 处理。
- *
- * 第一次 SIGINT：abort，让正在跑的请求与轮询尽快结束（而不是等 15s 超时）。
- * 第二次 SIGINT：用户明显不想等了，直接退出。
- * 不这样做的话，`qpc upload --wait` 期间按 Ctrl-C 会被 fetch 的超时吞掉，
- * 终端看起来"没反应"。
- */
+/** 安装 Ctrl-C 处理：第一次 SIGINT abort 尽快收尾，第二次直接退出。 */
 export const installSignalHandlers = (
    runtime: CliRuntime,
 ): { controller: AbortController; dispose: () => void } => {
