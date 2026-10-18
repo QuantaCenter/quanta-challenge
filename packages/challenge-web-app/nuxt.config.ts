@@ -162,13 +162,29 @@ export default defineNuxtConfig({
       externals: {
          // dayjs 的 package.json 没有 exports 字段，只声明了 main。Nitro 默认把它 作为 external 原样留在产物里（.output/server/node_modules），而产物中的 裸导入 `dayjs/plugin/utc` 在 Node 24 ESM 下不会自动补 .js，启动即报 ERR_MODULE_NOT_FOUND 并退出。内联后由构建期解析，不再漏到运行时。 注意：matcher 是 id.startsWith('dayjs')，plugin/* 子路径会一并内联。
          inline: ['dayjs'],
-         // pino 是 CJS 包，打进 bundle 后其代码里的 __dirname 会触发 Nitro 注入
-         // `import { fileURLToPath } from 'url'` 前导 shim，与 rollup 从依赖图提升的
+         // pino / ioredis / standard-as-callback 是 CJS 包，打进 bundle 后代码里的
+         // __dirname 会触发 shim 注入（Nitro 前导 `import { fileURLToPath } from 'url'`
+         // 或 post-build 的同名模板），与 rollup 从依赖图提升的
          // `import { fileURLToPath } from 'node:url'` 同名冲突，Node 24 ESM 加载 chunk
          // 即抛 "Identifier 'fileURLToPath' has already been declared"（sha-7003a89
          // 发布失败、web-app 反复回滚的根因）。外部化后 __dirname 原生可用，由 Nitro
          // 拷贝到 .output/server/node_modules 运行时加载，不再进 bundle。
-         external: ['@prisma/client', '.prisma/client', 'pino', 'pino-pretty'],
+         //
+         // ⚠️ ioredis / standard-as-callback 必须显式列在这里：@sentry/nuxt 模块为了做
+         // 编译期插桩（orchestrion），会把 INSTRUMENTED_MODULE_NAMES（含 ioredis）和
+         // IORedisDependencies（standard-as-callback）强行加进 nitro.externals.inline。
+         // Nitro 的判定是 inline 匹配分数**严格高于** external 才内联（同名精确匹配
+         // 平分时 external 胜），所以光加 pino 不加这两个，6480a10 依然崩。代价是
+         // 失去 Sentry 对 ioredis 的编译期插桩，@sentry/node 的运行时 instrumentation
+         // 仍然生效。新增 CJS 服务端依赖时若 post-build 断言失败，也加到这个名单。
+         external: [
+            '@prisma/client',
+            '.prisma/client',
+            'pino',
+            'pino-pretty',
+            'ioredis',
+            'standard-as-callback',
+         ],
       },
       devProxy: { host: '127.0.0.1' },
       preset: 'node-server',

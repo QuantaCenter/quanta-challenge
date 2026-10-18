@@ -30,7 +30,10 @@ const CFG = {
 
 // 由 compose 管理的服务：ref 走 compose 变量（web-app）或原样重打标签（调度器无 image:，只能换标签）
 const SERVICES = {
-   'challenge-web-app': { refVar: 'WEB_APP_REF', health: env.HEALTH_WEB_APP || 'http://127.0.0.1:3000/', codes: [200, 302, 401, 403] },
+   // 健康窗口 60s：web-app 容器入口（scripts/docker-entrypoint.sh）先跑 prisma migrate
+   // deploy（失败最多重试 5 次 × 5s）+ 种子脚本，之后才开始监听 3000，冷启动可能超过
+   // 默认的 20s（IDLE_MS），与 challenge-cloud-function 同理放宽，避免迁移慢时被误杀回滚。
+   'challenge-web-app': { refVar: 'WEB_APP_REF', health: env.HEALTH_WEB_APP || 'http://127.0.0.1:3000/', codes: [200, 302, 401, 403], healthDeadlineMs: 60_000 },
    'challenge-judge-scheduler': { refVar: '', health: env.HEALTH_JUDGE_SCHEDULER || 'http://127.0.0.1:1888/health', codes: [200] },
    // 云函数服务与调度器同理：compose 里没有 image:，按正在用的标签重打。 健康检查端点由服务自己提供（/healthz 不验签，会实际 ping Redis 与 Postgres， 依赖不可用时返回 503）；它的容器启动时先跑 prisma migrate deploy， 因此健康探测窗口给到 60s，不能用默认的 20s。
    'challenge-cloud-function': {
