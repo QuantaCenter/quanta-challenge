@@ -61,28 +61,32 @@ const handleCreated = async (name: string) => {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-[64rem] pb-[10rem] my-6">
+         class="w-full md:w-[64rem] px-4 md:px-0 pb-[10rem] my-6">
          <!-- Hero -->
          <h1 class="w-full st-font-hero-bold text-accent-100">云函数发布</h1>
 
          <CloudFunctionStatsGrid :items="stats" />
 
-         <!-- 加载骨架 -->
-         <div v-if="pending" class="grid grid-cols-3 gap-4 w-full">
-            <div
-               v-for="i in 6"
-               :key="i"
-               class="h-[13.5rem] animate-pulse rounded-2xl bg-accent-600" />
-         </div>
+         <div class="w-full overflow-x-auto hide-scrollbar">
+            <div class="min-w-[64rem] md:min-w-0">
+               <!-- 加载骨架 -->
+               <div v-if="pending" class="grid grid-cols-3 gap-4 w-full">
+                  <div
+                     v-for="i in 6"
+                     :key="i"
+                     class="h-[13.5rem] animate-pulse rounded-2xl bg-accent-600" />
+               </div>
 
-         <!-- 函数网格 -->
-         <div v-else class="grid grid-cols-3 gap-4 w-full">
-            <NewFunctionTile @click="createOpened = true" />
+               <!-- 函数网格 -->
+               <div v-else class="grid grid-cols-3 gap-4 w-full">
+                  <NewFunctionTile @click="createOpened = true" />
 
-            <FunctionCard
-               v-for="fn in functions ?? []"
-               :key="fn.name"
-               :fn="fn" />
+                  <FunctionCard
+                     v-for="fn in functions ?? []"
+                     :key="fn.name"
+                     :fn="fn" />
+               </div>
+            </div>
          </div>
 
          <p

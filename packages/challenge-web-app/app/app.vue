@@ -9,7 +9,7 @@ onMounted(() => {
 
 <template>
    <div
-      class="bg-background text-white font-family-sans text-base min-w-[1440px]">
+      class="bg-background text-white font-family-sans text-base md:min-w-[1440px]">
       <NuxtPage />
    </div>
 </template>

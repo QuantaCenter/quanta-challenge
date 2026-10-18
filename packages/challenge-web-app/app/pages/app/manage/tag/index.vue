@@ -122,7 +122,7 @@ const deleteTag = async (tid: number) => {
 
 <template>
    <StSpace fill justify="center">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full md:w-[44rem] px-4 md:px-0 pb-[10rem] my-6">
          <StSpace align="end" gap="1rem">
             <h1 class="st-font-hero-bold text-accent-100">标签管理</h1>
             <span
@@ -131,88 +131,92 @@ const deleteTag = async (tid: number) => {
             </span>
          </StSpace>
 
-         <StTable
-            :columns="columns"
-            :rows="tagOptions"
-            :loading="pending"
-            row-key="value"
-            :skeleton-count="5">
-            <template #cell-icon="{ row }">
-               <div
-                  class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
-                  <img
-                     v-if="row.imageUrl"
-                     class="size-[1.75rem] object-contain"
-                     :src="row.imageUrl"
-                     :alt="`${row.label} 标签图标`" />
-                  <Box v-else class="text-accent-400" />
-               </div>
-            </template>
+         <div class="w-full overflow-x-auto md:overflow-x-visible hide-scrollbar">
+            <div class="min-w-[44rem] md:min-w-0">
+               <StTable
+                  :columns="columns"
+                  :rows="tagOptions"
+                  :loading="pending"
+                  row-key="value"
+                  :skeleton-count="5">
+                  <template #cell-icon="{ row }">
+                     <div
+                        class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
+                        <img
+                           v-if="row.imageUrl"
+                           class="size-[1.75rem] object-contain"
+                           :src="row.imageUrl"
+                           :alt="`${row.label} 标签图标`" />
+                        <Box v-else class="text-accent-400" />
+                     </div>
+                  </template>
 
-            <template #cell-label="{ row }">
-               <div class="st-font-body-bold text-white truncate">
-                  {{ row.label }}
-               </div>
-            </template>
+                  <template #cell-label="{ row }">
+                     <div class="st-font-body-bold text-white truncate">
+                        {{ row.label }}
+                     </div>
+                  </template>
 
-            <template #cell-description="{ row }">
-               <div class="st-font-body-normal text-accent-300 truncate">
-                  {{ row.description || '暂无描述' }}
-               </div>
-            </template>
+                  <template #cell-description="{ row }">
+                     <div class="st-font-body-normal text-accent-300 truncate">
+                        {{ row.description || '暂无描述' }}
+                     </div>
+                  </template>
 
-            <template #cell-color="{ row }">
-               <span
-                  class="inline-flex items-center justify-center px-3 py-1 rounded-md font-mono st-font-tooltip"
-                  :style="{
-                     backgroundColor: row.color,
-                     color: textColorOn(row.color),
-                  }">
-                  {{ row.color }}
-               </span>
-            </template>
+                  <template #cell-color="{ row }">
+                     <span
+                        class="inline-flex items-center justify-center px-3 py-1 rounded-md font-mono st-font-tooltip"
+                        :style="{
+                           backgroundColor: row.color,
+                           color: textColorOn(row.color),
+                        }">
+                        {{ row.color }}
+                     </span>
+                  </template>
 
-            <template #cell-action="{ row }">
-               <StSpace align="center" justify="center" gap="1.25rem">
-                  <button
-                     type="button"
-                     title="编辑标签"
-                     aria-label="编辑标签"
-                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer"
-                     @click="editTag(row)">
-                     <Edit class="text-[1.25rem]" />
-                  </button>
-                  <button
-                     type="button"
-                     title="删除标签"
-                     aria-label="删除标签"
-                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-error active:scale-95 transition-all cursor-pointer"
-                     @click="deleteTag(row.value)">
-                     <Delete class="text-[1.25rem]" />
-                  </button>
-               </StSpace>
-            </template>
+                  <template #cell-action="{ row }">
+                     <StSpace align="center" justify="center" gap="1.25rem">
+                        <button
+                           type="button"
+                           title="编辑标签"
+                           aria-label="编辑标签"
+                           class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer"
+                           @click="editTag(row)">
+                           <Edit class="text-[1.25rem]" />
+                        </button>
+                        <button
+                           type="button"
+                           title="删除标签"
+                           aria-label="删除标签"
+                           class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-error active:scale-95 transition-all cursor-pointer"
+                           @click="deleteTag(row.value)">
+                           <Delete class="text-[1.25rem]" />
+                        </button>
+                     </StSpace>
+                  </template>
 
-            <template #skeleton-action="{ itemClass }">
-               <StSpace align="center" justify="center" gap="1.25rem">
-                  <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
-                  <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
-               </StSpace>
-            </template>
+                  <template #skeleton-action="{ itemClass }">
+                     <StSpace align="center" justify="center" gap="1.25rem">
+                        <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
+                        <StSkeletonItem class="size-5 rounded-md" :class="itemClass" />
+                     </StSpace>
+                  </template>
 
-            <template #empty>
-               <StSpace
-                  fill
-                  direction="vertical"
-                  gap="0.75rem"
-                  align="center"
-                  justify="center"
-                  class="text-accent-400 my-[20vh]">
-                  <Tag size="2.625rem" />
-                  <div class="st-font-body-normal">暂无标签</div>
-               </StSpace>
-            </template>
-         </StTable>
+                  <template #empty>
+                     <StSpace
+                        fill
+                        direction="vertical"
+                        gap="0.75rem"
+                        align="center"
+                        justify="center"
+                        class="text-accent-400 my-[20vh]">
+                        <Tag size="2.625rem" />
+                        <div class="st-font-body-normal">暂无标签</div>
+                     </StSpace>
+                  </template>
+               </StTable>
+            </div>
+         </div>
       </StSpace>
 
       <TagEditingDrawer

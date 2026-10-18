@@ -7,6 +7,7 @@ const props = defineProps<{
    status?: 'dashboard' | 'personal-space';
    isVisitor?: boolean;
    username?: string;
+   showLink?: boolean;
 }>();
 
 const { $trpc } = useNuxtApp();
@@ -27,8 +28,7 @@ const { data: achievements, pending: loading } = useAsyncData(
 );
 
 const formatAchievedDate = (date: string) => {
-   const dayText = dayjs(date).format('YYYY.MM.DD');
-   return `于 ${dayText} 获得`;
+   return dayjs(date).format('YYYY.MM.DD');
 };
 
 const hideMask = ref(false);
@@ -54,14 +54,14 @@ onMounted(() => {
       class="w-full h-full !pb-0 overflow-hidden relative">
       <template #header-right>
          <LinkButton
-            v-if="status !== 'personal-space'"
+            v-if="status !== 'personal-space' && showLink"
             to="/app/achievements"
             description="查看成就" />
       </template>
       <div class="w-full h-5"></div>
       <div
          ref="container"
-         class="w-full h-full relative hide-scrollbar min-h-[16rem]"
+         class="w-full h-full relative hide-scrollbar min-h-[10rem] md:min-h-[16rem]"
          :class="{ 'overflow-auto': achievements?.length }">
          <StSkeleton :loading="loading" class="w-full h-full absolute top-0">
             <template #loading>
@@ -80,31 +80,30 @@ onMounted(() => {
                direction="vertical"
                gap="0.75rem"
                class="absolute top-0">
-               <StSpace
+               <div
                   v-for="achievement in achievements"
                   :key="achievement.id"
-                  fill-x
-                  align="center"
-                  gap="0.5rem"
-                  class="p-3 rounded-xl bg-accent-500">
+                  class="w-full flex flex-col md:flex-row items-center gap-2 p-3 rounded-xl bg-accent-500">
                   <StImage
                      :src="achievement.badgeUrl"
                      width="3.4375rem"
                      height="3.4375rem"
                      class="shrink-0" />
-                  <StSpace
-                     fill
-                     direction="vertical"
-                     justify="center"
-                     gap="0.25rem">
-                     <div class="st-font-body-bold">
+                  <div
+                     class="w-full min-w-0 flex-1 flex flex-col items-center md:items-start justify-center gap-1 text-center md:text-left">
+                     <div class="st-font-body-bold w-full truncate">
                         {{ achievement.name }}
                      </div>
-                     <div class="st-font-caption">
-                        {{ formatAchievedDate(achievement.achievedAt) }}
+                     <div class="st-font-caption w-full truncate">
+                        <span class="md:hidden">{{
+                           formatAchievedDate(achievement.achievedAt)
+                        }}</span>
+                        <span class="hidden md:inline"
+                           >于 {{ formatAchievedDate(achievement.achievedAt) }} 获得</span
+                        >
                      </div>
-                  </StSpace>
-               </StSpace>
+                  </div>
+               </div>
                <div class="w-full h-1.5"></div>
             </StSpace>
 

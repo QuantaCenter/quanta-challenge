@@ -9,7 +9,7 @@ defineProps<{
    <div
       v-if="count < 12 || typeof count === 'undefined'"
       :class="{ 'animate-pulse': loading }"
-      class="size-4 rounded-sm bg-accent-500 shrink-0 flex items-center justify-center">
+      class="w-full aspect-square rounded-sm bg-accent-500 shrink-0 flex items-center justify-center overflow-hidden md:w-4">
       <div
          v-if="count"
          class="rounded-full bg-primary"
@@ -19,5 +19,7 @@ defineProps<{
             'size-[0.75rem]': count >= 8,
          }"></div>
    </div>
-   <div v-else class="size-4 rounded-full bg-primary"></div>
+   <div
+      v-else
+      class="w-full aspect-square rounded-full bg-primary md:w-4"></div>
 </template>

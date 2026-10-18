@@ -58,24 +58,32 @@ const handleKeyCreated = async (secret: { keyId: string; secret: string }) => {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-[64rem] pb-[10rem] my-6">
+         class="w-full md:w-[64rem] px-4 md:px-0 pb-[10rem] my-6">
          <!-- Hero -->
          <h1 class="w-full st-font-hero-bold text-accent-100">云函数管理</h1>
 
          <CloudFunctionStatsGrid :items="stats" />
 
-         <CloudFunctionTable
-            :functions="functions ?? []"
-            :loading="functionsInitialLoading"
-            :toggling-name="togglingName"
-            @toggle="toggleEnabled"
-            @remove="removeFunction" />
+         <div class="w-full overflow-x-auto md:overflow-x-visible hide-scrollbar">
+            <div class="min-w-[64rem] md:min-w-0">
+               <CloudFunctionTable
+                  :functions="functions ?? []"
+                  :loading="functionsInitialLoading"
+                  :toggling-name="togglingName"
+                  @toggle="toggleEnabled"
+                  @remove="removeFunction" />
+            </div>
+         </div>
 
-         <ApiKeyTable
-            :keys="keys ?? []"
-            :loading="keysInitialLoading"
-            @create="keyFormOpened = true"
-            @revoke="revokeKey" />
+         <div class="w-full overflow-x-auto md:overflow-x-visible hide-scrollbar">
+            <div class="min-w-[64rem] md:min-w-0">
+               <ApiKeyTable
+                  :keys="keys ?? []"
+                  :loading="keysInitialLoading"
+                  @create="keyFormOpened = true"
+                  @revoke="revokeKey" />
+            </div>
+         </div>
       </StSpace>
 
       <ApiKeyCreateDrawer

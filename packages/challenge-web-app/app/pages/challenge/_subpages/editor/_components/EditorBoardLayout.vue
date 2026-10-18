@@ -31,6 +31,12 @@ const BOARD_LABEL = computed<Record<EditorBoardId, string>>(() => ({
    code: '代码编辑器 / 终端',
    preview: props.previewLabel,
 }));
+/** 移动端指示器的短标签 */
+const BOARD_MOBILE_LABEL = computed<Record<EditorBoardId, string>>(() => ({
+   files: '文件',
+   code: '编辑器',
+   preview: props.previewLabel === '实时预览' ? '预览' : props.previewLabel,
+}));
 /** 三条板块之间有两条分隔条 */
 const DIVIDER_INDEXES = [0, 1];
 
@@ -51,21 +57,76 @@ const draggingDivider = ref<number | null>(null);
 const boardEl = (id: EditorBoardId) =>
    container.value?.querySelector(`[data-board="${id}"]`) as HTMLElement | null;
 
-/** 板块：视觉位置由 order 决定；宽度按同一顺序取 */
+/**
+ * 板块：视觉位置由 order 决定；宽度按同一顺序取。
+ * 通过 CSS 变量下发，移动端（.board-pane 基础样式）忽略宽度权重、强制等宽横滑，
+ * 桌面端（md+ 媒体查询）才把权重翻译成 flex-grow（扣掉分隔条后的剩余空间按比例分配，永不溢出）。
+ */
 const boardStyle = (id: EditorBoardId) => {
    const index = order.value.indexOf(id);
    const percent = currentSizes.value[index] ?? 0;
    return {
-      order: String(index * 2),
-      // 用 flex-grow 的权重来表达百分比，而不是 flex-basis: 两条分隔条各占 0.75rem，若用 basis 百分比，三者相加 100% 之后再加上分隔条 就会超出容器（这正是 SplitPanel 早先"多出 0.5rem"的同一类 bug）。 flex-basis: 0 + grow 按权重分配的是**扣掉分隔条之后的剩余空间**， 因此各板块的实际宽度比例严格等于这里的百分比，且永不溢出。
-      flexGrow: String(percent),
-      flexShrink: '1',
-      flexBasis: '0%',
+      '--board-order': String(index * 2),
+      '--board-grow': String(percent),
    };
 };
 
 /** 分隔条：插在它两侧板块的 order 之间 */
 const dividerStyle = (index: number) => ({ order: String(index * 2 + 1) });
+
+// ————————————————— 移动端：三板块横向滑动 —————————————————
+const activeBoardIndex = ref(0);
+
+// 手势起点在板块内部的滚动区（文件树/代码/终端）时，惯性会链式带动外层容器，
+// Chrome 对 chained momentum 不尊重 scroll-snap-stop，一次强滑会跨过中间板块；
+// 滚动停稳后把位置钳回「起点相邻」的板块兜底
+let touchStartIndex = 0;
+let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+const handleBoardTouchStart = () => {
+   touchStartIndex = activeBoardIndex.value;
+};
+
+const settleBoardScroll = () => {
+   const el = container.value;
+   if (!el || !el.clientWidth) return;
+   const current = Math.round(el.scrollLeft / el.clientWidth);
+   const target = Math.min(
+      touchStartIndex + 1,
+      Math.max(touchStartIndex - 1, current)
+   );
+   if (target !== current) {
+      el.scrollTo({ left: target * el.clientWidth, behavior: 'smooth' });
+   }
+};
+
+const handleBoardScroll = () => {
+   const el = container.value;
+   if (!el || !el.clientWidth) return;
+   activeBoardIndex.value = Math.min(
+      order.value.length - 1,
+      Math.round(el.scrollLeft / el.clientWidth)
+   );
+   if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+   scrollSettleTimer = setTimeout(settleBoardScroll, 120);
+};
+
+const scrollToBoard = (index: number) => {
+   const el = container.value;
+   if (!el) return;
+   // 视作一次以目标板块为起点的「手势」，避免被钳回逻辑拉回
+   touchStartIndex = index;
+   el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
+};
+
+/** 移动端点击文件后跳到指定板块（PC 多栏布局无此交互） */
+const openBoard = (id: EditorBoardId) => {
+   if (!window.matchMedia('(max-width: 767.98px)').matches) return;
+   const index = order.value.indexOf(id);
+   if (index >= 0) scrollToBoard(index);
+};
+
+defineExpose({ openBoard });
 
 // ————————————————— 拖拽换位 —————————————————
 const draggingBoard = ref<EditorBoardId | null>(null);
@@ -177,7 +238,10 @@ const handleDividerKeydown = (index: number, event: KeyboardEvent) => {
    draggingSizes.value = null;
 };
 
-onUnmounted(() => activeCleanup?.());
+onUnmounted(() => {
+   activeCleanup?.();
+   if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+});
 
 // 「恢复默认布局」时把拖拽中的临时宽度也丢掉
 watch(
@@ -192,17 +256,43 @@ watch(
 </script>
 
 <template>
-   <div ref="container" class="relative w-full h-full flex flex-row">
-      <!-- 板块：DOM 顺序固定，视觉顺序由 CSS order 决定（换位不重挂组件） -->
+   <div class="relative w-full h-full flex flex-col md:flex-row">
+      <!-- 移动端板块指示器：点击切换板块，滑动时跟随高亮 -->
       <div
-         v-for="id in BOARD_IDS"
-         :key="id"
-         :data-board="id"
-         :style="boardStyle(id)"
-         class="group/board relative h-full min-w-0 flex-shrink-0 rounded-xl"
-         @dragover.prevent="handleDragOver(id)"
-         @dragleave="handleDragLeave(id)"
-         @drop.prevent="handleDrop(id)">
+         class="md:hidden shrink-0 flex items-center gap-1 p-1 mb-2 rounded-lg bg-accent-600/50"
+         role="tablist">
+         <button
+            v-for="(id, index) in order"
+            :key="`tab-${id}`"
+            type="button"
+            role="tab"
+            :aria-selected="activeBoardIndex === index"
+            class="flex-1 min-w-0 px-2 py-1.5 rounded-md text-xs truncate transition-colors cursor-pointer"
+            :class="
+               activeBoardIndex === index
+                  ? 'bg-accent-500 text-white'
+                  : 'text-accent-200'
+            "
+            @click="scrollToBoard(index)">
+            {{ BOARD_MOBILE_LABEL[id] }}
+         </button>
+      </div>
+
+      <div
+         ref="container"
+         class="relative flex-1 min-h-0 w-full flex flex-row hide-scrollbar max-md:overflow-x-auto max-md:snap-x max-md:snap-mandatory"
+         @scroll.passive="handleBoardScroll"
+         @touchstart.passive="handleBoardTouchStart">
+         <!-- 板块：DOM 顺序固定，视觉顺序由 CSS order 决定（换位不重挂组件） -->
+         <div
+            v-for="id in BOARD_IDS"
+            :key="id"
+            :data-board="id"
+            :style="boardStyle(id)"
+            class="board-pane group/board relative h-full min-w-0 flex-shrink-0 rounded-xl"
+            @dragover.prevent="handleDragOver(id)"
+            @dragleave="handleDragLeave(id)"
+            @drop.prevent="handleDrop(id)">
          <slot :name="`board-${id}`" />
 
          <!--
@@ -230,7 +320,7 @@ watch(
                   ? '布局已锁定'
                   : `拖动这里把「${BOARD_LABEL[id]}」移到另一个板块的位置`
             "
-            class="absolute inset-x-0 top-0 z-20 flex h-3 items-start justify-center"
+            class="absolute inset-x-0 top-0 z-20 flex h-3 items-start justify-center max-md:hidden"
             :class="
                layoutStore.locked
                   ? 'cursor-not-allowed'
@@ -274,7 +364,7 @@ watch(
          :aria-disabled="layoutStore.locked"
          :tabindex="layoutStore.locked ? -1 : 0"
          title="拖动调整两侧宽度；方向键微调（Shift 加速）"
-         class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary max-md:hidden"
          :class="{
             'opacity-0 hover:!cursor-default': layoutStore.locked,
             '!bg-secondary': draggingDivider === index,
@@ -285,5 +375,24 @@ watch(
             class="w-1 h-8 rounded-xl bg-accent-600 transition-colors group-hover/divider:bg-primary"
             :class="{ '!bg-primary': draggingDivider === index }" />
       </div>
+      </div>
    </div>
 </template>
+
+<style scoped>
+/* 移动端：三板块等宽、横向滑动吸附；桌面端宽度比例由持久化布局驱动 */
+.board-pane {
+   order: var(--board-order);
+   flex: 0 0 100%;
+   scroll-snap-align: start;
+   scroll-snap-stop: always;
+}
+
+@media (min-width: 768px) {
+   .board-pane {
+      flex-grow: var(--board-grow);
+      flex-shrink: 1;
+      flex-basis: 0%;
+   }
+}
+</style>

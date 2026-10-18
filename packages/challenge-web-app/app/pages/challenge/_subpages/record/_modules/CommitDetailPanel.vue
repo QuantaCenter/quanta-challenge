@@ -187,13 +187,13 @@ const StatusIcon = () => {
       fill
       align="center"
       class="bg-[#1C1C1C] rounded-xl p-4">
-      <div class="w-[38rem] h-full relative overflow-auto hide-scrollbar">
+      <div class="w-[38rem] max-md:w-full h-full relative overflow-auto hide-scrollbar max-md:!overflow-visible">
          <StSkeleton :loading="loading || !detail">
             <template #loading>
                <CommitDetailSkeleton />
             </template>
             <StSpace
-               class="w-[38rem] min-h-full absolute top-0 left-0 mt-1"
+               class="w-[38rem] max-md:w-full max-md:!static min-h-full absolute top-0 left-0 mt-1"
                gap="1rem"
                direction="vertical">
                <StSpace
@@ -230,7 +230,10 @@ const StatusIcon = () => {
                         </span>
                      </div>
                   </StSpace>
-                  <StSpace fill-x align="center">
+                  <StSpace
+                     fill-x
+                     align="center"
+                     class="max-md:!flex-wrap max-md:gap-y-3">
                      <DataBlock title="提交状态">
                         <JudgeStatus :status="detail?.result!" />
                      </DataBlock>

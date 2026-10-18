@@ -39,7 +39,7 @@ const toggle = () => {
             @click="toggle"
             :class="[
                props.toolbar
-                  ? '!px-0 !py-0 !size-[2.75rem] flex items-center justify-center'
+                  ? '!px-0 !py-0 !size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center'
                   : '!px-4',
                'transition-colors',
                { '!text-success': opened },
@@ -60,9 +60,9 @@ const toggle = () => {
             v-show="opened"
             ref="cf-popover"
             :class="[
-               'absolute w-[27rem] max-h-[85vh] overflow-y-auto bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50',
+               'absolute w-[27rem] max-md:!w-[calc(100vw-3rem)] max-h-[85vh] overflow-y-auto bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50',
                props.toolbar
-                  ? 'top-1/2 -translate-y-1/2 left-[calc(100%+0.5rem)]'
+                  ? 'top-1/2 -translate-y-1/2 left-[calc(100%+0.5rem)] max-md:!top-full max-md:!left-1/2 max-md:!-translate-x-1/2 max-md:!translate-y-2'
                   : 'top-full right-0 mt-2',
             ]">
             <CloudFunctionTokenPanel :active="opened" />

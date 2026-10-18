@@ -117,12 +117,16 @@ const showEmptyStatus = computed(() => {
          v-if="showEmptyStatus"
          fill-y
          direction="vertical"
-         class="mt-6 w-[50rem]">
+         class="mt-6 w-full md:w-[50rem] px-4 md:px-0">
          <h1 class="text-[2.5rem] font-bold text-white">我的发布</h1>
          <Divider />
          <StEmptyStatus content="暂无发布内容" class="pb-32 mt-24" />
       </StSpace>
-      <StSpace v-else fill-y direction="vertical" class="mt-6 w-[65rem]">
+      <StSpace
+         v-else
+         fill-y
+         direction="vertical"
+         class="mt-6 w-full md:w-[65rem] px-4 md:px-0">
          <h1 class="text-[2.5rem] font-bold text-white">我的发布</h1>
          <StSkeleton :loading="!tags" class="mt-4">
             <template #loading>
@@ -184,43 +188,104 @@ const showEmptyStatus = computed(() => {
             </StSpace>
          </StSkeleton>
          <Divider />
-         <StSkeleton :loading="!problems" class="w-full h-full">
-            <template #loading>
-               <StGrid fill :cols="4" gap="1.25rem">
-                  <StSkeletonItem
-                     v-for="i in 12"
-                     :key="i"
-                     class="w-[14.5rem] h-[20rem]"
-                     rounded="lg" />
-               </StGrid>
-            </template>
-            <StGrid fill :cols="4" gap="1.25rem">
+         <div class="w-full md:hidden">
+            <StSkeleton :loading="!problems">
+               <template #loading>
+                  <StSpace direction="vertical" gap="0.75rem" class="mt-1">
+                     <StSkeletonItem
+                        v-for="i in 5"
+                        :key="i"
+                        class="w-full h-[4.75rem] !rounded-xl" />
+                  </StSpace>
+               </template>
+            <StSpace direction="vertical" gap="0.75rem" class="w-full mt-1">
                <NuxtLink
                   v-for="(problem, idx) in problems"
-                  class="h-fit"
-                  :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx"
-                  :to="`/app/publish/problem/detail/${problem.pid}`">
-                  <StProblemCard
-                     class="w-[14.5rem] h-fit"
-                     :cover-image-name="problem.imageName"
-                     :cover-image-thumbhash="problem.imageHash"
-                     :cover-image-thumbhash-url="problem.imageThumbhashUrl">
-                     <StProblemCardTitle :title="problem.title" />
-                     <StProblemCardTags :tags="problem.tags" />
-                     <StProblemCardDivider />
-                     <StProblemCardInfo class="px-2 pb-3">
-                        <StProblemCardInfoItem title="提交时间">
+                  :to="`/app/publish/problem/detail/${problem.pid}`"
+                  :style="{ viewTransitionName: `card-${problem.pid}` }"
+                  class="block w-full">
+                  <StSpace
+                     fill-x
+                     align="center"
+                     gap="0.75rem"
+                     class="w-full p-3 rounded-xl bg-accent-600">
+                     <img
+                        v-if="problem.imageName"
+                        :src="`/api/static/${problem.imageName}`"
+                        class="w-14 h-14 rounded-lg object-cover shrink-0" />
+                     <div
+                        v-else
+                        class="w-14 h-14 rounded-lg shrink-0 bg-accent-500" />
+                     <StSpace
+                        direction="vertical"
+                        gap="0.25rem"
+                        class="min-w-0 flex-1">
+                        <div class="st-font-body-bold text-white truncate w-full">
+                           {{ problem.title }}
+                        </div>
+                        <div class="w-full overflow-hidden">
+                           <StProblemCardTags :tags="problem.tags" />
+                        </div>
+                     </StSpace>
+                     <StSpace
+                        direction="vertical"
+                        gap="0.25rem"
+                        align="end"
+                        class="shrink-0">
+                        <ProblemStatus :problem="problem" />
+                        <span class="st-font-caption text-accent-300">
                            <PublishDate :problem="problem" />
-                        </StProblemCardInfoItem>
-                        <StProblemCardInfoItem title="状态">
-                           <ProblemStatus :problem="problem" />
-                        </StProblemCardInfoItem>
-                     </StProblemCardInfo>
-                  </StProblemCard>
+                        </span>
+                     </StSpace>
+                  </StSpace>
                </NuxtLink>
-            </StGrid>
-         </StSkeleton>
+            </StSpace>
+            </StSkeleton>
+         </div>
+         <div class="hidden md:block">
+            <div class="w-full overflow-x-auto hide-scrollbar">
+               <div class="min-w-[65rem] md:min-w-0">
+                  <StSkeleton :loading="!problems" class="w-full h-full">
+                     <template #loading>
+                        <StGrid fill :cols="4" gap="1.25rem">
+                           <StSkeletonItem
+                              v-for="i in 12"
+                              :key="i"
+                              class="w-[14.5rem] h-[20rem]"
+                              rounded="lg" />
+                        </StGrid>
+                     </template>
+                     <StGrid fill :cols="4" gap="1.25rem">
+                        <NuxtLink
+                           v-for="(problem, idx) in problems"
+                           class="h-fit"
+                           :style="{ viewTransitionName: `card-${problem.pid}` }"
+                           :key="idx"
+                           :to="`/app/publish/problem/detail/${problem.pid}`">
+                           <StProblemCard
+                              class="w-[14.5rem] h-fit"
+                              :cover-image-name="problem.imageName"
+                              :cover-image-thumbhash="problem.imageHash"
+                              :cover-image-thumbhash-url="problem.imageThumbhashUrl">
+                              <StProblemCardTitle :title="problem.title" />
+                              <StProblemCardTags :tags="problem.tags" />
+                              <StProblemCardDivider />
+                              <StProblemCardInfo class="px-2 pb-3">
+                                 <StProblemCardInfoItem title="提交时间">
+                                    <PublishDate :problem="problem" />
+                                 </StProblemCardInfoItem>
+                                 <StProblemCardInfoItem title="状态">
+                                    <ProblemStatus :problem="problem" />
+                                 </StProblemCardInfoItem>
+                              </StProblemCardInfo>
+                           </StProblemCard>
+                        </NuxtLink>
+                     </StGrid>
+                  </StSkeleton>
+               </div>
+            </div>
+         </div>
          <StSpacer fill flex no-shrink height="1rem" />
       </StSpace>
    </StSpace>

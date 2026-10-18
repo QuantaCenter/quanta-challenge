@@ -94,6 +94,15 @@ export default defineNuxtConfig({
    },
 
    security: {
+      headers: {
+         // 通过 http://<内网 IP> 访问时，该地址不属于浏览器认可的「可信来源」，浏览器会把
+         // 页面内所有 http 子资源升级成 https；dev server 不提供 TLS，于是 CSS/JS 全部握手
+         // 失败——表现是有 HTML、无样式、点不动。生产环境保留该指令。
+         contentSecurityPolicy: {
+            'upgrade-insecure-requests': process.env.NODE_ENV === 'production',
+         },
+      },
+
       xssValidator: false,
       rateLimiter: false,
 
@@ -152,7 +161,14 @@ export default defineNuxtConfig({
          mode: 'out-in',
       },
       head: {
-         meta: [{ name: 'referrer', content: 'origin-when-cross-origin' }],
+         meta: [
+            { name: 'referrer', content: 'origin-when-cross-origin' },
+            {
+               name: 'viewport',
+               content:
+                  'width=device-width, initial-scale=1, viewport-fit=cover',
+            },
+         ],
       },
    },
 

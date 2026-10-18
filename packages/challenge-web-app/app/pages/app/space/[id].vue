@@ -27,6 +27,10 @@ const router = useRouter();
 const authStore = useAuthStore();
 const { $trpc } = useNuxtApp();
 
+// 弱网下瞬时失败重试，失败降级为 null 而不是整页挂掉
+const safeQuery = <T,>(fn: () => Promise<T>): Promise<T | null> =>
+   autoRetry(fn, 2, 400).catch(() => null);
+
 // 获取路由参数中的 id（实际是 name）
 const userName = computed(() => route.params.id as string);
 
@@ -65,39 +69,49 @@ type IconKey = keyof typeof iconMapping;
 // 获取目标用户的信息
 const { data: targetUser, refresh: refreshTargetUser } = await useAsyncData(
    `get-user-by-name-${userName.value}`,
-   () => $trpc.protected.user.getUserByName.query({ name: userName.value }),
+   () =>
+      safeQuery(() =>
+         $trpc.protected.user.getUserByName.query({ name: userName.value })
+      ),
    {
       watch: [userName],
-   },
+   }
 );
 
 // 获取用户的空间配置
 const { data: spaceConfig, refresh: refreshSpaceConfig } = await useAsyncData(
    `get-user-space-config-${userName.value}`,
    () =>
-      $trpc.protected.user.getUserSpaceConfig.query({ name: userName.value }),
+      safeQuery(() =>
+         $trpc.protected.user.getUserSpaceConfig.query({ name: userName.value })
+      ),
    {
       watch: [userName],
-   },
+   }
 );
 
 // 获取用户提交状态
 const { data: commitStatistics } = await useAsyncData(
    `get-user-commit-status-${userName.value}`,
    () =>
-      $trpc.protected.user.getCommitStatistic.query({ name: userName.value }),
+      safeQuery(() =>
+         $trpc.protected.user.getCommitStatistic.query({ name: userName.value })
+      ),
    {
       watch: [userName],
-   },
+   }
 );
 
 // 获取最近提交的题目
 const { data: recentProblems } = await useAsyncData(
    `get-user-recent-problems-${userName.value}`,
-   () => $trpc.protected.user.getRecentProblems.query({ name: userName.value }),
+   () =>
+      safeQuery(() =>
+         $trpc.protected.user.getRecentProblems.query({ name: userName.value })
+      ),
    {
       watch: [userName],
-   },
+   }
 );
 
 // 安全获取可见性配置
@@ -190,18 +204,19 @@ onMounted(() => {
 
 <template>
    <StSpace fill justify="center" class="overflow-y-auto overflow-x-hidden">
-      <StSpace fill justify="center" direction="horizontal">
+      <div
+         class="w-full flex flex-col lg:flex-row justify-center lg:items-start gap-6 px-4 lg:px-0">
          <StSpace
             direction="vertical"
             gap="0.5rem"
             :style="{ width: `${width}rem` }"
-            class="p-[0.5rem] pb-4 mt-[2rem] bg-accent-600 rounded-[1.5rem]">
-            <StSpace fill-x direction="vertical">
+            class="max-w-full p-[0.5rem] pb-4 mt-[2rem] bg-accent-600 rounded-[1.5rem]">
+            <StSpace fill-x direction="vertical" class="relative">
                <StImage
                   :src="targetUser?.bannerImageUrl || DEFAULT_SPACE_URL"
                   height="10rem"
-                  :width="`${width - 1.1}rem`"
-                  class="rounded-t-[1rem] rounded-b-none object-top absolute"
+                  width="100%"
+                  class="rounded-t-[1rem] rounded-b-none object-top absolute left-0 top-0"
                   object="cover" />
                <StSpace
                   class="px-[1.5rem] pr-[1rem] mt-[4rem] z-5 relative"
@@ -283,14 +298,18 @@ onMounted(() => {
             </StGrid>
          </StSpace>
 
-         <StSpace direction="vertical" class="my-8" :style="{ width: `44rem` }">
+         <StSpace
+            direction="vertical"
+            class="my-8 max-w-full min-w-0"
+            :style="{ width: `44rem` }">
             <StSpace fill>
                <StSpace
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
-                  <div class="font-family-manrope st-font-third-bold">
+                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4 max-md:px-3">
+                  <div
+                     class="font-family-manrope st-font-third-bold max-md:text-xl whitespace-nowrap">
                      {{ commitStatistics?.correctRate ?? 0
                      }}<span class="font-family-fira-code text-xl ml-0.5"
                         >%</span
@@ -306,8 +325,9 @@ onMounted(() => {
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
-                  <div class="font-family-manrope st-font-third-bold">
+                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4 max-md:px-3">
+                  <div
+                     class="font-family-manrope st-font-third-bold max-md:text-xl whitespace-nowrap">
                      {{ commitStatistics?.score ?? 0 }}
                   </div>
                   <div class="text-accent-100">总得分</div>
@@ -320,8 +340,9 @@ onMounted(() => {
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
-                  <div class="font-family-manrope st-font-third-bold">
+                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4 max-md:px-3">
+                  <div
+                     class="font-family-manrope st-font-third-bold max-md:text-xl whitespace-nowrap">
                      {{ commitStatistics?.passCount ?? 0 }}
                   </div>
                   <div class="text-accent-100">通过数</div>
@@ -402,7 +423,7 @@ onMounted(() => {
                   status="personal-space"
                   :is-visitor="!isOwnSpace"
                   :username="targetUser?.name"
-                  class="!mt-0 min-h-[18.625rem]" />
+                  class="!mt-0 md:min-h-[18.625rem]" />
 
                <div
                   v-if="isOwnSpace || spaceConfig?.showAchievements"
@@ -416,7 +437,7 @@ onMounted(() => {
                   class="!min-h-[16rem]" />
             </StSpace>
          </StSpace>
-      </StSpace>
+      </div>
 
       <!-- 编辑用户信息 Drawer -->
       <UserInfoEditDrawer

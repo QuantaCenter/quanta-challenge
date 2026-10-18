@@ -45,7 +45,8 @@ const columns: ITableColumn[] = [
 </script>
 
 <template>
-   <StSpace class="w-[48rem]">
+   <div class="w-full lg:w-[48rem] overflow-x-auto md:overflow-x-visible hide-scrollbar">
+      <StSpace class="min-w-[36rem] lg:min-w-0">
       <StTable
          :columns="columns"
          :rows="data"
@@ -114,5 +115,6 @@ const columns: ITableColumn[] = [
             </StSpace>
          </template>
       </StTable>
-   </StSpace>
+      </StSpace>
+   </div>
 </template>

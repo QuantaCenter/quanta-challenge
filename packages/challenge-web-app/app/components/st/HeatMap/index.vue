@@ -23,6 +23,24 @@ const cellMonths = computed(() =>
    monthCells(daysInMonths(props.currentYear), rows.value)
 );
 
+const flatCells = computed(() => cellMonths.value.flat());
+
+// 每个月块占的列数（块内格子数 / 每列行数，向上取整），移动端标签按它对齐
+const blockCols = (cellCount: number) => Math.ceil(cellCount / rows.value);
+
+const totalCols = computed(() =>
+   cellMonths.value.reduce((sum, cells) => sum + blockCols(cells.length), 0)
+);
+
+// 移动端没有悬浮提示，用颜色深浅表达提交量（GitHub 风格）
+const mobileCellClass = (count: number) => {
+   if (count >= 12) return 'bg-primary';
+   if (count >= 8) return 'bg-primary/90';
+   if (count >= 4) return 'bg-primary/60';
+   if (count > 0) return 'bg-primary/35';
+   return 'bg-accent-500';
+};
+
 const getDateId = (month: number, day: number) => {
    const pad = (n: number) => String(n).padStart(2, '0');
    return `${props.currentYear}-${pad(month)}-${pad(day)}`;
@@ -166,10 +184,50 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <table class="w-full">
+   <!--
+      移动端：全年 41 列连续网格，格子固定尺寸、容器横向滑动（同 PC 的"展示一部分"体验）。
+      contain-inline-size 阻止内部 654px 内容撑宽祖先的固有宽度。
+   -->
+   <div class="md:hidden w-full">
+      <div class="w-full overflow-x-auto hide-scrollbar contain-inline-size">
+         <div class="w-max">
+            <div
+               class="grid grid-flow-col gap-[2px] mb-1.5"
+               :style="{
+                  gridTemplateColumns: `repeat(${totalCols}, 0.875rem)`,
+               }">
+               <div
+                  v-for="(cells, month) in cellMonths"
+                  :key="month"
+                  class="text-[0.5rem] leading-none text-white whitespace-nowrap overflow-hidden text-left"
+                  :style="{ gridColumn: `span ${blockCols(cells.length)}` }">
+                  {{ monthText[month] }}
+               </div>
+            </div>
+            <div
+               class="grid grid-flow-col gap-[2px]"
+               :style="{
+                  gridTemplateColumns: `repeat(${totalCols}, 0.875rem)`,
+                  gridTemplateRows: `repeat(${rows}, auto)`,
+               }">
+               <div
+                  v-for="cell in flatCells"
+                  :key="`${cell.month}-${cell.day}`"
+                  class="w-[0.875rem] h-[0.875rem] rounded-[2px] transition-colors"
+                  :class="[
+                     mobileCellClass(getCountByDate(cell.month, cell.day)),
+                     { 'animate-pulse': loading },
+                  ]"></div>
+            </div>
+         </div>
+      </div>
+   </div>
+
+   <table class="hidden md:table w-full md:table-auto md:w-auto">
       <thead>
-         <tr class="font-light text-[0.875rem] text-white">
-            <td v-for="(month, idx) in monthText" :key="idx">
+         <tr
+            class="font-light text-[0.625rem] md:text-[0.875rem] text-white whitespace-nowrap">
+            <td v-for="(month, idx) in monthText" :key="idx" class="overflow-hidden">
                <div class="mb-2">{{ month }}</div>
             </td>
          </tr>
@@ -179,9 +237,9 @@ onUnmounted(() => {
             <td v-for="(cells, month) in cellMonths" :key="month">
                <div
                   :class="{
-                     'mr-[0.375rem]': month !== cellMonths.length - 1,
+                     'mr-1 md:mr-[0.375rem]': month !== cellMonths.length - 1,
                   }"
-                  class="w-fit grid gap-[0.375rem] grid-flow-col"
+                  class="w-full md:w-fit grid gap-1 md:gap-[0.375rem] grid-flow-col auto-cols-fr md:auto-cols-auto"
                   :style="{ gridTemplateRows: `repeat(${rows}, 1fr)` }">
                   <!--
                      注意格子上的日期取自 cell（连续流里的真实日期），

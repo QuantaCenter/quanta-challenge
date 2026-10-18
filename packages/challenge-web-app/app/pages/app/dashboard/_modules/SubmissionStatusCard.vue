@@ -7,18 +7,6 @@ const props = defineProps<{
    username?: string;
 }>();
 
-const card = useTemplateRef('card');
-
-const width = ref(0);
-onMounted(() => {
-   if (!card.value) return;
-   width.value = card.value.$el.getBoundingClientRect().width;
-   window.addEventListener('resize', () => {
-      if (!card.value) return;
-      width.value = card.value.$el.getBoundingClientRect().width;
-   });
-});
-
 const { $trpc } = useNuxtApp();
 const { data: submissionStatusData, pending: loading } = useAsyncData(
    props.isVisitor
@@ -36,31 +24,31 @@ const { data: submissionStatusData, pending: loading } = useAsyncData(
 );
 
 const scrollContainer = useTemplateRef('scrollContainer');
-const showEndMask = ref(true);
-onMounted(() => {
-   if (!scrollContainer.value) return;
+const showEndMask = ref(false);
+const updateEndMask = () => {
    const el = scrollContainer.value;
-   el.addEventListener('scroll', () => {
-      showEndMask.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 8;
-   });
+   if (!el) return;
+   showEndMask.value = el.scrollLeft + el.clientWidth < el.scrollWidth - 8;
+};
+onMounted(() => {
+   updateEndMask();
+   scrollContainer.value?.addEventListener('scroll', updateEndMask);
 });
 </script>
 
 <template>
    <StCard
       :icon="Fire"
-      ref="card"
       title="提交情况"
       class="w-full !h-fit mt-4 relative overflow-clip">
       <div
          ref="scrollContainer"
-         class="mt-4 overflow-x-auto flex shrink-0 w-0 hide-scrollbar relative"
+         class="mt-4 overflow-x-auto flex shrink-0 w-full hide-scrollbar relative"
          :class="[
             status === 'personal-space'
-               ? 'min-h-[14.625rem]'
+               ? 'md:min-h-[14.625rem]'
                : 'min-w-[36.625rem]',
-         ]"
-         :style="{ width: `${width - 34}px` }">
+         ]">
          <StHeatMap
             :scroll-into-view="status !== 'personal-space'"
             :loading="loading"

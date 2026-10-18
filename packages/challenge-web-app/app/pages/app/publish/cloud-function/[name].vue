@@ -36,7 +36,7 @@ const {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-[56rem] pb-[10rem] my-6">
+         class="w-full md:w-[56rem] px-4 md:px-0 pb-[10rem] my-6">
          <NuxtLink
             to="/app/publish/cloud-function"
             class="flex w-fit items-center gap-2 text-accent-300 transition-colors hover:text-white">

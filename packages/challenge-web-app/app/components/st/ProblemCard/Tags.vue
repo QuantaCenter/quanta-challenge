@@ -77,7 +77,7 @@ onMounted(initialize);
             ref="tags"
             fill-x
             :gap="`${gap}px`"
-            class="!font-family-manrope bg-accent-100 pointer-events-none absolute opacity-0">
+            class="top-0 left-0 !font-family-manrope bg-accent-100 pointer-events-none absolute opacity-0">
             <StTag
                v-for="tag in tags"
                size="small"
