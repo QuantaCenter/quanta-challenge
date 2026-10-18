@@ -8,6 +8,7 @@ import {
    AchievementsCard,
    RankingCard,
 } from './_modules';
+import MobileHome from './_mobile/Home.vue';
 
 useSeoMeta({ title: '仪表盘 - Quanta Challenge' });
 
@@ -29,7 +30,11 @@ onMounted(() => {
 </script>
 
 <template>
-   <StSpace direction="vertical" align="center" gap="0">
+   <StSpace
+      class="hidden md:flex"
+      direction="vertical"
+      align="center"
+      gap="0">
       <StSpace gap="1.5rem" fill class="px-4 py-6 max-w-[80.68rem] shrink-0">
          <StSpace direction="vertical" align="start" gap="1.5rem" fill>
             <h1 class="st-font-hero-bold">{{ greeting }}，{{ username }}</h1>
@@ -39,7 +44,7 @@ onMounted(() => {
             </StSpace>
             <DailyChallengeCard />
          </StSpace>
-         <StSpace direction="vertical" gap="1.5rem" fill>
+         <StSpace direction="vertical" gap="1.5rem" fill class="min-w-0">
             <SubmissionStatusCard />
             <StSpace gap="1.5rem" fill>
                <RankingCard />
@@ -48,4 +53,5 @@ onMounted(() => {
          </StSpace>
       </StSpace>
    </StSpace>
+   <MobileHome class="md:hidden" />
 </template>

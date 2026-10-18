@@ -106,25 +106,31 @@ const {
       align="center"
       gap="0"
       class="hide-scrollbar overflow-auto">
-      <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
-         <h1 class="text-[2.5rem] font-bold text-white">题目</h1>
+      <StSpace
+         fill-y
+         direction="vertical"
+         class="mt-6 w-full px-4 md:w-[65rem] md:px-0">
+         <h1 class="text-[2.5rem] font-bold text-white mt-4 md:mt-0">题目</h1>
          <StSkeleton :loading="tagsStatus === 'pending'">
             <template #loading>
-               <StSpace fill-x>
-                  <StSpace gap="0.75rem" fill-x>
+               <div class="flex flex-col md:flex-row gap-3 md:gap-4">
+                  <div class="flex gap-3 flex-1 min-w-0">
                      <StSkeletonItem
                         v-for="i in 3"
                         :key="i"
                         class="h-[3.5rem] w-32 !rounded-full" />
-                  </StSpace>
-                  <StSkeletonItem
-                     class="h-[3.5rem] w-[9rem] shrink-0 !rounded-xl" />
-                  <StSkeletonItem
-                     class="h-[3.5rem] w-[16rem] shrink-0 !rounded-xl" />
-               </StSpace>
+                  </div>
+                  <div class="flex gap-4 min-w-0">
+                     <StSkeletonItem
+                        class="h-[3.5rem] w-full md:w-[9rem] !rounded-xl" />
+                     <StSkeletonItem
+                        class="h-[3.5rem] w-full md:w-[16rem] !rounded-xl" />
+                  </div>
+               </div>
             </template>
-            <StSpace fill-x class="h-[3.5rem]" gap="1rem">
-               <div class="relative flex-1 min-w-0 h-[3.5rem]">
+            <div
+               class="flex flex-col md:flex-row md:items-center gap-3 md:gap-4 w-full">
+               <div class="relative w-full md:flex-1 min-w-0 h-[3.5rem]">
                   <div
                      :class="[
                         'absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-r from-background to-transparent pr-4 pl-1 transition-opacity duration-300',
@@ -173,37 +179,44 @@ const {
                   </div>
                   <div class="h-[3.5rem]"></div>
                </div>
-               <DifficultyFilter v-model:value="selectedDifficulty" />
-               <ProblemSearchInput v-model:value="searchKeyword" />
-            </StSpace>
+               <div class="flex gap-4 h-[3.5rem] min-w-0">
+                  <DifficultyFilter
+                     v-model:value="selectedDifficulty"
+                     class="flex-1 md:flex-none min-w-0" />
+                  <ProblemSearchInput
+                     v-model:value="searchKeyword"
+                     class="flex-1 md:flex-none min-w-0" />
+               </div>
+            </div>
          </StSkeleton>
          <Divider />
          <StSkeleton
             :loading="problemsStatus === 'pending' && problems.length === 0"
             class="w-full h-full">
             <template #loading>
-               <StGrid fill :cols="4" gap="1.25rem">
+               <div class="w-full grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-5">
                   <StSkeletonItem
                      v-for="i in 12"
                      :key="i"
-                     class="w-[14.5rem] h-[20rem]"
+                     :class="{ 'max-md:hidden': i > 6 }"
+                     class="w-full h-[15rem] md:h-[20rem]"
                      rounded="lg" />
-               </StGrid>
+               </div>
             </template>
             <StEmptyStatus
                v-if="!problems.length"
                content="暂无题目"
-               class="!w-[61.75rem] pb-32 mt-[5rem]" />
-            <StGrid v-else fill :cols="4" gap="1.25rem">
+               class="!w-full md:!w-[61.75rem] pb-32 mt-[5rem]" />
+            <div v-else class="w-full grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-5">
                <a
                   v-for="(problem, idx) in problems"
-                  class="h-fit"
+                  class="h-fit w-full"
                   target="_blank"
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx"
                   :href="`/challenge/editor/${problem.pid}`">
                   <StProblemCard
-                     class="w-[14.5rem] h-fit"
+                     class="w-full h-fit"
                      :cover-image-name="problem.imageName"
                      :cover-image-thumbhash="problem.imageHash"
                      :cover-image-thumbhash-url="problem.imageThumbhashUrl">
@@ -225,7 +238,7 @@ const {
                      </StProblemCardInfo>
                   </StProblemCard>
                </a>
-            </StGrid>
+            </div>
          </StSkeleton>
          <div
             v-if="problems.length > 0"

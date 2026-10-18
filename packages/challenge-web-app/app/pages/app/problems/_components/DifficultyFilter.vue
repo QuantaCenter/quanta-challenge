@@ -48,7 +48,7 @@ onMounted(() => {
       ref="selectRef"
       placeholder="难度"
       attach-to-body
-      outer-class="bg-accent-600 !py-2.5 !pr-4 !pl-4 h-[3.5rem] w-[9rem] shrink-0 !rounded-xl"
+      outer-class="bg-accent-600 !py-2.5 !pr-4 !pl-4 h-[3.5rem] w-full md:w-[9rem] md:shrink-0 !rounded-xl"
       options-container-class="!w-[9rem] overflow-hidden border-accent-500">
       <template #selected-preview>
          <span :class="['font-medium', selectedColor]">

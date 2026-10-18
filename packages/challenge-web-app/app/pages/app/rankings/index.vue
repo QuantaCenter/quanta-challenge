@@ -63,22 +63,23 @@ const isListed = computed(() => {
 </script>
 
 <template>
-   <StSpace fill-y justify="center" gap="1.25rem" class="pt-6">
+   <div
+      class="w-full min-h-full pt-6 flex flex-col lg:flex-row lg:items-start justify-center gap-5">
       <StSpace
          ref="rankContainer"
          gap="0"
          fill-y
          direction="vertical"
          align="center"
-         class="pb-48 relative">
+         class="pb-48 relative w-full">
          <h1 class="text-[2.5rem] font-bold text-white w-full">排行榜</h1>
          <StSpace
             fill-x
-            class="bg-background h-6 sticky top-[4.25rem]"></StSpace>
+            class="bg-background h-6 sticky top-[3.5rem] md:top-[4.25rem]"></StSpace>
          <RankTable :data="rankings ?? []" :loading="loadingRankings" />
          <StSpace
             @click="handleToTop"
-            class="fixed bottom-6 bg-accent-500 opacity-60 hover:opacity-100 cursor-pointer border border-transparent hover:border-secondary transition-all p-4 py-2 rounded-lg"
+            class="fixed bottom-[5rem] md:bottom-6 bg-accent-500 opacity-60 hover:opacity-100 cursor-pointer border border-transparent hover:border-secondary transition-all p-4 py-2 rounded-lg"
             :class="{
                '!opacity-0 translate-y-4 pointer-events-none': !showToTop,
             }"
@@ -92,12 +93,12 @@ const isListed = computed(() => {
          direction="vertical"
          align="center"
          gap="0.75rem"
-         class="!sticky bottom-0 w-[18.875rem] pb-4 self-end min-h-[calc(100vh-5.75rem-1.25rem)]">
+         class="w-full lg:w-[18.875rem] pb-4 lg:!sticky lg:bottom-0 lg:self-end lg:min-h-[calc(100vh-5.75rem-1.25rem)]">
          <ProfileCard />
          <CurrentRankCard :is-listed="isListed" />
          <RankingTrendsCard />
       </StSpace>
-   </StSpace>
+   </div>
 </template>
 
 <style src="@/assets/css/utils.css" scoped />

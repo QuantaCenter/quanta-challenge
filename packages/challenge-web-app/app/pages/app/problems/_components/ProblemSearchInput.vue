@@ -15,7 +15,7 @@ const clearKeyword = () => {
 
 <template>
    <div
-      class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
+      class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-full md:w-[16rem] md:shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
       <Search class="text-accent-300 text-lg shrink-0" />
       <input
          ref="inputRef"
