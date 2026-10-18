@@ -4,14 +4,18 @@ import prisma from '~~/lib/prisma';
 import { observer } from './achievement';
 import type { ValidPath } from '~~/lib/track-wrapper';
 
-/** 判断是否存在某题目的排行榜 */
+/**
+ * 判断是否存在某题目的排行榜
+ */
 const getProblemRankingExistence = async (problemId: number) => {
    const redis = useRedis();
    const rankKey = `problem:${problemId}:rankings`;
    return redis.exists(rankKey);
 };
 
-/** 载入某题目的排行榜数据 */
+/**
+ * 载入某题目的排行榜数据
+ */
 const loadProblemRankings = async (problemId: number) => {
    const redis = useRedis();
 
@@ -38,7 +42,9 @@ const loadProblemRankings = async (problemId: number) => {
    await pipeline.exec();
 };
 
-/** 将提交的最新得分推入排行榜 */
+/**
+ * 将提交的最新得分推入排行榜
+ */
 const pushToProblemRankings = async (
    problemId: number,
    recordId: number,
@@ -55,7 +61,12 @@ const pushToProblemRankings = async (
    await redis.zadd(rankKey, _score, recordId.toString());
 };
 
-/** 获取某题目排行榜的分数区间（score 分数、count 为该分数及以上的提交数）。 */
+/**
+ * 获取某题目排行榜的分数区间
+ * @returns
+ * - score: 分数
+ * - count: 该分数及以上的提交数
+ */
 const getProblemRankingIntervals = async (problemId: number, n: number) => {
    if (!(await getProblemRankingExistence(problemId))) {
       await loadProblemRankings(problemId);
@@ -106,7 +117,13 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    return intervals;
 };
 
-/** 获取记录在某题目中的排名（1-based）、总记录数与超越率（0~1）。 */
+/**
+ * 获取记录在某题目中的排名
+ * @returns
+ * - rank: 排名（1-based）
+ * - total: 总记录数
+ * - aheadRate: 超越率（0~1 之间）
+ */
 const getSelfProblemRanking = async (problemId: number, record: number) => {
    if (!(await getProblemRankingExistence(problemId))) {
       await loadProblemRankings(problemId);
@@ -133,7 +150,12 @@ interface IGlobalRanking {
    score: number;
 }
 
-/** 获取全局排行榜前 limit 名（userId）。 */
+/**
+ * 获取全局排行榜
+ * @param limit 获取前多少名
+ * @returns
+ * - userId: 用户 ID
+ */
 const getGlobalRankings = async (limit: number = 100) => {
    const redis = useRedis();
    const resultKey = `global:rankings-result:limit-${limit}`;
@@ -167,7 +189,22 @@ const getGlobalRankings = async (limit: number = 100) => {
    return rankings;
 };
 
-/** 按权威公式重算并写入用户统计数据（公式见 packages/database/sql/update-user_statistics.psql）；刻意整表重算而非增量累加（增量对满分题恒为 0，且重算幂等）。 */
+/**
+ * 按权威公式重算并写入用户的统计数据（分数 / 正确率 / 通过题数）。
+ *
+ * 公式来自 `packages/database/sql/update-user_statistics.psql`（该文件的定义是权威来源）：
+ *   score        = Σ 各 baseId 上的 MAX(score)   （仅 type='judge' AND result='success'）
+ *   passCount    = COUNT(DISTINCT baseId)        （仅成功记录）
+ *   correctRate  = 成功记录数 / 全部 judge 记录数 × 100
+ *
+ * 为什么必须整表重算而不是增量累加：
+ * 增量写法需要算出"本次提交让总分涨了多少"，而同一道题重复提交成功并不会加分
+ * （取的是 per-baseId 的 MAX）。原实现用 `历史最高分 - 本次得分` 作为增量，
+ * 对"每次都拿满分"的题恒等于 0，于是分数永远是 0。
+ * 整表重算式天然幂等，重复提交、改分、补判都不会算错。
+ *
+ * @returns `{ scoreDiff, score }`：分数变化量（用于同步 Redis 排行榜）与重算后的总分
+ */
 const recalculateUserStatistics = async (
    userId: string,
 ): Promise<{ scoreDiff: number; score: number }> => {
@@ -247,7 +284,16 @@ const recalculateUserStatistics = async (
    return { scoreDiff: newScore - previousScore, score: newScore };
 };
 
-/** 把用户在全局排行榜里的分数设为绝对值：Redis 是 DB score 的投影，用 zadd 避免重复计分，缺号由 loadGlobalRankings 兜底补齐。 */
+/**
+ * 把用户在全局排行榜（Redis zset）里的分数设为绝对值。
+ *
+ * 不能用 zincrby 累加：`recalculateUserStatistics` 刚把数据库里的分数改成新值，
+ * 若此刻缓存已被清掉，`udpateGlobalRanking` 会先从数据库重载（新值已包含增量）
+ * 再 zincrby 加一次，导致重复计分（实测把 40 分算成了 80 分）。
+ *
+ * 由于 Redis 缓存是"数据库 user_statistics.score 的投影"，
+ * 这里统一用 zadd 写绝对值；缓存缺号会由 loadGlobalRankings 兜底补齐。
+ */
 const setUserGlobalRankingScore = async (userId: string, score: number) => {
    const redis = useRedis();
    const rankingKey = `global:rankings`;
@@ -258,7 +304,18 @@ const setUserGlobalRankingScore = async (userId: string, score: number) => {
    await redis.zadd(rankingKey, score, userId);
 };
 
-/** 抓取一次"今日排名快照"写入 ranking_histories：只在分数变化时抓，因为定时任务不可靠且 0 点无分数的日子永远不会被记录。 */
+/**
+ * 抓取一次"今日排名快照"写入 ranking_histories。
+ *
+ * ## 为什么要在分数变化时抓，而不是只靠定时任务
+ *
+ * 排名变化卡片读的是 `getMyRankingTrends`，而它唯一的数据源就是 `ranking_history`。
+ * 原本只有 `nitro.scheduledTasks` 里那个「每天 0 点」的任务会写这张表，于是：
+ *
+ * 1. 自建部署下 Nitro 的定时任务未必会被触发（没有外部 cron 时它不会跑），
+ *    实测本环境该表只有三条手工遗留数据，rank 恒为 1、score 恒为 0；
+ * 2. **更致命的是历史本身**：定时任务只在当天 0 点记录一次，
+ *    如果 0 点时用户还没有分数，这一天就永远不会被记录。
  *    Felix 拿到 100 分后反超 admin，但表里根本没有这条变化 ——
  *    排名变化卡片因此永远显示"无变化"。
  *
@@ -273,7 +330,12 @@ const captureRankingSnapshot = async () => {
       await loadGlobalRankings();
    }
 
-   // 必须用 zrevrange（分数从高到低）。 原实现用 zrange（升序），却把下标直接当名次（rank = i/2 + 1）， 于是**分数最低的人拿到第 1 名**，与 getSelfGlobalRanking 使用的 zrevrank （降序）互相矛盾 —— 排名历史里同一时刻的 rank 与 score 对不上， 表现为"排名变化"毫无意义（例如 rank 2 的人分数反而比 rank 1 高）。
+   // 必须用 zrevrange（分数从高到低）。
+   //
+   // 原实现用 zrange（升序），却把下标直接当名次（rank = i/2 + 1），
+   // 于是**分数最低的人拿到第 1 名**，与 getSelfGlobalRanking 使用的 zrevrank
+   // （降序）互相矛盾 —— 排名历史里同一时刻的 rank 与 score 对不上，
+   // 表现为"排名变化"毫无意义（例如 rank 2 的人分数反而比 rank 1 高）。
    const userScores = await redis.zrevrange(rankingKey, 0, -1, 'WITHSCORES');
    const data: { userId: string; score: number; rank: number }[] = [];
    for (let i = 0; i < userScores.length; i += 2) {
@@ -297,7 +359,15 @@ const captureRankingSnapshot = async () => {
    });
 };
 
-/** 获取用户在全局排行榜中的排名（1-based）、总记录数、分数与超越率（0~1）。 */
+/**
+ * 获取用户在全局排行榜中的排名
+ * @param userId 用户ID
+ * @returns
+ * - rank: 排名（1-based）
+ * - total: 总记录数
+ * - score: 分数
+ * - aheadRate: 超越率（0~1 之间）
+ */
 const getSelfGlobalRanking = async (userId: string) => {
    const redis = useRedis();
    const rankingKey = `global:rankings`;
@@ -322,7 +392,9 @@ const getSelfGlobalRanking = async (userId: string) => {
    };
 };
 
-/** 载入全局排行榜数据 */
+/**
+ * 载入全局排行榜数据
+ */
 const loadGlobalRankings = async () => {
    const redis = useRedis();
    const rankingKey = `global:rankings`;
@@ -341,7 +413,11 @@ const loadGlobalRankings = async () => {
    await pipeline.exec();
 };
 
-/** 更新全局排行榜（userId 的分数变化 scoreDiff）。 */
+/**
+ * 更新全局排行榜
+ * @param userId 用户 ID
+ * @param scoreDiff 分数变化值
+ */
 const udpateGlobalRanking = async (userId: string, scoreDiff: number) => {
    if (scoreDiff === 0) return;
 
@@ -355,7 +431,12 @@ const udpateGlobalRanking = async (userId: string, scoreDiff: number) => {
    await redis.zincrby(rankingKey, scoreDiff, userId);
 };
 
-/** 获取全局排行榜的分数区间：from 下限（包含）、to 上限（不包含）、count 为该分数及以上的用户数。 */
+/** 获取全局排行榜的分数区间
+ * @returns
+ * - from: 区间下限（包含）
+ * - to: 区间上限（不包含）
+ * - count: 该分数及以上的用户数
+ */
 const getGlobalRankingIntervals = async (
    n: number,
 ): Promise<{ from: number; to: number; count: number }[]> => {
