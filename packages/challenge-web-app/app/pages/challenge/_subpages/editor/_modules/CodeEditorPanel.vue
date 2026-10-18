@@ -97,7 +97,7 @@ const dropdownMenuRef = ref<HTMLElement>();
 // 配置 Modal 状态
 const isSettingsModalOpen = ref(false);
 
-const { popperKey, containerKey: popperContainerKey } = usePopper({
+const { popperKey, containerKey: popperContainerKey, popperInstance } = usePopper({
    options: {
       placement: 'bottom-end',
       modifiers: [
@@ -110,6 +110,15 @@ const { popperKey, containerKey: popperContainerKey } = usePopper({
       ],
    },
 });
+
+// 关闭态在移动端 display:none（避免 teleport 到 body 的隐藏面板把布局视口撑宽），
+// 打开时需重定位 popper（display:none 期间测量失效）
+const toggleDropdown = () => {
+   isDropdownOpen.value = !isDropdownOpen.value;
+   if (isDropdownOpen.value) {
+      nextTick(() => popperInstance.value?.update());
+   }
+};
 
 const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
 
@@ -246,7 +255,7 @@ defineExpose({
             <div
                :ref="popperContainerKey"
                class="size-[2rem] rounded-[0.5rem] m-0.5 text-accent-200 bg-accent-500 cursor-pointer hover:bg-accent-400 transition-colors flex items-center justify-center"
-               @click="isDropdownOpen = !isDropdownOpen">
+               @click="toggleDropdown">
                <MoreOne />
             </div>
 
@@ -256,7 +265,7 @@ defineExpose({
                   :ref="popperKey"
                   class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem] border border-accent-500"
                   :class="{
-                     '-translate-y-2 opacity-0 pointer-events-none':
+                     '-translate-y-2 opacity-0 pointer-events-none max-md:hidden':
                         !isDropdownOpen,
                   }">
                   <StSpace

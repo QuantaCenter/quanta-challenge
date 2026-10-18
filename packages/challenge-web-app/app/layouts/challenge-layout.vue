@@ -4,7 +4,6 @@ import {
    History,
    LayoutFour,
    Return,
-   SettingOne,
    UploadWeb,
 } from '@icon-park/vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
@@ -79,20 +78,24 @@ const avatarUrl = computed(() => {
 
 <template>
    <StMessageProvider>
-      <div class="flex h-screen w-full bg-[#111111] p-3 gap-3">
+      <div class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:flex-col max-md:p-2 max-md:gap-2">
          <StMiniSidebar>
             <StMiniSidebarDivider />
 
             <!-- 导航按钮组 -->
-            <StSpace direction="vertical" align="center" gap="0.5rem">
+            <StSpace
+               direction="vertical"
+               align="center"
+               gap="0.5rem"
+               class="max-md:!flex-row">
                <template v-if="mode === 'record'">
                   <StSidebarSidePopper content="返回题目">
                      <NuxtLink :to="`/challenge/editor/${id}`">
                         <StRippleEffect>
                            <button
-                              class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
-                              <Return class="text-[1.1rem]" />
-                           </button>
+                           class="size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
+                           <Return class="text-[1.1rem]" />
+                        </button>
                         </StRippleEffect>
                      </NuxtLink>
                   </StSidebarSidePopper>
@@ -103,7 +106,7 @@ const avatarUrl = computed(() => {
                      <StRippleEffect>
                         <button
                            @click="toggleDetailWindow"
-                           class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer"
+                           class="size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer"
                            :class="{
                               '!text-primary': store.detailWindowOpened,
                            }">
@@ -116,9 +119,9 @@ const avatarUrl = computed(() => {
                      <NuxtLink :to="`/challenge/record/${id}`">
                         <StRippleEffect>
                            <button
-                              class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
-                              <History class="text-[1.1rem]" />
-                           </button>
+                           class="size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
+                           <History class="text-[1.1rem]" />
+                        </button>
                         </StRippleEffect>
                      </NuxtLink>
                   </StSidebarSidePopper>
@@ -129,7 +132,11 @@ const avatarUrl = computed(() => {
             <template v-if="mode === 'problem'">
                <StMiniSidebarDivider />
 
-               <StSpace direction="vertical" align="center" gap="0.5rem">
+               <StSpace
+                  direction="vertical"
+                  align="center"
+                  gap="0.5rem"
+                  class="max-md:!flex-row">
                   <!-- 注意：这里刻意 **不** 使用原生 disabled 属性。
                        原生 disabled 的按钮不会触发 click，用户点了没有任何反应，
                        也就看不到"为什么不能提交"。改为用样式表达不可用，
@@ -142,7 +149,7 @@ const avatarUrl = computed(() => {
                            : '提交（容器未就绪，点击查看原因）'
                      "
                      :aria-disabled="!store.hasProjectInitialized"
-                     class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 hover:bg-accent-500 transition-colors cursor-pointer !text-success"
+                     class="size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center rounded-full bg-accent-600 hover:bg-accent-500 transition-colors cursor-pointer !text-success"
                      :class="{
                         '!opacity-40 !text-accent-300':
                            !store.hasProjectInitialized,
@@ -158,6 +165,7 @@ const avatarUrl = computed(() => {
 
                   <StMiniSidebarButton
                      name="布局"
+                     class="max-md:hidden"
                      @click="layoutMenuOpened = true">
                      <LayoutFour class="text-[1.1rem]" />
                   </StMiniSidebarButton>
@@ -172,22 +180,23 @@ const avatarUrl = computed(() => {
                direction="vertical"
                align="center"
                gap="0.5rem"
-               class="mb-1">
-               <StSidebarSidePopper content="设置">
+               class="mb-1 max-md:!flex-row max-md:mb-0">
+               <!-- 设置入口暂无功能，先下线，恢复时取消注释 -->
+               <!-- <StSidebarSidePopper content="设置">
                   <StRippleEffect>
                      <button
-                        class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
+                        class="size-[2.75rem] max-md:!size-[2.25rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
                         <SettingOne class="text-[1.1rem]" />
                      </button>
                   </StRippleEffect>
-               </StSidebarSidePopper>
+               </StSidebarSidePopper> -->
 
                <StAvatar size="2.25rem" :url="avatarUrl" />
             </StSpace>
          </StMiniSidebar>
 
          <!-- 主内容区 -->
-         <div class="flex-1 h-full overflow-hidden">
+         <div class="flex-1 h-full overflow-hidden max-md:h-auto max-md:min-h-0">
             <slot></slot>
          </div>
 

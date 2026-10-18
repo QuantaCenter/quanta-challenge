@@ -159,12 +159,12 @@ watch(selectedRecord, (newRecord) => {
             提交记录
          </h2>
       </StSpace>
-      <StSpace fill class="relative overflow-auto hide-scrollbar">
+      <StSpace fill class="relative overflow-auto hide-scrollbar max-md:!overflow-visible">
          <StSpace
             direction="vertical"
             fill
             gap="0.5rem"
-            class="absolute left-0 top-0">
+            class="absolute left-0 top-0 max-md:!static">
             <StSkeleton :loading="loading">
                <template #loading>
                   <CommitRecordSkeleton />

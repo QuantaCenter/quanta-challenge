@@ -203,14 +203,14 @@ const closable = computed(() => {
          @close="close"
          title="正在准备提交"
          :closable="closable"
-         class="border border-accent-500 w-[31.25rem]">
+         class="border border-accent-500 w-[31.25rem] max-md:!w-[calc(100vw-2.5rem)]">
          <StSpace fill-x gap="1.25rem" direction="vertical" align="center">
             <StProgress
                direction="horizontal"
                :steps="steps"
-               class="!w-[21.25rem]" />
+               class="!w-[21.25rem] max-md:!w-full" />
             <main
-               class="w-[28.75rem] h-[10.9375rem] rounded-[0.375rem] bg-[#1C1C1C] relative overflow-auto">
+               class="w-[28.75rem] h-[10.9375rem] rounded-[0.375rem] bg-[#1C1C1C] relative overflow-auto max-md:!w-full">
                <StSpace fill class="relative my-2 mx-3">
                   <main
                      :ref="containerKey"

@@ -8,7 +8,7 @@ export const DataBlock: FunctionalComponent<{ title: string }> = (
    { slots }
 ) => {
    return (
-      <StSpace direction='vertical' gap='0.5rem' class='w-full'>
+      <StSpace direction='vertical' gap='0.5rem' class='w-full max-md:!w-[calc(50%-0.75rem)]'>
          <span class='st-font-body-normal text-accent-200'>{title}</span>
          <div class='font-family-manrope font-bold'>{slots.default?.()}</div>
       </StSpace>

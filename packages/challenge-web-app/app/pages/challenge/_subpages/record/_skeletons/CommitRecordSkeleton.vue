@@ -5,7 +5,7 @@
       direction="vertical"
       fill
       gap="0.5rem"
-      class="absolute left-0 top-0">
+      class="absolute left-0 top-0 max-md:!static">
       <StSkeletonItem
          v-for="i in 6"
          :key="i"

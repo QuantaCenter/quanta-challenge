@@ -72,7 +72,7 @@ export const useRequestHistory = () => {
 
    const record = (entry: Omit<IRequestHistoryEntry, 'id' | 'at'>) => {
       entries.value = [
-         { ...entry, id: crypto.randomUUID(), at: Date.now() },
+         { ...entry, id: createUuid(), at: Date.now() },
          ...entries.value,
       ].slice(0, MAX_ENTRIES);
       persist();

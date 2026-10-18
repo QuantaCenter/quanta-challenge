@@ -554,7 +554,7 @@ useSeoMeta({
 </script>
 
 <template>
-   <StSpace fill class="pr-4">
+   <StSpace fill class="pr-4 max-md:pr-0">
       <DetailWindow :markdown="problem?.detail" />
       <CommitModal
          :run-commands="runCommand"
