@@ -149,11 +149,14 @@ watch(selectedPath, (newPath) => {
 
 // code editor
 const codeEditor = useTemplateRef('code-editor');
+const boardLayout = useTemplateRef('board-layout');
 const pathToRecreate = new Set<string>();
 
 const handleFileClick = (_: IFileSystemItem, wasSuspense: boolean) => {
    // 如果点击的是 suspense 文件，标记需要强制重新创建 model
    wasSuspense && pathToRecreate.add(_.path);
+   // 移动端点击文件后自动滑到编辑器板块
+   _.type === 'file' && boardLayout.value?.openBoard('code');
 };
 
 onMounted(() => {
@@ -563,7 +566,7 @@ useSeoMeta({
          :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
-         <EditorBoardLayout :preview-label="previewBoardLabel">
+         <EditorBoardLayout ref="board-layout" :preview-label="previewBoardLabel">
             <template #board-files>
                <FileManagerPanel
                   :dir-loader="dirLoader"

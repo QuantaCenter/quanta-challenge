@@ -119,6 +119,15 @@ const scrollToBoard = (index: number) => {
    el.scrollTo({ left: index * el.clientWidth, behavior: 'smooth' });
 };
 
+/** 移动端点击文件后跳到指定板块（PC 多栏布局无此交互） */
+const openBoard = (id: EditorBoardId) => {
+   if (!window.matchMedia('(max-width: 767.98px)').matches) return;
+   const index = order.value.indexOf(id);
+   if (index >= 0) scrollToBoard(index);
+};
+
+defineExpose({ openBoard });
+
 // ————————————————— 拖拽换位 —————————————————
 const draggingBoard = ref<EditorBoardId | null>(null);
 const dragOverBoard = ref<EditorBoardId | null>(null);
