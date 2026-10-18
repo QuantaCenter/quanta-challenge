@@ -1,5 +1,5 @@
 import prisma from '~~/lib/prisma';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { LRUMap } from '~~/server/utils/lru-map';
 import { middleware } from '../trpc';
 

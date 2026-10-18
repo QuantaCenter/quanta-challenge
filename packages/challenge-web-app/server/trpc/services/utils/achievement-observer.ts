@@ -5,7 +5,7 @@ import { ValidPath } from '~~/lib/track-wrapper';
 import { LRUMap } from '../../../utils/lru-map';
 import { EventEmitter } from '../../../../app/utils/event-emitter';
 import { VM } from 'vm2';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 const { Parser } = pkg;
 

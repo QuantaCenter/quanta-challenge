@@ -23,7 +23,6 @@ export interface ExecutionJob {
    user: CloudFunctionUser | null;
    timeoutMs: number;
    kv: CloudFunctionKv;
-   traceId?: string;
 }
 
 const KNOWN_ERROR_CODES = new Set<string>([

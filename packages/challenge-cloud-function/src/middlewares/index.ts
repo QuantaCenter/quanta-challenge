@@ -1,18 +1,26 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import { CF_HEADER, verifyCloudFunctionSignature } from '@challenge/shared/cloud-function';
+import {
+   createTraceId,
+   isValidTraceId,
+   runWithRequestContext,
+   getRequestContext,
+} from '@challenge/shared/trace';
 import type { ZodType } from 'zod';
 import { config, type Scope } from '../config';
 import { resolveKey } from '../services/keys';
 import { getRedis } from '../services/redis';
 import { fail } from '../utils/errors';
-import { createTraceId } from '../utils/ids';
 import type { Caller } from '../types';
 
-/** 为每个请求生成/透传 traceId（在验签之前，保证报错也能带上）。 */
+/** 为每个请求生成/透传 traceId（在验签之前，保证报错也能带上），并开启 ALS 请求上下文：
+ * 之后所有日志经 shared logger mixin 自动带上顶层 trace_id */
 export const traceMiddleware: MiddlewareHandler = async (c, next) => {
    const incoming = c.req.header('x-trace-id');
-   c.set('traceId', incoming && incoming.length > 0 ? incoming : createTraceId());
-   await next();
+   const traceId = isValidTraceId(incoming) ? incoming : createTraceId();
+   c.set('traceId', traceId);
+   c.header('x-trace-id', traceId);
+   await runWithRequestContext({ traceId }, next);
 };
 
 export const signatureMiddleware: MiddlewareHandler = async (c, next) => {
@@ -88,6 +96,9 @@ export const signatureMiddleware: MiddlewareHandler = async (c, next) => {
       restricted: resolved.restricted,
       userId,
    };
+
+   const requestContext = getRequestContext();
+   if (requestContext && caller.userId) requestContext.userId = caller.userId;
 
    c.set('caller', caller);
    c.set('rawBody', rawBody);

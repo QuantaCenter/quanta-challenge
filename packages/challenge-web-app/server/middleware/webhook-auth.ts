@@ -1,6 +1,6 @@
 import { verifyOpenApiSign } from '@challenge/shared/openapi';
 import z from 'zod';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 export default defineEventHandler((event) => {
    if (!event.path.startsWith('/api/webhooks/')) return;

@@ -35,8 +35,8 @@ const columns: ITableColumn[] = [
       skeletonClass: 'h-5 w-[5rem] rounded-md',
    },
    {
-      key: 'submissions',
-      title: '提交次数',
+      key: 'passCount',
+      title: '通过次数',
       width: '6rem',
       cellAlign: 'center',
       skeletonClass: 'h-5 w-[5rem] rounded-md mx-auto',
@@ -96,9 +96,9 @@ const columns: ITableColumn[] = [
             </span>
          </template>
 
-         <template #cell-submissions="{ row }">
+         <template #cell-passCount="{ row }">
             <span class="text-white font-family-manrope">
-               {{ row.submissions }}
+               {{ row.passCount }}
             </span>
          </template>
 

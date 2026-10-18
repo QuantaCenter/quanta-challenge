@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import prisma from '~~/lib/prisma';
 import { rankService } from '../../trpc/services/rank';
 

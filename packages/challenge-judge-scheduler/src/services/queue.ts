@@ -1,6 +1,7 @@
 import { Queue, Worker, type Processor } from 'bullmq';
 import { Singleton } from '../utils/singleton';
 import { logger } from '../utils/logger';
+import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import { RedisService } from './redis';
 import { EventEmitterService } from '../utils/event-emitter';
 import { EventType } from '../events/index';
@@ -35,8 +36,25 @@ export class QueueService extends Singleton {
       const workers = new Array(count).fill(0).map(() => {
          const worker = new Worker(name, processor, { connection: this.redis });
 
+         // worker 事件回调脱离 processor 的 ALS 作用域，用 job 携带的上下文重建，日志保持同 trace。
+         const withJobContext = (
+            job: { data?: { traceId?: string; userId?: string } } | undefined,
+            fn: () => void,
+         ) =>
+            job?.data
+               ? runWithRequestContext(
+                    {
+                       traceId: job.data.traceId ?? createTraceId(),
+                       userId: job.data.userId,
+                    },
+                    fn,
+                 )
+               : fn();
+
          worker.on('completed', (job, result) => {
-            logger.info(`Job ${job.id} completed successfully.`);
+            withJobContext(job, () =>
+               logger.info(`Job ${job.id} completed successfully.`),
+            );
             EventEmitterService.instance.emit(EventType.TASK_COMPLETED, {
                job,
                result,
@@ -44,9 +62,11 @@ export class QueueService extends Singleton {
          });
 
          worker.on('failed', (job, err) => {
-            logger.error(
-               { err },
-               `Job ${job?.id} failed with error: ${err?.message}`
+            withJobContext(job, () =>
+               logger.error(
+                  { err },
+                  `Job ${job?.id} failed with error: ${err?.message}`
+               ),
             );
             EventEmitterService.instance.emit(EventType.TASK_FAILED, {
                job,

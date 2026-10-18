@@ -101,7 +101,7 @@ pino 的 level number 与 OTel `severity_number` 不同，需映射：
 
 ## 7. 与现有系统的衔接
 
-1. **trace 链路**：现有约定是服务间通过 `x-trace-id` 请求头传递（tRPC context `ctx.traceId`、cloud-function `c.get('traceId')`），协议沿用该头，其值写入日志 `trace_id` 字段。逐步对齐为 W3C Trace Context 格式（32 位 hex）。
+1. **trace 链路**：服务间通过 `x-trace-id` 请求头传递，协议沿用该头，其值写入日志 `trace_id` 字段。**已落地为 W3C Trace Context 格式（32 位 hex）**：`@challenge/shared/trace` 提供 `createTraceId` / `isValidTraceId` / ALS 请求上下文；各服务入口（web-app 的 `server/plugins/trace-context.ts`、cloud-function 的 `traceMiddleware`、judge-scheduler 的 `/task/create` 与 `judgeProcessor`）建立上下文，日志由 `buildLogger` 的 `getRequestContext` mixin 自动注入顶层 `trace_id` 与 `attributes.quanta.user.id/role`，调用点无需手传。判题回调 `requestWebhook` 会回传 `x-trace-id`，web-app `judge-complete` 日志与调度器同 trace。旧格式（UUID / 16-hex）一律重新生成，不做透传。
 2. **pino 现状**：
    - `packages/challenge-cloud-function/src/utils/logger.ts` 已具备"生产 JSON / 开发 pretty + LOG_LEVEL"模式，作为协议基线实现；
    - `packages/challenge-web-app/lib/logger.ts` 生产环境也走 pino-pretty，需改造。

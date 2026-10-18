@@ -1,10 +1,11 @@
 import { hostname } from 'node:os';
 import pino from 'pino';
 import type { Logger } from 'pino';
+import { getRequestContext, type RequestContext } from './trace';
 
 export type { Logger };
-
-/** LOG_REPORTING_PROTOCOL（docs/LOG_REPORTING_PROTOCOL.md）的统一实现：生产输出 OTel 风格 JSON Lines，开发用 pino-pretty；trace 链路用 logger.child({ trace_id }) 绑定到协议顶层字段。 */
+export { createTraceId, getRequestContext, runWithRequestContext, isValidTraceId } from './trace';
+export type { RequestContext } from './trace';
 
 /** pino level number -> OTel severity_number（协议 §5）。 */
 const PINO_TO_OTEL_SEVERITY: Record<number, number> = {
@@ -26,6 +27,8 @@ export interface BuildLoggerOptions {
    serviceVersion?: string;
    /** 默认日志级别，可被 LOG_LEVEL 环境变量覆盖。 */
    level?: string;
+   /** 每条日志输出前读取请求上下文（ALS）：trace_id 写协议顶层，userId/role 写 attributes.quanta.user.*。 */
+   getRequestContext?: () => RequestContext | undefined;
 }
 
 /** err 键归一化为 OTel 错误语义字段（协议 §6.1）。 */
@@ -65,13 +68,33 @@ const toProtocolObject = (
    return Object.keys(attributes).length > 0 ? { ...topLevel, attributes } : topLevel;
 };
 
+/** 请求上下文 -> mixin 输出：trace_id 顶层（TOP_LEVEL_KEYS 白名单），用户身份进 attributes。 */
+const requestContextMixin = (
+   getRequestContext: BuildLoggerOptions['getRequestContext'],
+) => {
+   if (!getRequestContext) return undefined;
+   return () => {
+      const ctx = getRequestContext();
+      if (!ctx) return {};
+      const attributes: Record<string, unknown> = {};
+      if (ctx.userId !== undefined) attributes['quanta.user.id'] = ctx.userId;
+      if (ctx.role !== undefined) attributes['quanta.user.role'] = ctx.role;
+      return {
+         trace_id: ctx.traceId,
+         ...(Object.keys(attributes).length > 0 ? { attributes } : {}),
+      };
+   };
+};
+
 export const buildLogger = (options: BuildLoggerOptions): Logger => {
    const level = process.env.LOG_LEVEL || options.level || 'info';
+   const mixin = requestContextMixin(options.getRequestContext);
 
-   // 开发环境：pino-pretty 美化输出，不做字段映射（协议 §1）。
+   // 开发环境：pino-pretty 美化输出，不做字段映射（协议 §1）；trace_id 仍由 mixin 注入。
    if (process.env.NODE_ENV !== 'production') {
       return pino({
          level,
+         mixin,
          transport: {
             target: 'pino-pretty',
             options: {
@@ -97,6 +120,7 @@ export const buildLogger = (options: BuildLoggerOptions): Logger => {
 
    return pino({
       level,
+      mixin,
       // msg -> body
       messageKey: 'body',
       // time -> timestamp（ISO 8601 UTC 字符串）

@@ -1,7 +1,7 @@
 import prisma, { tracker } from '~~/lib/prisma';
 import { AchievementObserver } from './utils/achievement-observer';
 import { requestContext } from '../context';
-import { logger } from '../../../lib/logger';
+import { logger } from '../../utils/logger';
 
 export const observer = new AchievementObserver(() => {
    const ctx = requestContext.getStore();
