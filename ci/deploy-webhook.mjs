@@ -54,6 +54,17 @@ const SERVICES = {
       codes: [200],
       healthDeadlineMs: 60_000,
    },
+   // 监控栈自研采集服务：独立 compose 项目（packages/challenge-observation/deploy），
+   // 不能和业务栈混在同一条 compose 命令里（项目目录/env/网络都不同）。
+   // 镜像在 compose 里写作本地名 challenge-observation:latest，部署前把发布镜像重打到该标签。
+   observation: {
+      refVar: '',
+      ref: 'challenge-observation:latest',
+      composeFile: 'packages/challenge-observation/deploy/docker-compose.yml',
+      envFile: 'packages/challenge-observation/deploy/.env',
+      health: env.HEALTH_OBSERVATION || 'http://127.0.0.1:9310/healthz',
+      codes: [200],
+   },
 };
 
 /**
@@ -211,10 +222,23 @@ const composeUp = async (services, refs) => {
    // --no-deps：只动本次变化的服务。本机 override 的依赖图里 web-app 的条件被基座 list 形式
    // 覆盖，带动依赖重起会卡在 "scheduler has no healthcheck configured"，且重启依赖也没必要
    if (services.includes('challenge-judge-scheduler')) await freeJudgeMachinePort();
-   await docker([...composeArgs, 'up', '-d', '--no-deps', ...services], { env: extra });
+   // 业务栈与监控栈是不同 compose 项目，必须按项目分组分别 up
+   const groups = new Map();
    for (const s of services) {
-      const cid = await docker(['ps', '-q', '--filter', `label=com.docker.compose.service=${s}`]);
-      if (!cid || (await docker(['inspect', '--format', '{{.State.Running}}', cid])) !== 'true') throw new Error(`${s} 容器未运行`);
+      const cfg = SERVICES[s];
+      const args = cfg.composeFile
+         ? ['compose', '-f', cfg.composeFile, ...(cfg.envFile ? ['--env-file', cfg.envFile] : [])]
+         : composeArgs;
+      const key = args.join(' ');
+      if (!groups.has(key)) groups.set(key, { args, services: [] });
+      groups.get(key).services.push(s);
+   }
+   for (const { args, services: group } of groups.values()) {
+      await docker([...args, 'up', '-d', '--no-deps', ...group], { env: extra });
+      for (const s of group) {
+         const cid = await docker(['ps', '-q', '--filter', `label=com.docker.compose.service=${s}`]);
+         if (!cid || (await docker(['inspect', '--format', '{{.State.Running}}', cid])) !== 'true') throw new Error(`${s} 容器未运行`);
+      }
    }
 };
 
@@ -249,10 +273,11 @@ const deploy = async (payload) => {
          log(`[tag] ${localName}:latest -> ${ids.get(image.name).slice(0, 19)}`);
       }
 
-      // 打标签：web-app 用「官方名:tag」并写入 compose 变量；调度器无 image:，只能换成正在用的标签
+      // 打标签：web-app 用「官方名:tag」并写入 compose 变量；调度器无 image:，只能换成正在用的标签；
+      // observation 用固定的本地标签 challenge-observation:latest（compose 里就这么写）
       for (const t of targets) {
          const prev = saved.find((s) => s.service === t.service);
-         refs[t.service] = SERVICES[t.service].refVar ? `${t.image}:${t.tag}` : prev.ref;
+         refs[t.service] = SERVICES[t.service].refVar ? `${t.image}:${t.tag}` : SERVICES[t.service].ref || prev.ref;
          await docker(['tag', ids.get(t.name), refs[t.service]]);
       }
       await composeUp(targets.map((t) => t.service), refs);

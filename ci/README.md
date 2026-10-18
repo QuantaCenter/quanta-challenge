@@ -45,7 +45,8 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
    失败按 `ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）；
    镜像一多时并行能把总耗时从「串行求和」压到「最慢的那个镜像」附近。
-5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz` 做健康检查。
+5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz`、
+   `:9310/healthz` 做健康检查。
    启动调度器前先移除占用 1889 的残留容器（前端判题机容器由调度器自己创建，不随上一实例退出而消失）。
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
@@ -80,6 +81,13 @@ curl -s 127.0.0.1:1890/healthz   # 期望 {"ok":true,...}
 之后它的镜像由 `publish-images.yml` 随 `cloud-function` 矩阵项发布（推 GHCR），webhook 自动接管。
 注意 `challenge-web-app` 与调度器都 `depends_on` 它，这个容器不存在时两者起得来但调云函数会
 DNS 解析失败。
+
+### 监控栈自研服务（`observation`）
+
+它是监控栈（`packages/challenge-observation/deploy/docker-compose.yml`）这个**独立 compose 项目**里的
+服务，webhook 拉取发布镜像后重打为本地标签 `challenge-observation:latest`，再用监控栈自己的
+compose 文件（带项目目录下的 `.env`）`up -d --no-deps observation`，健康检查 `:9310/healthz`。
+监控栈其余组件（Prometheus/Loki/Grafana 等）用上游官方镜像，不随发布更新。
 
 状态：`/var/lib/quanta-deploy/state.json`（含最近 20 次记录、回滚点），日志 `/var/log/quanta-deploy-webhook.log`。
 

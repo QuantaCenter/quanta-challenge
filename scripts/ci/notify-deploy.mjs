@@ -23,10 +23,12 @@ import { request as httpsRequest } from 'node:https';
 /**
  * 镜像 → docker compose 服务名的映射。
  *
- * 注意只有 web-app / judge-scheduler / cloud-function 是默认 compose profile 里的服务；
+ * 注意只有 web-app / judge-scheduler / cloud-function 是业务栈 compose profile 里的服务；
  * judge-machine 跑在宿主机（端口 1889），live-server 镜像是调度器在判题时按需构建的，
  * 两者都不由 `docker compose up` 管理，因此 service 为 null，服务端自行决定怎么处理
  * （预拉镜像 / 重启宿主机进程）。
+ * observation 是监控栈（packages/challenge-observation/deploy）这个独立 compose 项目的
+ * 服务，部署机侧会用该项目自己的 compose 文件 up（见 ci/deploy-webhook.mjs 的 SERVICES）。
  */
 const COMPOSE_SERVICE = {
    'web-app': 'challenge-web-app',
@@ -36,6 +38,7 @@ const COMPOSE_SERVICE = {
    'backend-service': null,
    'backend-judge-machine': null,
    'cloud-function': 'challenge-cloud-function',
+   'observation': 'observation',
 };
 
 // webhook 同步等部署完成（docker pull 最长 8 分钟）才回包
