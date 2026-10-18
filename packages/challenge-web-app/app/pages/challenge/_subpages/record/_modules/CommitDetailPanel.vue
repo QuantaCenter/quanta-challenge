@@ -188,11 +188,16 @@ const StatusIcon = () => {
       align="center"
       class="bg-[#1C1C1C] rounded-xl p-4">
       <div class="w-[38rem] h-full relative overflow-auto hide-scrollbar">
-         <StSkeleton :loading="loading || !detail">
+         <StSkeleton :loading="loading">
             <template #loading>
                <CommitDetailSkeleton />
             </template>
+            <StEmptyStatus
+               v-if="!detail"
+               content="你还没有任何提交"
+               class="opacity-50" />
             <StSpace
+               v-else
                class="w-[38rem] min-h-full absolute top-0 left-0 mt-1"
                gap="1rem"
                direction="vertical">

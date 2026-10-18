@@ -369,6 +369,8 @@ const getRecentProblemsProcedure = protectedProcedure
             problem: {
                isDeprecated: false,
                status: 'published',
+               // 只保留母题的当前版本，过滤掉旧版本的提交
+               CurrentOfBase: { isNot: null },
             },
          },
          distinct: ['problemId'],
