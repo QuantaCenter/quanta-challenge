@@ -76,6 +76,7 @@ X-Quanta-Signature: sha256=<hex>           # 见下一节
 | `web-app` | `challenge-web-app` | compose 服务，`docker compose pull/up` 即可 |
 | `judge-scheduler` | `challenge-judge-scheduler` | 同上 |
 | `cloud-function` | `challenge-cloud-function` | 同上。首发会先跑 `prisma migrate deploy`，部署机侧健康探测窗口放宽到 60s |
+| `observation` | `observation` | 监控栈自研采集服务，属于**独立 compose 项目**（`packages/challenge-observation/deploy/docker-compose.yml`），要用该项目自己的 compose 文件 up（业务栈 compose 里没有它）；部署机把发布镜像重打为本地标签 `challenge-observation:latest`，健康检查 `:9310/healthz` |
 | `judge-machine` | `null` | 跑在宿主机（端口 1889），不在默认 compose profile 里，部署机自行处理（如预拉镜像 + 重启宿主机进程） |
 | `live-server` | `null` | 该镜像是调度器判题时按需构建的，通常只需预拉到本地即可 |
 | `backend-service` | `null` | 后端服务题型的题目容器基础镜像（默认镜像），调度器按需使用，预拉到本地即可 |

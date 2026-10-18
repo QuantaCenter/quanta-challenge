@@ -79,6 +79,20 @@ const IMAGES = [
          'packages/shared', // COPY packages/shared
       ],
    },
+   {
+      short: 'observation',
+      title: '可观测性上报服务',
+      dockerfile: 'packages/challenge-observation/Dockerfile',
+      // 只 COPY package.json / tsconfig.json / scripts / src。deploy/ 下的 compose、
+      // Grafana/Prometheus 配置不进镜像（部署机直接用仓库工作区里的文件），改它们不重建镜像。
+      watches: [
+         'packages/challenge-observation/Dockerfile',
+         'packages/challenge-observation/package.json',
+         'packages/challenge-observation/tsconfig.json',
+         'packages/challenge-observation/scripts', // COPY scripts（构建脚本）
+         'packages/challenge-observation/src', // COPY src
+      ],
+   },
 ];
 
 /** 影响所有镜像的路径：这些文件一变，每个镜像的依赖层都会变。 */
