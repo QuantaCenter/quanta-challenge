@@ -211,7 +211,8 @@ export default defineNuxtConfig({
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
          // 前端监控（@sentry/nuxt）：事件经 tunnel 同源代理进入 observation 服务， 不直连 Sentry SaaS。DSN 仅作事件元数据（publicKey = app 标识）。 初始化见根目录 sentry.client.config.ts
          sentry: {
-            dsn: env('SENTRY_DSN', 'http://challenge-web-app@localhost:9310/1'),
+            // publicKey 不能含连字符：@sentry/core 的 DSN_REGEX 对 publicKey 只认 \w，带 "-" 会让 DSN 解析失败、SDK 静默禁用（错误处理器也不安装）
+            dsn: env('SENTRY_DSN', 'http://challenge_web_app@localhost:9310/1'),
             tunnel: env('SENTRY_TUNNEL', '/api/observation/sentry-tunnel'),
             release: env('RELEASE_VERSION', 'dev'),
             environment: env('SENTRY_ENVIRONMENT', ''),
