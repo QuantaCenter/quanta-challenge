@@ -80,6 +80,16 @@ const { data: hasCompletedTodayChallenge } = useAsyncData(
    () => $trpc.protected.daily.hasCompletedDailyProblem.query()
 );
 
+// 当前用户已完成的题目 pid 列表，用于在题目卡片上显示完成状态
+const { data: completedProblemIds } = useAsyncData(
+   'completed-problem-ids',
+   () => $trpc.protected.problem.listCompletedProblemIds.query(),
+   { default: () => [] as number[] }
+);
+const completedProblemIdSet = computed(
+   () => new Set(completedProblemIds.value)
+);
+
 const { data: trackingAchievement, refresh: refreshTrackingAchievement } =
    useAsyncData('tracking-achievement', () =>
       $trpc.protected.achievement.getCurrentCheckinAchievement.query()
@@ -145,7 +155,9 @@ const handleCheckin = async () => {
                      class="w-full"
                      :href="`/challenge/editor/${dailyProblem.pid}`"
                      target="_blank">
-                     <ProblemCard :problem="dailyProblem" />
+                     <ProblemCard
+                        :problem="dailyProblem"
+                        :completed="completedProblemIdSet.has(dailyProblem.pid)" />
                   </a>
                   <StSpace
                      v-else

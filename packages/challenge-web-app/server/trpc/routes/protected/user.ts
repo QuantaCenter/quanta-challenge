@@ -364,7 +364,13 @@ const getRecentProblemsProcedure = protectedProcedure
       }
 
       const recentSubmissions = await prisma.judgeRecords.findMany({
-         where: { userId: user.id },
+         where: {
+            userId: user.id,
+            problem: {
+               isDeprecated: false,
+               status: 'published',
+            },
+         },
          distinct: ['problemId'],
          orderBy: { createdAt: 'desc' },
          take: 5,

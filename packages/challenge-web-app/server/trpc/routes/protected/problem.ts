@@ -257,6 +257,51 @@ const getCommitRecordDetailProcedure = protectedProcedure
       return record;
    });
 
+const GetCurrentProblemPidSchema = z.object({
+   problemId: z.number('Problem ID must be a number'),
+});
+
+const getCurrentProblemPidProcedure = protectedProcedure
+   .input(GetCurrentProblemPidSchema)
+   .query(async ({ input }) => {
+      const problem = await prisma.problems.findUnique({
+         where: { pid: input.problemId },
+         select: {
+            pid: true,
+            BaseProblem: {
+               select: { currentPid: true },
+            },
+         },
+      });
+      if (!problem) {
+         throw new TRPCError({
+            code: 'NOT_FOUND',
+            message: 'Problem not found',
+         });
+      }
+      // 母题没有当前版本（被删除置空）时，回退为该题目自身的 pid
+      return { pid: problem.BaseProblem?.currentPid ?? problem.pid };
+   });
+
+// 获取当前用户已完成（judge 通过）的题目 pid 列表
+const listCompletedProblemIdsProcedure = protectedProcedure.query(
+   async ({ ctx }) => {
+      const { userId } = ctx.user;
+
+      const records = await prisma.judgeRecords.findMany({
+         where: {
+            userId,
+            result: 'success',
+            type: 'judge',
+         },
+         select: { problemId: true },
+         distinct: ['problemId'],
+      });
+
+      return records.map((record) => record.problemId);
+   },
+);
+
 // 获取提交统计
 const getCommitStatisticProcedure = protectedProcedure.query(
    async ({ ctx }) => {
@@ -276,8 +321,10 @@ const getCommitStatisticProcedure = protectedProcedure.query(
 export const problemRouter = router({
    getOrForkProject: getOrForkProjectProcedure,
    getProblemDetail: getProblemDetailProcedure,
+   getCurrentProblemPid: getCurrentProblemPidProcedure,
    commitAnswer: commitAnswerProcedure,
    getAllCommitRecords: getAllCommitRecordsProcedure,
    getCommitRecordDetail: getCommitRecordDetailProcedure,
    getCommitStatistic: getCommitStatisticProcedure,
+   listCompletedProblemIds: listCompletedProblemIdsProcedure,
 });

@@ -23,6 +23,16 @@ const { data: tags, status: tagsStatus } = useAsyncData(
    async () => await $trpc.public.tag.list.query(),
 );
 
+// 当前用户已完成的题目 pid 列表，用于在题目卡片上显示完成状态
+const { data: completedProblemIds } = useAsyncData(
+   'completed-problem-ids',
+   () => $trpc.protected.problem.listCompletedProblemIds.query(),
+   { default: () => [] as number[] }
+);
+const completedProblemIdSet = computed(
+   () => new Set(completedProblemIds.value)
+);
+
 const scrollContainer = ref<ComponentPublicInstance | null>(null);
 const scrollEl = computed(
    () => (scrollContainer.value?.$el as HTMLElement) ?? null,
@@ -207,7 +217,9 @@ const {
                      :cover-image-name="problem.imageName"
                      :cover-image-thumbhash="problem.imageHash"
                      :cover-image-thumbhash-url="problem.imageThumbhashUrl">
-                     <StProblemCardTitle :title="problem.title ?? '匿名题目'" />
+                     <StProblemCardTitle
+                        :title="problem.title ?? '匿名题目'"
+                        :completed="completedProblemIdSet.has(problem.pid)" />
                      <StProblemCardTags :tags="problem.tags ?? []" />
                      <StProblemCardDivider />
                      <StProblemCardInfo

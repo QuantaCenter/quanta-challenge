@@ -118,6 +118,8 @@ const getProject = async () => {
    return result;
 };
 onMounted(() => {
+   // 旧版本题目已触发重定向，不再加载其工程文件（重定向后组件会以新 pid 重新挂载）
+   if (isOutdatedVersion.value) return;
    getProject().catch((err) => {
       console.error('[challenge] 加载题目文件失败:', err);
       unsupportedReason.value = err?.message ?? '加载题目文件失败';
@@ -407,6 +409,25 @@ onMounted(() => {
       hostName.value = `localhost:${server.port}`;
    });
 });
+
+// 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，
+// 重定向到当前版本。旧版本可能已被弃用或取消发布，因此必须在加载
+// 题目详情之前完成校验，否则旧版本会直接走 404 而无法跳转。
+const { data: resolvedCurrentPid } = await useAsyncData(
+   `problem-current-pid-${props.id}`,
+   () =>
+      $trpc.protected.problem.getCurrentProblemPid.query({
+         problemId: props.id,
+      }),
+);
+const isOutdatedVersion = computed(
+   () => resolvedCurrentPid.value != null && resolvedCurrentPid.value !== props.id,
+);
+if (isOutdatedVersion.value) {
+   await navigateTo(`/challenge/editor/${resolvedCurrentPid.value}`, {
+      replace: true,
+   });
+}
 
 // get and parse problem detail
 const getProblemDetail = async () => {
