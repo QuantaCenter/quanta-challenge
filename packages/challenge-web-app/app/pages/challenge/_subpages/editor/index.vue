@@ -420,11 +420,12 @@ const { data: resolvedCurrentPid } = await useAsyncData(
          problemId: props.id,
       }),
 );
+const resolvedPid = computed(() => resolvedCurrentPid.value?.pid ?? null);
 const isOutdatedVersion = computed(
-   () => resolvedCurrentPid.value != null && resolvedCurrentPid.value !== props.id,
+   () => resolvedPid.value != null && resolvedPid.value !== props.id,
 );
 if (isOutdatedVersion.value) {
-   await navigateTo(`/challenge/editor/${resolvedCurrentPid.value}`, {
+   await navigateTo(`/challenge/editor/${resolvedPid.value}`, {
       replace: true,
    });
 }
