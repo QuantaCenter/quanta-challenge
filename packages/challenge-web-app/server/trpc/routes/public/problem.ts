@@ -98,9 +98,7 @@ const getAllPublicProblems = publicProcedure
          const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
          return {
             ...p.CurrentProblem,
-            // 没有封面时必须返回 null，而不是字符串 'unknown'：
-            // 前端会拼成 /api/static/unknown，该请求因无扩展名被 403，
-            // 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。
+            // 没有封面时必须返回 null，而不是字符串 'unknown'： 前端会拼成 /api/static/unknown，该请求因无扩展名被 403， 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。
             imageName:
                p.CurrentProblem?.CoverImage?.name ||
                p.CurrentProblem?.ProblemDefaultCover?.[0]?.image?.name ||

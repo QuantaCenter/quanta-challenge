@@ -3,8 +3,10 @@ import { Hono } from 'hono'
 import { config } from './config.ts'
 import { alertRoutes } from './routes/alerts.ts'
 import { configRoutes } from './routes/config.ts'
+import { envelopeRoutes } from './routes/envelope.ts'
 import { reportRoutes } from './routes/report.ts'
 import { register } from './metrics.ts'
+import { logger } from './logger.ts'
 
 const app = new Hono()
 
@@ -30,6 +32,9 @@ app.get('/metrics', async (c) => {
 // 前端 SDK 上报
 app.route('/api/v1/report', reportRoutes)
 
+// Sentry Envelope 接收（@sentry/nuxt 前端经 tunnel 代理、Nitro 服务端按 DSN 直连）
+app.route('/', envelopeRoutes)
+
 // 业务配置与告警记录（SQLite）
 app.use('/api/v1/config/*', requireApiToken)
 app.use('/api/v1/alerts', requireApiToken)
@@ -39,11 +44,11 @@ app.route('/api/v1/alerts', alertRoutes)
 
 app.notFound(c => c.text('not found', 404))
 app.onError((err, c) => {
-   console.error(`[observation] ${err.stack ?? err.message}`)
+   logger.error(err.stack ?? err.message)
    return c.text('internal error', 500)
 })
 
 serve({ fetch: app.fetch, port: config.port }, (info) => {
-   console.log(`[observation] listening on http://0.0.0.0:${info.port}`)
-   console.log(`[observation] db=${config.dbPath} loki=${config.lokiUrl}`)
+   logger.info(`listening on http://0.0.0.0:${info.port}`)
+   logger.info(`db=${config.dbPath} loki=${config.lokiUrl}`)
 })

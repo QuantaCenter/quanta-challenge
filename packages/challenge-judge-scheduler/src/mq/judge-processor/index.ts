@@ -268,9 +268,7 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
       // 处理错误
       outcome = 'error';
       await db.saveErrorRecord({ error, pendingTime, startTime, job });
-      // 必须清理：题目容器与 tmp/<uuid> 快照目录不会自动消失，
-      // 原实现把这行注释掉后，每次失败判题都会永久残留一个容器和一份临时文件，
-      // 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
+      // 必须清理：题目容器与 tmp/<uuid> 快照目录不会自动消失， 原实现把这行注释掉后，每次失败判题都会永久残留一个容器和一份临时文件， 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
       if (cleanup) {
          const closeContainer = cleanup;
          await timer.measure(timingId, '清理题目容器', () =>

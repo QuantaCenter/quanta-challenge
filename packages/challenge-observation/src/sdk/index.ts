@@ -11,9 +11,7 @@ declare global {
    }
 }
 
-// 前端监控 SDK：JS 异常 / Web Vitals / API 请求异常
-// 用法：initObservation({ endpoint: 'https://obs.example.com/api/v1/report', app: 'xxx' })
-// 或 <script src="observation-sdk.iife.js"> 后调用 ObservationSDK.initObservation(...)
+// 前端监控 SDK：JS 异常 / Web Vitals / API 请求异常 用法：initObservation({ endpoint: 'https://obs.example.com/api/v1/report', app: 'xxx' }) 或 <script src="observation-sdk.iife.js"> 后调用 ObservationSDK.initObservation(...)
 
 function matches(patterns: Array<string | RegExp>, value: string): boolean {
    return patterns.some(p =>

@@ -17,9 +17,7 @@ type SearchTypeString =
    | `${SearchType},${SearchType},${SearchType},${SearchType},${SearchType}`
    | `${SearchType},${SearchType},${SearchType},${SearchType},${SearchType},${SearchType}`;
 
-/**
- * 搜索请求 Schema
- */
+/** 搜索请求 Schema */
 export const searchQuerySchema = z.object({
    q: z
       .string()

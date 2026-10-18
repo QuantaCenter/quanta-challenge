@@ -38,9 +38,7 @@ const beatRadio = computed(() => {
    return (statistics.value.beatRatio * 100).toFixed(0) + '%';
 });
 
-// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数）。
-// 相比「除以昨天的名次」，以总人数为分母对大小榜单都可比，
-// 也不会因为名次靠前而放大成百分之几百。
+// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数）。 相比「除以昨天的名次」，以总人数为分母对大小榜单都可比， 也不会因为名次靠前而放大成百分之几百。
 const increaseRatio = computed(() => {
    const total = statistics.value.total;
    if (!trends.value || trends.value.trends.length < 2 || total <= 0) return 0;

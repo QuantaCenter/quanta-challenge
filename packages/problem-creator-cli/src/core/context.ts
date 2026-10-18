@@ -50,13 +50,7 @@ const resolveColor = (options: GlobalOptions, runtime: CliRuntime): boolean => {
    return runtime.isTTY ?? false;
 };
 
-/**
- * 组装一次命令执行所需的全部上下文。
- *
- * 优先级：命令行参数 > 环境变量 > 凭据文件 > 内置默认值。
- * 反过来（凭据覆盖 --api / QUANTA_API_URL）会出现"明明指定了新地址却连到上次登录的老地址"的经典事故；
- * 凭据里的 apiUrl 只在没有任何显式地址时作为回落。
- */
+/** 组装一次命令执行所需的全部上下文；优先级：命令行参数 > 环境变量 > 凭据文件 > 内置默认值。 */
 export const createCommandContext = async (
    options: GlobalOptions,
    runtime: CliRuntime,
@@ -70,12 +64,7 @@ export const createCommandContext = async (
       stderr: runtime.stderr,
    });
 
-   // 相对路径的基准目录：
-   //   1. --cwd（显式指定，CI 用）
-   //   2. INIT_CWD —— npm/pnpm 跑脚本时会把它设成"用户敲命令时所在的目录"，
-   //      于是从仓库根执行 `pnpm qpc check my-problem` 时按仓库根解析，
-   //      而不是按包目录（脚本 cwd）解析。
-   //   3. 进程 cwd（直接 `node dist/index.js` 时）
+   // 相对路径的基准目录： 1. --cwd（显式指定，CI 用） 2. INIT_CWD —— npm/pnpm 跑脚本时会把它设成"用户敲命令时所在的目录"， 于是从仓库根执行 `pnpm qpc check my-problem` 时按仓库根解析， 而不是按包目录（脚本 cwd）解析。 3. 进程 cwd（直接 `node dist/index.js` 时）
    const baseDir = options.cwd ?? runtime.env.INIT_CWD ?? runtime.cwd;
    const cwd = resolve(runtime.cwd, baseDir);
    const credentialsFile = credentialsPath(env.configDir);
@@ -96,10 +85,7 @@ export const createCommandContext = async (
    const tokenFromEnv = Boolean(options.token ?? env.token);
    if (tokenFromEnv) credentials.cookies.access = options.token ?? env.token;
 
-   /**
-    * 环境变量 / --token 提供的令牌**不落盘**：
-    * 那是 CI 的临时凭据，写进磁盘等于把令牌留在构建机上。
-    */
+   /** 环境变量 / --token 提供的令牌不落盘：那是 CI 的临时凭据。 */
    const persistCredentials = async (next?: Credentials): Promise<void> => {
       if (tokenFromEnv && !next) return;
       await writeCredentials(credentialsFile, next ?? credentials);

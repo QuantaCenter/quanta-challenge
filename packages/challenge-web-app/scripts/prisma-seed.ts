@@ -8,13 +8,7 @@ import {
    type IAchievementLoaderSeed,
 } from './achievement-seed-data.ts';
 
-/**
- * 写入超级管理员账号（首次部署用）。
- *
- * 注意：早期版本在"管理员已存在"时直接 `return` 结束整个脚本，
- * 这样后来新增的种子（例如基础成就）就永远不会被执行。现在改成独立的
- * `seedAdminUser()`，让每个种子段落互不阻塞。
- */
+/** 写入超级管理员账号（首次部署用）；独立函数避免"已存在时 return"阻塞后续种子。 */
 async function seedAdminUser() {
    const account = process.env.SUPER_ACCOUNT || '超级管理员';
    const password = process.env.SUPER_PASSWORD || 'adminpassword';
@@ -99,13 +93,7 @@ async function upsertLoader(loader: IAchievementLoaderSeed) {
    });
 }
 
-/**
- * 写入基础成就。
- *
- * 幂等：成就按唯一名 `name` upsert，图片与加载器先查后建，关联关系用复合唯一键 upsert。
- * 每次容器启动都会执行，因此**本文件是这些成就的事实来源**：改描述/分值/脚本/加载器 SQL
- * 后重新部署即可生效（详见 achievement-seed-data.ts 顶部的约定说明）。
- */
+/** 写入基础成就（幂等 upsert）；本文件是这些成就的事实来源，改动后重新部署即生效。 */
 async function seedAchievements() {
    const storeDir = resolveLocalStorePath();
    await mkdir(storeDir, { recursive: true });

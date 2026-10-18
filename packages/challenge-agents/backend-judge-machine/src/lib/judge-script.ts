@@ -1,5 +1,4 @@
-/** 判题脚本预处理：只把代码里真正的 `export default ` 改写成 `const run = `。
- * 跳过注释/字符串/模板串/正则——朴素 String.replace 会命中的正是模板首行注释。 */
+/** 判题脚本预处理：只把代码里真正的 `export default ` 改写成 `const run = `；跳过注释/字符串/模板串/正则。 */
 
 const IDENT = /[A-Za-z0-9_$]/;
 

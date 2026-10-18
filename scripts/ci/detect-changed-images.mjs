@@ -1,40 +1,14 @@
 #!/usr/bin/env node
 /**
- * 判定「这次改动需要重建哪些镜像」。
- *
- * 为什么单独写成脚本而不是塞进 workflow 的 run 里：
- * 判定规则要和各镜像 Dockerfile 的 COPY 列表严格对应，属于容易写错、且错了很隐蔽
- * （少建一个镜像 → 线上跑着旧代码；多建 → 白烧十几分钟构建时间）的逻辑。
- * 放在仓库里可以用真实提交区间在本地反复验证：见文件末尾的「本地自测」。
- *
- * ## 判定口径：**功能相关**，不是镜像字节相关
- *
- * 每个镜像的依赖来自它自己 Dockerfile 的 COPY 指令（见各 watches 的注记）。
- * 特别地，judge-machine 是 `COPY . /app`（整仓上下文），若按字节算，改任何一个文件
- * 都该重建它；但它只 `pnpm install --filter @challenge/judge-machine-agent...`，
- * 实际只消费自己目录内的源码（package.json 里没有任何 @challenge/* 依赖），
- * 因此这里只按它真正读取的路径判定，避免"改一行前端代码就重建一个带 Chromium 的镜像"。
- *
- * ## 用法
- *
- *   node scripts/ci/detect-changed-images.mjs \
- *     --base <sha> --head <sha> --repo <owner/repo> \
- *     --github-output "$GITHUB_OUTPUT" --report detect-report.md
- *
- *   --only all                  # 手动派发：全量
- *   --only web-app,live-server  # 手动派发：只建指定镜像
- *   都不给                      # 按 base..head 的 diff 自动判定
+ * 判定「这次改动需要重建哪些镜像」；判定口径按功能相关而非镜像字节相关
+ * （各镜像依赖来自自己 Dockerfile 的 COPY，judge-machine 虽 COPY 整仓但只消费自身源码）。
+ * 用法：node scripts/ci/detect-changed-images.mjs --base <sha> --head <sha> --repo <owner/repo>
+ *       [--github-output "$GITHUB_OUTPUT"] [--report detect-report.md] [--only all|a,b]
  */
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
 
-// ---------------------------------------------------------------------------
-// 镜像定义
-//
-// watches 里的每一项要么是目录（匹配其下所有文件），要么是具体文件路径。
-// 每一项都必须能在对应 Dockerfile 的 COPY 指令里找到出处，改 Dockerfile 的 COPY
-// 时请同步改这里，否则会出现"改了代码但镜像没重建"。
-// ---------------------------------------------------------------------------
+// 镜像定义：watches 里每一项是目录或具体文件路径，必须能在对应 Dockerfile 的 COPY 里找到出处；改 COPY 时须同步改这里。
 const IMAGES = [
    {
       short: 'web-app',
@@ -121,18 +95,12 @@ const IMAGES = [
    },
 ];
 
-/**
- * 影响所有镜像的路径：根依赖清单与构建上下文排除规则。
- * 所有镜像都先 COPY 根 package.json / lockfile / workspace 再 pnpm install --frozen-lockfile，
- * 所以这些文件一变，每个镜像的依赖层都会变。
- */
+/** 影响所有镜像的路径：这些文件一变，每个镜像的依赖层都会变。 */
 const GLOBAL_WATCHES = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', '.dockerignore'];
 
 const USAGE = `用法: detect-changed-images.mjs --repo owner/repo [--base <sha> --head <sha>] [--only all|a,b]`;
 
-// ---------------------------------------------------------------------------
-// 参数解析
-// ---------------------------------------------------------------------------
+// ---- 参数解析 ----
 const parseArgs = (argv) => {
    const args = { registry: 'ghcr.io', base: '', head: '', repo: process.env.GITHUB_REPOSITORY || '', only: '' };
    for (let i = 0; i < argv.length; i += 1) {
@@ -203,9 +171,7 @@ const commitExists = (rev) => {
    }
 };
 
-// ---------------------------------------------------------------------------
-// 取出改动文件列表
-// ---------------------------------------------------------------------------
+// ---- 取出改动文件列表 ----
 /**
  * @returns {{ files: string[], reason: string }}
  */
@@ -236,9 +202,7 @@ const collectChangedFiles = () => {
 
 const { files, reason, picked } = collectChangedFiles();
 
-// ---------------------------------------------------------------------------
-// 匹配
-// ---------------------------------------------------------------------------
+// ---- 匹配 ----
 const isUnder = (file, watch) => file === watch || file.startsWith(`${watch}/`);
 
 /** @returns {{ short: string, hits: string[] }[]} */
@@ -262,9 +226,7 @@ const meta = selected.map(({ short, hits }) => {
    return { ...image, image: imageName(short), hits };
 });
 
-// ---------------------------------------------------------------------------
-// 输出
-// ---------------------------------------------------------------------------
+// ---- 输出 ----
 const byShort = new Map(meta.map((m) => [m.short, m]));
 console.log(`判定依据: ${reason}`);
 if (files) {
@@ -310,8 +272,6 @@ if (args.githubOutput) {
    write('any', String(selected.length > 0));
    write('images', meta.map((m) => m.image).join('\n'));
    write('list', meta.map((m) => m.short).join(', '));
-   // 镜像标签 sha-<短哈希>：build 阶段打标签、release 阶段回读，必须用同一个值，
-   // 因此统一由这里算（head 传的是被构建的那个提交）。用 rev-parse 解析，
-   // 这样本地传 HEAD 也能算出真实短哈希。
+   // 镜像标签 sha-<短哈希>：build 打标签、release 回读须同一值，统一由这里用 rev-parse 计算。
    write('tag', `sha-${resolveSha(args.head).slice(0, 7)}`);
 }

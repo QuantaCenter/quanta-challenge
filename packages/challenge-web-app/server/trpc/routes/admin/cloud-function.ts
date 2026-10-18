@@ -21,10 +21,7 @@ const FunctionNameSchema = z
 
 const ScopeSchema = z.enum(['invoke', 'read', 'manage']);
 
-/**
- * 云函数服务只存 `createdBy`（用户 ID 或 `key:<keyId>`），这里补齐发布者的
- * 昵称与头像，供前端直接展示「头像 + 昵称」；解析不到（API Key 发布）时为 null。
- */
+/** 云函数服务只存 createdBy，这里补齐发布者昵称与头像；解析不到（API Key 发布）时为 null。 */
 const enrichVersionCreators = async (
    versions: CloudFunctionVersionRecord[],
 ) => {

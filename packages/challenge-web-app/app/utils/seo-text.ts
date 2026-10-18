@@ -30,9 +30,7 @@ export const toSeoText = (markdown?: string | null): string => {
          .replace(/```[\s\S]*?```/g, ' ')
          // 缩进式代码块
          .replace(/^(?: {4}|\t).*$/gm, ' ')
-         // 行内代码：`<style>` 这类裸标签主要就藏在这里。
-         // 不整段丢弃——否则“只需补全 `<style>` 里的样式”会变成“只需补全 里的样式”
-         // ——只把尖括号去掉，既保留可读文字，又不再有标签形态。
+         // 行内代码：`<style>` 这类裸标签主要就藏在这里。 不整段丢弃——否则“只需补全 `<style>` 里的样式”会变成“只需补全 里的样式” ——只把尖括号去掉，既保留可读文字，又不再有标签形态。
          .replace(/`([^`\n]*)`/g, (_, code: string) => ` ${code.replace(/[<>]/g, '')} `)
          // 强调记号去壳（只处理 `**` / `*`，不动 `_`，否则 snake_case 会被腰斩）
          .replace(/\*\*([^*\n]+)\*\*/g, '$1')
@@ -41,16 +39,12 @@ export const toSeoText = (markdown?: string | null): string => {
          .replace(/<!--[\s\S]*?-->/g, ' ')
          // 成对的裸标签（要求 `<` 后紧跟字母，避免把 "a < b 且 c > d" 这类正文吃掉）
          .replace(/<\/?[a-zA-Z][^<>]*>/g, ' ')
-         // 兜底：残缺写法（如只写了 `<style` 没有闭合）同样必须清掉。
-         // 凡是 HTML 解析器会当成标签起始的 `<`（后面跟字母或 `/`）都不允许留下 ——
-         // nuxt-security 的 nonce 插件就是拿 /<style|<script|<link/ 这类正则盲扫的。
+         // 兜底：残缺写法（如只写了 `<style` 没有闭合）同样必须清掉。 凡是 HTML 解析器会当成标签起始的 `<`（后面跟字母或 `/`）都不允许留下 —— nuxt-security 的 nonce 插件就是拿 /<style|<script|<link/ 这类正则盲扫的。
          .replace(/<(?=[a-zA-Z/])/g, ' ')
          // 图片整段丢弃，链接只保留可见文字
          .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ')
          .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
-         // 下面只处理**行首**的 markdown 结构记号。
-         // 不做全局标点清洗：`C#`、`*.vue`、`~100ms`、`user_name`、`Web-Container`
-         // 都是正常正文，它们在 meta 里没有任何危害（真正有危害的只有 `<`）。
+         // 下面只处理**行首**的 markdown 结构记号。 不做全局标点清洗：`C#`、`*.vue`、`~100ms`、`user_name`、`Web-Container` 都是正常正文，它们在 meta 里没有任何危害（真正有危害的只有 `<`）。
          .replace(/^\s*#{1,6}\s+/gm, ' ') // 标题
          .replace(/^[ \t]*[-+*]\s+/gm, ' ') // 列表
          .replace(/^[ \t]*>[ \t]?/gm, ' ') // 引用

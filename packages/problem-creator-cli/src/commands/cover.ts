@@ -279,9 +279,7 @@ const resolveSpec = (
       field: string,
    ): string => assertHexColor(value ?? fallback, field);
 
-   // 颜色优先级：显式参数 > --random > 配置 > 默认值。--random 生效时不再回落
-   // 到配置，否则配置里写死的配色会让 --random 看起来没生效。bgTo 特殊：随机
-   // 也可能主动决定「不要渐变」，这时同样不读配置，否则会冒出多余渐变。
+   // 颜色优先级：显式参数 > --random > 配置 > 默认值。--random 生效时不再回落 到配置，否则配置里写死的配色会让 --random 看起来没生效。bgTo 特殊：随机 也可能主动决定「不要渐变」，这时同样不读配置，否则会冒出多余渐变。
    const colorFrom = (
       flag: string | undefined,
       fromRandom: string | undefined,

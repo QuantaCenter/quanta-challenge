@@ -2,16 +2,7 @@ import { createNpmFileSystem } from '@volar/jsdelivr';
 import type { FileSystem } from '@volar/monaco/worker';
 import type { URI } from 'vscode-uri';
 
-/**
- * 按题目项目的 package.json 与锁文件提供 /node_modules 下的类型文件（内容仍来自 jsDelivr）。
- *
- * · 可见范围模拟真实安装：package.json 声明的依赖，加上这些包自己声明的依赖（读到其 package.json 时登记）。
- *   未声明的包一律视为不存在，不再“import 什么就有什么”。
- * · 版本优先取锁文件（pnpm-lock.yaml / package-lock.json / yarn.lock），否则把 semver 范围
- *   交给 jsDelivr 解析成范围内的最新版本；无法解析（workspace: / file: / git 等）的包视为不存在。
- * · 虚拟文件系统按包名平铺，同名包只能有一个版本：取锁文件里提升到顶层或被项目直接依赖的版本，
- *   否则取锁文件中的最高版本。
- */
+/** 按题目项目的 package.json 与锁文件提供 /node_modules 下的类型文件（内容来自 jsDelivr）：可见范围模拟真实安装（未声明的包视为不存在），版本优先取锁文件，同名包只保留一个版本。 */
 
 export interface ProjectFile {
    uri: { path: string };
@@ -117,12 +108,7 @@ interface NpmLockV1Entry {
    dependencies?: Record<string, NpmLockV1Entry>;
 }
 
-/**
- * 只取 pnpm-lock.yaml 里需要的两部分，按缩进逐行解析（不引入 YAML 解析器）：
- * · packages / snapshots 的键：v5 `/name/1.0.0_peer`，v6 `/name@1.0.0(peer)`，v9 `name@1.0.0(peer)`；
- * · 项目直接依赖的版本：单项目时位于顶层 dependencies，多项目时位于 importers.<路径>.dependencies，
- *   值为行内 `name: 1.0.0`（v5）或子键 `version: 1.0.0(peer)`（v6 / v9）。
- */
+/** 按缩进逐行解析 pnpm-lock.yaml（不引入 YAML 解析器），取 packages/snapshots 键与项目直接依赖版本（兼容 v5/v6/v9 格式）。 */
 const parsePnpmLock = (text: string, locked: LockedVersions) => {
    const lines = text.split(/\r?\n/);
    const lockfileVersion = parseFloat(
@@ -180,10 +166,7 @@ const parsePnpmLock = (text: string, locked: LockedVersions) => {
    }
 };
 
-/**
- * yarn.lock：v1 块头 `"a@^1.0.0", a@^1.1.0:` + `  version "1.1.2"`；
- * berry 块头 `"a@npm:^1.0.0, a@npm:^1.1.0":` + `  version: 1.1.2`。
- */
+/** 解析 yarn.lock（兼容 v1 与 berry 两种块头格式）。 */
 const parseYarnLock = (text: string, locked: LockedVersions) => {
    let specs: string[] = [];
    for (const line of text.split(/\r?\n/)) {
@@ -345,10 +328,7 @@ const isManifest = (file: ProjectFile) =>
    MANIFEST_NAMES.has(baseName(file.uri.path)) &&
    !file.uri.path.includes(`${NODE_MODULES}/`);
 
-/**
- * 依赖清单的摘要：只有依赖声明或锁文件内容变化时才会改变。
- * package.json 只取依赖字段，改 scripts 等无关字段、或编辑途中 JSON 暂时不合法时摘要保持不变。
- */
+/** 依赖清单摘要：只有依赖声明或锁文件内容变化时才改变（scripts 等无关字段或 JSON 暂时不合法不影响）。 */
 export const createManifestDigest = () => {
    let lastSignature: string | undefined;
    let lastDigest = '';

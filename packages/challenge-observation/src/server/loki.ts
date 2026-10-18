@@ -1,4 +1,5 @@
 import { config } from './config.ts'
+import { logger } from './logger.ts'
 
 // 前端异常转发 Loki：内存缓冲定时推送，失败静默丢弃
 
@@ -33,10 +34,10 @@ async function flush(): Promise<void> {
          body: JSON.stringify({ streams }),
       })
       if (!res.ok)
-         console.warn(`[loki] push failed: ${res.status}`)
+         logger.warn(`loki push failed: ${res.status}`)
    }
    catch (err) {
-      console.warn(`[loki] push error: ${(err as Error).message}`)
+      logger.warn(`loki push error: ${(err as Error).message}`)
    }
 }
 

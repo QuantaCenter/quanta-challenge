@@ -47,16 +47,7 @@ export interface ValidateOptions {
    maxFileCount?: number;
 }
 
-/**
- * 出题预检（离线）。
- *
- * 覆盖 `docs/PROBLEM_AUTHORING.md` 中「上传前的检查清单」里可以静态判定的部分：
- * 检查点是否 return 分数、点击是否会卡在 disabled 按钮、快照键前缀、
- * initCommand 与 judgeUploadPath 是否自洽、totalScore 与检查点之和是否相等。
- *
- * 审不了的部分（参考解是否真能拿满分、封面好不好看）只能靠线上审计，
- * 所以 `qpc upload --wait` 会把审计结果拉回来，而不是假装本地就能搞定。
- */
+/** 出题预检（离线）：覆盖 PROBLEM_AUTHORING 检查清单中可静态判定的部分；审不了的部分由 `qpc upload --wait` 拉回线上审计结果。 */
 export const validateProblem = async (
    config: ResolvedProblemConfig,
    options: ValidateOptions = {},

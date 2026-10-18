@@ -29,12 +29,7 @@ const parseJson = <T>(key: string, fallback: T): T => {
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-/**
- * 开发环境的兜底凭据。
- *
- * 与 web-app 的 `dev_only_*` 思路一致：开发环境开箱可用；生产环境缺失时**启动即失败**，
- * 绝不静默降级——否则任何人都能拿源码里的默认密钥伪造调用。
- */
+/** 开发环境的兜底凭据：开发开箱可用；生产缺失时启动即失败，绝不静默降级（否则默认密钥可被伪造调用）。 */
 const DEV_INTERNAL_KEYS: Record<string, string> = {
    'web-app': 'dev_only_cloud_function_web_app',
    judge: 'dev_only_cloud_function_judge',

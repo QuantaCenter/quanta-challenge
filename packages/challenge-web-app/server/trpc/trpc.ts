@@ -5,10 +5,7 @@ import z, { ZodError } from 'zod';
 
 const t = initTRPC.context<Context>().create({
    errorFormatter({ shape, error, ctx }) {
-      // Zod 4 把 ZodError.message 变成了「所有 issue 的 JSON 字符串」，
-      // 而客户端（表单）只读 error.message —— 于是用户看到的是
-      // [{"code":"custom","path":[],"message":"..."}] 这种东西。
-      // 这里把 issue 的 message 拼成一句人话；结构化明细仍然放在 data.zodError 里。
+      // Zod 4 的 ZodError.message 是所有 issue 的 JSON 串，客户端读不到人话；这里拼成可读文案，结构化明细仍在 data.zodError。
       const zodMessages =
          error.cause instanceof ZodError
             ? error.cause.issues

@@ -2,18 +2,7 @@ import client from 'prom-client';
 import { DockerService } from '../services/docker';
 import { QueueService } from '../services/queue';
 
-/**
- * 判题业务指标。
- *
- * 与 @challenge/observation/instrumentation 的 http_* 指标注册在同一个
- * prom-client 全局 registry，`/metrics` 一个端点全部输出，Prometheus 通过
- * challenge-observation 的 backends.json 抓取。
- *
- * 常驻型指标（队列深度 / 判题机可用性）用 Gauge 的 collect 回调在抓取时
- * 现场取值：无需定时器，Prometheus 15s 抓一次就实时一次。
- * dev 下 vite HMR 会重新执行本模块，同名指标二次注册会让 prom-client 抛
- * "already been registered"，因此统一走幂等注册。
- */
+/** 判题业务指标：与 observation 的 http_* 指标共用 prom-client 全局 registry 由 /metrics 统一输出；dev 下 HMR 会二次执行本模块，故统一幂等注册。 */
 
 const QUEUE_STATES = [
    'waiting',
@@ -38,8 +27,7 @@ export const judgeQueueDepth = getOrRegister(
          registers: [client.register],
          async collect() {
             try {
-               // 队列对象在首个任务提交时才创建；这里保证 judge-task 序列
-               // 从服务启动起就存在，避免「无数据」与「无积压」无法区分。
+               // 保证 judge-task 序列从启动起就存在，避免「无数据」与「无积压」无法区分
                const queueNames = new Set([
                   'judge-task',
                   ...QueueService.instance.queues.keys(),

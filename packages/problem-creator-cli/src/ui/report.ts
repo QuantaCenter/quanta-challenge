@@ -16,13 +16,7 @@ export interface RenderFindingsOptions {
    includeInfo?: boolean;
 }
 
-/**
- * 人类可读的预检报告。
- *
- * 输出格式刻意做成 `<文件>:<行> [规则号] 说明`：
- * VS Code 终端、iTerm、以及大多数编辑器的"跳转到文件"都能识别这种格式，
- * 出题人不需要自己找行号。
- */
+/** 人类可读的预检报告：格式 `<文件>:<行> [规则号] 说明`，编辑器可识别并直接跳转。 */
 export const renderFindings = (
    logger: Logger,
    findings: Finding[],

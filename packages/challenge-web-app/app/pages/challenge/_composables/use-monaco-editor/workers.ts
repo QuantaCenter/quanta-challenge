@@ -49,11 +49,7 @@ const toMonacoTextEdit = ({ range, newText }: LspTextEdit) => ({
    text: newText,
 });
 
-/**
- * @volar/monaco（截至 2.4.28）的 provideColorPresentations 从一个从未写入的 WeakMap 取颜色信息，
- * 恒返回 undefined；Monaco 拿到空列表后颜色选择器标题为空，点选时读 `[0].textEdit` 直接抛错。
- * 这里在注册时替换成按颜色自身范围请求的实现。
- */
+/** 修复 @volar/monaco 的 provideColorPresentations 恒返回 undefined（颜色选择器点选会抛错），替换为按颜色自身范围请求。 */
 const withColorPresentationsFix = (
    monacoLanguages: MonacoEditor['languages'],
    worker: editor.MonacoWebWorker<WorkerLanguageService>,
@@ -90,13 +86,7 @@ const withColorPresentationsFix = (
       },
    });
 
-/**
- * Monaco 自带的基础语言包（basic-languages）在语言首次被用到时才异步加载，随后用自己的配置
- * 覆盖已注册的同名字段。例如 html 会把 `<` `>` 加进 brackets，括号着色把找不到配对的 `<`
- * 标成红色，`<script>` 里的 `i < 20` 因此变红。这里等基础语言包加载完再注册一次，保证我们的配置最后生效。
- *
- * 必须调用 Monaco 登记的 loader，而不是自己 import 同一路径：Vite 预打包后两者可能不是同一个模块实例。
- */
+/** 等基础语言包加载完再注册一次，保证我们的配置最后生效（basic-languages 异步加载后会覆盖同名字段导致误标红）；须用 Monaco 登记的 loader 而非自行 import。 */
 const setLanguageConfigurationAfterBasic = (
    monaco: MonacoEditor,
    languageId: string,

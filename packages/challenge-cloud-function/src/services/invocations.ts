@@ -15,11 +15,7 @@ export interface InvocationRecord {
    traceId?: string | null;
 }
 
-/**
- * 异步写调用记录。
- *
- * 刻意不 await：审计日志写入失败不应影响调用结果。失败只记一条服务日志。
- */
+/** 异步写调用记录：刻意不 await，审计写入失败不影响调用结果，只记服务日志。 */
 export const recordInvocation = (record: InvocationRecord): void => {
    prisma.cloudFunctionInvocation
       .create({ data: record })

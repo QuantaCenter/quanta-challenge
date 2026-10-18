@@ -22,10 +22,7 @@ export const langRegistrations = [
    langPostcss,
 ];
 
-/**
- * 交给 Shiki 高亮的语言。Monaco 自带的语言（css / scss / less 等）已登记扩展名，
- * 其余需要在这里补上，否则对应文件会被当成纯文本。
- */
+/** 交给 Shiki 高亮的语言；Monaco 自带语言已登记扩展名，其余需在此补上，否则被当成纯文本。 */
 export const langs: { id: string; extensions?: string[] }[] = [
    { id: 'javascript' },
    { id: 'typescript' },

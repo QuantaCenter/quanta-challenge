@@ -103,9 +103,7 @@ export class TrackWrapper {
          const data = Array.isArray(args[0]?.data)
             ? args[0].data[0]
             : args[0]?.data;
-         // createMany({ data: [] }) 时 data[0] 是 undefined。
-         // 这里不能直接传给 _trackAffectedPaths：Object.entries(undefined) 会抛
-         // "Cannot convert undefined or null to object"（空排行榜的定时任务就死在这）。
+         // createMany({ data: [] }) 时 data[0] 是 undefined，不能传给 _trackAffectedPaths（Object.entries(undefined) 会抛）。
          affectedPaths = data
             ? this._trackAffectedPaths(method, table, data)
             : [];

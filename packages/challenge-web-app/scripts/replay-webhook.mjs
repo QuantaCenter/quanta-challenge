@@ -1,14 +1,4 @@
-// 以正确签名调用「判题完成」回调，用于修复统计/排行榜数据。
-//
-// 用途：判题完成后的分数、正确率、全局排行榜、通知都由调度器回调本接口写入。
-// 如果回调因密钥不匹配、Web 应用当时不可用等原因丢失，这些数据就会停留在旧值，
-// 而判题记录本身仍显示成功——很难发现。此脚本用同一套签名算法手工重放一次，
-// 触发 user_statistics 按权威公式整表重算（幂等，重复执行不会重复计分）。
-//
-// 用法：
-//   node scripts/replay-webhook.mjs <judgeRecordId>
-//
-// 注意：需要与调度器一致的 OPENAPI_WEBHOOK_SECRET（从 .env 读取）。
+// 以正确签名调用「判题完成」回调，用于修复统计/排行榜数据。 用途：判题完成后的分数、正确率、全局排行榜、通知都由调度器回调本接口写入。 如果回调因密钥不匹配、Web 应用当时不可用等原因丢失，这些数据就会停留在旧值， 而判题记录本身仍显示成功——很难发现。此脚本用同一套签名算法手工重放一次， 触发 user_statistics 按权威公式整表重算（幂等，重复执行不会重复计分）。 用法： node scripts/replay-webhook.mjs <judgeRecordId> 注意：需要与调度器一致的 OPENAPI_WEBHOOK_SECRET（从 .env 读取）。
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';

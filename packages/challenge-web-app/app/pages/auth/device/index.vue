@@ -136,12 +136,7 @@ const lookup = async () => {
    }
 };
 
-// 已登录且 URL 带了验证码（verification_uri_complete）时才自动查询：
-// 否则会拿空值打一次接口并白白消耗一次尝试次数。
-//
-// 只在客户端触发：`$fetch` 到相对路径时，服务端不会自动带上当前用户的 cookie，
-// 而 session 接口要求登录，SSR 期间调它只会拿到 401 并把页面置为错误态。
-// 这一步属于便利操作，不需要参与 SSR —— 登录态的判定已经在上面 await 完成了。
+// 已登录且 URL 带了验证码（verification_uri_complete）时才自动查询： 否则会拿空值打一次接口并白白消耗一次尝试次数。 只在客户端触发：`$fetch` 到相对路径时，服务端不会自动带上当前用户的 cookie， 而 session 接口要求登录，SSR 期间调它只会拿到 401 并把页面置为错误态。 这一步属于便利操作，不需要参与 SSR —— 登录态的判定已经在上面 await 完成了。
 if (import.meta.client && authenticated && userCodeFromQuery.value) {
    void lookup();
 }
@@ -163,9 +158,7 @@ const decide = async (action: 'approve' | 'deny') => {
    }
 };
 
-// 自动查询的触发时机挪到 onMounted 里的登录检查之后：
-// 未登录时先拉用户信息，查完再决定是否查询验证码 ——
-// 否则会先打一次 session 接口白白消耗一次尝试次数。
+// 自动查询的触发时机挪到 onMounted 里的登录检查之后： 未登录时先拉用户信息，查完再决定是否查询验证码 —— 否则会先打一次 session 接口白白消耗一次尝试次数。
 const gotoLogin = () => {
    navigateTo(`/auth/login?redirect=${encodeURIComponent(route.fullPath)}`);
 };

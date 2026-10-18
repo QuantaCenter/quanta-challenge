@@ -43,14 +43,7 @@ const KNOWN_ERROR_CODES = new Set<string>([
    'INTERNAL_ERROR',
 ]);
 
-/**
- * 定位 Worker 源码。
- *
- * 本文件在 `src/services/`（开发）或 `dist/services/`（生产），而 Worker 在
- * `src/runtime/`（开发，TS，由 vite dev server 托管）或 `dist/runtime/`（生产，JS）——
- * 因此要从当前目录的**上一级**找。另外补一个 cwd 兜底：`pnpm dev` 的工作目录是包根目录，
- * 无论 `import.meta.url` 被 vite 改写成什么都能命中。
- */
+/** 定位 Worker 源码：从当前目录上一级找，另补 cwd 兜底（pnpm dev 的工作目录是包根）。 */
 const resolveWorkerSource = (): string => {
    const dir = path.dirname(fileURLToPath(import.meta.url));
    const candidates = [
@@ -67,12 +60,7 @@ const resolveWorkerSource = (): string => {
 
 let workerScriptPromise: Promise<string> | null = null;
 
-/**
- * 用 esbuild 把 Worker 源码单独编译成一个临时 ESM 文件。
- *
- * 为什么不直接用 worker 源文件路径：`.ts` 无法被 `new Worker()` 直接加载；
- * 为什么不 import 它：Worker 必须作为**独立入口**运行，不能跟服务主线程共享模块实例。
- */
+/** 用 esbuild 把 Worker 源码单独编译成临时 ESM 文件：.ts 无法被 new Worker() 直接加载，且 Worker 必须作为独立入口运行。 */
 export const prepareWorkerScript = (): Promise<string> => {
    if (workerScriptPromise) return workerScriptPromise;
 

@@ -1,17 +1,5 @@
 #!/usr/bin/env node
-/**
- * 部署机侧 webhook：CI 推完镜像后由 GitHub Actions 调用，
- * 拉镜像 → 重启对应容器 → 失败回滚到上一个可用版本。
- *
- * 契约：docs/IMAGE_WEBHOOK.md（签名、幂等、状态码）。
- * 无第三方依赖，Node >= 20。
- *
- * 超时：拉取的静默上限是 8 分钟（PULL_IDLE_MS）——judge-machine 这类 2.46GB 镜像冷拉时
- *       实测会出现 40s+ 完全无输出，原来统一按 20s 判会被误杀；
- *       其余等待（HTTP 收发、健康探测、compose up）仍为 20s（IDLE_MS）。
- *
- * 部署同步执行：成功回 200，失败（含已回滚 / 回滚失败）回 5xx，调用方据此判定发布是否真正生效。
- */
+/** 部署机侧 webhook：拉镜像 → 重启容器 → 失败回滚，契约见 docs/IMAGE_WEBHOOK.md；拉取静默上限 8 分钟（PULL_IDLE_MS），其余等待 20s；同步执行，成功 200 / 失败 5xx。 */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -44,10 +32,7 @@ const CFG = {
 const SERVICES = {
    'challenge-web-app': { refVar: 'WEB_APP_REF', health: env.HEALTH_WEB_APP || 'http://127.0.0.1:3000/', codes: [200, 302, 401, 403] },
    'challenge-judge-scheduler': { refVar: '', health: env.HEALTH_JUDGE_SCHEDULER || 'http://127.0.0.1:1888/health', codes: [200] },
-   // 云函数服务与调度器同理：compose 里没有 image:，按正在用的标签重打。
-   // 健康检查端点由服务自己提供（/healthz 不验签，会实际 ping Redis 与 Postgres，
-   // 依赖不可用时返回 503）；它的容器启动时先跑 prisma migrate deploy，
-   // 因此健康探测窗口给到 60s，不能用默认的 20s。
+   // 云函数服务与调度器同理：compose 里没有 image:，按正在用的标签重打。 健康检查端点由服务自己提供（/healthz 不验签，会实际 ping Redis 与 Postgres， 依赖不可用时返回 503）；它的容器启动时先跑 prisma migrate deploy， 因此健康探测窗口给到 60s，不能用默认的 20s。
    'challenge-cloud-function': {
       refVar: '',
       health: env.HEALTH_CLOUD_FUNCTION || 'http://127.0.0.1:1890/healthz',
@@ -67,11 +52,7 @@ const SERVICES = {
    },
 };
 
-/**
- * `service` 为 null 的镜像不在 compose 里，但调度器是按【本地镜像名:latest】拉容器的
- * （docker.ts 里写 `Image: 'challenge-live-server-agent'`，docker 会补 `:latest`）。
- * 这些本地名必须由 webhook 维护，不能靠人工 docker tag。
- */
+/** service 为 null 的镜像不在 compose 里，调度器按本地镜像名:latest 拉容器，这些本地名必须由 webhook 维护。 */
 const LOCAL_IMAGE_NAMES = {
    'judge-machine': 'challenge-judge-machine-agent',
    'live-server': 'challenge-live-server-agent',
@@ -178,10 +159,7 @@ const pullAll = async (images) => {
    return ids;
 };
 
-/**
- * 移除占用宿主机 1889 的容器：调度器启动时会自己创建前端判题机容器占这个端口，
- * 上一轮残留的容器不退出会让新实例初始化失败。
- */
+/** 移除占用宿主机 1889 的残留容器，否则调度器新实例初始化失败。 */
 const freeJudgeMachinePort = async () => {
    const ids = (await docker(['ps', '-aq', '--filter', 'publish=1889'])).split('\n').filter(Boolean);
    if (!ids.length) return;
@@ -249,11 +227,7 @@ const alert = async (text) => {
 
 let busy = false;
 
-/**
- * 进行中/已完成的部署任务（内存态，delivery -> {status, tag, commit, error}）。
- * 异步模式（CI 发 X-Quanta-Async: 1）下 POST 先回 202，CI 轮询 GET /hooks/images?delivery= 拿终态。
- * 服务重启会丢内存态：GET 时用落盘的 state.delivery 兜底判断该次发布是否已成功。
- */
+/** 进行中/已完成的部署任务（内存态）；异步模式下 POST 回 202、CI 轮询 GET 拿终态；服务重启丢内存态，由落盘 state.delivery 兜底。 */
 const jobs = new Map();
 
 const deploy = async (payload) => {

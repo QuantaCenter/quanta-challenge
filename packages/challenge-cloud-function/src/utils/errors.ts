@@ -1,9 +1,4 @@
-/**
- * 统一错误类型与错误码。
- *
- * 控制器的 onError 会把它映射成 `{ ok:false, error:{ code, message, traceId } }`，
- * 并选用对应的 HTTP 状态码。所有"可预期"的失败都应走这里，而不是抛裸 Error。
- */
+/** 统一错误类型与错误码：onError 映射为 `{ ok:false, error:{ code, message, traceId } }`；所有可预期失败都应走这里。 */
 export type CloudFunctionErrorCode =
    | 'UNAUTHORIZED'
    | 'FORBIDDEN'
@@ -55,12 +50,7 @@ export class CloudFunctionError extends Error {
    }
 }
 
-/**
- * 抛出一个云函数错误。
- *
- * 刻意用**函数声明**（而非 `const fail = () => ...`）：只有显式标注 `: never` 的函数声明
- * 才会被 TypeScript 的控制流分析识别为"永不返回"，从而在 `if (!x) fail(...)` 之后正确收窄 x。
- */
+/** 抛出一个云函数错误；刻意用函数声明（`: never`），以便 TS 在 `if (!x) fail(...)` 后正确收窄 x。 */
 export function fail(
    code: CloudFunctionErrorCode,
    message: string,

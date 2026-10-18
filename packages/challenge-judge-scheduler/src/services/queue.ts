@@ -1,5 +1,6 @@
 import { Queue, Worker, type Processor } from 'bullmq';
 import { Singleton } from '../utils/singleton';
+import { logger } from '../utils/logger';
 import { RedisService } from './redis';
 import { EventEmitterService } from '../utils/event-emitter';
 import { EventType } from '../events/index';
@@ -35,7 +36,7 @@ export class QueueService extends Singleton {
          const worker = new Worker(name, processor, { connection: this.redis });
 
          worker.on('completed', (job, result) => {
-            console.log(`[INFO] Job ${job.id} completed successfully.`);
+            logger.info(`Job ${job.id} completed successfully.`);
             EventEmitterService.instance.emit(EventType.TASK_COMPLETED, {
                job,
                result,
@@ -43,7 +44,10 @@ export class QueueService extends Singleton {
          });
 
          worker.on('failed', (job, err) => {
-            console.error(`Job ${job?.id} failed with error: ${err?.message}`);
+            logger.error(
+               { err },
+               `Job ${job?.id} failed with error: ${err?.message}`
+            );
             EventEmitterService.instance.emit(EventType.TASK_FAILED, {
                job,
                // 字段名必须与 result-handler 的解构一致。
@@ -53,10 +57,8 @@ export class QueueService extends Singleton {
          });
 
          worker.on('error', (err) => {
-            // 注意：BullMQ 的 'error' 事件**不携带 job**（例如 Redis ECONNRESET 时会触发）。
-            // 因此这里不能假设有 job；监听方必须做空值保护，否则 job.id 会抛 TypeError
-            // 并直接让整个调度器进程退出。
-            console.error('Worker encountered an error:', err);
+            // BullMQ 的 'error' 事件不携带 job（如 Redis ECONNRESET），监听方必须做空值保护。
+            logger.error({ err }, 'Worker encountered an error');
             EventEmitterService.instance.emit(EventType.TASK_ERROR, { err });
          });
 
@@ -71,7 +73,7 @@ export class QueueService extends Singleton {
    destroy() {
       this.workers.forEach((worker) => {
          worker.close().catch((err) => {
-            console.error('Error closing worker:', err);
+            logger.error({ err }, 'Error closing worker');
          });
       });
    }

@@ -9,10 +9,7 @@ export class LocalStoreService extends Singleton implements IStoreService {
       return this.getInstance<LocalStoreService>();
    }
 
-   // 必须与 Web 应用的 /api/static 用同一个目录。
-   // 原先的 './local_store' 会解析到 packages/challenge-judge-scheduler/local_store，
-   // 而 Web 端读的是 packages/challenge-web-app/local_store，导致判题生成的
-   // 题目封面（首屏截图）全部 404。
+   // 必须与 Web 应用的 /api/static 用同一个目录，否则判题生成的题目封面全部 404。
    private storePath: string = resolveLocalStorePath();
 
    private constructor() {

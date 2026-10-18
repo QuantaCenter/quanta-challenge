@@ -1,11 +1,7 @@
 import { verifyToken } from '~~/server/utils/jwt';
 import { issueCloudFunctionToken } from '~~/server/utils/cloud-function-token';
 
-/**
- * 用当前登录会话换一个「云函数调用令牌」（短 token，服务端 Redis 保存 token → userId）。
- *
- * 只能由已登录用户获取。
- */
+/** 用当前登录会话换一个「云函数调用令牌」（短 token，Redis 保存 token → userId），仅限已登录用户。 */
 export default defineEventHandler(async (event) => {
    const cookie = getCookie(event, 'quanta_access_token');
    if (!cookie) {

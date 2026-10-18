@@ -1,10 +1,4 @@
-/**
- * 后端服务题型的判题脚本运行时。
- *
- * 与前端判题机的 `system.ts` 是**平行实现**，不是复刻：前端暴露 Playwright `page`，
- * 这里暴露 `http`（受约束的 HTTP 客户端）。两边共用的只有「检查点 => 结果」的聚合
- * 约定，因此结果 schema 能完全对齐。
- */
+/** 后端服务题型的判题脚本运行时：与前端判题机的 system.ts 平行实现，这里暴露受约束的 http 客户端，共用「检查点 => 结果」聚合约定。 */
 
 export interface HttpResult {
    status: number;
@@ -30,14 +24,7 @@ export interface HttpClientConfig {
    maxBytes: number;
 }
 
-/**
- * 受限 HTTP 客户端。
- *
- * 安全边界（缺一不可）：
- *   1. 同源白名单：绝对 URL 必须与 baseUrl 同源，否则判题脚本能把判题机当请求跳板。
- *   2. 超时：单请求默认 10s，避免慢接口把脚本预算耗尽。
- *   3. 响应体上限：默认 2MB，避免大响应打满判题机内存。
- */
+/** 受限 HTTP 客户端，安全边界：同源白名单（防 SSRF）、单请求 10s 超时、响应体 2MB 上限。 */
 export class HttpClient {
    constructor(private readonly config: HttpClientConfig) {}
 

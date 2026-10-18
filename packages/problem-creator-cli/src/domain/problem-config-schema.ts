@@ -29,12 +29,7 @@ export const DEFAULT_INIT_COMMAND = 'npx serve -l 3000 project';
 export const PROBLEM_TYPES = ['frontend', 'backend_service'] as const;
 export type ProblemType = (typeof PROBLEM_TYPES)[number];
 
-/**
- * 本地生成封面的配色与排版。
- *
- * 这几项**不会**随上传发给服务端（服务端只认 imageId），因此可以自由增减：
- * `qpc cover` 读它渲染 PNG，上传拿到 id 后由 `--write` 把 imageId 写回配置。
- */
+/** 本地生成封面的配色与排版：不随上传发给服务端（服务端只认 imageId），`qpc cover` 渲染 PNG 后由 --write 写回 imageId。 */
 export const coverGenerateSchema = z.object({
    /** 背景色（纯色；配合 bgTo 变成对角线渐变） */
    bg: z.string().default(COVER_DEFAULTS.bg),
@@ -112,10 +107,7 @@ export const problemConfigSchema = z.object({
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;
 
-/**
- * 后端题的镜像与 bootCommand 由镜像决定（会覆盖作者写的值）；initCommand 只在作者
- * 没写时填镜像默认值。回报被覆盖的字段，供 `qpc check` 提示。前端题型原样返回。
- */
+/** 后端题的镜像与 bootCommand 由镜像决定（覆盖作者写的值），initCommand 仅缺省时填默认值；回报被覆盖字段供 `qpc check` 提示。 */
 export const applyBackendServiceImageDefaults = (
    config: ProblemConfig,
 ): { config: ProblemConfig; overridden: string[] } => {

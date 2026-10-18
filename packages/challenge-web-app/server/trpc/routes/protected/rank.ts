@@ -65,11 +65,7 @@ const getMyRankingTrendsProcedure = protectedProcedure.query(
    async ({ ctx }) => {
       const { userId } = ctx.user;
 
-      // 必须先按日期倒序取「最近」6 条，再翻转成由旧到新交给折线图。
-      //
-      // 原实现是 `orderBy: { date: 'asc' }` + `take: 6`，拿到的是**最早**的 6 天：
-      // 历史超过 6 天的用户，曲线永远停在最初 6 天，之后的名次变化再也画不出来；
-      // 下面的 `history.slice(-6)` 也因此成了死代码（history.length 恒 ≤ 6）。
+      // 必须先按日期倒序取「最近」6 条，再翻转成由旧到新交给折线图。 原实现是 `orderBy: { date: 'asc' }` + `take: 6`，拿到的是**最早**的 6 天： 历史超过 6 天的用户，曲线永远停在最初 6 天，之后的名次变化再也画不出来； 下面的 `history.slice(-6)` 也因此成了死代码（history.length 恒 ≤ 6）。
       const history = (
          await prisma.rankingHistory.findMany({
             where: { userId },
@@ -84,13 +80,7 @@ const getMyRankingTrendsProcedure = protectedProcedure.query(
       let rankings: number[] = [];
       if (history.length < 6) {
          const fillCount = 6 - history.length;
-         // 历史不足 6 天时的填充值。
-         //
-         // 原实现用 history[0]?.rank（即**最早**那条）填充，于是新用户（只有当天一条）
-         // 会把当天的名次平铺成 6 个相同的值，曲线永远是一条水平线 ——
-         // 看起来"排名从未变化"，即使当天其实刚发生过名次变动。
-         // 对"6 天前还不存在"的用户来说，用当前名次做基线更诚实：曲线保持水平，
-         // 而后续每天新增真实记录时会自然形成折线。
+         // 历史不足 6 天时的填充值。 原实现用 history[0]?.rank（即**最早**那条）填充，于是新用户（只有当天一条） 会把当天的名次平铺成 6 个相同的值，曲线永远是一条水平线 —— 看起来"排名从未变化"，即使当天其实刚发生过名次变动。 对"6 天前还不存在"的用户来说，用当前名次做基线更诚实：曲线保持水平， 而后续每天新增真实记录时会自然形成折线。
          const fillValue = history.at(-1)?.rank ?? history[0]?.rank ?? 0;
          rankings = Array(fillCount)
             .fill(fillValue)

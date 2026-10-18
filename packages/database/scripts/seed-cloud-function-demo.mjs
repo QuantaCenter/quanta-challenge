@@ -40,8 +40,7 @@ const PROBLEM_TITLE = '云函数计数器（Demo）';
 const TOTAL_SCORE = 300;
 
 // ── 1. 云函数源码 ───────────────────────────────────────────────────────────
-// source：后台展示用的 TS 源码
-// compiledCode：真正被执行的单文件 CJS（这里手写，等价于 esbuild 的产物）
+// source：后台展示用的 TS 源码；compiledCode：真正执行的单文件 CJS（手写，等价于 esbuild 产物）
 const functionSource = `/** 按用户隔离的计数器云函数。 */
 export default async function (ctx) {
    const { input, kv } = ctx;

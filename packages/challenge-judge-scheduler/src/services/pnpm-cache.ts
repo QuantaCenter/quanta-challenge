@@ -6,13 +6,11 @@ import { promisify } from 'node:util';
 import Docker from 'dockerode';
 import { resolvePnpmCacheDir } from '../utils/pnpm-cache-path';
 import { Singleton } from '../utils/singleton';
+import { logger } from '../utils/logger';
 
 const execFileAsync = promisify(execFile);
 
-/**
- * 与题目容器里使用的 pnpm 版本必须严格一致（store 布局与 pnpm 大版本绑定）。
- * 这里默认按调度器镜像里装的版本记录，实际以题目镜像里的为准。
- */
+/** 与题目容器里的 pnpm 版本必须严格一致（store 布局与 pnpm 大版本绑定）。 */
 export const PNPM_VERSION = '9.15.9';
 
 /** 缓存挂进题目容器的目标路径。预热 / 门禁 / 题目容器都用这个路径作 --store-dir。 */
@@ -57,15 +55,7 @@ export interface CacheMeta {
 /** pnpm 9 与 10 的索引文件位置不同，统计包数量时两种都要认。 */
 const V9_INDEX_SUFFIX = '-index.json';
 
-/**
- * 解析 Docker 的多路复用日志流。
- *
- * 未分配 TTY 的容器，`container.logs()` 返回的不是纯文本，而是逐帧的：
- *   [streamType(1B)][0,0,0][size(4B, BE)][payload]
- * 直接 `toString('utf8')` 会把帧头（含 0x00）混进文本，这些 NUL 字节既会污染错误信息，
- * 也会让 Prisma 写入时报 "unsupported Unicode escape sequence"。
- * 因此必须按帧拆开，只取 payload。
- */
+/** 解析 Docker 多路复用日志流（未分配 TTY 时为逐帧 [streamType][size][payload]），只取 payload 以去掉污染文本的 NUL 字节。 */
 const demuxDockerLogs = (buffer: Buffer): string => {
    const chunks: string[] = [];
    let offset = 0;
@@ -101,9 +91,7 @@ export class PnpmCacheService extends Singleton {
       return this.getInstance<PnpmCacheService>();
    }
 
-   // 必须是【宿主机绝对路径】：调度器创建题目容器时把它当作 bind mount 的 Source，
-   // 由宿主机的 Docker daemon 解析。因此不能写死容器内的 /app/pnpm-cache ——
-   // 解析规则见 utils/pnpm-cache-path.ts。
+   // 必须是宿主机绝对路径：调度器把它作为 bind mount 的 Source，由宿主机 Docker daemon 解析，解析规则见 utils/pnpm-cache-path.ts。
    readonly cacheDir = resolvePnpmCacheDir();
 
    readonly externalRegistry =
@@ -135,8 +123,7 @@ export class PnpmCacheService extends Singleton {
    }
 
    async init() {
-      // mkdir 失败时补一句人话：最典型的失败是把容器路径（/app/pnpm-cache）
-      // 用在了宿主机上 —— 根目录通常不可写，报错只有一句 ENOENT/EACCES，很难定位。
+      // mkdir 失败时补一句人话：典型失败是把容器路径 /app/pnpm-cache 用在了宿主机上。
       try {
          await fs.mkdir(this.cacheDir, { recursive: true });
       } catch (error: any) {
@@ -150,21 +137,21 @@ export class PnpmCacheService extends Singleton {
       }
       const stats = await this.stats();
       const meta = await this.readMeta();
-      console.log(
-         `[INFO] pnpm cache dir = ${this.cacheDir} ` +
+      logger.info(
+         `pnpm cache dir = ${this.cacheDir} ` +
             `(packages=${stats.packages}, ${(stats.bytes / 1024 / 1024).toFixed(1)}MB)`
       );
-      console.log(
-         `[INFO] pnpm cache problem image = ${this.problemImage || '(未设置，将退化为进程内预热)'}`
+      logger.info(
+         `pnpm cache problem image = ${this.problemImage || '(未设置，将退化为进程内预热)'}`
       );
       if (meta) {
-         console.log(
-            `[INFO] pnpm cache meta = image:${meta.image ?? '(none)'} ` +
+         logger.info(
+            `pnpm cache meta = image:${meta.image ?? '(none)'} ` +
                `id:${meta.imageId?.slice(0, 19) ?? '-'} platform:${meta.platform ?? '-'} ` +
                `warmedAt:${meta.warmedAt}`
          );
       } else {
-         console.log('[INFO] pnpm cache meta = (尚未预热)');
+         logger.info('pnpm cache meta = (尚未预热)');
       }
    }
 
@@ -219,16 +206,13 @@ export class PnpmCacheService extends Singleton {
       for (const key of ['http_proxy', 'https_proxy', 'no_proxy']) {
          const value = process.env[key] ?? process.env[key.toUpperCase()];
          if (!value) continue;
-         // 指向回环地址的代理在容器里必然连不上：容器内的 127.0.0.1 是它自己，
-         // 而不是宿主机。转发它只会让 pnpm 以 ECONNREFUSED 失败（实测：宿主机 shell
-         // 里设了 http_proxy=http://127.0.0.1:7890，预热容器整包安装全部失败）。
-         // 要真正走宿主机代理，请显式传 host.docker.internal:7890。
+         // 指向回环地址的代理在容器里必然连不上（容器内的 127.0.0.1 是它自己），转发只会让 pnpm 失败。
          if (
             key !== 'no_proxy' &&
             /(^|\/\/|@)(127\.0\.0\.1|localhost)(:|\/|$)/i.test(value)
          ) {
-            console.warn(
-               `[WARN] 忽略指向回环地址的 ${key}=${value}（容器内无法访问宿主机的 127.0.0.1）。` +
+            logger.warn(
+               `忽略指向回环地址的 ${key}=${value}（容器内无法访问宿主机的 127.0.0.1）。` +
                   '如需代理，请改成 host.docker.internal:<port>。',
             );
             continue;
@@ -238,12 +222,7 @@ export class PnpmCacheService extends Singleton {
 
       const container = await this.docker.createContainer({
          Image: opts.image,
-         // 必须清空镜像的 ENTRYPOINT。
-         //
-         // 预热用的镜像是【题目容器镜像】，而题目镜像（如 challenge-backend-service-agent）
-         // 自带 entrypoint.sh：它不理会这里的 Cmd，而是去 /app/project 安装并启动服务，
-         // 于是预热容器一启动就报 "题目目录不存在：/app/project" 并以 exit 1 结束。
-         // 预热只需要一个「跑 pnpm 的裸 shell」，所以显式重置 Entrypoint。
+         // 必须清空 ENTRYPOINT：题目镜像自带 entrypoint.sh，不理会这里的 Cmd 且启动即失败。
          Entrypoint: [],
          Cmd: ['sh', '-c', opts.command],
          WorkingDir: opts.workdir,
@@ -367,8 +346,8 @@ export class PnpmCacheService extends Singleton {
             }
 
             // 退化路径：调度器进程内预热。
-            console.warn(
-               '[WARN] 未配置题目镜像，正在调度器进程内预热：' +
+            logger.warn(
+               '未配置题目镜像，正在调度器进程内预热：' +
                   '不保证与题目容器的平台/openssl 一致，仅供本地调试。'
             );
             await this.runPnpm(['fetch', '--store-dir', this.cacheDir], { cwd: workdir, registry });
