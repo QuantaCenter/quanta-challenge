@@ -105,6 +105,12 @@ export default defineNuxtConfig({
    },
 
    routeRules: {
+      '/api/auth/quanta/**': {
+         headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Access-Control-Allow-Origin': 'https://challenge.quantacenter.com' },
+      },
+      '/auth/quanta/**': {
+         headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' },
+      },
       '/**': {
          security: {
             headers: {

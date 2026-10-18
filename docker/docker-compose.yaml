@@ -20,6 +20,12 @@ services:
       - TEMP_DIR=/app/tmp
       - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET}
       - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET}
+      # OAuth secret is runtime/server-only; keep disabled until HTTPS integration passes.
+      - QUANTA_OAUTH_ENABLED=${QUANTA_OAUTH_ENABLED:-false}
+      - QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.quantacenter.com}
+      - QUANTA_OAUTH_APP_ORIGIN=${QUANTA_OAUTH_APP_ORIGIN:-https://challenge.quantacenter.com}
+      - QUANTA_OAUTH_CLIENT_ID=${QUANTA_OAUTH_CLIENT_ID:-quanta-challenge}
+      - QUANTA_OAUTH_CLIENT_SECRET=${QUANTA_OAUTH_CLIENT_SECRET:-}
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=web-app
       - CF_INTERNAL_SECRET=${CF_WEBAPP_SECRET:?请设置 CF_WEBAPP_SECRET}

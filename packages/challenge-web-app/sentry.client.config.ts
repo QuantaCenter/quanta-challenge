@@ -13,5 +13,13 @@ if (dsn) {
       sampleRate,
       // 性能事务采样率（默认 10%，生产可按流量调低）
       tracesSampleRate,
+      ignoreTransactions: [/\/api\/auth\/quanta/, /\/auth\/quanta/],
+      beforeSend(event) {
+         if (/^\/auth\/quanta(?:\/|$)/.test(window.location.pathname)) return null;
+         return event;
+      },
+      beforeBreadcrumb(crumb) {
+         return /\/api\/auth\/quanta|\/auth\/quanta/.test(String(crumb.data?.url || '')) ? null : crumb;
+      },
    });
 }

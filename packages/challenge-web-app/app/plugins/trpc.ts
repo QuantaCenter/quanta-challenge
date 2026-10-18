@@ -6,6 +6,7 @@ import { useMessageOutsideVue } from '~/components/st/Message/use-message';
 import { TRPCError } from '@trpc/server';
 import type { H3Event } from 'h3';
 import { logger } from '~~/lib/logger';
+import { isQuantaLoginPath } from '~/utils/quanta-login';
 
 // 常量定义
 const TOKEN_KEYS = {
@@ -149,7 +150,8 @@ const redirectToLogin = (
 ): void => {
    const target = (isServer ? event?.node.req.url : currentPath) || '/';
    // 已经在登录流程页时不再重定向：登录接口本身返回 401（密码错误）、 或登录页上的其他请求 401 时，若也走重定向，会把 /auth/login 塞进 redirect 参数，登录成功后又被弹回登录页，URL 自我嵌套无限循环。 此时直接抛错即可，登录页会展示「登录失败」提示。
-   if (target.startsWith('/auth/login')) {
+   // OAuth has its own safe restart UI; do not replace it with an email-login redirect.
+   if (target.startsWith('/auth/login') || isQuantaLoginPath(target)) {
       return;
    }
    if (isServer && event) {

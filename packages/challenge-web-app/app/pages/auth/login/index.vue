@@ -61,6 +61,10 @@ const gotoWebAuthnLogin = () => {
       : '/auth/login/authn';
    navigateTo(url);
 };
+
+const gotoQuantaLogin = () => {
+   window.location.assign('/api/auth/quanta/start');
+};
 </script>
 
 <template>
@@ -122,10 +126,10 @@ const gotoWebAuthnLogin = () => {
                   生物认证
                </NuxtLink>
             </StButton>
-            <StButton class="!bg-accent-600 !text-accent-200 w-full">
+            <StButton @click="gotoQuantaLogin" class="!bg-accent-600 !text-accent-200 w-full">
                <div class="flex gap-2 items-center">
-                  <IconQQ />
-                  QQ 登录
+                  <span class="inline-flex w-5 shrink-0 brightness-0 invert [&_svg]:w-5 [&_svg]:h-4"><IconLogo /></span>
+                  <span class="whitespace-nowrap">Quanta 登录</span>
                </div>
             </StButton>
          </div>

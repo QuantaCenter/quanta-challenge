@@ -2,7 +2,7 @@ import type {
    DirectoryNode,
    FileNode,
    FileSystemTree,
-} from '@WebContainer/api';
+} from '@webcontainer/api';
 import { normalizePath } from '~/utils/path-utils';
 
 const isFileNode = (node: any): node is FileNode => {

@@ -1,4 +1,4 @@
-import type { DirectoryNode, FileSystemTree } from '@WebContainer/api';
+import type { DirectoryNode, FileSystemTree } from '@webcontainer/api';
 import { normalizePath, splitPath } from '~/utils/path-utils';
 
 const base64ToUint8Array = (base64: string) => {
