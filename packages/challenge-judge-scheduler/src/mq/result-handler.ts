@@ -2,10 +2,11 @@ import { EventType, type ITaskCompletedPayload } from '../events/index';
 import { EventEmitterService } from '../utils/event-emitter';
 import { logger } from '../utils/logger';
 import { url } from '@challenge/shared/utils';
+import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import prisma from '../utils/prisma';
 import { generateOpenApiSign } from '@challenge/shared/openapi';
 
-const requestWebhook = async (data: { judgeRecordId: number }) => {
+const requestWebhook = async (data: { judgeRecordId: number; traceId?: string }) => {
    const { judgeRecordId } = data;
    const appServerUrl = process.env.APP_SERVER_URL || 'http://localhost:3000';
 
@@ -23,9 +24,9 @@ const requestWebhook = async (data: { judgeRecordId: number }) => {
 
    const callbackUrl = url(appServerUrl, path, params);
 
-   return fetch(callbackUrl, { headers: { Cookie: cookie } }).catch((e) =>
-      logger.error({ err: e }, 'Error sending judge-complete callback')
-   );
+   return fetch(callbackUrl, {
+      headers: { Cookie: cookie, 'x-trace-id': data.traceId ?? createTraceId() },
+   }).catch((e) => logger.error({ err: e }, 'Error sending judge-complete callback'));
 };
 
 export const initTaskResultHandlers = () => {
@@ -50,13 +51,24 @@ export const initTaskResultHandlers = () => {
       }
    };
 
-   /** emit 直接调用这些 async 监听器且无人 await，内部一旦拒绝会成为 unhandledRejection，故统一包一层兜底。 */
+   /** emit 直接调用这些 async 监听器且无人 await，内部一旦拒绝会成为 unhandledRejection，故统一包一层兜底。*/
    const safeHandler =
       (name: string, fn: (payload: any) => Promise<void>) =>
       (payload: any) => {
-         Promise.resolve(fn(payload)).catch((e) =>
-            logger.error({ err: e }, `${name} 处理失败（已忽略，不影响进程）`),
-         );
+         const data = payload?.job?.data;
+         const run = () =>
+            Promise.resolve(fn(payload)).catch((e) =>
+               logger.error({ err: e }, `${name} 处理失败（已忽略，不影响进程）`),
+            );
+         return data
+            ? runWithRequestContext(
+                 {
+                    traceId: data.traceId ?? createTraceId(),
+                    userId: data.userId,
+                 },
+                 run,
+              )
+            : run();
       };
 
    EventEmitterService.instance.on<ITaskCompletedPayload>(

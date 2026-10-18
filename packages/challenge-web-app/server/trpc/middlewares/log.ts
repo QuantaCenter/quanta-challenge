@@ -1,4 +1,4 @@
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { middleware } from '../trpc';
 
 export const log = () => {
@@ -11,11 +11,14 @@ export const log = () => {
 
       if (r.ok) {
          logger.info(
-            { event: ctx.event, ip, duration, traceId: ctx.traceId },
+            { ip, duration, path: ctx.event.path },
             'tRPC request',
          );
       } else {
-         logger.error({ ip, duration, error: r.error, ...ctx }, 'tRPC request');
+         logger.error(
+            { ip, duration, path: ctx.event.path, error: r.error },
+            'tRPC request',
+         );
       }
 
       return r;

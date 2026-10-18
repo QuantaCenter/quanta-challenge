@@ -1,5 +1,5 @@
 import dayjs from 'dayjs';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import prisma from '~~/lib/prisma';
 import { observer } from './achievement';
 import type { ValidPath } from '~~/lib/track-wrapper';

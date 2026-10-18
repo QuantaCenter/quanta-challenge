@@ -5,7 +5,7 @@ import { useStore } from '../../store';
 import z from 'zod';
 import path from 'path';
 import { TRPCError } from '@trpc/server';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 
 // 获取用户信息

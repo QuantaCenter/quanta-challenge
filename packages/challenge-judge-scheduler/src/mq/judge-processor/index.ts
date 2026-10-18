@@ -12,6 +12,7 @@ import { ignoreError } from '../../utils/ignore-error';
 import prisma from '../../utils/prisma';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { buildBackendInitCommand } from '@challenge/shared/backend-service-image';
+import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import * as db from './db';
 import { JudgeJob } from './types';
 import { $Enums } from '@prisma/client';
@@ -156,7 +157,16 @@ const processResult = async (
       : allPass;
 };
 
-export const judgeProcessor: Processor<JobType> = async (job) => {
+export const judgeProcessor: Processor<JobType> = async (job) =>
+   runWithRequestContext(
+      {
+         traceId: job.data.traceId ?? createTraceId(),
+         userId: job.data.userId,
+      },
+      () => runJudgeJob(job),
+   );
+
+const runJudgeJob: Processor<JobType> = async (job) => {
    const pendingTime = Date.now() - job.data.queueTimestamp;
    const startTime = Date.now();
    const mode = String(job.data.mode);

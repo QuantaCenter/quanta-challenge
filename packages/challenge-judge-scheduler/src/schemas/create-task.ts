@@ -9,4 +9,8 @@ export const CreateTaskSchema = z.object({
    judgeScript: z.string().nonempty('Judge script cannot be empty'),
    fsSnapshot: z.record(z.string(), z.string()),
    mode: z.enum(['audit', 'judge']),
+   traceId: z
+      .string()
+      .regex(/^[0-9a-f]{32}$/, 'traceId must be 32 hex chars (W3C)')
+      .optional(),
 });

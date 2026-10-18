@@ -7,5 +7,3 @@ export const createKeyId = (): string =>
 /** 派生外部密钥的随机输入，仅在签发时返回一次。 */
 export const createKeyMaterial = (): string =>
    randomBytes(32).toString('base64url');
-
-export const createTraceId = (): string => randomBytes(8).toString('hex');

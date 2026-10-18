@@ -1,5 +1,5 @@
 import { thumbhashToDataUrl } from '@challenge/shared/thumbhash/data-url';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { LRUMap } from './lru-map';
 
 /** thumbhash → PNG data URL 的服务端缓存：缓存键是 thumbhash（内容决定结果，可长缓存）；L1 进程内 LRU + L2 Redis 两级。 */

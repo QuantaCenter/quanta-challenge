@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import { CreateTaskSchema } from '../schemas/create-task';
 import { QueueService } from '../services/queue';
 import type z from 'zod';
@@ -15,9 +16,10 @@ taskRoute.post('/create', zValidator('json', CreateTaskSchema), async (c) => {
       ...payload,
       queueTimestamp: Date.now(),
    };
-   const job = await QueueService.instance
-      .getQueue<Job>('judge-task')
-      .add('judge-task', data);
+   const job = await runWithRequestContext(
+      { traceId: data.traceId ?? createTraceId(), userId: data.userId },
+      async () => QueueService.instance.getQueue<Job>('judge-task').add('judge-task', data),
+   );
 
    return c.json(
       {
