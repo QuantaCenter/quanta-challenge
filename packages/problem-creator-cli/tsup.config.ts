@@ -15,6 +15,6 @@ export default defineConfig({
    sourcemap: true,
    splitting: false,
    treeshake: true,
-   // 依赖全部保持 external：CLI 以 workspace 包形式安装，node_modules 始终可用。
    skipNodeModulesBundle: true,
+   noExternal: [/^@challenge\//],
 });
