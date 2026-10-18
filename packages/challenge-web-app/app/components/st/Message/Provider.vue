@@ -11,7 +11,7 @@ import { ADD_MESSAGE_OUTSIDE_VUE_KEY, ADD_MESSAGE_KEY } from './use-message';
 const messages = ref<(Message | CustomMessage)[]>([]);
 
 const addMessage = (options: AddMessageOptions): MessageOperation => {
-   const id = crypto.randomUUID();
+   const id = createUuid();
    messages.value.push({ ...options, id });
    const trackedMessage = messages.value[messages.value.length - 1]!;
 

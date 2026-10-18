@@ -69,7 +69,7 @@ const rowIdentifier = (row: T, index: number) => {
             :style="column.width ? { width: column.width } : undefined" />
       </colgroup>
 
-      <thead class="sticky top-[5.75rem] z-[10000]">
+      <thead class="sticky top-[5.75rem] max-md:static z-[10000]">
          <tr class="text-accent-700 text-nowrap whitespace-nowrap">
             <th
                v-for="(column, index) in columns"

@@ -44,6 +44,9 @@ const opened = defineModel<boolean>('opened', {
 const toggleSelect = (e: MouseEvent) => {
    setTimeout(() => {
       opened.value = !opened.value;
+      if (opened.value) {
+         void nextTick(() => popperInstance.value?.update());
+      }
    });
 };
 onMounted(() => {
@@ -169,7 +172,7 @@ const optionEmptyText = computed(() => {
             :ref="popperKey"
             :class="[
                optionsContainerClass,
-               { 'opacity-0 pointer-events-none': !opened },
+               { 'opacity-0 pointer-events-none hidden': !opened },
                !opened && {
                   '!-mb-4': upside,
                   '!-mt-4': !upside,
