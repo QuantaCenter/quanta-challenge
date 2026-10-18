@@ -17,6 +17,8 @@ defaults:
 
 permissions:
   contents: read
+  # OIDC trusted publishing：npm 通过工作流身份直接鉴权，无需 NPM_TOKEN 密钥
+  id-token: write
 
 jobs:
   publish:
@@ -83,8 +85,6 @@ jobs:
 
       - name: Publish to npm
         run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Summary
         if: always()
