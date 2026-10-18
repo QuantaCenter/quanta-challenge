@@ -221,9 +221,9 @@ const showEmptyStatus = computed(() => {
                         direction="vertical"
                         gap="0.25rem"
                         class="min-w-0 flex-1">
-                        <span class="st-font-body-bold text-white truncate">
+                        <div class="st-font-body-bold text-white truncate w-full">
                            {{ problem.title }}
-                        </span>
+                        </div>
                         <div class="w-full overflow-hidden">
                            <StProblemCardTags :tags="problem.tags" />
                         </div>

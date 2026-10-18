@@ -78,7 +78,7 @@ const avatarUrl = computed(() => {
 
 <template>
    <StMessageProvider>
-      <div class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:flex-col max-md:p-2 max-md:gap-2">
+      <div class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:flex-col max-md:p-2 max-md:gap-2 max-md:h-[100dvh] max-md:overflow-y-hidden">
          <StMiniSidebar>
             <StMiniSidebarDivider />
 

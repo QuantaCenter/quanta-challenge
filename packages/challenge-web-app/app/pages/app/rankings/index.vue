@@ -72,7 +72,7 @@ const isListed = computed(() => {
          direction="vertical"
          align="center"
          class="pb-48 relative w-full">
-         <h1 class="text-[2.5rem] font-bold text-white w-full lg:w-[48rem]">排行榜</h1>
+         <h1 class="text-[2.5rem] font-bold text-white w-full pl-6 lg:w-[48rem]">排行榜</h1>
          <StSpace
             fill-x
             class="bg-background h-6 sticky top-[3.5rem] md:top-[4.25rem]"></StSpace>

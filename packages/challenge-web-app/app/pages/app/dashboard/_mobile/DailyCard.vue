@@ -86,24 +86,29 @@ const handleCheckin = async () => {
             <div
                class="absolute inset-x-0 top-0 h-[4.75rem] bg-gradient-to-b from-black/80 via-black/40 to-transparent pointer-events-none"></div>
             <div
-               class="absolute inset-x-0 top-0 p-2.5 flex items-start justify-between gap-2">
+               class="absolute inset-x-0 bottom-0 h-[3.75rem] bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none"></div>
+            <div
+               class="absolute inset-x-0 top-0 p-2.5 flex items-start">
                <div class="flex-1 min-w-0 line-clamp-1 font-bold text-white">
                   {{ (dailyProblem as any).title }}
                </div>
-               <StSpace gap="0.375rem" align="center" no-shrink>
-                  <StTag
-                     v-for="tag in (dailyProblem as any).tags.slice(0, 2)"
-                     size="small"
-                     :key="tag.name"
-                     :color="tag.color ?? void 0"
-                     :content="tag.name" />
-                  <StTag
-                     v-if="(dailyProblem as any).tags.length > 2"
-                     size="small"
-                     color="#6D6D6D"
-                     :content="`+${(dailyProblem as any).tags.length - 2}`" />
-               </StSpace>
             </div>
+            <StSpace
+               gap="0.375rem"
+               align="center"
+               class="absolute inset-x-0 bottom-0 p-2.5 flex-wrap">
+               <StTag
+                  v-for="tag in (dailyProblem as any).tags.slice(0, 2)"
+                  size="small"
+                  :key="tag.name"
+                  :color="tag.color ?? void 0"
+                  :content="tag.name" />
+               <StTag
+                  v-if="(dailyProblem as any).tags.length > 2"
+                  size="small"
+                  color="#6D6D6D"
+                  :content="`+${(dailyProblem as any).tags.length - 2}`" />
+            </StSpace>
          </a>
          <div
             class="w-[7.75rem] shrink-0 self-end flex flex-col gap-2.5 rounded-xl bg-accent-700/60 p-2.5">
@@ -124,9 +129,9 @@ const handleCheckin = async () => {
                }"
                :loading="checkinLoading"
                :disabled="hasCheckedIn || !hasCompletedTodayChallenge">
-               <StSpace gap="0.5rem" align="center">
-                  <FireTwo v-show="!checkinLoading" size="1.25rem" />
-                  <span class="st-font-body-bold">
+               <StSpace gap="0.5rem" align="center" class="whitespace-nowrap">
+                  <FireTwo v-show="!checkinLoading" size="1rem" class="shrink-0" />
+                  <span class="st-font-body-bold whitespace-nowrap">
                      {{ hasCheckedIn ? '已签到' : '签到' }}
                   </span>
                </StSpace>
