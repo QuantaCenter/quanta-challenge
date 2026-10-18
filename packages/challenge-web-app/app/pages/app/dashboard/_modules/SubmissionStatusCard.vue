@@ -7,16 +7,6 @@ const props = defineProps<{
    username?: string;
 }>();
 
-const card = useTemplateRef('card');
-
-const width = ref(0);
-useResizeObserver(
-   () => (card.value?.$el as HTMLElement) ?? null,
-   (entries) => {
-      width.value = entries[0].contentRect.width;
-   },
-);
-
 const { $trpc } = useNuxtApp();
 const { data: submissionStatusData, pending: loading } = useAsyncData(
    props.isVisitor
@@ -49,7 +39,6 @@ onMounted(() => {
 <template>
    <StCard
       :icon="Fire"
-      ref="card"
       title="提交情况"
       class="w-full !h-fit mt-4 relative overflow-clip">
       <div

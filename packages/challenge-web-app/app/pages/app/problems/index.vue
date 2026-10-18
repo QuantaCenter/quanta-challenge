@@ -210,7 +210,7 @@ const {
             <div v-else class="w-full grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-5">
                <a
                   v-for="(problem, idx) in problems"
-                  class="h-fit w-full"
+                  class="h-fit w-full md:w-[14.5rem]"
                   target="_blank"
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx"

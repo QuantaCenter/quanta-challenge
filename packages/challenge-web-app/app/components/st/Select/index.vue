@@ -172,7 +172,7 @@ const optionEmptyText = computed(() => {
             :ref="popperKey"
             :class="[
                optionsContainerClass,
-               { 'opacity-0 pointer-events-none hidden': !opened },
+               { 'opacity-0 pointer-events-none max-md:hidden': !opened },
                !opened && {
                   '!-mb-4': upside,
                   '!-mt-4': !upside,

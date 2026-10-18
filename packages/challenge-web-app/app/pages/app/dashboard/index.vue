@@ -48,7 +48,7 @@ onMounted(() => {
             <SubmissionStatusCard />
             <StSpace gap="1.5rem" fill>
                <RankingCard />
-               <AchievementsCard />
+               <AchievementsCard :show-link="true" />
             </StSpace>
          </StSpace>
       </StSpace>

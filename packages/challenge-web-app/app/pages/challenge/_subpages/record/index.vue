@@ -30,7 +30,7 @@ onMounted(() => {
          direction="horizontal"
          storage-key="record.list-detail"
          :start-percent="25"
-         class="record-page max-md:!flex-col max-md:!overflow-y-auto max-md:hide-scrollbar">
+         class="record-page max-md:!flex-col max-md:!overflow-y-auto">
          <template #start>
             <CommitRecordsPanel :id="props.id" />
          </template>
@@ -45,6 +45,12 @@ onMounted(() => {
 /* 移动端：取消左右两列分栏，列表与详情按内容自然高度上下排布、整页滚动；
    桌面端保持左右分栏（比例由 StSplitPanel 拖拽持久化） */
 @media (max-width: 767.98px) {
+   .record-page {
+      scrollbar-width: none;
+   }
+   .record-page::-webkit-scrollbar {
+      display: none;
+   }
    .record-page > div:nth-child(2) {
       display: none;
    }

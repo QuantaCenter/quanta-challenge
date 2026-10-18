@@ -235,7 +235,7 @@ const isSelected = (dateStr: string) => {
             }"
             :class="[
                'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001]',
-               { 'opacity-0 pointer-events-none hidden': !opened },
+               { 'opacity-0 pointer-events-none max-md:hidden': !opened },
                !opened && {
                   '!-mb-4': upside,
                   '!-mt-4': !upside,
