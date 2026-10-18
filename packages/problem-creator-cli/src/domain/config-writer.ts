@@ -7,11 +7,7 @@ export interface CoverWrite {
    colors?: CoverPalette;
 }
 
-// 把生成好的封面（id + 可选配色）写回题目配置。
-//
-// 为什么要改文件而不是让用户手抄：一条 imageId 抄错一个字符，报错要等到线上
-// 审计（"图片不存在"），而这正是 CLI 存在的意义。写完由调用方重新加载配置
-// 校验，对不上就回滚。只做最小的文本手术：不引 AST，不重排用户原有的格式。
+// 把生成好的封面（id + 可选配色）写回题目配置。 为什么要改文件而不是让用户手抄：一条 imageId 抄错一个字符，报错要等到线上 审计（"图片不存在"），而这正是 CLI 存在的意义。写完由调用方重新加载配置 校验，对不上就回滚。只做最小的文本手术：不引 AST，不重排用户原有的格式。
 export const applyCoverUpdate = (
    content: string,
    update: CoverWrite,
@@ -343,11 +339,7 @@ const writeImageId = (
       : insertImageId(body, imageId, file, indent);
 };
 
-// 追加 imageId：插在 mode: 'custom' 之后。
-//
-// 分两种写法，目的是不重排用户原有格式：
-//   · cover 与 mode 同一行  -> 就地插在同一行
-//   · mode 自己占一行       -> 换行后沿用同一缩进
+// 追加 imageId：插在 mode: 'custom' 之后。 分两种写法，目的是不重排用户原有格式： · cover 与 mode 同一行 -> 就地插在同一行 · mode 自己占一行 -> 换行后沿用同一缩进
 const insertImageId = (
    body: string,
    imageId: string,
@@ -422,10 +414,7 @@ const removeKey = (body: string, key: string): string => {
    return body.replace(new RegExp(pattern), '');
 };
 
-// 从 `{` 出发找配对的 `}`，跳过字符串与模板串。
-//
-// 不处理正则字面量：配置文件里的 cover 对象几乎不可能出现正则，为此写一个 JS
-// 词法分析器代价太大，而这里错了也只是抛错让用户手改。
+// 从 `{` 出发找配对的 `}`，跳过字符串与模板串。 不处理正则字面量：配置文件里的 cover 对象几乎不可能出现正则，为此写一个 JS 词法分析器代价太大，而这里错了也只是抛错让用户手改。
 const findObjectEnd = (content: string, openBrace: number): number => {
    let depth = 0;
    let quote: string | null = null;

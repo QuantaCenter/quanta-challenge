@@ -28,9 +28,7 @@ const hasCompletedDailyProblemProcedure = protectedProcedure.query(
    async ({ ctx }) => {
       const { userId } = ctx.user;
 
-      // 必须按「业务今天」这一天的记录判断，不能用 id 最大的一条。
-      // 当天题目尚未被抽出来时（例如刚过 0 点还没人访问），id 最大的是昨天
-      // 的题目，会把「昨天做完了」误判成「今天已完成」。
+      // 必须按「业务今天」这一天的记录判断，不能用 id 最大的一条。 当天题目尚未被抽出来时（例如刚过 0 点还没人访问），id 最大的是昨天 的题目，会把「昨天做完了」误判成「今天已完成」。
       const today = toDailyDate(getDailyDateKey());
       const dailyProblem = await prisma.dailyProblem.findUnique({
          where: { date: today },

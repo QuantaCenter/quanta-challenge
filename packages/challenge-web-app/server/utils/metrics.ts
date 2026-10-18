@@ -1,15 +1,6 @@
 import client from 'prom-client';
 
-/**
- * Nitro 服务端指标（单例）。
- *
- * 与后端 Hono 服务的 @challenge/observation/instrumentation 保持同名指标
- * （http_requests_total / http_request_duration_seconds），Grafana「后端 API」
- * Dashboard 与告警规则可以直接复用。
- *
- * 用 globalThis 挂单例：Nuxt dev 下插件/工具模块可能被重新执行，
- * prom-client 同名指标二次注册会抛 "already been registered"。
- */
+/** Nitro 服务端指标（单例，用 globalThis 防 dev 下二次注册报错）：与后端 Hono 服务保持同名指标，Grafana Dashboard 可直接复用。 */
 interface ServerMetrics {
    registry: client.Registry;
    httpRequestsTotal: client.Counter;
@@ -45,10 +36,7 @@ export function getServerMetrics(): ServerMetrics {
    return globalStore.__quantaServerMetrics;
 }
 
-/**
- * 归一化路由标签，避免高基数：
- * 数字段 / 长 hex 段 / UUID 段统一折叠成 :id（题目 slug 等有界枚举保留原文）。
- */
+/** 归一化路由标签避免高基数：数字/长 hex/UUID 段折叠成 :id，有界枚举保留原文。 */
 export function normalizeRouteLabel(path: string): string {
    const clean = (path || '/').split('?')[0];
    const normalized = clean

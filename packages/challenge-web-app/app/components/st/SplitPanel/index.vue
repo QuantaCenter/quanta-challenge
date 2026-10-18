@@ -51,9 +51,7 @@ const applyPercent = (value: number | null, persist = false) => {
    if (value === null || !Number.isFinite(value)) return;
    const next = clampPercent(value);
 
-   // 有持久化标识时：落盘之后必须**清掉本地覆盖值**。
-   // 本地覆盖的优先级高于持久化值（见 startPercentage），留着它会导致
-   // 「恢复默认布局」清空持久化值后面板纹丝不动 —— 看起来就是按钮没生效。
+   // 有持久化标识时：落盘之后必须**清掉本地覆盖值**。 本地覆盖的优先级高于持久化值（见 startPercentage），留着它会导致 「恢复默认布局」清空持久化值后面板纹丝不动 —— 看起来就是按钮没生效。
    if (persist && props.storageKey) {
       override.value = null;
       layoutStore.setPanelSize(props.storageKey, next);
@@ -193,9 +191,7 @@ const restorePanelState = () => {
    applyPercent(savedPercent.value);
 };
 
-// 「恢复默认布局」：把组件内部的临时状态也清掉。
-// 只清持久化值是不够的 —— 拖拽留下的 override 与终端折叠的存档优先级都更高，
-// 清完持久化值后面板不会回到默认比例（这正是"按钮点了没反应"的原因）。
+// 「恢复默认布局」：把组件内部的临时状态也清掉。 只清持久化值是不够的 —— 拖拽留下的 override 与终端折叠的存档优先级都更高， 清完持久化值后面板不会回到默认比例（这正是"按钮点了没反应"的原因）。
 watch(
    () => layoutStore.resetToken,
    () => {

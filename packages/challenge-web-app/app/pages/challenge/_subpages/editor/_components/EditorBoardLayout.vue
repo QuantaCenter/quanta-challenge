@@ -57,11 +57,7 @@ const boardStyle = (id: EditorBoardId) => {
    const percent = currentSizes.value[index] ?? 0;
    return {
       order: String(index * 2),
-      // 用 flex-grow 的权重来表达百分比，而不是 flex-basis:
-      // 两条分隔条各占 0.75rem，若用 basis 百分比，三者相加 100% 之后再加上分隔条
-      // 就会超出容器（这正是 SplitPanel 早先"多出 0.5rem"的同一类 bug）。
-      // flex-basis: 0 + grow 按权重分配的是**扣掉分隔条之后的剩余空间**，
-      // 因此各板块的实际宽度比例严格等于这里的百分比，且永不溢出。
+      // 用 flex-grow 的权重来表达百分比，而不是 flex-basis: 两条分隔条各占 0.75rem，若用 basis 百分比，三者相加 100% 之后再加上分隔条 就会超出容器（这正是 SplitPanel 早先"多出 0.5rem"的同一类 bug）。 flex-basis: 0 + grow 按权重分配的是**扣掉分隔条之后的剩余空间**， 因此各板块的实际宽度比例严格等于这里的百分比，且永不溢出。
       flexGrow: String(percent),
       flexShrink: '1',
       flexBasis: '0%',

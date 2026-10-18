@@ -87,9 +87,7 @@ export class HttpClient {
          .join('; ');
       if (cookie) headers.cookie = cookie;
 
-      // 服务端的 CSRF 校验要求 cookie 与 x-csrf-token 一致（见 server/trpc/context.ts）。
-      // 只拿到 access token（例如 CI 里注入 QUANTA_TOKEN）时没有 csrf 值，
-      // 此时退回 `x-ssr: 1`。
+      // 只有 access token（如 CI 注入 QUANTA_TOKEN）没有 csrf 值时，退回 `x-ssr: 1`。
       if (this.cookies.csrf) {
          headers['x-csrf-token'] = this.cookies.csrf;
       } else {
@@ -143,9 +141,7 @@ export class HttpClient {
          ? AbortSignal.any([init.signal, timeoutSignal])
          : timeoutSignal;
 
-      // 会话头**必须在这里统一注入**，而不是只给写请求加：
-      // GET 查询同样需要 cookie 与 csrf。漏掉的表现是"查询接口全部 401、
-      // 写接口却正常"，非常容易误判成服务端的权限问题。
+      // 会话头须统一注入而非只给写请求加：GET 查询同样需要 cookie 与 csrf，漏掉会表现为"查询全 401 而写接口正常"。
       const headers: Record<string, string> = {
          ...this.headers(),
          ...((init.headers as Record<string, string> | undefined) ?? {}),
@@ -214,11 +210,7 @@ export class HttpClient {
       return send();
    }
 
-   /**
-    * 用 refresh token 换新的 access token（GET /api/refresh）。
-    * access token 只有 15 分钟，长时间轮询审计状态一定会过期，
-    * 所以刷新是必需路径而不是兜底。
-    */
+   /** 用 refresh token 换新的 access token（GET /api/refresh）；token 仅 15 分钟，刷新是必需路径。 */
    async refreshSession(): Promise<boolean> {
       if (this.refreshing) return this.refreshing;
       if (!this.cookies.refresh) return false;

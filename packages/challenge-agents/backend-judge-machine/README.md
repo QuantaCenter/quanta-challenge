@@ -1,4 +1,4 @@
-# Backend Judge Machine Agent
+# @challenge/backend-judge-machine-agent
 
 后端服务题型的判题服务。与 `judge-machine`（前端题型，Playwright + DOM）并列，
 **不装浏览器**：它在 VM2 沙箱里运行判题脚本，脚本用受约束的 HTTP 客户端访问用户的
@@ -9,7 +9,7 @@
 调度器在跑后端任务时会：
 
 1. 启动后端服务容器（`challenge-backend-service-agent`），等它打印 `Ready`；
-2. 懒加载本判题机容器，通过 `ws://<host>:1889/link` 连上；
+2. 懒加载本判题机容器，通过 `ws://<host>:1891/link` 连上（与前端判题机的 1889 分开）；
 3. 发任务：
 
 ```json

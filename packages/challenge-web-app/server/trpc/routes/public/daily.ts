@@ -74,13 +74,7 @@ const getDailyProblemSchema = z
    })
    .optional();
 
-/**
- * 业务口径的「今天」（YYYY-MM-DD，Asia/Shanghai）。
- *
- * SSR 渲染时会跑在容器本地时区（线上是 UTC），而浏览器跑在用户本地时区。
- * 前端若各自用 `dayjs()` 判断「今天」，北京时间 00:00–08:00 期间服务端会
- * 少算一天，导致 SSR 与水合后的日历/签到状态对不上。前端统一以这里返回的
- * 业务日期为准，就不会再受运行环境时区影响。
+/** 业务口径的「今天」（YYYY-MM-DD，Asia/Shanghai）：SSR 与浏览器时区不同，前端统一以此为准避免状态对不上。 */
  */
 const getTodayProcedure = publicProcedure.query(() => getDailyDateKey());
 

@@ -11,12 +11,7 @@ import { registerUploadCommand } from './upload';
 
 export type { CommandRegistry } from './registry';
 
-/**
- * 命令清单（也是 `qpc --help` 的顺序）。
- *
- * 顺序按出题人实际的使用顺序排：init → check → cover → upload → status → publish，
- * 登录与自检放在最后，它们是一次性动作。
- */
+/** 命令清单（也是 `qpc --help` 的顺序）：按出题人实际使用顺序排，登录与自检放最后。 */
 export const registerCommands = (registry: CommandRegistry): void => {
    registerInitCommand(registry);
    registerCheckCommand(registry);

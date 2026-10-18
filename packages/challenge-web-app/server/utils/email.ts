@@ -16,18 +16,7 @@ export type SendEmailResult =
    | { success: true; id: string }
    | { success: false; reason: string };
 
-/**
- * 发送邮件
- *
- * @param props 邮件发送参数，包括：
- * - `to`: 收件人邮箱地址
- * - `subject`: 邮件主题
- * - `html`: 邮件内容，支持 HTML 格式
- * - `from`: 发件人信息，可以是字符串（邮箱地址）或对象（包含 name 和 address）
- * @returns
- * - 成功时返回 `{ success: true; id: string }`，其中 `id` 是邮件发送成功后的唯一标识；
- * - 失败时返回 `{ success: false; reason: string }`，其中 `reason` 是错误原因描述。
- */
+/** 发送邮件：成功返回 `{ success: true, id }`，失败返回 `{ success: false, reason }`。 */
 export const sendEmail = async (props: {
    to: string;
    subject: string;

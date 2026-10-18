@@ -9,13 +9,7 @@ export interface CliErrorOptions {
    cause?: unknown;
 }
 
-/**
- * 所有"可以预期"的错误都继承自 CliError。
- *
- * 这样顶层只需要区分两件事：CliError 打印 message + hint 后按 exitCode 退出；
- * 其它异常视为 bug，打印堆栈（--verbose 时）并退出 1。
- * 直接把 Error 抛到顶层会让用户看到一堆栈，无法判断是自己用错还是程序坏了。
- */
+/** 所有"可以预期"的错误都继承自 CliError：顶层按 exitCode 退出，其它异常视为 bug 打印堆栈。 */
 export class CliError extends Error {
    readonly hint: string | undefined;
    readonly details: Record<string, unknown> | undefined;
@@ -103,10 +97,7 @@ export class ApiError extends CliError {
    }
 }
 
-/**
- * 取消（Ctrl-C / 外部 abort）单独建模：它既不是成功也不是失败，
- * 顶层按 130 退出（128 + SIGINT），这是 shell 的通行约定。
- */
+/** 取消（Ctrl-C / 外部 abort）单独建模：既非成功也非失败，按 130 退出（shell 通行约定）。 */
 export class CanceledError extends CliError {
    constructor(message = '已取消') {
       super(message, { exitCode: EXIT.FAILURE });

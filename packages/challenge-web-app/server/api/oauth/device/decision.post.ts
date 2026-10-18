@@ -4,16 +4,7 @@ import { createDeviceFlowService } from '~~/server/services/device-flow';
 import { verifyToken } from '~~/server/utils/jwt';
 import { logger } from '~~/lib/logger';
 
-/**
- * 用户在确认页点击"同意/拒绝"。
- *
- * 与 token 端点不同，这里**必须**是会话鉴权 + CSRF 校验：
- * 它代表"已登录用户把自己的账号授权给某个设备"，是最需要防 CSRF 的写操作 ——
- * 否则攻击者可以构造页面诱导登录用户提交表单，把 victim 的账号授权给攻击者的设备。
- *
- * CSRF 校验沿用仓库既有约定（server/trpc/context.ts 的双提交模式）：
- * cookie 里的 quanta_csrf_token 必须与 x-csrf-token 头一致。
- */
+/** 用户在确认页点击"同意/拒绝"：必须会话鉴权 + CSRF 双提交校验（cookie 的 quanta_csrf_token 与 x-csrf-token 头一致），防诱导授权。 */
 const BodySchema = z.object({
    user_code: z.string().min(1),
    action: z.enum(['approve', 'deny']),

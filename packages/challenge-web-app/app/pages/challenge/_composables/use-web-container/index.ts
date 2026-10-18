@@ -36,18 +36,7 @@ const resetInstance = () => {
    instance = null;
 };
 
-/**
- * WebContainer.boot() 的硬超时。
- *
- * boot() 会以 iframe 方式打开 https://stackblitz.com/headless 并下载运行时。
- * boot() 自身**没有任何超时机制**：一旦握手不成功，它会永远挂起——既不 resolve
- * 也不 reject，界面就无限停留在"正在启动开发容器…"。
- * 这里主动加超时，把"无限等待"变成"可诊断的明确错误"。
- *
- * 注意：曾把原因归咎于 webcontainer.static.stackblitz.com 不可达，但该主机名在
- * 公共 DNS（1.1.1.1 / 8.8.8.8 / 223.5.5.5 / 119.29.29.29）上均为 NXDOMAIN，
- * 说明它并非当前版本使用的主机，那个判断是错的。真实失败点需以浏览器控制台为准。
- */
+/** WebContainer.boot() 的硬超时：boot() 自身无超时机制，握手失败会永远挂起，这里把"无限等待"变成可诊断的明确错误（真实失败点以浏览器控制台为准）。 */
 const BOOT_TIMEOUT_MS = 45_000;
 
 const initWebContainer = async (
@@ -81,13 +70,7 @@ const initWebContainer = async (
    }
 };
 
-/**
- * 带并发保护的 boot：多个组件/多次调用只会真正 boot 一次。
- *
- * 原实现把这一整段逻辑直接写在 onMounted 里，多个消费者或组件重新挂载时
- * 会各自走一遍。更糟的是旧代码在 onUnmounted 里对**共享单例**调用 teardown()，
- * 导致后续所有操作都撞在 "Proxy has been released and is not useable" 上。
- */
+/** 带并发保护的 boot：多个消费者只真正 boot 一次；不对共享单例做 teardown，避免 "Proxy has been released" 错误。 */
 const startBoot = async (
    WebContainer: WebContainerApi,
    options?: IUseWebContainerOptions,
@@ -131,15 +114,7 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       webContainerFailedCallbacks.add(callback);
    };
 
-   /**
-    * 等待 WebContainer 就绪。
-    *
-    * 注意：必须同时处理"失败"分支。原实现只注册了就绪回调，一旦
-    * WebContainer.boot() 抛出（例如页面没有处于跨源隔离状态、浏览器不支持
-    * SharedArrayBuffer、或代理剥离了 COOP/COEP 响应头），这个 Promise 永远不会 settle，
-    * 调用方的 await 会永久挂起 —— 界面表现为一直卡在"正在启动开发容器…"，
-    * 既不报错也无法重试。这里改为就绪/失败二选一。
-    */
+   /** 等待 WebContainer 就绪：必须同时处理失败分支（boot 抛出时 Promise 永不 settle，界面会永久挂起），就绪/失败二选一。 */
    const getInstance = async () => {
       // 实例已被销毁：清空引用并重新 boot，避免所有调用都撞在
       // "Proxy has been released and is not useable" 上。
@@ -284,16 +259,7 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       }
    });
 
-   // 注意：这里**不能** teardown。
-   //
-   // instance 是模块级单例，整个标签页共用。原实现在 onUnmounted 里调用
-   // instance?.teardown()，于是任何一个消费者卸载（组件重新挂载、路由切换、
-   // HMR）都会把共享实例销毁，之后所有 mount/watch/spawn 都会抛
-   // "Proxy has been released and is not useable" —— 这正是编辑器一直
-   // 卡在"正在启动开发容器…"的真实原因。
-   //
-   // WebContainer boot 成本很高，本就应该随标签页存活；需要干净状态时刷新页面即可。
-   // 若将来确实需要释放，应改为引用计数（最后一个消费者卸载时才 teardown）。
+   // 注意：这里**不能** teardown。 instance 是模块级单例，整个标签页共用。原实现在 onUnmounted 里调用 instance?.teardown()，于是任何一个消费者卸载（组件重新挂载、路由切换、 HMR）都会把共享实例销毁，之后所有 mount/watch/spawn 都会抛 "Proxy has been released and is not useable" —— 这正是编辑器一直 卡在"正在启动开发容器…"的真实原因。 WebContainer boot 成本很高，本就应该随标签页存活；需要干净状态时刷新页面即可。 若将来确实需要释放，应改为引用计数（最后一个消费者卸载时才 teardown）。
 
    return {
       onWebContainerReady,

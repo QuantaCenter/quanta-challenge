@@ -59,9 +59,7 @@ observer.addListener('check', async (achId, result, userId) => {
       });
 });
 
-/**
- * 使用 DFS 双色标法检测成就前置依赖中是否存在环
- */
+/** 使用 DFS 双色标法检测成就前置依赖中是否存在环 */
 const hasCircularDependency = async (
    achievementId: number,
    preAchievementIds: number[]

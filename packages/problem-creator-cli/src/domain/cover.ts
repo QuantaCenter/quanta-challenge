@@ -142,11 +142,7 @@ export interface CoverLayout {
    footerFontSize: number;
 }
 
-/**
- * 字号从基准值往下收敛，直到能塞进 maxLines 行且每行都不超宽。
- *
- * 收敛的下限是 0.5 × 基准：再小就不可读了，宁可让标题多占一行。
- */
+/** 字号从基准值往下收敛直到能塞进 maxLines 行，下限 0.5 × 基准（再小不可读，宁可标题多占一行）。 */
 export const layoutCover = (spec: CoverSpec): CoverLayout => {
    const scale = spec.width / COVER_DEFAULTS.width;
    const pad = 72 * scale;

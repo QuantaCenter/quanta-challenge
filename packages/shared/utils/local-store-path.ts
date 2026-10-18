@@ -1,30 +1,7 @@
 import path from 'path';
 import { findRepoRoot } from './repo-root.ts';
 
-/**
- * 解析本地存储（local_store）的绝对路径。
- *
- * ## 为什么需要这个统一解析器
- *
- * 判题相关文件（题目封面 = 判题首屏截图、影子文件、成就图等）由**判题调度器**写入，
- * 却由 **Web 应用**的 `/api/static/[filePath]` 读取。这两个进程各自在不同的包目录下启动：
- *
- * - `packages/challenge-judge-scheduler`
- * - `packages/challenge-web-app`
- *
- * 如果两边都用 `process.env.LOCAL_STORE_PATH || './local_store'`，相对路径会各自按
- * **进程 cwd** 解析，于是变成两个不同目录：写进 A、读自 B，表现为
- * **所有题目封面 404，页面只显示 `<img>` 的 alt 文本 "Cover Image"**。
- *
- * 这个坑在历史上至少出现过两次，因此这里把"存在唯一标准目录"作为硬约束：
- * 无论进程在哪启动、环境变量怎么配，最终都只会落到同一个绝对路径。
- *
- * ## 目录布局
- *
- * 标准目录固定在 `packages/challenge-web-app/local_store`，原因是生产环境
- * `docker-compose.yaml` 给 Web 应用挂载的卷就在 `/app/packages/challenge-web-app/local_store`，
- * 保持同一处可以避免再出现"容器里读、容器外写"的分裂。
- */
+/** local_store 的统一解析器：调度器写、Web 应用读，相对路径会按各自 cwd 解析成两个目录（历史上导致封面 404），故强制收敛到规范目录 packages/challenge-web-app/local_store。 */
 
 /** 唯一的规范存储目录（绝对路径）。 */
 export const canonicalLocalStorePath = (): string => {
@@ -34,17 +11,7 @@ export const canonicalLocalStorePath = (): string => {
 
 let warned = false;
 
-/**
- * 返回 local_store 的绝对路径。
- *
- * 规则（刻意收紧，避免再次出现双目录）：
- * 1. `LOCAL_STORE_PATH` 是绝对路径 -> 用它（容器部署的正确做法，例如 /app/packages/challenge-web-app/local_store）
- * 2. 未配置、或配的是相对路径 -> **一律使用规范目录**，并在相对路径会指向别处时打印警告
- *
- * 第 2 条是刻意不兼容旧行为的：过去相对路径会按 cwd 解析，而那正是 bug 的来源。
- * 与其让文件静默写到另一个目录（症状是页面图片消失、且极难定位），
- * 不如强制收敛到唯一目录并把配置问题显式喊出来。
- */
+/** 返回 local_store 的绝对路径：LOCAL_STORE_PATH 为绝对路径则使用，否则一律用规范目录并告警（相对路径按 cwd 解析正是历史 bug 来源）。 */
 export const resolveLocalStorePath = (): string => {
    const configured = process.env.LOCAL_STORE_PATH?.trim();
 

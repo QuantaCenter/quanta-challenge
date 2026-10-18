@@ -37,9 +37,7 @@ export default defineTask({
             await rankService.loadGlobalRankings();
          }
 
-         // 必须用 zrevrange（分数从高到低），否则最低分会拿到第 1 名。
-         // 详见 services/rank.ts 中 captureRankingSnapshot 的说明：
-         // zrange 是升序，而名次必须按降序计算，二者混用会让排名历史错乱。
+         // 必须用 zrevrange（分数从高到低），否则最低分会拿到第 1 名。 详见 services/rank.ts 中 captureRankingSnapshot 的说明： zrange 是升序，而名次必须按降序计算，二者混用会让排名历史错乱。
          const userScores = await redis.zrevrange(rankingKey, 0, -1, 'WITHSCORES');
          for (let i = 0; i < userScores.length; i += 2) {
             data.push({
@@ -51,11 +49,7 @@ export default defineTask({
 
          const date = dayjs().startOf('day').toDate();
 
-         // 兜底：排行榜为空时（例如 Redis 缓存刚被清空、数据库也还没有任何统计）
-         // 不要执行 delete + createMany，否则会把当天已有的历史清空。
-         // 同时这也是历史 bug 的爆点：createMany({ data: [] }) 会让
-         // TrackWrapper 在 Object.entries(undefined) 上抛
-         // "Cannot convert undefined or null to object"，导致整个定时任务失败。
+         // 兜底：排行榜为空时（例如 Redis 缓存刚被清空、数据库也还没有任何统计） 不要执行 delete + createMany，否则会把当天已有的历史清空。 同时这也是历史 bug 的爆点：createMany({ data: [] }) 会让 TrackWrapper 在 Object.entries(undefined) 上抛 "Cannot convert undefined or null to object"，导致整个定时任务失败。
          if (data.length === 0) {
             logger.warn(
                '[Job:UpdateRankHistory] Global rankings is empty, skip writing snapshot.',

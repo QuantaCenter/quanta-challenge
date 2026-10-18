@@ -107,9 +107,7 @@ export const contrastRatio = (a: string, b: string): number => {
    return (high + 0.05) / (low + 0.05);
 };
 
-// 检查一套配色是否（仍）满足对比度下限，不满足时返回人话原因。
-// --random 单独用时必定通过；这个函数主要拦「随机配色 + 显式 --bg/--text 覆盖」
-// 把可读性破坏掉的情况，例如 --random --bg "#ffffff" 会让近白标题看不见。
+// 检查一套配色是否（仍）满足对比度下限，不满足时返回人话原因。 --random 单独用时必定通过；这个函数主要拦「随机配色 + 显式 --bg/--text 覆盖」 把可读性破坏掉的情况，例如 --random --bg "#ffffff" 会让近白标题看不见。
 export const describePaletteProblem = (
    palette: CoverPalette,
 ): string | undefined => {
@@ -147,9 +145,7 @@ const pickRelation = (rand: () => number): { name: string; offset: number } => {
    return { name: '三角色', offset: sign * (108 + rand() * 24) };
 };
 
-// 在满足对比度下限的前提下选强调色明度。深色背景上明度越高对比度越大，所以
-// 达标区间是连续的 [min, 0.94]。先扫出刚好达标的下界再加余量：颜色够鲜艳，又
-// 有安全边际；纯蓝这类亮度天生低的色相会被推到更亮的位置。
+// 在满足对比度下限的前提下选强调色明度。深色背景上明度越高对比度越大，所以 达标区间是连续的 [min, 0.94]。先扫出刚好达标的下界再加余量：颜色够鲜艳，又 有安全边际；纯蓝这类亮度天生低的色相会被推到更亮的位置。
 const fitAccent = (
    hue: number,
    sat: number,

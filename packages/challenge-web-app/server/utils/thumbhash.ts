@@ -2,21 +2,7 @@ import { thumbhashToDataUrl } from '@challenge/shared/thumbhash/data-url';
 import { logger } from '~~/lib/logger';
 import { LRUMap } from './lru-map';
 
-/**
- * thumbhash → PNG data URL 的服务端缓存。
- *
- * 背景：`StImage` 为了「首帧即可见占位图」把解码从客户端挪到了 SSR
- * （见 commit d2fbade）。thumbhash 是纯计算，但题目列表一次会渲染几十张卡片，
- * 每次请求都要重复解码同一批 hash，且 Nuxt 还会把 tRPC 结果序列化进 hydration
- * payload —— 这正是需要缓存的地方。
- *
- * 缓存键是 thumbhash 本身（base64），而 thumbhash 由图片像素内容决定，
- * 内容不变则解码结果恒定，因此可以安全地长缓存。
- *
- * 两级缓存：
- * - L1：进程内 LRU，命中同一渲染周期内重复出现的 hash 时省掉一次网络往返；
- * - L2：Redis，跨请求 / 跨实例复用，需保证容器重启后仍然生效。
- */
+/** thumbhash → PNG data URL 的服务端缓存：缓存键是 thumbhash（内容决定结果，可长缓存）；L1 进程内 LRU + L2 Redis 两级。 */
 
 // Redis 键前缀
 const CACHE_KEY_PREFIX = 'thumbhash:dataurl:';
@@ -27,12 +13,7 @@ const MEMORY_CACHE_SIZE = 1000;
 
 const memoryCache = new LRUMap<string, string>(MEMORY_CACHE_SIZE);
 
-/**
- * 批量把 thumbhash 渲染为 PNG data URL，命中缓存则直接返回。
- *
- * 用 `mget` / `pipeline` 把 N 次往返压成 2 次，列表页渲染几十张卡片时差距明显。
- * Redis 不可用时自动降级为实时解码，不影响页面渲染。
- */
+/** 批量把 thumbhash 渲染为 PNG data URL，命中缓存直接返回；用 mget/pipeline 压缩往返，Redis 不可用时降级为实时解码。 */
 export const renderThumbhashDataUrls = async (
    hashes: (string | null | undefined)[]
 ): Promise<(string | null)[]> => {

@@ -7,13 +7,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/**
- * 解析本包实际安装的 @prisma/client 目录。
- *
- * 这里刻意不拼接 node_modules/.pnpm 下的目录名：pnpm 会在目录名里写入依赖组合的短哈希
- * （例如 @prisma+client@6.12.0_prism_852c2f508fa5d5c04099a9cee124d4df），该哈希由 pnpm 版本
- * 与 peer 依赖组合共同决定，换机器、换 pnpm 版本或升级依赖都会变化，硬编码必然失效。
- */
+/** 解析本包实际安装的 @prisma/client 目录：pnpm 目录名含依赖组合短哈希，硬编码必然失效，须运行时探测。 */
 const resolvePrismaClientDir = () => {
    const requireFromWebApp = createRequire(
       path.join(__dirname, '../package.json'),
@@ -36,10 +30,7 @@ const resolvePrismaClientDir = () => {
    return clientDir;
 };
 
-/**
- * 把 Windows 路径统一成正斜杠形式：Node 的 require 与 import 都接受正斜杠，
- * 而反斜杠在被写进 JS 源码时会被当作转义序列。
- */
+/** 把 Windows 路径统一成正斜杠（写进 JS 源码时反斜杠会被当转义序列）。 */
 const toPosix = (p: string) => p.replace(/\\/g, '/');
 
 const replacePrismaClientPath = async (
@@ -48,11 +39,7 @@ const replacePrismaClientPath = async (
 ) => {
    const original = await fs.readFile(filePath, 'utf-8');
 
-   // 只有当路径已经指向当前安装位置时，才是真正的「无需处理」。
-   // 不能简单地以「是否已含绝对路径」来跳过：仓库目录被移动/改名后，文件里留着的是
-   // **旧的**绝对路径，若跳过则构建产物会带上失效路径，运行期报：
-   //   Cannot find module '<旧路径>/.prisma/client/default'
-   // （实测症状：页面能打开，但任何走数据库的接口都 500）
+   // 只有路径指向当前安装位置才是真正的"无需处理"（旧绝对路径须重打补丁自愈，否则运行期 Cannot find module）。
    if (original.includes(`'${replacement}`)) {
       console.log(`ℹ️  Already patched, skip: ${filePath}`);
       return;
@@ -75,12 +62,7 @@ const patchPrismaClient = async () => {
    const prismaClientDir = resolvePrismaClientDir();
    if (!prismaClientDir) return;
 
-   // @prisma/client 内部 require('.prisma/client/...')，而生成的客户端位于
-   // <pnpm 包目录>/node_modules/.prisma/client，与 @prisma/client 同级（不在 @prisma/ 下），
-   // 因此需要从 `.../node_modules/@prisma/client` 再上跳一级到 `.../node_modules`。
-   //
-   // 注意：必须使用「正斜杠」形式。被改写的是 JS 源码，替换进去的字符串会被 JS 解析器
-   // 再处理一次；Windows 反斜杠会被当成转义序列（\n、\p、\c ...）而破坏路径。
+   // 生成的客户端位于 <pnpm 包目录>/node_modules/.prisma/client（与 @prisma/client 同级），故须上跳一级；必须用正斜杠（写入 JS 源码会被再解析，反斜杠成转义序列）。
    const replaceToPath = path.posix.join(
       toPosix(path.dirname(path.dirname(prismaClientDir))),
       '.prisma',
@@ -116,11 +98,7 @@ const patchPrismaClient = async () => {
    }
 };
 
-/**
- * Nuxt 会忽略 .nuxtignore 中以 # 开头的行。
- * 仓库中该文件以注释形式保存，构建时需要取消注释才能生效；这里做成幂等的，
- * 重复构建不会二次改写文件内容（原实现每次构建都会再跑一遍 replace，导致文件持续漂移）。
- */
+/** 幂等地取消 .nuxtignore 中的注释（Nuxt 忽略 # 行），重复构建不二次改写。 */
 const patchNuxtIgnore = async () => {
    const nuxtIgnorePath = path.join(__dirname, '../.nuxtignore');
 

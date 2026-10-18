@@ -27,6 +27,19 @@ services:
       - OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
       - OBSERVATION_REPORT_TOKEN=${OBS_REPORT_TOKEN:-}
       - RELEASE_VERSION=${RELEASE_VERSION:-}
+      # Sentry：DSN 直指 observation 服务的 Envelope 端点。服务端 SDK（sentry.server.config.ts）
+      # 启动时直读 process.env；浏览器端事件走 tunnel 代理，DSN 仅作事件元数据。
+      # 未设置 SENTRY_DSN 时服务端监控完全静默，浏览器端用构建期默认值。
+      - SENTRY_DSN=${SENTRY_DSN:-http://challenge-web-app@observation:9310/1}
+      - SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
+      - SENTRY_TRACES_SAMPLE_RATE=${SENTRY_TRACES_SAMPLE_RATE:-0.1}
+      # nuxt build 会把 runtimeConfig 烘焙成字面量，运行时只有 NUXT_ 前缀的变量能覆盖
+      # （Nitro 按 runtimeConfig 键路径映射 NUXT_<KEY>），compose 里只配原名读不到，
+      # 上报会一直打默认的 http://localhost:9310。这里必须同时注入 NUXT_ 键。
+      - NUXT_OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
+      - NUXT_PUBLIC_SENTRY_DSN=${SENTRY_DSN:-http://challenge-web-app@observation:9310/1}
+      - NUXT_PUBLIC_SENTRY_RELEASE=${RELEASE_VERSION:-}
+      - NUXT_PUBLIC_SENTRY_ENVIRONMENT=${SENTRY_ENVIRONMENT:-production}
     depends_on:
       - challenge-judge-scheduler
       - challenge-cloud-function

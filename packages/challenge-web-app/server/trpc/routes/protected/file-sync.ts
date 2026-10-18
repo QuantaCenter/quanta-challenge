@@ -36,14 +36,7 @@ const SyncFileChangesSchema = z.object({
 
 const PROJECT_ROOT_PATH = '/project';
 
-/**
- * 把数据库里的虚拟文件路径归一化为 `/project/...`。
- *
- * 历史数据同时存在两种写法：相对路径 `index.html` 与已带项目根的
- * `/project/index.html`。同步时客户端只会发 `/project/...`，若不做归一化，
- * 第二种写法会被拼成 `/project//project/...` 而匹配不上，导致每次编辑都
- * 新建一条重复记录（旧记录残留），文件树里出现 project/project 两层。
- */
+/** 把数据库里的虚拟文件路径归一化为 `/project/...`：历史数据含相对路径写法，不归一化会导致每次编辑新建重复记录。 */
 const toProjectPath = (path: string): string => {
    const normalized = `/${path}`.replace(/\/+/g, '/').replace(/\/+$/, '');
    if (
@@ -55,10 +48,7 @@ const toProjectPath = (path: string): string => {
    return `${PROJECT_ROOT_PATH}${normalized}`;
 };
 
-/**
- * 同步文件变更到服务器
- * 处理文件的创建、修改、移动和删除操作
- */
+/** 同步文件变更到服务器（创建、修改、移动、删除）。 */
 const syncFileChangesProcedure = protectedProcedure
    .input(SyncFileChangesSchema)
    .mutation(async ({ ctx, input }) => {

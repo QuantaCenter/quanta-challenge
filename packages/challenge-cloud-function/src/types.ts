@@ -6,9 +6,7 @@ export interface Caller {
    scopes: Scope[];
    allowedFunctions: string[];
    restricted: boolean;
-   /**
-    * 调用所代表的用户。**仅内部调用方**可信（外部 API Key 无法伪造）。
-    */
+   /** 调用所代表的用户，仅内部调用方可信（外部 API Key 无法伪造）。 */
    userId: string | null;
 }
 

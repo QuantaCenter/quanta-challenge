@@ -117,16 +117,7 @@ const createLanguageService = (ctx: monaco.worker.IWorkerContext) => {
    });
 };
 
-/**
- * 依赖清单（package.json / 锁文件）变化后整体重建语言服务。
- *
- * Volar 的 TS 宿主会永久缓存文件读取结果（包括“不存在”），它的文件变更通知只能把路径标成
- * “存在的文件”或“已删除”，无法让新增、移除或换版本的包重新解析。jsDelivr 的下载结果有模块级缓存，
- * 重建时未变化的包不会重新下载。
- *
- * Monaco 按返回对象上的方法名生成主线程代理，所以这里逐个转发 WorkerLanguageService 的方法；
- * 每次请求前模型已同步完毕，此时比较摘要即可拿到最新的依赖清单。
- */
+/** 依赖清单（package.json / 锁文件）变化后整体重建语言服务（Volar 的 TS 宿主永久缓存文件读取结果，无法增量刷新）；逐个转发方法以生成主线程代理，按摘要判断是否重建。 */
 const createReloadableLanguageService = (ctx: monaco.worker.IWorkerContext) => {
    const getManifestDigest = createManifestDigest();
    let digest: string | undefined;

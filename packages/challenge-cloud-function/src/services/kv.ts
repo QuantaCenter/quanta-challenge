@@ -13,27 +13,16 @@ export interface KvScopeOptions {
    keyId: string;
 }
 
-/**
- * 计算 KV 隔离域。
- *
- * - 用户隔离开启 + 有用户 → `u:<userId>`（每个用户独立）
- * - 用户隔离开启 + 无用户 → `sys:<keyId>`（内部系统调用，绝不混入某真实用户空间）
- * - 用户隔离关闭          → `s`（函数级共享）
- */
+/** 计算 KV 隔离域：开隔离且有用户 → `u:<userId>`；开隔离无用户 → `sys:<keyId>`；关隔离 → `s`（函数级共享）。 */
 export const buildScope = (options: KvScopeOptions): string => {
    if (!options.userIsolated) return 's';
    if (options.userId) return `u:${options.userId}`;
    return `sys:${options.keyId}`;
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Lua 脚本：把"写 + 配额计数"变成原子操作，避免并发下计数漂移。
-// ARGV 约定见各脚本头部注释。
-// ─────────────────────────────────────────────────────────────────────────────
+// ───────────────────────────────────────────────────────────────────────────── Lua 脚本：把"写 + 配额计数"变成原子操作，避免并发下计数漂移。 ARGV 约定见各脚本头部注释。 ─────────────────────────────────────────────────────────────────────────────
 
-// KEYS[1]=data KEYS[2]=meta
-// ARGV[1]=value ARGV[2]=ttl ARGV[3]=maxKeys ARGV[4]=maxBytes
-// 返回 {status, keys, bytes}，status: 1=ok, -1=key 超限, -2=字节超限
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=value ARGV[2]=ttl ARGV[3]=maxKeys ARGV[4]=maxBytes 返回 {status, keys, bytes}，status: 1=ok, -1=key 超限, -2=字节超限
 const SET_SCRIPT = `
 local existing = redis.call('GET', KEYS[1])
 local existed = 0
@@ -62,9 +51,7 @@ redis.call('HSET', KEYS[2], 'keys', math.max(0, keys - 1), 'bytes', math.max(0, 
 return 1
 `;
 
-// KEYS[1]=data KEYS[2]=meta
-// ARGV[1]=by ARGV[2]=maxKeys ARGV[3]=maxBytes ARGV[4]=defaultTtl
-// 返回 {status, value}，status: 1=ok, -1=key 超限, -2=字节超限
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=by ARGV[2]=maxKeys ARGV[3]=maxBytes ARGV[4]=defaultTtl 返回 {status, value}，status: 1=ok, -1=key 超限, -2=字节超限
 const INCR_SCRIPT = `
 local existing = redis.call('GET', KEYS[1])
 local existed = 0

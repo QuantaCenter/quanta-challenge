@@ -24,12 +24,7 @@ const cache = new Map<
    { value: LoadedFunction | null; expiresAt: number }
 >();
 
-/**
- * 按名字加载函数（含当前生效版本）。
- *
- * 内存缓存 30s + 发布/激活时主动失效 + Redis Pub/Sub 广播（多实例一致）。
- * 缓存 null（函数不存在）同样有效，避免不存在的函数名反复打库。
- */
+/** 按名字加载函数（含当前生效版本）：内存缓存 30s + 发布/激活时主动失效 + Redis Pub/Sub 广播；缓存 null 同样有效。 */
 export const loadFunction = async (
    name: string,
 ): Promise<LoadedFunction | null> => {

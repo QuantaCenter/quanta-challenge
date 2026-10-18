@@ -9,16 +9,7 @@ import type {
    WorkerOutbound,
 } from './protocol';
 
-/**
- * 沙箱 Worker。
- *
- * 隔离模型与威胁模型（务必与 DESIGN.md §3.4 一起阅读）：
- *   · 代码由**管理员**发布，因此本 Worker 的目标不是"防恶意逃逸"，
- *     而是防"误伤"：死循环、内存膨胀、越界读写 KV。
- *   · 硬超时由主线程 terminate 完成；这里只管执行与 KV RPC。
- *   · vm 用 `codeGeneration: { strings:false, wasm:false }` 关闭 eval/Function 动态代码。
- *   · 沙箱内不注入 require / process / fetch / 定时器，只有纯计算全局与 KV/日志 API。
- */
+/** 沙箱 Worker：目标是防"误伤"（死循环/内存膨胀/越界 KV）而非恶意逃逸；硬超时由主线程 terminate，沙箱关闭动态代码生成且不注入 require/process/fetch/定时器。 */
 
 const port = parentPort;
 if (!port) {

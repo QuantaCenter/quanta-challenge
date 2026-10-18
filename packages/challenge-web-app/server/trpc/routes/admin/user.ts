@@ -24,18 +24,9 @@ const MemberListSchema = z.object({
    pageSize: z.number().int().min(1).max(100).default(20),
 });
 
-/**
- * 成员列表：账号信息 + 活跃情况 + 提交情况。
- *
- * 提交口径与排行榜/统计一致：`judge_records.type = 'judge'`
- * （`audit` 是发布题目时的模板判题，不算用户提交）。
- * 提交计数只针对当前页的用户做 `groupBy`，不随成员总数增长。
- */
+/** 成员列表：账号 + 活跃 + 提交情况；提交口径为 type='judge'（audit 不算），只对当前页用户 groupBy。 */
 const getAllMembersProcedure = protectedAdminProcedure
-   // prefault 而不是 default：zod 4 的 default 不会再解析默认值，
-   // 传 undefined 时各字段自身的默认值就丢了（page 会变成 undefined）。
-   // 用 prefault 把 {} 交给 schema 正常解析；同时允许调用方不传入参——
-   // 不传时 tRPC 会把 undefined 交给校验器，缺了这层会直接 400。
+   // prefault 而不是 default：zod 4 的 default 不会再解析默认值， 传 undefined 时各字段自身的默认值就丢了（page 会变成 undefined）。 用 prefault 把 {} 交给 schema 正常解析；同时允许调用方不传入参—— 不传时 tRPC 会把 undefined 交给校验器，缺了这层会直接 400。
    .input(MemberListSchema.prefault({}))
    .query(async ({ input }) => {
       const { keyword, role, sortBy, sortOrder, page, pageSize } = input;
@@ -167,12 +158,7 @@ const ResetPasswordSchema = z.object({
    newPassword: z.string().min(6, '密码至少 6 位').max(72, '密码最长 72 位'),
 });
 
-/**
- * 重置某人的邮箱密码。
- *
- * 权限：超级管理员可重置任何人；普通管理员只能重置 USER（否则管理员能互相接管账号）。
- * 不允许在这里重置自己的密码——那等于绕过了「设置」里改密码的邮箱验证。
- */
+/** 重置某人的邮箱密码：超管可重置任何人，普通管理员只能重置 USER；不允许重置自己的密码（绕过邮箱验证）。 */
 const resetPasswordProcedure = protectedAdminProcedure
    .input(ResetPasswordSchema)
    .mutation(async ({ ctx, input }) => {
@@ -224,13 +210,7 @@ const UpdateRoleSchema = z.object({
    role: z.enum(['SUPER_ADMIN', 'ADMIN', 'USER']),
 });
 
-/**
- * 切换成员角色。
- *
- * 权限：仅超级管理员。不允许改自己的角色（否则可能把自己锁在门外）；
- * 由于操作者自身必须仍是 SUPER_ADMIN，超级管理员也不可能被清零。
- * 每次变更写一条 RoleTransition 审计记录（与题目状态流转同一套思路）。
- */
+/** 切换成员角色：仅超级管理员，不允许改自己的角色；每次变更写一条 RoleTransition 审计记录。 */
 const updateRoleProcedure = protectedSuperAdminProcedure
    .input(UpdateRoleSchema)
    .mutation(async ({ ctx, input }) => {

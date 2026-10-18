@@ -1,23 +1,16 @@
 import { ValidFieldPath } from '@challenge/database';
 
-/**
- * 不合法的字段路径列表，包含正则表达式和具体的字段路径
- */
+/** 不合法的字段路径列表（正则或具体路径） */
 export const invalidFieldsPattern: (ValidFieldPath | RegExp)[] = [
    /^auths.*/,
    /^achievement.*/, // 避免触发成就相关的循环依赖
    /^user_achievements.*/,
 ];
 
-/**
- * 上下文注入 __ctx 的属性
- */
+/** 上下文注入 __ctx 的属性 */
 export const contextVariables = ['userId', 'continuesCheckinCount'];
 
-/**
- * 页面板块配置
- * 这些是可以被搜索到的页面板块
- */
+/** 页面板块配置（可被搜索到的页面板块） */
 export const pageSecions = [
    {
       id: 'dashboard-recent-submission',

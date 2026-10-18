@@ -1,17 +1,6 @@
 import { createHash, createHmac, randomBytes } from 'crypto';
 
-/**
- * 云函数调用签名。
- *
- * 与 `service/openapi/sign.ts` 的关系：那套是 `sha256(path?params+timestamp+secret)` 的
- * 简化版，用于已上线的判题 webhook，**不要改动**。本模块是它的超集，额外覆盖了：
- *   · HTTP 方法（避免 GET/POST 混用同一签名）
- *   · 请求体哈希（避免只改 body 就能复用签名）
- *   · nonce（配合服务端 SET NX 防重放）
- *   · 调用者用户身份（避免中间人伪造 `x-cf-user-id`）
- *
- * 服务端与客户端共用同一份实现，保证规范化串不会两边写歪。
- */
+/** 云函数调用签名：service/openapi/sign.ts（判题 webhook）的超集，额外覆盖 HTTP 方法、body 哈希、nonce 防重放与用户身份；服务端与客户端共用本实现。 */
 
 export const CF_HEADER = {
    keyId: 'x-cf-key-id',
@@ -30,12 +19,7 @@ export type CloudFunctionQuery = Record<
 const sha256Hex = (data: string | Uint8Array) =>
    createHash('sha256').update(data).digest('hex');
 
-/**
- * 规范化 query。
- *
- * 只保留有值的键，按 key 字典序排序后拼成 `k=v&k2=v2`。
- * 必须与客户端完全一致，否则同一请求在两端算出不同签名。
- */
+/** 规范化 query：只保留有值的键，按 key 字典序拼成 `k=v&k2=v2`；两端必须一致，否则签名对不上。 */
 export const canonicalizeQuery = (query?: CloudFunctionQuery): string => {
    if (!query) return '';
    return Object.keys(query)
@@ -60,16 +44,7 @@ export interface BuildCanonicalStringOptions {
    userId?: string | null;
 }
 
-/**
- * 规范化串（7 行，`\n` 分隔）：
- *   METHOD
- *   PATH
- *   SORTED_QUERY
- *   SHA256_HEX(BODY)  // 无 body 时为空串
- *   TIMESTAMP
- *   NONCE
- *   USER_ID
- */
+/** 规范化串（7 行，`\n` 分隔）：METHOD、PATH、SORTED_QUERY、SHA256_HEX(BODY)、TIMESTAMP、NONCE、USER_ID。 */
 export const buildCanonicalString = (
    options: BuildCanonicalStringOptions,
 ): string => {
@@ -102,14 +77,7 @@ export const signCloudFunctionRequest = (
       .digest('hex');
 };
 
-/**
- * 定时安全比较两个**等长**十六进制串。
- *
- * 刻意不用 `crypto.timingSafeEqual`：它要求 `ArrayBufferView`，而不同 tsconfig（web-app 与
- * 独立服务）下 `Buffer` 的泛型参数会与 lib 的 `Uint8Array` 定义对不上，导致
- * "Buffer<ArrayBuffer> is not assignable to Uint8Array<ArrayBufferLike>" 这类纯类型噪音。
- * 这里直接对字符做等长 XOR 累加：长度本身不是秘密，只要不提前 short-circuit 就满足定时安全。
- */
+/** 定时安全比较两个等长十六进制串；刻意用等长 XOR 累加而非 crypto.timingSafeEqual，规避不同 tsconfig 下 Buffer 泛型的类型噪音。 */
 export const timingSafeEqualHex = (a: string, b: string): boolean => {
    if (typeof a !== 'string' || typeof b !== 'string') return false;
    if (a.length === 0 || a.length !== b.length) return false;
@@ -145,11 +113,7 @@ export interface GenerateCloudFunctionHeadersOptions
    nonce?: string;
 }
 
-/**
- * 组装签名请求头（客户端用）。
- *
- * 时间戳与 nonce 未显式传入时自动生成；返回的 headers 可直接喂给 fetch。
- */
+/** 组装签名请求头（客户端用）：时间戳与 nonce 未传时自动生成，返回的 headers 可直接喂给 fetch。 */
 export const generateCloudFunctionHeaders = (
    options: GenerateCloudFunctionHeadersOptions,
 ): Record<string, string> => {

@@ -91,10 +91,7 @@ export type WaitForNetworkIdleOptions = z.infer<
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/**
- * 等待网络静默：在途请求归零并保持 {@link NETWORK_IDLE_QUIET_MS} 后返回 true，超时返回 false。
- * 只统计调用之后发出的请求：需先调用本方法、再触发动作。
- */
+/** 等待网络静默：在途请求归零并保持 {@link NETWORK_IDLE_QUIET_MS} 后返回 true，超时返回 false；只统计调用之后发出的请求。 */
 export const waitForNetworkIdle = async (
    page: Page,
    options: WaitForNetworkIdleOptions = {}

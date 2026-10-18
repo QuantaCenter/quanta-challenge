@@ -535,12 +535,7 @@ const steps = [
    { idle: '启动项目', running: '正在启动项目...' },
 ];
 
-// seo enhancement
-//
-// 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。
-// unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段
-// HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器
-// 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
+// seo enhancement 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。 unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段 HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
 const seoDescription = computed(() =>
    toSeoText(problem.value?.detail).slice(0, 100)
 );

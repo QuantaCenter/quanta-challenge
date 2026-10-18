@@ -1,20 +1,7 @@
 import { build, type Plugin } from 'esbuild';
 import { fail } from '../utils/errors';
 
-/**
- * 禁止引用任何外部模块（node 内置 / npm 包）。
- *
- * 云函数只允许"单文件、零依赖"：需要外部能力的场景由平台通过 `ctx` 提供受控能力，
- * 而不是放开沙箱。这里用 esbuild 的 onResolve 在**构建期**拦下裸模块名——
- * 比事后用正则扫产物可靠（不会把字符串字面量里的 `require("fs")` 误判）。
- *
- * 注意一个无害的边界：esbuild 会把"未被使用的 import"直接 elide（连解析都不做），
- * 所以 `import fs from 'node:fs'` 但从不引用 `fs` 时不会触发本插件。这没有问题——
- * import 被丢弃后并不会产生任何可执行代码。只要真正**用到**（或写成副作用导入），
- * onResolve 就会命中并被拦下。
- *
- * 相对/绝对路径 import 会继续被 esbuild 打包进来（属于同一份源码）。
- */
+/** 禁止引用任何外部模块：云函数只允许单文件、零依赖；用 esbuild onResolve 在构建期拦下裸模块名（未被使用的 import 会被 elide，无碍）。 */
 const denyExternalPlugin: Plugin = {
    name: 'deny-external-modules',
    setup(build) {
@@ -38,11 +25,7 @@ export interface CompileResult {
    bytes: number;
 }
 
-/**
- * 把 TS/JS 源码编译成单文件 CJS 产物。
- *
- * 在**发布期**执行，调用路径上不再编译（避免冷启动抖动）。
- */
+/** 把 TS/JS 源码编译成单文件 CJS 产物（发布期执行，避免冷启动抖动）。 */
 export const compileFunction = async (
    source: string,
    name: string,

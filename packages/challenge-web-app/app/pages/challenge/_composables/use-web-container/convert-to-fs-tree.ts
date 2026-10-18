@@ -41,10 +41,7 @@ const writeFile = (
    );
 };
 
-/**
- * 将路径内容映射转换为 WebContainer 的 FileSystemTree
- * 输入的路径可以是任意格式，会自动规范化
- */
+/** 将路径内容映射转换为 FileSystemTree，路径会自动规范化。 */
 export const convertToFsTree = (pathContentMap: Record<string, string>) => {
    const fsTree: FileSystemTree = {};
    Object.entries(pathContentMap).forEach(([path, content]) => {

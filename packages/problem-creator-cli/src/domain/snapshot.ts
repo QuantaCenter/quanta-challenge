@@ -5,11 +5,7 @@ import { CliError } from '../core/errors';
 import { walkFiles } from '../utils/fs';
 import { joinSnapshotKey } from '../utils/paths';
 
-/**
- * 二进制扩展名：与 packages/challenge-web-app/app/configs/accepted-pack-extension.ts
- * 的 `acceptedBinaryExtensions` 对齐。快照里二进制必须以 base64 传输，
- * 按 utf8 读会静默损坏文件（图片变成乱码，判题时表现为封面/资源加载失败）。
- */
+/** 二进制扩展名，与 web-app 的 acceptedBinaryExtensions 对齐；二进制须以 base64 传输，按 utf8 读会静默损坏文件。 */
 export const BINARY_EXTENSIONS = new Set([
    'png',
    'jpg',
@@ -47,13 +43,7 @@ export interface SnapshotOptions {
    ignore?: (name: string) => boolean;
 }
 
-/**
- * 把一个目录打包成提交快照。
- *
- * 键格式必须由 `mountPath` 打头（默认 `/project/...`）：
- * 调度器会原样还原到 live-server 容器的 /app 下，而题目的 initCommand
- * 与 live-server 镜像都以 `project` 子目录为站点根（见 PROBLEM_AUTHORING 坑 11）。
- */
+/** 把目录打包成提交快照：键须由 mountPath 打头（默认 `/project/...`），live-server 以 project 子目录为站点根。 */
 export const collectSnapshot = async (
    root: string,
    options: SnapshotOptions = {},

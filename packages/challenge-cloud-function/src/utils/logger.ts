@@ -1,16 +1,4 @@
-import pino from 'pino';
+import { buildLogger } from '@challenge/shared/logger';
 
-export const logger = pino({
-   level: process.env.LOG_LEVEL || 'info',
-   transport:
-      process.env.NODE_ENV === 'production'
-         ? undefined
-         : {
-              target: 'pino-pretty',
-              options: {
-                 colorize: true,
-                 translateTime: 'SYS:standard',
-                 ignore: 'pid,hostname',
-              },
-           },
-});
+/** 日志遵循 docs/LOG_REPORTING_PROTOCOL.md：生产输出 OTel 风格 JSON Lines，开发用 pino-pretty；工厂实现见 @challenge/shared。 */
+export const logger = buildLogger({ serviceName: 'challenge-cloud-function' });
