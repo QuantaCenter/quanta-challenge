@@ -70,7 +70,7 @@ const achievementList = computed(() => {
 
 <template>
    <StSpace fill justify="center">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full md:w-[44rem] px-4 md:px-0 pb-[10rem] my-6">
          <StSpace align="end" gap="1rem">
             <h1 class="st-font-hero-bold text-accent-100">成就管理</h1>
             <span
@@ -79,75 +79,79 @@ const achievementList = computed(() => {
             </span>
          </StSpace>
 
-         <StTable
-            :columns="columns"
-            :rows="achievementList"
-            :loading="pending"
-            row-key="id"
-            :skeleton-count="5">
-            <template #cell-badge="{ row }">
-               <div
-                  class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
-                  <img
-                     v-if="row.badgeUrl"
-                     class="size-[1.75rem] object-contain"
-                     :src="row.badgeUrl"
-                     :alt="`${row.name} 成就徽章`" />
-                  <Box v-else class="text-accent-400" />
-               </div>
-            </template>
+         <div class="w-full overflow-x-auto md:overflow-x-visible hide-scrollbar">
+            <div class="min-w-[44rem] md:min-w-0">
+               <StTable
+                  :columns="columns"
+                  :rows="achievementList"
+                  :loading="pending"
+                  row-key="id"
+                  :skeleton-count="5">
+                  <template #cell-badge="{ row }">
+                     <div
+                        class="flex items-center justify-center size-[2.25rem] bg-accent-700 rounded-lg border border-accent-500 overflow-hidden">
+                        <img
+                           v-if="row.badgeUrl"
+                           class="size-[1.75rem] object-contain"
+                           :src="row.badgeUrl"
+                           :alt="`${row.name} 成就徽章`" />
+                        <Box v-else class="text-accent-400" />
+                     </div>
+                  </template>
 
-            <template #cell-name="{ row }">
-               <NuxtLink
-                  :to="`/app/manage/achievement/detail/${row.id}`"
-                  class="block st-font-body-bold text-white truncate cursor-pointer hover:text-primary transition-colors">
-                  {{ row.name }}
-               </NuxtLink>
-            </template>
+                  <template #cell-name="{ row }">
+                     <NuxtLink
+                        :to="`/app/manage/achievement/detail/${row.id}`"
+                        class="block st-font-body-bold text-white truncate cursor-pointer hover:text-primary transition-colors">
+                        {{ row.name }}
+                     </NuxtLink>
+                  </template>
 
-            <template #cell-description="{ row }">
-               <div class="st-font-body-normal text-accent-300 truncate">
-                  {{ row.description || '暂无描述' }}
-               </div>
-            </template>
+                  <template #cell-description="{ row }">
+                     <div class="st-font-body-normal text-accent-300 truncate">
+                        {{ row.description || '暂无描述' }}
+                     </div>
+                  </template>
 
-            <template #cell-score="{ row }">
-               <span class="text-white font-family-manrope font-bold">
-                  {{ row.score }}
-               </span>
-            </template>
+                  <template #cell-score="{ row }">
+                     <span class="text-white font-family-manrope font-bold">
+                        {{ row.score }}
+                     </span>
+                  </template>
 
-            <template #cell-createdAt="{ row }">
-               <span class="text-accent-300 font-family-manrope">
-                  {{ row.createdAt }}
-               </span>
-            </template>
+                  <template #cell-createdAt="{ row }">
+                     <span class="text-accent-300 font-family-manrope">
+                        {{ row.createdAt }}
+                     </span>
+                  </template>
 
-            <template #cell-action="{ row }">
-               <StSpace align="center" justify="center">
-                  <NuxtLink
-                     :to="`/app/manage/achievement/detail/${row.id}`"
-                     title="查看详情"
-                     aria-label="查看详情"
-                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer">
-                     <PreviewOpen class="text-[1.25rem]" />
-                  </NuxtLink>
-               </StSpace>
-            </template>
+                  <template #cell-action="{ row }">
+                     <StSpace align="center" justify="center">
+                        <NuxtLink
+                           :to="`/app/manage/achievement/detail/${row.id}`"
+                           title="查看详情"
+                           aria-label="查看详情"
+                           class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer">
+                           <PreviewOpen class="text-[1.25rem]" />
+                        </NuxtLink>
+                     </StSpace>
+                  </template>
 
-            <template #empty>
-               <StSpace
-                  fill
-                  direction="vertical"
-                  gap="0.75rem"
-                  align="center"
-                  justify="center"
-                  class="text-accent-400 my-[20vh]">
-                  <GoldMedalTwo size="2.625rem" />
-                  <div class="st-font-body-normal">暂无成就</div>
-               </StSpace>
-            </template>
-         </StTable>
+                  <template #empty>
+                     <StSpace
+                        fill
+                        direction="vertical"
+                        gap="0.75rem"
+                        align="center"
+                        justify="center"
+                        class="text-accent-400 my-[20vh]">
+                        <GoldMedalTwo size="2.625rem" />
+                        <div class="st-font-body-normal">暂无成就</div>
+                     </StSpace>
+                  </template>
+               </StTable>
+            </div>
+         </div>
       </StSpace>
    </StSpace>
 </template>
