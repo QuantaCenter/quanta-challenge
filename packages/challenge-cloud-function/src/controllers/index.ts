@@ -58,10 +58,7 @@ app.onError((error, c) => {
       );
    }
 
-   logger.error(
-      { error, traceId: c.get('traceId') },
-      '云函数服务未处理的错误',
-   );
+   logger.error({ error }, '云函数服务未处理的错误');
 
    return c.json(
       {

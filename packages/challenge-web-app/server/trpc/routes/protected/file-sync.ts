@@ -4,7 +4,7 @@ import prisma from '~~/lib/prisma';
 import { router } from '../../trpc';
 import { TRPCError } from '@trpc/server';
 import { observer } from '../../services/achievement';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 // 定义变更类型的 schema
 const ChangeSchema = z.discriminatedUnion('type', [
@@ -65,7 +65,6 @@ const syncFileChangesProcedure = protectedProcedure
             {
                count: changes.length,
                changes,
-               traceId: ctx.traceId ?? 'unknown',
             },
             `Too many changes in one sync`,
          );
@@ -150,7 +149,6 @@ const syncFileChangesProcedure = protectedProcedure
                         logger.debug(
                            {
                               path: change.path,
-                              traceId: ctx.traceId ?? 'unknown',
                            },
                            'Remove folder',
                         );
@@ -179,7 +177,6 @@ const syncFileChangesProcedure = protectedProcedure
                            {
                               oldPath: change.oldPath,
                               newPath: change.newPath,
-                              traceId: ctx.traceId ?? 'unknown',
                            },
                            'Move file',
                         );
@@ -217,7 +214,6 @@ const syncFileChangesProcedure = protectedProcedure
                         {
                            oldPath: change.oldPath,
                            newPath: change.newPath,
-                           traceId: ctx.traceId ?? 'unknown',
                         },
                         'Move folder',
                      );
@@ -284,7 +280,7 @@ const syncFileChangesProcedure = protectedProcedure
          };
       } catch (error) {
          logger.error(
-            { error, traceId: ctx.traceId ?? 'unknown' },
+            { error },
             'Failed to sync file changes',
          );
          throw new TRPCError({

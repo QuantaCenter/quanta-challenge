@@ -10,7 +10,7 @@ import type {
    PageSectionSearchResult,
    DailyProblemSearchResult,
 } from '~/types/search';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { TRPCError } from '@trpc/server';
 import { pageSecions } from '../../configs';
 
@@ -331,7 +331,7 @@ const searchProcedure = protectedProcedure
          };
       } catch (error) {
          logger.error(
-            { error, traceId: ctx.traceId ?? 'unknown' },
+            { error },
             'Search query failed',
          );
          throw new TRPCError({

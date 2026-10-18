@@ -1,6 +1,6 @@
 import { TRPCError } from '@trpc/server';
 import { middleware } from '../trpc';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 export const limitRequest = (timesPerMinute: number) => {
    return middleware(async ({ ctx, next }) => {

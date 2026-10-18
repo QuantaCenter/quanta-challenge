@@ -1,6 +1,7 @@
 import { generateCloudFunctionHeaders } from '@challenge/shared/cloud-function';
+import { getRequestContext } from '@challenge/shared/trace';
 import { TRPCError } from '@trpc/server';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 export class CloudFunctionClientError extends Error {
    constructor(
@@ -133,7 +134,9 @@ export const callCloudFunctionService = async <T>(
       userId: options.userId ?? undefined,
    });
 
-   if (options.traceId) headers['x-trace-id'] = options.traceId;
+   // traceId 优先用调用方显式给的，否则取当前请求上下文——跨服务延续同一条 trace。
+   const traceId = options.traceId ?? getRequestContext()?.traceId;
+   if (traceId) headers['x-trace-id'] = traceId;
 
    const url = new URL(options.path, serverUrl);
    for (const [key, value] of Object.entries(options.query ?? {})) {

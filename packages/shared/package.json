@@ -42,6 +42,9 @@
       },
       "./logger": {
          "import": "./utils/logger.ts"
+      },
+      "./trace": {
+         "import": "./utils/trace.ts"
       }
    },
    "main": "index.js",

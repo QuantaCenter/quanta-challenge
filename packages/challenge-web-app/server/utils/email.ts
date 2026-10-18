@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 const { account, smtpPassword } = useRuntimeConfig().email;
 const transporter = nodemailer.createTransport({

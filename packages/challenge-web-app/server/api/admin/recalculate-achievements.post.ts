@@ -1,31 +1,8 @@
 import prisma from '~~/lib/prisma';
 import { observer } from '~~/server/trpc/services/achievement';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
-/**
- * 重算成就进度（回填历史数据）。
- *
- * ## 为什么需要它
- *
- * 成就观察者是"事件驱动"的：只有在数据库发生**与成就依赖相关的写入**时才会去判定。
- * 因此新建一个成就之后，用户历史上已经满足条件的记录**不会被追溯**——表现就是
- * 「我之前提交过/签到过，但成就里所有进度都是 0」。库里 `user_achievements` 甚至会
- * 一行都没有，因为从来没有人触发过判定。
- *
- * 这个接口把「所有用户 × 所有成就」逐一判定一次，把历史进度补上（含应得的分值）。
- *
- * ## 幂等性
- *
- * `triggerCheckAchievement` 对"已达成"（progress >= 1）的成就会直接短路返回，
- * 因此重复调用不会重复加分。
- *
- * ## 调用方式
- *
- *   curl -X POST "http://localhost:3000/api/admin/recalculate-achievements" \
- *        -H "x-webhook-secret: $OPENAPI_WEBHOOK_SECRET"
- *
- * 不传 secret 的请求一律 403（与判题 webhook 用同一个共享密钥）。
- */
+/* 重算成就进度（回填历史数据）。*/
 export default defineEventHandler(async (event) => {
    const secret = process.env.OPENAPI_WEBHOOK_SECRET;
    const provided =

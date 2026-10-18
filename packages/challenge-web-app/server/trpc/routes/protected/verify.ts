@@ -1,6 +1,6 @@
 import z from 'zod';
 import { getVerificationCodeEmailTemplate } from '~~/server/templates/verification-code';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { router } from '../../trpc';
 import { limitRequest } from '../../middlewares/limit-request';
 import { protectedProcedure } from '../../protected-trpc';

@@ -5,7 +5,7 @@ import z from 'zod';
 import * as serverAuthn from '@simplewebauthn/server';
 import { TRPCError } from '@trpc/server';
 import type { H3Event } from 'h3';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 /** WebAuthn 的 RP ID 与 expectedOrigin 必须与实际访问站点一致，否则 credentials.create() 直接抛错；按 请求 Origin > APP_SERVER > Host+x-forwarded-proto 解析，rpID 取 hostname。 */
 const resolveWebAuthnContext = (event: H3Event) => {
@@ -121,7 +121,7 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
          });
       } catch (error) {
          logger.error(
-            { error, userId, rpID, origin, traceId: ctx.traceId },
+            { error, userId, rpID, origin },
             'WebAuthn registration verification threw',
          );
          throw new TRPCError({
@@ -133,7 +133,7 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       const { registrationInfo } = verification;
       if (!verification.verified || !registrationInfo) {
          logger.warn(
-            { userId, rpID, origin, traceId: ctx.traceId },
+            { userId, rpID, origin },
             'WebAuthn registration verification returned verified=false',
          );
          throw new TRPCError({
@@ -272,7 +272,7 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
          });
       } catch (error) {
          logger.error(
-            { error, email, rpID, origin, traceId: ctx.traceId },
+            { error, email, rpID, origin },
             'WebAuthn authentication verification threw',
          );
          throw new TRPCError({
@@ -283,7 +283,7 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
 
       if (!verification.verified) {
          logger.warn(
-            { email, rpID, origin, traceId: ctx.traceId },
+            { email, rpID, origin },
             'WebAuthn authentication verification returned verified=false',
          );
          throw new TRPCError({

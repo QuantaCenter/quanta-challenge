@@ -207,12 +207,13 @@ const handleUnauthorized = async (
    }
 };
 
-const genUUID = (): string => {
-   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-   });
+const genTraceId = (): string => {
+   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().replaceAll('-', '');
+   }
+   let out = '';
+   while (out.length < 32) out += Math.floor(Math.random() * 16).toString(16);
+   return out;
 };
 
 export default defineNuxtPlugin(() => {
@@ -244,7 +245,7 @@ export default defineNuxtPlugin(() => {
                return {
                   ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
                   'x-ssr': isServer ? '1' : '0',
-                  'x-trace-id': genUUID(),
+                  'x-trace-id': genTraceId(),
                };
             },
             async fetch(url, options: any) {

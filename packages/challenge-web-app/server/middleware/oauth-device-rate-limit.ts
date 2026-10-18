@@ -1,4 +1,4 @@
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { useRedis } from '~~/server/utils/redis';
 
 /** 设备授权端点按 IP 限速，阈值宽于正常轮询；只防滥用，user_code 爆破防护在 services/device-flow.ts（按码计数，防换 IP）。 */
