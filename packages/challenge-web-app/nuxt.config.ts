@@ -162,7 +162,13 @@ export default defineNuxtConfig({
       externals: {
          // dayjs 的 package.json 没有 exports 字段，只声明了 main。Nitro 默认把它 作为 external 原样留在产物里（.output/server/node_modules），而产物中的 裸导入 `dayjs/plugin/utc` 在 Node 24 ESM 下不会自动补 .js，启动即报 ERR_MODULE_NOT_FOUND 并退出。内联后由构建期解析，不再漏到运行时。 注意：matcher 是 id.startsWith('dayjs')，plugin/* 子路径会一并内联。
          inline: ['dayjs'],
-         external: ['@prisma/client', '.prisma/client'],
+         // pino 是 CJS 包，打进 bundle 后其代码里的 __dirname 会触发 Nitro 注入
+         // `import { fileURLToPath } from 'url'` 前导 shim，与 rollup 从依赖图提升的
+         // `import { fileURLToPath } from 'node:url'` 同名冲突，Node 24 ESM 加载 chunk
+         // 即抛 "Identifier 'fileURLToPath' has already been declared"（sha-7003a89
+         // 发布失败、web-app 反复回滚的根因）。外部化后 __dirname 原生可用，由 Nitro
+         // 拷贝到 .output/server/node_modules 运行时加载，不再进 bundle。
+         external: ['@prisma/client', '.prisma/client', 'pino', 'pino-pretty'],
       },
       devProxy: { host: '127.0.0.1' },
       preset: 'node-server',
