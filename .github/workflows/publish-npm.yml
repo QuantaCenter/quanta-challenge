@@ -48,7 +48,9 @@ jobs:
 
       # 标签是发布意图的唯一入口：v1.2.3 必须对应 package.json 的 1.2.3，
       # 防止改了版本忘打标签（或反之）发出去错版本。
+      # 仅 tag 触发时校验；workflow_dispatch 用于失败重试，跳过此检查。
       - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/v')
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
           TAG_VERSION="${GITHUB_REF_NAME#v}"
