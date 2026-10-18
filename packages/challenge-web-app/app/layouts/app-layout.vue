@@ -96,47 +96,61 @@ onMounted(() => {
 </script>
 
 <template>
-   <div class="w-full flex min-w-[1440px]">
-      <StSidebar class="w-[9.3125rem] !fixed left-0 top-0 h-screen" />
-      <div class="w-[9.3125rem]"></div>
-      <main class="flex flex-col flex-1">
-         <StHeader
-            mode="gradient"
-            class="fixed top-0 !w-[calc(100vw-9.3125rem)] !min-w-[calc(1440px-9.3125rem)]">
-            <template #left>
-               <StSpace gap="0.75rem" align="center">
-                  <StHeaderButton text="搜索" @click="handleSearchClick">
-                     <Search class="text-[1.25rem]" />
-                  </StHeaderButton>
-                  <StHeaderButton text="通知" @click="handleNotificationClick">
-                     <div class="relative">
-                        <Remind class="text-[1.25rem]" />
-                        <div
-                           v-if="unreadCount > 0"
-                           class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-[0.25rem] flex items-center justify-center bg-rose-500 text-white text-[0.625rem] font-bold rounded-full shadow-sm border-2 border-accent-600 z-10 pointer-events-none select-none leading-none font-family-manrope">
-                           {{ unreadCount > 99 ? '99+' : unreadCount }}
+   <div class="w-full flex md:min-w-[1440px]">
+      <StSidebar
+         class="hidden md:flex w-[9.3125rem] !fixed left-0 top-0 h-screen" />
+      <div class="hidden md:block w-[9.3125rem] shrink-0"></div>
+      <main
+         class="flex flex-col flex-1 min-w-0 overflow-x-auto md:overflow-x-visible pb-[calc(4.875rem+env(safe-area-inset-bottom))] md:pb-0">
+         <div class="hidden md:block">
+            <StHeader
+               mode="gradient"
+               class="fixed top-0 !w-[calc(100vw-9.3125rem)] !min-w-[calc(1440px-9.3125rem)]">
+               <template #left>
+                  <StSpace gap="0.75rem" align="center">
+                     <StHeaderButton text="搜索" @click="handleSearchClick">
+                        <Search class="text-[1.25rem]" />
+                     </StHeaderButton>
+                     <StHeaderButton
+                        text="通知"
+                        @click="handleNotificationClick">
+                        <div class="relative">
+                           <Remind class="text-[1.25rem]" />
+                           <div
+                              v-if="unreadCount > 0"
+                              class="absolute -top-1.5 -right-1.5 min-w-[1rem] h-4 px-[0.25rem] flex items-center justify-center bg-rose-500 text-white text-[0.625rem] font-bold rounded-full shadow-sm border-2 border-accent-600 z-10 pointer-events-none select-none leading-none font-family-manrope">
+                              {{ unreadCount > 99 ? '99+' : unreadCount }}
+                           </div>
                         </div>
-                     </div>
-                  </StHeaderButton>
-                  <StHeaderButton
-                     v-if="isAdmin"
-                     @click="handleMyPublish"
-                     text="我的发布">
-                     <TableReport class="text-[1.25rem]" />
-                  </StHeaderButton>
-               </StSpace>
-            </template>
-            <template #right>
-               <StHeaderProfile
-                  :name="username"
-                  :desc="description"
-                  :url="avatarUrl" />
-            </template>
-         </StHeader>
+                     </StHeaderButton>
+                     <StHeaderButton
+                        v-if="isAdmin"
+                        @click="handleMyPublish"
+                        text="我的发布">
+                        <TableReport class="text-[1.25rem]" />
+                     </StHeaderButton>
+                  </StSpace>
+               </template>
+               <template #right>
+                  <StHeaderProfile
+                     :name="username"
+                     :desc="description"
+                     :url="avatarUrl" />
+               </template>
+            </StHeader>
+         </div>
 
-         <div class="h-[5.75rem]"></div>
+         <MobileTopBar
+            class="md:hidden"
+            :unread-count="unreadCount"
+            @search="handleSearchClick"
+            @notification="handleNotificationClick" />
+
+         <div class="h-[3.5rem] md:h-[5.75rem] shrink-0"></div>
          <slot></slot>
       </main>
+
+      <MobileTabBar class="md:hidden" />
 
       <!-- 搜索覆盖层 -->
       <StSearchOverlay />
