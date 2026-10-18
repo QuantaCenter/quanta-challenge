@@ -4,7 +4,7 @@ export interface IRanking {
    userName: string;
    score: number;
    correctRate: number;
-   submissions: number;
+   passCount: number;
    imageUrl: string;
    uid: string;
 }

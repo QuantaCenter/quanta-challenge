@@ -21,7 +21,7 @@ const { data: rankings, pending: loadingRankings } = useAsyncData(
             imageUrl: item.avatarUrl ?? DEFAULT_AVATAR_URL,
             rank: item.rank,
             score: item.score,
-            submissions: item.passCount,
+            passCount: item.passCount,
             userName: item.userName,
             uid: item.uid,
          })),
