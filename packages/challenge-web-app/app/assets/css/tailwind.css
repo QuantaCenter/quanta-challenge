@@ -97,6 +97,33 @@ body::-webkit-scrollbar {
    display: none;
 }
 
+* {
+   scrollbar-width: thin;
+   scrollbar-color: #434343 transparent;
+}
+
+::-webkit-scrollbar {
+   width: 8px;
+   height: 8px;
+}
+
+::-webkit-scrollbar-track {
+   background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+   background: #434343;
+   border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+   background: #6d6d6d;
+}
+
+::-webkit-scrollbar-corner {
+   background: transparent;
+}
+
 @layer components {
    .monaco-editor {
       outline: none !important;
