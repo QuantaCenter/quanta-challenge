@@ -5,6 +5,7 @@ import {
    resolveBackendServiceRuntime,
    UploadSchema,
 } from '../../schemas/publish-schema';
+import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
 import { IFile, projectService } from '../../services/project';
 import z from 'zod';
@@ -171,6 +172,7 @@ const createAuditTask = async (options: {
 
 // 上传新问题及其详细信息、判题脚本和答题模板。
 const uploadProcedure = protectedAdminProcedure
+   .use(requireCliVersion)
    .input(UploadSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
@@ -572,6 +574,7 @@ const getDetailProcedure = protectedAdminProcedure
 
 // 创建一个新的模板工程 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
 const reuploadProcedure = protectedAdminProcedure
+   .use(requireCliVersion)
    .input(ReuploadSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;

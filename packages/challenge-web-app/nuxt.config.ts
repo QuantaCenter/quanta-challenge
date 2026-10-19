@@ -223,6 +223,10 @@ export default defineNuxtConfig({
       judge: {
          serverUrl: env('JUDGE_SERVER', 'http://localhost:1888'),
       },
+      quanta: {
+         // 出题 CLI 的最低版本，留空用 @challenge/shared/cli-version 的内置值
+         minCliVersion: env('QUANTA_MIN_CLI_VERSION', ''),
+      },
       cloudFunction: {
          serverUrl: env('CF_SERVER', 'http://localhost:1890'),
          keyId: env('CF_INTERNAL_KEY_ID', 'web-app'),
