@@ -5,7 +5,7 @@ import ProfileCard from './_components/ProfileCard.vue';
 import RankingTrendsCard from './_components/RankingTrendsCard.vue';
 import RankTable from './_components/RankTable.vue';
 import type { IRanking } from './_types';
-import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
+import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 import useAuthStore from '~/stores/auth-store';
 
 const { $trpc } = useNuxtApp();

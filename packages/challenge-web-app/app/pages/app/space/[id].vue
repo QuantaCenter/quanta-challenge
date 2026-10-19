@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import DEFAULT_SPACE_URL from '~/assets/images/default-space-banner.png';
-import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
+import DEFAULT_SPACE_URL from '~/assets/images/default-space-banner.webp';
+import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 import {
    BirthdayCake,
    Mail,

@@ -2,7 +2,7 @@ import { dialog } from '~/composables/use-dialog';
 import { useMessage } from '~/components/st/Message/use-message';
 import { logger } from '~~/lib/logger';
 import type { CloudFunctionVersionRow } from '~/types/cloud-function';
-import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
+import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 
 export interface ICloudFunctionForm {
    description: string;

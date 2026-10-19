@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import defaultAvatar from '@/assets/images/default-avatar.png';
+import defaultAvatar from '@/assets/images/default-avatar.webp';
 
 const props = defineProps<{
    url?: string;
