@@ -4,7 +4,7 @@ name: publish-npm
 on:
   push:
     tags:
-      - 'v*'
+      - '@quantacenter/quanta-problem-cli@*'
   workflow_dispatch:
 
 concurrency:
@@ -46,14 +46,15 @@ jobs:
         working-directory: .
         run: pnpm install --frozen-lockfile
 
-      # 标签是发布意图的唯一入口：v1.2.3 必须对应 package.json 的 1.2.3，
+      # 标签是发布意图的唯一入口：@quantacenter/quanta-problem-cli@1.2.3 必须对应 package.json 的 1.2.3，
       # 防止改了版本忘打标签（或反之）发出去错版本。
       # 仅 tag 触发时校验；workflow_dispatch 用于失败重试，跳过此检查。
       - name: Check tag matches package version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: startsWith(github.ref, 'refs/tags/')
         run: |
           PKG_VERSION="$(node -p "require('./package.json').version")"
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          # tag 格式：@quantacenter/quanta-problem-cli@1.2.3，取最后一个 @ 之后的部分
+          TAG_VERSION="${GITHUB_REF_NAME##*@}"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
             echo "::error::标签 v$TAG_VERSION 与 package.json 版本 $PKG_VERSION 不一致"
             echo "请保持两者一致：改 package.json version，或重打标签。"
