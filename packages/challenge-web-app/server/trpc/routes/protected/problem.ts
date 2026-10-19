@@ -117,71 +117,73 @@ const commitAnswerProcedure = protectedProcedure
       const { userId } = ctx.user;
       const { judge } = useRuntimeConfig();
 
-      let createdJudgeRecordId: number = -1;
-      await prisma.$transaction(async (tx) => {
-         // 创建判题记录
-         const { id: judgeRecordId } = await tx.judgeRecords.create({
-            data: {
-               type: 'judge',
-               problemId: input.problemId,
-               userId: userId,
-               info: {},
-            },
-            select: {
-               id: true,
-            },
-         });
-         createdJudgeRecordId = judgeRecordId;
-
-         const { JudgeFile, status } = await tx.problems.findUniqueOrThrow({
-            where: {
-               pid: input.problemId,
-            },
-            select: {
-               JudgeFile: {
-                  select: {
-                     judgeScript: true,
-                  },
+      const { judgeRecordId, judgeScript } = await prisma.$transaction(
+         async (tx) => {
+            // 创建判题记录
+            const { id: judgeRecordId } = await tx.judgeRecords.create({
+               data: {
+                  type: 'judge',
+                  problemId: input.problemId,
+                  userId: userId,
+                  info: {},
                },
-               status: true,
-            },
-         });
-         // 未发布（含被取消发布）的题目不允许提交判题；在事务内抛错会一并回滚上面创建的判题记录
-         if (status !== 'published') {
-            throw new TRPCError({
-               code: 'NOT_FOUND',
-               message: 'Problem not found',
+               select: {
+                  id: true,
+               },
             });
-         }
-         const judgeScript = JudgeFile[0].judgeScript;
 
-         await fetch(`${judge.serverUrl}/task/create`, {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'x-trace-id': ctx.traceId ?? '',
-            },
-            body: JSON.stringify({
-               userId: userId,
-               judgeRecordId: judgeRecordId,
-               judgeScript: judgeScript,
-               fsSnapshot: input.snapshot,
-               problemId: input.problemId,
-               mode: 'judge',
-            }),
-         }).then((res: any) => {
-            if (!res.ok) {
+            const { JudgeFile, status } = await tx.problems.findUniqueOrThrow({
+               where: {
+                  pid: input.problemId,
+               },
+               select: {
+                  JudgeFile: {
+                     select: {
+                        judgeScript: true,
+                     },
+                  },
+                  status: true,
+               },
+            });
+            // 未发布（含被取消发布）的题目不允许提交判题；在事务内抛错会一并回滚上面创建的判题记录
+            if (status !== 'published') {
                throw new TRPCError({
-                  code: 'INTERNAL_SERVER_ERROR',
-                  message: `Failed to create task: ${res.message}`,
+                  code: 'NOT_FOUND',
+                  message: 'Problem not found',
                });
             }
-         });
+
+            return { judgeRecordId, judgeScript: JudgeFile[0].judgeScript };
+         },
+      );
+
+      // 事务已提交，再派发判题任务：调度器收到任务会立刻查库，事务未提交时会因查不到判题记录直接失败
+      await fetch(`${judge.serverUrl}/task/create`, {
+         method: 'POST',
+         headers: {
+            'Content-Type': 'application/json',
+            'x-trace-id': ctx.traceId ?? '',
+         },
+         body: JSON.stringify({
+            userId: userId,
+            judgeRecordId: judgeRecordId,
+            judgeScript: judgeScript,
+            fsSnapshot: input.snapshot,
+            problemId: input.problemId,
+            mode: 'judge',
+         }),
+      }).then((res: any) => {
+         if (!res.ok) {
+            throw new TRPCError({
+               code: 'INTERNAL_SERVER_ERROR',
+               message: `Failed to create task: ${res.message}`,
+            });
+         }
       });
 
       return {
          success: true,
-         judgeRecordId: createdJudgeRecordId,
+         judgeRecordId,
       };
    });
 
