@@ -58,7 +58,7 @@ export function validateSettings(env: Record<string, string | undefined>) {
          (env.NODE_ENV !== 'development' ||
             env.QUANTA_OAUTH_ALLOW_LOCAL_TEST !== 'true' ||
             app.origin !== 'https://localhost:3443' ||
-            issuer.href !== 'https://www.quantacenter.com/')
+            issuer.href !== 'https://www.example.com/')
       )
          throw new Error();
       if (

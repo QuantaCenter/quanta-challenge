@@ -189,7 +189,7 @@ onMounted(() => {
       class="grid min-h-dvh place-items-center bg-background px-4 py-9 text-accent-100"
    >
       <section
-         class="w-full max-w-[28.5rem] rounded-r5 bg-[#1a1a1a] px-6 py-8"
+         class="w-full max-w-[28.5rem] rounded-r5 bg-[#1a1a1a] px-6 py-8 text-center"
          aria-live="polite"
          :aria-busy="busy || status === 'loading'"
       >
@@ -241,7 +241,7 @@ onMounted(() => {
                   required
                   maxlength="254"
                   :disabled="busy"
-                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0"
+                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0 [&_input]:text-center"
                />
             </label>
             <!-- biome-ignore lint/a11y/noLabelWithoutControl: StInput renders the nested input, so this label associates implicitly. -->
@@ -254,7 +254,7 @@ onMounted(() => {
                   required
                   maxlength="200"
                   :disabled="busy"
-                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0"
+                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0 [&_input]:text-center"
                />
             </label>
             <StButton

@@ -44,18 +44,18 @@ test('disabled service never falls back to insecure credentials', () => {
 test('configuration pins HTTPS issuer, client and exact callback; no arbitrary host', () => {
    const config = {
       QUANTA_OAUTH_ENABLED: 'true',
-      QUANTA_OAUTH_ISSUER: 'https://www.quantacenter.com',
+      QUANTA_OAUTH_ISSUER: 'https://www.example.com',
       QUANTA_OAUTH_CLIENT_ID: 'quanta-challenge',
       QUANTA_OAUTH_CLIENT_SECRET: 's'.repeat(40),
-      QUANTA_OAUTH_APP_ORIGIN: 'https://challenge.quantacenter.com',
+      QUANTA_OAUTH_APP_ORIGIN: 'https://challenge.example.com',
    };
    assert.equal(
       validateSettings(config).callback,
-      'https://challenge.quantacenter.com/api/auth/quanta/callback',
+      'https://challenge.example.com/api/auth/quanta/callback',
    );
    for (const bad of [
-      { QUANTA_OAUTH_ISSUER: 'http://www.quantacenter.com' },
-      { QUANTA_OAUTH_APP_ORIGIN: 'https://challenge.quantacenter.com/evil' },
+      { QUANTA_OAUTH_ISSUER: 'http://www.example.com' },
+      { QUANTA_OAUTH_APP_ORIGIN: 'https://challenge.example.com/evil' },
       { QUANTA_OAUTH_CLIENT_ID: 'another' },
    ])
       assert.throws(() => validateSettings({ ...config, ...bad }));
@@ -66,7 +66,7 @@ test('local test client requires development opt-in and the exact localhost orig
       NODE_ENV: 'development',
       QUANTA_OAUTH_ENABLED: 'true',
       QUANTA_OAUTH_ALLOW_LOCAL_TEST: 'true',
-      QUANTA_OAUTH_ISSUER: 'https://www.quantacenter.com',
+      QUANTA_OAUTH_ISSUER: 'https://www.example.com',
       QUANTA_OAUTH_CLIENT_ID: 'quanta-challenge-local',
       QUANTA_OAUTH_CLIENT_SECRET: 's'.repeat(40),
       QUANTA_OAUTH_APP_ORIGIN: 'https://localhost:3443',
@@ -280,11 +280,11 @@ test('handoff must match both current Challenge identity and CSRF; an old accoun
 });
 
 const keys = generateKeyPairSync('rsa', { modulusLength: 2048 });
-const issuer = 'https://www.quantacenter.com';
+const issuer = 'https://www.example.com';
 const config = {
    issuer,
-   appOrigin: 'https://challenge.quantacenter.com',
-   callback: 'https://challenge.quantacenter.com/api/auth/quanta/callback',
+   appOrigin: 'https://challenge.example.com',
+   callback: 'https://challenge.example.com/api/auth/quanta/callback',
    clientId: 'quanta-challenge',
    clientSecret: 's'.repeat(40),
 };

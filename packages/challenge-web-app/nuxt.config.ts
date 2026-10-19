@@ -110,7 +110,7 @@ export default defineNuxtConfig({
             'Cache-Control': 'no-store',
             'Referrer-Policy': 'no-referrer',
             'X-Frame-Options': 'DENY',
-            'Access-Control-Allow-Origin': 'https://challenge.quantacenter.com',
+            'Access-Control-Allow-Origin': 'https://challenge.example.com',
          },
       },
       '/auth/quanta/**': {
