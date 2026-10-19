@@ -1,15 +1,6 @@
 import type { DirectoryNode, FileSystemTree } from '@WebContainer/api';
+import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
 import { normalizePath, splitPath } from '~/utils/path-utils';
-
-const base64ToUint8Array = (base64: string) => {
-   const binaryString = atob(base64);
-   const len = binaryString.length;
-   const bytes = new Uint8Array(len);
-   for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-   }
-   return bytes;
-};
 
 const writeFile = (
    fs: FileSystemTree,
@@ -18,12 +9,13 @@ const writeFile = (
    contents: string | Uint8Array
 ) => {
    if (pathSegments.length === 0) {
-      if (typeof contents === 'string' && contents.startsWith('data:image')) {
-         const b64 = contents.split(',')[1] || '';
-         contents = base64ToUint8Array(b64);
-      }
       fs[fileName] = {
-         file: { contents },
+         file: {
+            contents:
+               typeof contents === 'string'
+                  ? decodeSnapshotContent(fileName, contents)
+                  : contents,
+         },
       };
       return;
    }
