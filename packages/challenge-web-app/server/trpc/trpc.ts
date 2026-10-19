@@ -1,7 +1,8 @@
 import { initTRPC } from '@trpc/server';
-import { Context } from './context';
-import { log } from './middlewares/log';
 import z, { ZodError } from 'zod';
+import { oauthErrorKind } from '../services/quanta-oauth/rpc-errors';
+import type { Context } from './context';
+import { log } from './middlewares/log';
 
 const t = initTRPC.context<Context>().create({
    errorFormatter({ shape, error, ctx }) {
@@ -20,6 +21,7 @@ const t = initTRPC.context<Context>().create({
          data: {
             ...shape.data,
             traceId: ctx?.traceId ?? 'unknown',
+            quantaOAuthError: oauthErrorKind(error),
             zodError:
                error.cause instanceof ZodError
                   ? z.treeifyError(error.cause)

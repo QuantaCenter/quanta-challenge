@@ -456,6 +456,9 @@ importers:
         specifier: ^4.0.5
         version: 4.0.5
     devDependencies:
+      '@biomejs/biome':
+        specifier: 2.5.15
+        version: 2.5.15
       '@shikijs/monaco':
         specifier: ^3.9.2
         version: 3.9.2

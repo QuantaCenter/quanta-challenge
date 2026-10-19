@@ -1,18 +1,29 @@
 // plugins/trpc.client.ts
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
-import type { AppRouter } from '../../server/trpc/routes/index';
-import useAuthStore from '~/stores/auth-store';
-import { useMessageOutsideVue } from '~/components/st/Message/use-message';
+import {
+   createTRPCClient,
+   httpBatchLink,
+   httpLink,
+   splitLink,
+} from '@trpc/client';
 import { TRPCError } from '@trpc/server';
 import type { H3Event } from 'h3';
+import { useMessageOutsideVue } from '~/components/st/Message/use-message';
+import useAuthStore from '~/stores/auth-store';
+import {
+   isQuantaLoginPath,
+   isQuantaProcedure,
+   isQuantaRpcRequest,
+} from '~/utils/quanta-login';
 import { logger } from '~~/lib/logger';
-import { isQuantaLoginPath } from '~/utils/quanta-login';
+import type { AppRouter } from '../../server/trpc/routes/index';
 
 // 常量定义
 const TOKEN_KEYS = {
    ACCESS: 'quanta_access_token',
    REFRESH: 'quanta_refresh_token',
 } as const;
+
+type RequestOptions = RequestInit & { headers: Record<string, string> };
 
 /**
  * 将 cookies 对象转换为 cookie 字符串
@@ -119,7 +130,7 @@ const handleSSRTokenRefresh = (
    cookies: Record<string, string>,
    accessToken: string,
    refreshToken: string,
-   options: any,
+   options: RequestOptions,
 ): void => {
    // 设置 Set-Cookie headers 传递给客户端
    setSSRCookies(event, accessToken, refreshToken);
@@ -156,16 +167,13 @@ const redirectToLogin = (
    }
    if (isServer && event) {
       event.node.res.writeHead(302, {
-         Location:
-            '/auth/login?redirect=' + encodeURIComponent(target),
+         Location: '/auth/login?redirect=' + encodeURIComponent(target),
       });
       event.node.res.end();
       return;
    }
    if (!isServer) {
-      location.replace(
-         '/auth/login?redirect=' + encodeURIComponent(target),
-      );
+      location.replace('/auth/login?redirect=' + encodeURIComponent(target));
    }
 };
 
@@ -174,7 +182,7 @@ const redirectToLogin = (
  */
 const handleUnauthorized = async (
    url: RequestInfo | URL,
-   options: any,
+   options: RequestOptions,
    isServer: boolean,
    cookies: Record<string, string>,
    event?: H3Event,
@@ -238,65 +246,79 @@ export default defineNuxtPlugin(() => {
       : '';
    const isServer = import.meta.server;
 
+   const linkOptions = {
+      url: baseUrl + '/api/trpc',
+      headers() {
+         const csrfToken = authStore.csrfToken;
+         return {
+            ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
+            'x-ssr': isServer ? '1' : '0',
+            'x-trace-id': genTraceId(),
+         };
+      },
+      async fetch(url: RequestInfo | URL, options: RequestInit | undefined) {
+         const oauthRequest = isQuantaRpcRequest(url);
+         // SSR 环境使用解析后的 cookies，客户端使用空对象
+         const cookies = isServer ? ssrCookies : {};
+
+         // 构建请求 headers
+         const headers: Record<string, string> = {
+            ...Object.fromEntries(new Headers(options?.headers)),
+            'x-ssr': isServer ? '1' : '0',
+         };
+
+         // SSR 环境添加 Cookie header
+         if (isServer && Object.keys(cookies).length > 0) {
+            headers.cookie = serializeCookies(cookies);
+         }
+
+         // 发起初始请求
+         const requestOptions: RequestOptions = { ...options, headers };
+         let res = await fetch(url, requestOptions).catch((err) => {
+            // 将 TRPC UNAUTHORIZED 错误转换为 401 响应
+            if (err instanceof TRPCError && err.code === 'UNAUTHORIZED') {
+               return { status: 401 } as Response;
+            }
+            if (oauthRequest) {
+               logger.error(
+                  { operation: 'auth.quanta' },
+                  'OAuth transport failed',
+               );
+            } else {
+               logger.error({ url, err, headers }, 'Fetch error');
+            }
+            throw err;
+         });
+
+         // 处理 401 未授权错误 - 尝试刷新 token
+         if (!oauthRequest && (res.status === 401 || res.status === 207)) {
+            res = await handleUnauthorized(
+               url as RequestInfo,
+               requestOptions,
+               isServer,
+               cookies,
+               event,
+               route?.fullPath,
+            );
+         }
+
+         // 客户端显示 5xx 服务器错误提示 必须读**克隆体**：直接 await res.text() 会把响应体消费掉， tRPC 之后再去 res.json() 只会抛 "Failed to execute 'json' on 'Response': body stream already read"， 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
+         if (res.status >= 500 && !isServer && !oauthRequest) {
+            showServerError(await res.clone().text());
+         }
+
+         return res;
+      },
+   };
+
    const trpc = createTRPCClient<AppRouter>({
       links: [
-         httpBatchLink({
-            url: baseUrl + '/api/trpc',
-            headers() {
-               const csrfToken = authStore.csrfToken;
-               return {
-                  ...(csrfToken ? { 'x-csrf-token': csrfToken } : {}),
-                  'x-ssr': isServer ? '1' : '0',
-                  'x-trace-id': genTraceId(),
-               };
-            },
-            async fetch(url, options: any) {
-               // SSR 环境使用解析后的 cookies，客户端使用空对象
-               const cookies = isServer ? ssrCookies : {};
-
-               // 构建请求 headers
-               const headers: Record<string, string> = {
-                  ...options?.headers,
-                  'x-ssr': isServer ? '1' : '0',
-               };
-
-               // SSR 环境添加 Cookie header
-               if (isServer && Object.keys(cookies).length > 0) {
-                  headers.cookie = serializeCookies(cookies);
-               }
-
-               // 发起初始请求
-               let res = await fetch(url, {
-                  ...options,
-                  headers,
-               }).catch((err) => {
-                  // 将 TRPC UNAUTHORIZED 错误转换为 401 响应
-                  if (err instanceof TRPCError && err.code === 'UNAUTHORIZED') {
-                     return { status: 401 } as Response;
-                  }
-                  logger.error({ url, err, headers }, 'Fetch error');
-                  throw err;
-               });
-
-               // 处理 401 未授权错误 - 尝试刷新 token
-               if (res.status === 401 || res.status === 207) {
-                  res = await handleUnauthorized(
-                     url as RequestInfo,
-                     options,
-                     isServer,
-                     cookies,
-                     event,
-                     route?.fullPath,
-                  );
-               }
-
-               // 客户端显示 5xx 服务器错误提示 必须读**克隆体**：直接 await res.text() 会把响应体消费掉， tRPC 之后再去 res.json() 只会抛 "Failed to execute 'json' on 'Response': body stream already read"， 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
-               if (res.status >= 500 && !isServer) {
-                  showServerError(await res.clone().text());
-               }
-
-               return res;
-            },
+         splitLink({
+            condition: (operation) => isQuantaProcedure(operation.path),
+            // Cookie-changing and one-time OAuth actions must not share batches
+            // or be replayed by the regular authentication refresh transport.
+            true: httpLink(linkOptions),
+            false: httpBatchLink(linkOptions),
          }),
       ],
    });

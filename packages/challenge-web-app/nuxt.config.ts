@@ -28,6 +28,7 @@ export default defineNuxtConfig({
 
    css: ['~/assets/css/tailwind.css'],
    vite: {
+      // biome-ignore lint/suspicious/noExplicitAny: Existing Tailwind/Nuxt Vite versions expose incompatible plugin types.
       plugins: [tailwindcss() as any],
       ssr: {
          noExternal: ['winston'],
@@ -99,17 +100,25 @@ export default defineNuxtConfig({
 
       corsHandler: false,
 
-
       // /<style([^>]*?)>/gi、/<script([^>]*?)>/gi、/<link([^>]*?)>/gi 对**整段 HTML 字符串**做盲替换，把 nonce="…" 插进去——属性值内部也照插。 而题面 markdown 里出现 `<style>` 是常态（CSS 题尤甚），于是： <meta property="og:description" content="…补全 `<style>` 里的样式…"> ↓ 被正则改成 <meta property="og:description" content="…补全 `<style nonce="XXXX">` 里的样式…"> 凭空多出的那个 `"` 提前闭合了 content 属性，剩下的文本成了 <head> 里的 非空白文本，浏览器会把它搬进 <body> —— 做题页顶部因此多出一段乱码文本 （description 与 og:description 各断一次，所以出现两遍）。 关掉它没有安全损失： · 本项目的 CSP 已经允许 'unsafe-inline'（见下面 routeRules['/**']）， nonce / 'strict-dynamic' 本来就形同虚设； · 生效的 CSP 里不存在 'nonce-{{nonce}}' 占位符，关掉后不会留下残缺的 'nonce-{{nonce}}' 源（updateCspVariables 会把占位符替换成空串并丢弃）； · 应用侧没有任何地方读 useNonce() / csp-nonce。 根因侧也已在 app/utils/seo-text.ts 修掉（不再把裸标签喂进 head）。 这里是纵深防御：以后哪怕别的字段又把 markdown / HTML 带进 head， 也不会再被这个 HTML 改写环节撕开属性。 注意：同一批插件里的 20-subresourceIntegrity 仍是字符串正则改写， 但它只认 src/href 能命中构建产物清单的 <script>/<link>，影响面窄得多。
       nonce: false,
    },
 
    routeRules: {
       '/api/auth/quanta/**': {
-         headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY', 'Access-Control-Allow-Origin': 'https://challenge.quantacenter.com' },
+         headers: {
+            'Cache-Control': 'no-store',
+            'Referrer-Policy': 'no-referrer',
+            'X-Frame-Options': 'DENY',
+            'Access-Control-Allow-Origin': 'https://challenge.quantacenter.com',
+         },
       },
       '/auth/quanta/**': {
-         headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer', 'X-Frame-Options': 'DENY' },
+         headers: {
+            'Cache-Control': 'no-store',
+            'Referrer-Policy': 'no-referrer',
+            'X-Frame-Options': 'DENY',
+         },
       },
       '/**': {
          security: {
@@ -160,7 +169,12 @@ export default defineNuxtConfig({
       },
    },
 
-   modules: ['@pinia/nuxt', '@vueuse/nuxt', 'nuxt-security', '@sentry/nuxt/module'],
+   modules: [
+      '@pinia/nuxt',
+      '@vueuse/nuxt',
+      'nuxt-security',
+      '@sentry/nuxt/module',
+   ],
 
    nitro: {
       externals: {
@@ -232,7 +246,11 @@ export default defineNuxtConfig({
       cloudFunction: {
          serverUrl: env('CF_SERVER', 'http://localhost:1890'),
          keyId: env('CF_INTERNAL_KEY_ID', 'web-app'),
-         secret: process.env.CF_INTERNAL_SECRET || (process.env.NODE_ENV === 'production' ? '' : 'dev_only_cloud_function_web_app'),
+         secret:
+            process.env.CF_INTERNAL_SECRET ||
+            (process.env.NODE_ENV === 'production'
+               ? ''
+               : 'dev_only_cloud_function_web_app'),
       },
       rank: {
          problemCacheTTL: envInt('PROBLEM_RANKING_CACHE_TTL', 3600),

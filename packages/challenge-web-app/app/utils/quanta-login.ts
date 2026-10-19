@@ -1,21 +1,115 @@
-const validToken = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
-const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' ? value as Record<string, unknown> : null;
-export const isQuantaLoginPath = (path: string) => /^\/auth\/quanta(?:[/?#]|$)/.test(path);
+const validToken = (value: unknown): value is string =>
+   typeof value === 'string' && /^[A-Za-z0-9_-]{43}$/.test(value);
+const object = (value: unknown): Record<string, unknown> | null =>
+   value !== null && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : null;
+export const isQuantaLoginPath = (path: string) =>
+   /^\/auth\/quanta(?:[/?#]|$)/.test(path);
+export const isQuantaProcedure = (path: string) =>
+   path.startsWith('auth.quanta.');
+
+export function isQuantaRpcRequest(value: RequestInfo | URL) {
+   const input = value instanceof Request ? value.url : String(value);
+   try {
+      const path = new URL(input, 'https://local.invalid').pathname;
+      return (
+         path.startsWith('/api/trpc/') &&
+         path.slice('/api/trpc/'.length).split(',').some(isQuantaProcedure)
+      );
+   } catch {
+      return false;
+   }
+}
+
+export function parseAuthorizationResult(value: unknown, appOrigin: string) {
+   const data = object(value);
+   if (
+      typeof data?.issuer !== 'string' ||
+      typeof data.authorizationUrl !== 'string'
+   )
+      throw new LoginResponseError();
+   const issuers = ['https://www.quantacenter.com'];
+   if (appOrigin === 'https://localhost:3443')
+      issuers.push('https://localhost:8443');
+   if (!issuers.includes(data.issuer)) throw new LoginResponseError();
+   let url: URL;
+   try {
+      url = new URL(data.authorizationUrl);
+   } catch {
+      throw new LoginResponseError();
+   }
+   const query = url.searchParams;
+   const singleKeys = [
+      'response_type',
+      'client_id',
+      'redirect_uri',
+      'scope',
+      'state',
+      'nonce',
+      'code_challenge',
+      'code_challenge_method',
+   ];
+   const clientIds =
+      appOrigin === 'https://localhost:3443'
+         ? ['quanta-challenge', 'quanta-challenge-local']
+         : ['quanta-challenge'];
+   if (
+      url.origin !== data.issuer ||
+      url.pathname !== '/oauth2/authorize' ||
+      url.username ||
+      url.password ||
+      url.hash ||
+      singleKeys.some((key) => query.getAll(key).length !== 1) ||
+      query.get('response_type') !== 'code' ||
+      !clientIds.includes(query.get('client_id') || '') ||
+      query.get('redirect_uri') !== `${appOrigin}/api/auth/quanta/callback` ||
+      query.get('scope') !== 'openid profile' ||
+      query.get('code_challenge_method') !== 'S256' ||
+      !validToken(query.get('state')) ||
+      !validToken(query.get('nonce')) ||
+      !validToken(query.get('code_challenge'))
+   )
+      throw new LoginResponseError();
+   return url.href;
+}
 export class LoginResponseError extends Error {
    code = 'session_invalid';
-   constructor() { super('Invalid Quanta login response'); }
+   constructor() {
+      super('Invalid Quanta login response');
+   }
 }
-type LoginContext = { status: 'ready' } | { status: 'onboarding'; name: string; csrfToken: string; linkName: string | null };
+type LoginContext =
+   | { status: 'ready' }
+   | {
+        status: 'onboarding';
+        name: string;
+        csrfToken: string;
+        linkName: string | null;
+     };
 export function parseLoginContext(value: unknown): LoginContext {
    const data = object(value);
    if (data?.status === 'ready') return { status: 'ready' };
-   if (data?.status !== 'onboarding' || typeof data.name !== 'string' || !data.name.trim()
-      || !validToken(data.csrfToken) || (data.linkName !== null && (typeof data.linkName !== 'string' || !data.linkName.trim()))) throw new LoginResponseError();
-   return { status: 'onboarding', name: data.name, csrfToken: data.csrfToken, linkName: data.linkName as string | null };
+   if (
+      data?.status !== 'onboarding' ||
+      typeof data.name !== 'string' ||
+      !data.name.trim() ||
+      !validToken(data.csrfToken) ||
+      (data.linkName !== null &&
+         (typeof data.linkName !== 'string' || !data.linkName.trim()))
+   )
+      throw new LoginResponseError();
+   return {
+      status: 'onboarding',
+      name: data.name,
+      csrfToken: data.csrfToken,
+      linkName: data.linkName as string | null,
+   };
 }
 export function parseSessionResult(value: unknown) {
    const data = object(value);
-   if (!validToken(data?.csrfToken) || data?.destination !== '/app/dashboard') throw new LoginResponseError();
+   if (!validToken(data?.csrfToken) || data?.destination !== '/app/dashboard')
+      throw new LoginResponseError();
    return { csrfToken: data.csrfToken, destination: '/app/dashboard' as const };
 }
 const labels: Record<string, string> = {
@@ -34,13 +128,30 @@ const labels: Record<string, string> = {
    invalid_request: '本次登录请求无效，请重新发起。',
    session_invalid: '登录状态未能完成初始化，请重新发起。',
 };
-const restartCodes = new Set(['expired', 'access_denied', 'csrf_failed', 'binding_conflict', 'session_invalid', 'conflict', 'reauth_required', 'invalid_request', 'member_required']);
+const restartCodes = new Set([
+   'expired',
+   'access_denied',
+   'csrf_failed',
+   'binding_conflict',
+   'session_invalid',
+   'conflict',
+   'reauth_required',
+   'invalid_request',
+   'member_required',
+]);
 export function loginError(error: unknown) {
    const value = object(error);
    const data = object(value?.data);
-   const code = object(data?.data)?.error ?? data?.error ?? value?.code;
+   const code =
+      data?.quantaOAuthError ??
+      object(data?.data)?.error ??
+      data?.error ??
+      value?.code;
    return {
-      message: typeof code === 'string' && Object.hasOwn(labels, code) ? labels[code] : '登录未完成，请稍后重试。',
+      message:
+         typeof code === 'string' && Object.hasOwn(labels, code)
+            ? labels[code]
+            : '登录未完成，请稍后重试。',
       restart: typeof code === 'string' && restartCodes.has(code),
    };
 }
