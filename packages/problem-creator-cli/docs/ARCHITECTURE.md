@@ -61,6 +61,9 @@ GET /api/trpc/admin.problem.getAuditDetail 轮询
 - 查询用 `GET ...?input=<urlencoded json>`。
 - 会话鉴权同时要 cookie（`quanta_access_token` / `quanta_csrf_token`）
   与请求头 `x-csrf-token`；只有 access token 时退回 `x-ssr: 1`。
+- **版本门槛**：上传类请求带 `x-quanta-cli-version`（并写在 user-agent 里），服务端按
+  `@challenge/shared/cli-version` 的 `MIN_CLI_VERSION` 拦截过旧客户端（`QUANTA_MIN_CLI_VERSION` 可覆盖），
+  被拦时返回 403 + `data.quantaCode = 'CLI_VERSION_TOO_OLD'`。
 - access token 15 分钟过期，401 时用 refresh token 调 `GET /api/refresh` 续期一次后重试。
 
 ## 四、判题脚本为什么用"打码 + 括号配对"而不是真解析器

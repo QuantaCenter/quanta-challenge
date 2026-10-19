@@ -39,6 +39,10 @@ interface TrpcFailure {
             httpStatus?: number;
             traceId?: string;
             zodError?: unknown;
+            /** 业务错误标记（见服务端 errorFormatter），如 CLI 版本过低 */
+            quantaCode?: string;
+            current?: string;
+            required?: string;
          };
       };
    };
@@ -75,6 +79,7 @@ export class HttpClient {
       const headers: Record<string, string> = {
          accept: 'application/json',
          'user-agent': `qpc/${CLI_VERSION} (quanta-problem-creator)`,
+         'x-quanta-cli-version': CLI_VERSION,
          ...extra,
       };
 
@@ -250,14 +255,17 @@ export class HttpClient {
       const status = json?.data?.httpStatus ?? response.status;
 
       if (status === 401 || status === 403) {
+         // 版本门槛也是 403，与权限不足的提示区分开
+         const tooOld = json?.data?.quantaCode === 'CLI_VERSION_TOO_OLD';
          return new ApiError(message, {
             status,
             path,
             details: { code: json?.data?.code, traceId: json?.data?.traceId },
-            hint:
-               status === 401
-                  ? '登录状态已失效：qpc login --force 重新登录。'
-                  : '当前账号没有管理员权限（出题接口要求 role=ADMIN）。',
+            hint: tooOld
+               ? `升级出题 CLI：npm i -g @quantacenter/quanta-problem-cli@latest（服务端要求 >= ${json?.data?.required}）`
+               : status === 401
+                 ? '登录状态已失效：qpc login --force 重新登录。'
+                 : '当前账号没有管理员权限（出题接口要求 role=ADMIN）。',
          });
       }
 
