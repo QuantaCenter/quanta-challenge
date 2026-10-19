@@ -26,18 +26,8 @@ const handleCreateVersion = async (options: {
    userId: string;
    baseProblemId: number;
    judgeScript: string;
-   judgeServerUrl: string;
-   traceId: string;
 }) => {
-   const {
-      tx,
-      input,
-      userId,
-      baseProblemId,
-      judgeScript,
-      judgeServerUrl,
-      traceId,
-   } = options;
+   const { tx, input, userId, baseProblemId, judgeScript } = options;
    // 后端题：bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样）
    const isBackendService = input.problemType === 'backend_service';
    const backendRuntime = isBackendService
@@ -133,7 +123,28 @@ const handleCreateVersion = async (options: {
       },
    });
 
-   // 发送任务到任务处理服务
+   return { problemId, judgeRecordId: templateJudgeRecord.judgeRecordId };
+};
+
+// 审计任务必须在事务提交后派发：调度器收到任务会立刻查库，事务未提交时会因查不到题目行直接失败
+const createAuditTask = async (options: {
+   judgeServerUrl: string;
+   traceId: string;
+   userId: string;
+   problemId: number;
+   judgeRecordId: number;
+   judgeScript: string;
+   fsSnapshot: z.infer<typeof UploadSchema>['referenceAnswerSnapshot'];
+}) => {
+   const {
+      judgeServerUrl,
+      traceId,
+      userId,
+      problemId,
+      judgeRecordId,
+      judgeScript,
+      fsSnapshot,
+   } = options;
    await fetch(`${judgeServerUrl}/task/create`, {
       method: 'POST',
       headers: {
@@ -141,11 +152,11 @@ const handleCreateVersion = async (options: {
          'x-trace-id': traceId,
       },
       body: JSON.stringify({
-         userId: userId,
-         problemId: problemId,
-         judgeRecordId: templateJudgeRecord.judgeRecordId,
-         judgeScript: judgeScript,
-         fsSnapshot: input.referenceAnswerSnapshot,
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot,
          mode: 'audit',
       }),
    }).then((res: any) => {
@@ -156,8 +167,6 @@ const handleCreateVersion = async (options: {
          });
       }
    });
-
-   return problemId;
 };
 
 // 上传新问题及其详细信息、判题脚本和答题模板。
@@ -208,22 +217,31 @@ const uploadProcedure = protectedAdminProcedure
          });
       }
 
-      let problemId: number | undefined;
-      await prisma.$transaction(async (tx) => {
-         // 创建问题
-         const baseProblem = await tx.baseProblems.create({
-            data: { authorId: userId },
-         });
-         // 创建问题版本
-         problemId = await handleCreateVersion({
-            tx,
-            input,
-            userId,
-            baseProblemId: baseProblem.id,
-            judgeScript,
-            judgeServerUrl: judge.serverUrl,
-            traceId: ctx.traceId ?? '',
-         });
+      const { problemId, judgeRecordId } = await prisma.$transaction(
+         async (tx) => {
+            // 创建问题
+            const baseProblem = await tx.baseProblems.create({
+               data: { authorId: userId },
+            });
+            // 创建问题版本
+            return handleCreateVersion({
+               tx,
+               input,
+               userId,
+               baseProblemId: baseProblem.id,
+               judgeScript,
+            });
+         },
+      );
+
+      await createAuditTask({
+         judgeServerUrl: judge.serverUrl,
+         traceId: ctx.traceId ?? '',
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot: input.referenceAnswerSnapshot,
       });
 
       return {
@@ -593,28 +611,38 @@ const reuploadProcedure = protectedAdminProcedure
       }
 
       // 创建新问题版本
-      let problemId: number | undefined;
-      await prisma.$transaction(async (tx) => {
-         problemId = await handleCreateVersion({
-            tx,
-            input,
-            userId,
-            baseProblemId: baseId,
-            judgeScript,
-            judgeServerUrl: judge.serverUrl,
-            traceId: ctx.traceId ?? '',
-         });
-         if (currentPid) {
-            await tx.problemVersionTransitions.create({
-               data: {
-                  baseProblemId: baseId,
-                  fromId: currentPid,
-                  toId: problemId,
-                  changeByType: 'user',
-                  changeByUserId: userId,
-               },
+      const { problemId, judgeRecordId } = await prisma.$transaction(
+         async (tx) => {
+            const version = await handleCreateVersion({
+               tx,
+               input,
+               userId,
+               baseProblemId: baseId,
+               judgeScript,
             });
-         }
+            if (currentPid) {
+               await tx.problemVersionTransitions.create({
+                  data: {
+                     baseProblemId: baseId,
+                     fromId: currentPid,
+                     toId: version.problemId,
+                     changeByType: 'user',
+                     changeByUserId: userId,
+                  },
+               });
+            }
+            return version;
+         },
+      );
+
+      await createAuditTask({
+         judgeServerUrl: judge.serverUrl,
+         traceId: ctx.traceId ?? '',
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot: input.referenceAnswerSnapshot,
       });
 
       return {
