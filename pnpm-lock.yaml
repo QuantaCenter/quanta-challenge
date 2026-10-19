@@ -502,9 +502,6 @@ importers:
 
   packages/problem-creator-cli:
     dependencies:
-      '@challenge/shared':
-        specifier: workspace:^
-        version: link:../shared
       '@clack/prompts':
         specifier: ^1.8.1
         version: 1.8.1
@@ -527,6 +524,9 @@ importers:
       '@biomejs/biome':
         specifier: ^2.5.15
         version: 2.5.15
+      '@challenge/shared':
+        specifier: workspace:^
+        version: link:../shared
       '@types/node':
         specifier: ^24.0.14
         version: 24.0.14

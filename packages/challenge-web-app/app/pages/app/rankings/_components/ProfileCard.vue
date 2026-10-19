@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import DEFAULT_PROFILE_BANNER from '@/assets/images/default-profile-banner.png';
-import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
+import DEFAULT_PROFILE_BANNER from '@/assets/images/default-profile-banner.webp';
+import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 import useAuthStore from '~/stores/auth-store';
 
 const { $trpc } = useNuxtApp();

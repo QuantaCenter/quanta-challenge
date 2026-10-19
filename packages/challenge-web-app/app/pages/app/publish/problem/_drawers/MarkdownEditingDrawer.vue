@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { SaveOne } from '@icon-park/vue-next';
+import { Pic, SaveOne } from '@icon-park/vue-next';
+import type monaco from 'monaco-editor';
+import { arrayBufferToBase64 } from '~/components/st/DropUploader/walk-file-list';
+import { useMessage } from '~/components/st/Message/use-message';
 import { useMarkdown } from '~/composables/use-markdown';
 import { useSimpleEditor } from '~/composables/use-simple-editor';
 
 const script = defineModel<string>('markdown');
 const opened = defineModel<boolean>('opened', { default: false });
 
-const { containerKey, onEditorContentChanged, setEditorContent } =
+const { containerKey, onEditorContentChanged, setEditorContent, onEditorReady } =
    useSimpleEditor({
       script: script.value ?? '',
       language: 'markdown',
@@ -18,6 +21,13 @@ const { containerKey, onEditorContentChanged, setEditorContent } =
    });
 const { html, update } = useMarkdown();
 const debounceUpdate = useDebounceFn(update, 200);
+const message = useMessage();
+const { $trpc } = useNuxtApp();
+
+const uploadingImage = ref(false);
+const imageFileInput = useTemplateRef<HTMLInputElement>('image-file-input');
+let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
+let monacoInstance: typeof import('monaco-editor') | null = null;
 
 onEditorContentChanged((value) => {
    script.value = value;
@@ -32,6 +42,95 @@ watch(script, (value) => {
 });
 
 update(script.value ?? '');
+
+onEditorReady((editor, monaco) => {
+   editorInstance = editor;
+   monacoInstance = monaco;
+   const domNode = editor.getDomNode();
+   if (!domNode) return;
+   domNode.addEventListener('paste', (event) => {
+      const file = Array.from(event.clipboardData?.files ?? []).find(
+         (item) => item.type.startsWith('image/')
+      );
+      if (!file) return;
+      event.preventDefault();
+      uploadAndInsertImage(file);
+   });
+   domNode.addEventListener('dragover', (event) => {
+      if (
+         Array.from(event.dataTransfer?.items ?? []).some(
+            (item) => item.kind === 'file' && item.type.startsWith('image/')
+         )
+      ) {
+         event.preventDefault();
+      }
+   });
+   domNode.addEventListener('drop', (event) => {
+      const file = Array.from(event.dataTransfer?.files ?? []).find(
+         (item) => item.type.startsWith('image/')
+      );
+      if (!file) return;
+      event.preventDefault();
+      uploadAndInsertImage(file);
+   });
+});
+
+const insertAtCursor = (text: string) => {
+   const editor = editorInstance;
+   const position = editor?.getPosition();
+   if (!editor || !position || !monacoInstance) return;
+   editor.executeEdits('insert-image', [
+      {
+         range: new monacoInstance.Range(
+            position.lineNumber,
+            position.column,
+            position.lineNumber,
+            position.column
+         ),
+         text,
+      },
+   ]);
+   editor.focus();
+};
+
+const uploadAndInsertImage = async (file: File) => {
+   if (!file.type.startsWith('image/')) {
+      message.error('插入图片失败', '只能插入图片文件');
+      return;
+   }
+   if (file.size > 5 * 1024 * 1024) {
+      message.error('插入图片失败', '图片大小不能超过 5MB');
+      return;
+   }
+   uploadingImage.value = true;
+   try {
+      const fileBase64 = arrayBufferToBase64(await file.arrayBuffer());
+      const res = await $trpc.admin.image.upload.mutate({
+         fileBase64,
+         fileName: file.name,
+      });
+      const alt =
+         file.name
+            .replace(/\.[^.]+$/, '')
+            .replace(/[[\]()]/g, '')
+            .trim() || 'image';
+      insertAtCursor(`![${alt}](/api/static/${res.name})`);
+   } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      message.error('图片上传失败', errorMsg);
+   } finally {
+      uploadingImage.value = false;
+   }
+};
+
+const pickImage = () => imageFileInput.value?.click();
+
+const onImageFileChosen = (event: Event) => {
+   const input = event.target as HTMLInputElement;
+   const file = input.files?.[0];
+   if (file) uploadAndInsertImage(file);
+   input.value = '';
+};
 </script>
 
 <template>
@@ -39,7 +138,25 @@ update(script.value ?? '');
       <StSpace direction="vertical" gap="1rem" class="text-white h-full">
          <StSpace direction="vertical" gap="1.5rem" class="p-6 w-full h-full">
             <!-- Header -->
-            <h1 class="st-font-secondary-bold">编辑题目详情</h1>
+            <StSpace justify="between" align="center" class="w-full">
+               <h1 class="st-font-secondary-bold">编辑题目详情</h1>
+               <StButton
+                  :loading="uploadingImage"
+                  :disabled="uploadingImage"
+                  @click="pickImage"
+                  class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]">
+                  <div class="flex gap-2 items-center">
+                     <Pic v-if="!uploadingImage" class="text-[1.5rem]" />
+                     <span>插入图片</span>
+                  </div>
+               </StButton>
+            </StSpace>
+            <input
+               ref="image-file-input"
+               type="file"
+               accept="image/*"
+               class="hidden"
+               @change="onImageFileChosen" />
             <StSplitPanel
                direction="horizontal"
                class="max-h-[calc(100vh-13rem)]">

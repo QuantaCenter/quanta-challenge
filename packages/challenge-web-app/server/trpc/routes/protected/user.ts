@@ -364,7 +364,15 @@ const getRecentProblemsProcedure = protectedProcedure
       }
 
       const recentSubmissions = await prisma.judgeRecords.findMany({
-         where: { userId: user.id },
+         where: {
+            userId: user.id,
+            problem: {
+               isDeprecated: false,
+               status: 'published',
+               // 只保留母题的当前版本，过滤掉旧版本的提交
+               CurrentOfBase: { isNot: null },
+            },
+         },
          distinct: ['problemId'],
          orderBy: { createdAt: 'desc' },
          take: 5,

@@ -141,7 +141,7 @@ const getSelfProblemRanking = async (problemId: number, record: number) => {
    return {
       rank: rank + 1,
       total,
-      aheadRate: (total - rank - 1) / total,
+      aheadRate: total <= 1 ? 1 : (total - rank - 1) / total,
    };
 };
 

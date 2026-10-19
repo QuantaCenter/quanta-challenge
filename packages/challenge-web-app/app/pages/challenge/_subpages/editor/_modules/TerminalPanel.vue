@@ -166,7 +166,7 @@ defineExpose({
       direction="vertical"
       gap="0"
       class="bg-[#181818] rounded-xl"
-      :class="{ 'h-[calc(100%-0.5rem)]': !folded }">
+      :class="{ 'h-full': !folded }">
       <StSpace
          fill-x
          class="p-1 rounded-t-xl bg-accent-600"

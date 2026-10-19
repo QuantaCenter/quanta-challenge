@@ -169,6 +169,10 @@ watch(selectedRecord, (newRecord) => {
                <template #loading>
                   <CommitRecordSkeleton />
                </template>
+               <StEmptyStatus
+                  v-if="!records?.length"
+                  content="你还没有任何提交"
+                  class="opacity-50" />
                <CommitRecord
                   v-for="record in records"
                   @click="selectRecord(record)"

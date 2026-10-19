@@ -3,7 +3,14 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
-## [Unreleased]
+## [1.0.1] - 2026-10-19
+
+### Changed
+
+- 首次通过 CI 自动发布到 npm（`@quantacenter/quanta-problem-cli`，tag 触发，OIDC 免密）。
+  无行为变化，仅版本号。
+
+## [1.0.0] - 2026-10-18
 
 ### Added
 

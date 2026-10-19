@@ -45,7 +45,7 @@ const positionName = computed(() => {
                      class="absolute flex items-center justify-center size-40">
                      <img
                         class="absolute text-yellow-500 size-40 shrink-0"
-                        src="~/assets/images/level-bg.png"
+                        src="~/assets/images/level-bg.webp"
                         alt="level-bg" />
                   </div>
                   <span
