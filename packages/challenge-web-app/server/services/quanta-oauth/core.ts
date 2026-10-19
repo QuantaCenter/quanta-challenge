@@ -35,7 +35,7 @@ export function validateSettings(env: Record<string, string | undefined>) {
       const secret = env.QUANTA_OAUTH_CLIENT_SECRET || '';
       const clientId = env.QUANTA_OAUTH_CLIENT_ID;
       const localTest = clientId === 'quanta-challenge-local';
-      if (localTest && (env.NODE_ENV !== 'development' || env.QUANTA_OAUTH_ALLOW_LOCAL_TEST !== 'true' || app.origin !== 'https://localhost:3443' || issuer.href !== 'https://www.quantacenter.com/')) throw new Error();
+      if (localTest && (env.NODE_ENV !== 'development' || env.QUANTA_OAUTH_ALLOW_LOCAL_TEST !== 'true' || app.origin !== 'https://localhost:3443' || issuer.href !== 'https://www.example.com/')) throw new Error();
       if (issuer.protocol !== 'https:' || app.protocol !== 'https:' || issuer.username || issuer.password || issuer.hash || issuer.search || app.username || app.password || app.hash || app.search || app.pathname !== '/' || (!localTest && clientId !== 'quanta-challenge') || secret.length < 32) throw new Error();
       return { issuer: issuer.href.replace(/\/$/, ''), appOrigin: app.origin, callback: `${app.origin}/api/auth/quanta/callback`, clientId: clientId as string, clientSecret: secret };
    } catch { throw new OAuthFailure('configuration', 503); }

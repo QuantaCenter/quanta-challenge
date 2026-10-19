@@ -81,7 +81,7 @@ function retry() {
 
 <style scoped>
 .quanta-connect { min-height:100dvh; padding:36px 16px; display:grid; place-items:center; background:#111; color:#e5e5e5; }
-.quanta-connect-panel { width:100%; max-width:456px; border-radius:20px; background:#1a1a1a; padding:30px 24px; }
+.quanta-connect-panel { width:100%; max-width:456px; border-radius:20px; background:#1a1a1a; padding:30px 24px; text-align:center; }
 .quanta-connect-panel > svg { display:block; margin:0 auto 26px; }
 h1 { font-size:23px; font-weight:700; margin:16px 0; }
 p, small { color:#aaa; line-height:1.7; overflow-wrap:anywhere; }
@@ -90,7 +90,7 @@ button { width:100%; min-height:46px; padding:12px; margin-top:12px; border-radi
 button:disabled { opacity:.6; cursor:not-allowed; }
 .quanta-connect-primary { background:#fa7c0e; color:#fff; font-weight:700; }
 label { display:block; margin:16px 0; font-size:14px; }
-input { display:block; width:100%; background:#111; border:1px solid #444; color:#eee; border-radius:9px; padding:12px; font-size:16px; margin-top:8px; }
+input { display:block; width:100%; background:#111; border:1px solid #444; color:#eee; border-radius:9px; padding:12px; font-size:16px; margin-top:8px; text-align:center; }
 a { display:block; color:#aaa; margin-top:22px; text-align:center; text-decoration:underline; text-underline-offset:4px; }
 .quanta-connect-error { color:#ffa18c; margin-top:16px; }
 </style>
