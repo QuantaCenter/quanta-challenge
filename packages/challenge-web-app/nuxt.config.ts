@@ -110,7 +110,6 @@ export default defineNuxtConfig({
             'Cache-Control': 'no-store',
             'Referrer-Policy': 'no-referrer',
             'X-Frame-Options': 'DENY',
-            'Access-Control-Allow-Origin': 'https://challenge.example.com',
          },
       },
       '/auth/quanta/**': {
@@ -212,6 +211,10 @@ export default defineNuxtConfig({
    runtimeConfig: {
       public: {
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
+         quantaOAuthIssuer: env(
+            'QUANTA_OAUTH_ISSUER',
+            'https://www.quantacenter.com',
+         ),
          // 前端监控（@sentry/nuxt）：事件经 tunnel 同源代理进入 observation 服务， 不直连 Sentry SaaS。DSN 仅作事件元数据（publicKey = app 标识）。 初始化见根目录 sentry.client.config.ts
          sentry: {
             // publicKey 不能含连字符：@sentry/core 的 DSN_REGEX 对 publicKey 只认 \w，带 "-" 会让 DSN 解析失败、SDK 静默禁用（错误处理器也不安装）

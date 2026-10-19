@@ -22,14 +22,20 @@ export function isQuantaRpcRequest(value: RequestInfo | URL) {
    }
 }
 
-export function parseAuthorizationResult(value: unknown, appOrigin: string) {
+export function parseAuthorizationResult(
+   value: unknown,
+   appOrigin: string,
+   issuer: string,
+) {
    const data = object(value);
    if (
       typeof data?.issuer !== 'string' ||
       typeof data.authorizationUrl !== 'string'
    )
       throw new LoginResponseError();
-   const issuers = ['https://www.quantacenter.com'];
+   // issuer 来自 runtimeConfig（与服务端 QUANTA_OAUTH_ISSUER 同一份配置），
+   // 本地开发才允许额外的本地 IdP。
+   const issuers = [issuer];
    if (appOrigin === 'https://localhost:3443')
       issuers.push('https://localhost:8443');
    if (!issuers.includes(data.issuer)) throw new LoginResponseError();

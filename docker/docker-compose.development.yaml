@@ -32,6 +32,7 @@ services:
       # OAuth requires a registered HTTPS development origin; HTTP remains disabled.
       - QUANTA_OAUTH_ENABLED=${QUANTA_OAUTH_ENABLED:-false}
       - QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
+      - NUXT_PUBLIC_QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
       - QUANTA_OAUTH_APP_ORIGIN=${QUANTA_OAUTH_APP_ORIGIN:-https://challenge.example.com}
       - QUANTA_OAUTH_CLIENT_ID=${QUANTA_OAUTH_CLIENT_ID:-quanta-challenge}
       - QUANTA_OAUTH_CLIENT_SECRET=${QUANTA_OAUTH_CLIENT_SECRET:-}

@@ -9,24 +9,11 @@ if (dsn) {
       release: process.env.RELEASE_VERSION || undefined,
       environment: process.env.SENTRY_ENVIRONMENT || undefined,
       tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),
+      // 只静默登录流程的高频性能事务；错误事件照常上报，保证登录故障可观测。
       ignoreTransactions: [
          /\/api\/auth\/quanta/,
          /\/api\/trpc\/auth\.quanta\./,
          /\/auth\/quanta/,
       ],
-      beforeSend(event) {
-         return /\/api\/auth\/quanta|\/api\/trpc\/auth\.quanta\.|\/auth\/quanta/.test(
-            event.request?.url || '',
-         )
-            ? null
-            : event;
-      },
-      beforeBreadcrumb(crumb) {
-         return /\/api\/auth\/quanta|\/api\/trpc\/auth\.quanta\.|\/auth\/quanta/.test(
-            String(crumb.data?.url || ''),
-         )
-            ? null
-            : crumb;
-      },
    });
 }

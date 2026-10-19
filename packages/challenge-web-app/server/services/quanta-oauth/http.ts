@@ -49,7 +49,10 @@ export function csrf(event: H3Event, expected: string, provided: string) {
       throw new OAuthFailure('csrf_failed', 403);
 }
 export async function limit(event: H3Event, kind: string, maximum: number) {
-   const address = event.node.req.socket.remoteAddress || 'unknown';
+   const address =
+      getRequestIP(event, { xForwardedFor: true }) ||
+      event.node.req.socket.remoteAddress ||
+      'unknown';
    const key = `quanta_oidc:limit:${kind}:${digest(address)}:${Math.floor(Date.now() / 60000)}`;
    const count = await useRedis().incr(key);
    if (count === 1) await useRedis().expire(key, 120);

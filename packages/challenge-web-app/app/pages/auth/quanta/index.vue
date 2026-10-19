@@ -15,6 +15,7 @@ type LoginStatus = 'loading' | 'choice' | 'verify' | 'confirm' | 'error';
 const route = useRoute();
 const authStore = useAuthStore();
 const { $trpc } = useNuxtApp();
+const quantaOAuthIssuer = useRuntimeConfig().public.quantaOAuthIssuer;
 const status = ref<LoginStatus>('loading');
 const name = ref('');
 const linkName = ref('');
@@ -137,7 +138,11 @@ async function beginLogin() {
    busy.value = true;
    try {
       const result = await $trpc.auth.quanta.start.mutate();
-      const target = parseAuthorizationResult(result, window.location.origin);
+      const target = parseAuthorizationResult(
+         result,
+         window.location.origin,
+         quantaOAuthIssuer,
+      );
       if (alive) {
          window.location.assign(target);
       }

@@ -6,7 +6,7 @@ import { log } from './middlewares/log';
 
 /** 只透出带 quantaCode 标记的 cause，避免泄漏内部异常细节 */
 const businessErrorDetails = (
-   cause: unknown
+   cause: unknown,
 ): Record<string, unknown> | undefined => {
    if (typeof cause !== 'object' || cause === null) return undefined;
    const { quantaCode, ...rest } = cause as Record<string, unknown>;

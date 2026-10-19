@@ -114,7 +114,11 @@ test('authorization response cannot navigate away from the trusted issuer and ca
    }))
       url.searchParams.set(key, value);
    const result = { authorizationUrl: url.href, issuer };
-   assert.equal(parseAuthorizationResult(result, origin), url.href);
+   assert.equal(parseAuthorizationResult(result, origin, issuer), url.href);
+   // issuer 白名单来自配置注入：未配置的 issuer 必须被拒绝。
+   assert.throws(() =>
+      parseAuthorizationResult(result, origin, 'https://other-issuer.test'),
+   );
    for (const invalid of [
       { ...result, authorizationUrl: 'https://evil.test/' },
       { ...result, issuer: 'http://www.quantacenter.com' },
@@ -137,7 +141,7 @@ test('authorization response cannot navigate away from the trusted issuer and ca
          ),
       },
    ])
-      assert.throws(() => parseAuthorizationResult(invalid, origin));
+      assert.throws(() => parseAuthorizationResult(invalid, origin, issuer));
 });
 
 test('typed tRPC failure metadata is rendered locally without echoing exception messages', () => {

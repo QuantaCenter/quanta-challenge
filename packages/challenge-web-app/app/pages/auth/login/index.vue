@@ -64,6 +64,7 @@ const gotoWebAuthnLogin = () => {
 };
 
 const { $trpc } = useNuxtApp();
+const quantaOAuthIssuer = useRuntimeConfig().public.quantaOAuthIssuer;
 const quantaLoading = ref(false);
 
 const gotoQuantaLogin = async () => {
@@ -73,7 +74,11 @@ const gotoQuantaLogin = async () => {
    quantaLoading.value = true;
    try {
       const result = await $trpc.auth.quanta.start.mutate();
-      const target = parseAuthorizationResult(result, window.location.origin);
+      const target = parseAuthorizationResult(
+         result,
+         window.location.origin,
+         quantaOAuthIssuer,
+      );
       window.location.assign(target);
    } catch (error) {
       message.error(loginError(error).message);
