@@ -1,3 +1,5 @@
+import { BINARY_SNAPSHOT_EXTENSIONS } from '@challenge/shared/snapshot-content';
+
 export const acceptedPackExtensions = [
    'js',
    'ts',
@@ -14,14 +16,4 @@ export const acceptedPackExtensions = [
    'txt',
 ];
 
-export const acceptedBinaryExtensions = [
-   'png',
-   'jpg',
-   'jpeg',
-   'gif',
-   'bmp',
-   'tiff',
-   'webp',
-   'ico',
-   'cur',
-];
+export const acceptedBinaryExtensions = [...BINARY_SNAPSHOT_EXTENSIONS];

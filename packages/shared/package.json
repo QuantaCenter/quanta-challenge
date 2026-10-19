@@ -31,6 +31,9 @@
       "./backend-service-image": {
          "import": "./service/backend-service-image.ts"
       },
+      "./snapshot-content": {
+         "import": "./service/snapshot-content.ts"
+      },
       "./openapi": {
          "import": "./service/openapi/sign.ts"
       },
