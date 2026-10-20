@@ -14,21 +14,19 @@ answer/             参考解：必须拿满分，首屏截图会当作封面
 ## 标准流程
 
 ```bash
-# 1. 本地预检（毫秒级，先挡掉静态错误）
-qpc check
-
-# 2. 上传并等待审计（生成题目版本，审计约 20 秒）
-qpc upload --wait
-
-# 3. 审计通过后发布
-qpc publish <problemId>
+qpc agent              # 判题脚本编写手册（先读）
+qpc tag --write <ids>  # 指定标签
+qpc check              # 基础信息检查 + 本地微判题（answer 满分、template 低分）
+qpc upload --write     # 上传审核（约 20 秒），成功后写回 problemId
+qpc publish <pid>      # 发布 upload 输出的当前版本
 ```
 
-## 需要人工确认的事（预检覆盖不到）
+题面插图：`qpc gen-img screenshot` / `qpc gen-img flow ...` 生成到 `images/`，写进题面后 `qpc image --write`。
 
-- [ ] 参考解真的能拿满分（看 `qpc upload --wait` 的检查点明细）
-- [ ] 答案模板明显低分（证明判题能抓错）
+## 需要人工确认的事（检查覆盖不到）
+
+- [ ] 同一需求的多种合理写法都能满分（判结果，不判实现）
 - [ ] 断言消息写清"期望 vs 实际"（预检只做启发式提醒）
-- [ ] 封面好看（默认封面 = 参考解首屏截图）
+- [ ] 封面好看（默认封面 = 参考解首屏截图，可用 `qpc gen-img screenshot` 预览）
 
-更完整的踩坑清单见仓库 `docs/PROBLEM_AUTHORING.md`。
+完整手册：`qpc agent --list`。

@@ -33,6 +33,10 @@ export const createProgram = (runtime: CliRuntime): Command => {
       .option('--verbose', '输出调试信息')
       .option('--no-color', '禁用彩色输出')
       .option('-y, --yes', '跳过交互确认（CI 必给）')
+      .addHelpText(
+         'before',
+         'Agent 使用者请先运行 `qpc agent`（使用手册与出题流程，随版本分发）\n',
+      )
       .showHelpAfterError('（用 `qpc --help` 查看全部用法）')
       .configureOutput({
          writeOut: (chunk) => runtime.stdout(chunk),
@@ -102,7 +106,8 @@ export const runCli = async (
          });
       } else {
          logger.error(cliError.message);
-         if (cliError.hint) logger.info(`  ${cliError.hint}`);
+         // 与错误同走 stderr：分属两个流时被管道收集会乱序，提示跑到错误前面。
+         if (cliError.hint) runtime.stderr(`    ${cliError.hint}\n`);
          if (cliError.details && argv.includes('--verbose')) {
             logger.detail(JSON.stringify(cliError.details, null, 3));
          }

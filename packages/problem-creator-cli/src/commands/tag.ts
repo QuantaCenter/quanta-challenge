@@ -12,8 +12,8 @@ import type { CommandRegistry } from './registry';
 
 export interface TagOptions {
    dir: string;
-   /** 交互式多选标签并写回配置 */
-   write?: boolean;
+   /** 写回配置：不带值时交互多选，带 id 时直接写入（等同 --set） */
+   write?: boolean | string[];
    /** 直接指定标签 id（逗号或空格分隔），写回配置 */
    set?: string[];
 }
@@ -23,9 +23,14 @@ export const registerTagCommand = (registry: CommandRegistry): void => {
 
    program
       .command('tag')
-      .description('查看平台标签；--write 交互多选后把 tagIds 写回配置')
+      .description(
+         '查看平台标签；--write 把 tagIds 写回配置（不带 id 交互多选，带 id 直接写入）',
+      )
       .argument('[dir]', '题目目录（默认当前目录）', '.')
-      .option('--write', '交互式多选标签并写回配置')
+      .option(
+         '--write [id...]',
+         '写回配置：`--write` 交互多选；`--write 2,5` 直接写入（非交互环境用这种）',
+      )
       .option('--set <id...>', '直接指定标签 id（逗号或空格分隔），写回配置')
       .action(async (dir: string, options: Omit<TagOptions, 'dir'>) => {
          const ctx = await context();
@@ -35,13 +40,16 @@ export const registerTagCommand = (registry: CommandRegistry): void => {
 
 export const runTag = async (
    ctx: CommandContext,
-   options: TagOptions,
+   rawOptions: TagOptions,
 ): Promise<void> => {
-   if (options.write && options.set !== undefined) {
+   if (rawOptions.write && rawOptions.set !== undefined) {
       throw new UsageError('--write 与 --set 不能同时使用', {
-         hint: '--write 是交互多选，--set 是直接指定 id，二选一。',
+         hint: '`--write 2,5` 与 `--set 2,5` 等价，二选一。',
       });
    }
+   const options: TagOptions = Array.isArray(rawOptions.write)
+      ? { ...rawOptions, write: undefined, set: rawOptions.write }
+      : rawOptions;
 
    const api = createAdminApi(ctx.client);
    ctx.logger.step('读取平台标签（public.tag.list）');
@@ -103,7 +111,8 @@ const renderTags = (
          : colors.dim('·');
       const color = tag.color ? colors.dim(tag.color) : '';
       ctx.logger.info(`  ${mark} #${tag.tid} ${tag.name}  ${color}`);
-      if (tag.description) ctx.logger.detail(tag.description);
+      if (tag.description)
+         ctx.logger.info(`      ${colors.dim(tag.description)}`);
    }
 };
 

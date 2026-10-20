@@ -12,15 +12,19 @@ cd packages/problem-creator-cli && pnpm dev --help   # tsx 直跑源码
 node packages/problem-creator-cli/dist/index.js --help   # 构建产物
 ```
 
-基本流程：
+基本流程（Agent 使用者先运行 `qpc agent`，手册随版本分发）：
 
 ```bash
+qpc login --api https://challenge.quantacenter.com   # 设备码授权
 qpc init my-problem --type frontend --name "购物车合计" --difficulty easy
 cd my-problem
-qpc check            # 离线预检
-qpc login            # 设备码授权
-qpc upload --wait    # 上传并等待审计，输出检查点明细
-qpc publish 123      # 发布，123 为 upload 返回的 pid
+qpc agent                  # 判题脚本编写手册（前端 / 后端 / Type Schema）
+qpc tag --write 1,2        # 指定标签
+qpc gen-img flow "输入" "计算" "输出"   # 生成题面插图到 images/，写进题面后：
+qpc image --write          # 上传题面里的本地图片并回写地址
+qpc check                  # 基础信息检查 + 本地微判题
+qpc upload --write         # 上传审核，成功后把 pid 写回 problemId
+qpc publish 123            # 发布，123 为 upload 输出的当前版本 pid
 ```
 
 后端服务题（`--type backend_service`）：模板不同，无首屏可截图，需先生成封面：
@@ -37,10 +41,13 @@ qpc upload --wait
 
 | 命令 | 作用 | 需要登录 |
 |---|---|---|
-| `qpc init [dir]` | 生成题目骨架；`--type` 选题型，不传时交互选择 | 否 |
-| `qpc check [dir]` | 离线预检；`--strict` 使警告也算失败 | 否 |
+| `qpc agent [topic]` | 给 Agent 的使用手册：题目目录外是 CLI 手册，题目目录内是判题脚本编写手册；`--list` 列章节，`dts` 输出完整类型声明 | 否 |
+| `qpc init [dir]` | 生成题目骨架（含 `AGENTS.md`）；`--type` 选题型，不传时交互选择 | 否 |
+| `qpc tag [dir]` | 查看平台标签；`--write` 交互多选，`--write 1,2`（或 `--set`）直接写回 tagIds | 否 |
+| `qpc gen-img flow\|svg\|screenshot` | 生成题面插图到 `images/`：流程图 / SVG 转 PNG / 参考解页面截图 | 否 |
+| `qpc image [files...]` | 上传图片；不给文件时上传题面里引用的全部本地图片，`--write` 回写地址 | 是 |
 | `qpc cover [dir]` | 生成封面图；`--random` 随机配色、`--upload` 上传、`--write` 写回配置 | 上传时 |
-| `qpc tag [dir]` | 查看平台标签；`--write` 交互多选、`--set <id...>` 指定 id，写回 tagIds | 否 |
+| `qpc check [dir]` | ① 基础信息静态预检 ② 本地微判题（answer 须满分）；`--no-run` 只做 ①，`--strict` 使警告也算失败 | 否 |
 | `qpc upload [dir]` | 上传题目：配置了 `problemId` 追加新版本，否则新建；默认等待审计 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
 | `qpc publish <pid>` | 发布（`ready → published`）；`--unpublish` 下架 | 是 |
@@ -83,6 +90,7 @@ my-problem/
 ├── judge.js              # 判题脚本
 ├── template/index.html   # 学生起点，通常低分
 ├── answer/index.html     # 参考解，必须满分；默认封面取首屏截图
+├── AGENTS.md             # 给 Agent 的入口说明（指向 qpc agent）
 └── README.md
 
 # backend_service
@@ -92,8 +100,11 @@ my-api/
 ├── judge.js              # 用 http 发请求、断言响应
 ├── template/             # 学生起点（含 pnpm-lock.yaml）
 ├── answer/               # 参考解（含 pnpm-lock.yaml）
+├── AGENTS.md             # 给 Agent 的入口说明
 └── cover.png             # init 已按 cover.generate 渲染，未上传
 ```
+
+题面插图由 `qpc gen-img` 输出到 `images/`（不进入快照），`qpc image --write` 上传后回写为 `/api/static/<名字>`。
 
 后端题差异（详见 [`docs/BACKEND_SERVICE_PROBLEM.md`](../../docs/BACKEND_SERVICE_PROBLEM.md)）：
 
@@ -295,6 +306,7 @@ QUANTA_TOKEN=<access token> qpc upload my-problem --wait
 ## 目录结构（本包）
 
 ```
+agent/              # qpc agent 的手册章节（随包分发；.d.ts 构建时从 Web 应用拷到 dist/agent-types）
 templates/          # qpc init 的脚手架内容（按题型分目录）
 ├── frontend/       # 前端题模板
 └── backend_service/# 后端题模板（含 detail.md 与两份 Node 工程）
@@ -305,7 +317,7 @@ src/
 ├── commands/       # 每个子命令一个文件，编排与输出
 ├── core/           # context / env / errors / exit-codes / logger / runtime
 ├── domain/         # 配置 schema、判题脚本静态分析、快照、预检规则
-├── services/       # 凭据、HTTP、tRPC、admin API、judge API、OAuth 设备码
+├── services/       # 凭据、HTTP、tRPC、admin API、OAuth 设备码；local-judge/ 本地微判题（沙箱、静态服务器、无头浏览器）
 ├── ui/             # 输出渲染（文本 / JSON）
 ├── utils/          # fs / paths / async / terminal / jwt
 └── templates/      # 读 templates/、替换占位符、组装 ScaffoldFile[]

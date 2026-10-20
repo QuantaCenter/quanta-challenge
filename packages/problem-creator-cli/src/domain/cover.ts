@@ -78,7 +78,7 @@ const charWidthEm = (char: string, bold: boolean): number => {
    return bold ? 0.6 : 0.56;
 };
 
-const textWidthEm = (text: string, bold: boolean): number =>
+export const textWidthEm = (text: string, bold: boolean): number =>
    [...text].reduce((sum, char) => sum + charWidthEm(char, bold), 0);
 
 /** 可以在其后断行的位置：空格之后，或任意宽字符之后（中文没有空格） */
@@ -194,7 +194,7 @@ export const layoutCover = (spec: CoverSpec): CoverLayout => {
    };
 };
 
-const fontStack = (mono: boolean): string =>
+export const fontStack = (mono: boolean): string =>
    mono
       ? "'Menlo','Monaco','Courier New',monospace"
       : "'PingFang SC','Hiragino Sans GB','Microsoft YaHei','Noto Sans CJK SC','Source Han Sans SC',sans-serif";

@@ -289,6 +289,17 @@ export const parseStringLiteral = (text: string): string | undefined => {
    });
 };
 
+/** 与判题机一致：只把代码里第一处真正的 `export default ` 改写成 `const run = `。 */
+export const replaceDefaultExport = (code: string): string => {
+   const match = /(^|[^A-Za-z0-9_$])export\s+default\s+/.exec(
+      maskNonCode(code),
+   );
+   if (!match) return code;
+   const start = match.index + (match[1] ?? '').length;
+   const end = match.index + match[0].length;
+   return `${code.slice(0, start)}const run = ${code.slice(end)}`;
+};
+
 export const analyzeJudgeScript = (code: string): JudgeScriptAnalysis => {
    const mask = maskNonCode(code);
 
@@ -325,8 +336,23 @@ export const analyzeJudgeScript = (code: string): JudgeScriptAnalysis => {
       });
    }
 
+   // evaluate / $eval 的回调在浏览器里执行，里面的 el.click() 是 DOM 方法，不会重试。
+   const browserSideRanges = [
+      '.evaluate',
+      '.evaluateHandle',
+      '.$eval',
+      '.$$eval',
+      '.waitForFunction',
+   ].flatMap((callee) => findCalls(code, mask, callee));
    const clickWithoutTimeout: Located<string>[] = [];
    for (const call of findCalls(code, mask, '.click')) {
+      if (
+         browserSideRanges.some(
+            (range) => call.start > range.start && call.end <= range.end,
+         )
+      ) {
+         continue;
+      }
       const snippet = code
          .slice(Math.max(0, call.start - 16), call.end)
          .replace(/\s+/g, ' ')

@@ -29,6 +29,7 @@
    },
    "files": [
       "dist",
+      "agent",
       "templates",
       "README.md"
    ],
@@ -47,6 +48,7 @@
       "commander": "^14.0.1",
       "jiti": "^2.5.1",
       "picocolors": "^1.1.1",
+      "playwright-core": "1.54.1",
       "sharp": "^0.34.3",
       "zod": "^4.0.5"
    },

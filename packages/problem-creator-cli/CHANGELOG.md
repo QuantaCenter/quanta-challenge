@@ -3,6 +3,41 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+面向 Agent 出题的改造（依据 1.0.2 实际出题反馈）。
+
+### Added
+
+- `qpc agent [topic]`：随版本分发的使用手册。题目目录外输出 CLI 手册（是什么、出题流程），
+  题目目录内输出判题脚本编写手册（前端 / 后端 / Type Schema，本题题型排前）；
+  `--list` 列章节，`dts` 输出完整 `.d.ts`，`--json` 机读。`qpc --help` 首行提示先运行它。
+- `qpc init` 生成 `AGENTS.md`，Cursor / Codex / Claude Code 等会自动读取。
+- `qpc check` 新增第 ② 步**本地微判题**：在与线上判题机同构的沙箱（同样的 `$` / 去掉 goto 的
+  `page` / 受限 `http`、20 秒预算、没有 `setTimeout`）里对 `answer/`、`template/` 各跑一遍，
+  新增规则 LOC001~LOC005；`--no-run` 跳过。前端题依次尝试 Playwright Chromium / 本机 Chrome / Edge
+  （新增依赖 `playwright-core@1.54.1`，与判题机同版本，不自动下载浏览器）；后端题在目录里 `npm start`。
+- `qpc gen-img flow | svg | screenshot`：生成题面插图到 `images/`，并给出可直接写进题面的 Markdown。
+- `qpc image [files...] [--write]`：上传题面引用的本地图片并把路径回写为 `/api/static/<名字>`；
+  按内容哈希缓存在 `.qpc/images.json`，重跑幂等。新增规则 IMG003（题面引用了本地图片）。
+- `qpc tag --write 1,2`：非交互环境直接写回标签；标签说明默认展示。
+
+### Changed
+
+- `qpc upload` 审计失败分三类并给出机读错误码：`AUDIT_INFRA_ERROR`（平台故障，退出码 4，
+  `retryable: true`，提示不要改题、原样重试）、`AUDIT_SCRIPT_ERROR`、`AUDIT_CHECKPOINT_FAILED`（退出码 3）。
+  "状态 invalid 但判题记录仍 pending" 归为平台故障。成功后打印当前版本与发布命令。
+- `qpc upload --write` 写回失败不再让命令失败：上传与审计已成功时只警告并提示手动填写，
+  `--json` 输出 `writeBack: ok | failed | skipped`。
+- `qpc publish` 发布非当前版本时提前拦下（`NOT_CURRENT_VERSION`），提示当前版本 pid。
+- 错误提示与错误信息同走 stderr，不再在管道里乱序。
+
+### Fixed
+
+- JSON 配置（`problem.config.json`）在同一进程内写回后重新加载读到旧内容，导致 `--write`
+  写回校验失败并回滚。
+- JUD008 不再误报 `page.evaluate` / `$eval` 回调里的 DOM `click()`。
+
 ## [1.0.1] - 2026-10-19
 
 ### Changed

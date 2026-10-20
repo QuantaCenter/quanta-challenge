@@ -1,7 +1,13 @@
 import { relative, resolve } from 'node:path';
 
 import type { CommandContext } from '../core/context';
-import { ConfigError, PrecheckError, UsageError } from '../core/errors';
+import {
+   CliError,
+   ConfigError,
+   PrecheckError,
+   UsageError,
+} from '../core/errors';
+import { EXIT } from '../core/exit-codes';
 import { applyProblemIdUpdate } from '../domain/config-writer';
 import { loadProblemConfig } from '../domain/problem-config';
 import { type ValidationReport, validateProblem } from '../domain/validate';
@@ -10,6 +16,7 @@ import {
    auditRecordOf,
    createAdminApi,
    isAuditSettled,
+   readAuditResults,
 } from '../services/admin-api';
 import {
    renderAuditDetail,
@@ -52,6 +59,7 @@ export const registerUploadCommand = (registry: CommandRegistry): void => {
       .argument('[dir]', '题目目录（默认当前目录）', '.')
       .option('--dry-run', '只做预检并打印将要提交的内容')
       .option('--skip-check', '跳过预检（不建议）')
+      .option('--wait', '上传后等待审计结果（默认）')
       .option('--no-wait', '上传后不等待审计')
       .option(
          '--problem <pid>',
@@ -228,12 +236,24 @@ export const runUpload = async (
    );
 
    // 只在整条命令成功后写回：失败时留下 problemId 会把配置指向一道没通过的题。
-   const writeBackIfRequested = async (): Promise<void> => {
-      if (!options.write) return;
-      const written = await writeBackProblemId(config.configFile, problemId);
-      ctx.logger.success(
-         `problemId 已写回 ${relative(ctx.cwd, written) || written}`,
-      );
+   // 写回失败不影响上传结果，只警告；否则退出码会诱导调用方重复上传、多造版本。
+   const writeBackIfRequested = async (): Promise<WriteBackStatus> => {
+      if (!options.write) return 'skipped';
+      try {
+         const written = await writeBackProblemId(config.configFile, problemId);
+         ctx.logger.success(
+            `problemId 已写回 ${relative(ctx.cwd, written) || written}`,
+         );
+         return 'ok';
+      } catch (error) {
+         ctx.logger.warn(
+            `上传已成功，但 problemId 写回失败（${error instanceof Error ? error.message : String(error)}）`,
+         );
+         ctx.logger.info(
+            `  不要重新上传：手动把 "problemId": ${problemId} 填进 ${relative(ctx.cwd, config.configFile) || config.configFile}`,
+         );
+         return 'failed';
+      }
    };
 
    if (!options.write) {
@@ -249,9 +269,11 @@ export const runUpload = async (
    }
 
    if (options.wait === false) {
-      await writeBackIfRequested();
+      const writeBack = await writeBackIfRequested();
       ctx.logger.info(`  审计状态：qpc status ${problemId} --watch`);
-      if (ctx.logger.json) ctx.logger.result({ problemId, waited: false });
+      if (ctx.logger.json) {
+         ctx.logger.result({ problemId, waited: false, writeBack });
+      }
       return;
    }
 
@@ -265,23 +287,111 @@ export const runUpload = async (
       verbose: ctx.logger.level === 'debug',
    });
 
-   if (ctx.logger.json) ctx.logger.result({ problemId, waited: true, detail });
-
    if (!passed) {
-      const hasRecord = auditRecordOf(detail) !== undefined;
-      const reason = hasRecord
-         ? '看上面的检查点明细：分数不等通常是"参考解拿不到满分"或"totalScore 与检查点之和不一致"。'
-         : '题目状态已置为 invalid，但判题记录没有写回：多半是判题机/容器出结果前就崩了，看调度器日志。';
-      throw new PrecheckError(`题目 #${problemId} 审计未通过`, {
-         hint: options.write
-            ? `${reason}（--write 已跳过：审计未通过不写回 problemId）`
-            : reason,
+      const failure = classifyAuditFailure(detail);
+      if (ctx.logger.json) {
+         ctx.logger.result({
+            problemId,
+            waited: true,
+            audit: failure.code,
+            retryable: failure.retryable,
+            detail,
+         });
+      }
+      const skipped = options.write
+         ? '（--write 已跳过：审计未通过不写回 problemId）'
+         : '';
+      throw new CliError(`题目 #${problemId} 审计未通过：${failure.summary}`, {
+         exitCode: failure.retryable ? EXIT.NETWORK : EXIT.PRECHECK_FAILED,
+         hint: `${failure.nextAction}${skipped}`,
+         details: {
+            code: failure.code,
+            retryable: failure.retryable,
+            problemId,
+            nextAction: failure.nextAction,
+         },
       });
    }
 
-   await writeBackIfRequested();
+   const writeBack = await writeBackIfRequested();
    ctx.logger.success(`审计通过：${detail.totalScore} 分满分`);
-   ctx.logger.info(`  发布：qpc publish ${problemId}`);
+   ctx.logger.info(
+      `  当前版本：#${problemId}，发布请用 \`qpc publish ${problemId}\``,
+   );
+   if (ctx.logger.json) {
+      ctx.logger.result({
+         problemId,
+         waited: true,
+         audit: 'success',
+         writeBack,
+         detail,
+      });
+   }
+};
+
+type WriteBackStatus = 'ok' | 'failed' | 'skipped';
+
+export interface AuditFailure {
+   /** 机读错误码，与 `qpc agent errors` 对应 */
+   code: 'AUDIT_INFRA_ERROR' | 'AUDIT_SCRIPT_ERROR' | 'AUDIT_CHECKPOINT_FAILED';
+   /** 平台侧故障：与题目内容无关，原样重试即可 */
+   retryable: boolean;
+   summary: string;
+   nextAction: string;
+}
+
+const INFRA_ERROR_PATTERN =
+   /prisma|No record was found|Judge Machine|ECONNREFUSED|ECONNRESET|socket hang up|container/i;
+
+/** 把审计失败分成三类，避免把平台故障误报成"题目有问题"而诱导改题。 */
+export const classifyAuditFailure = (detail: AuditDetail): AuditFailure => {
+   const retry = `与题目内容无关，不要修改题目：原样重跑 \`qpc upload --write\`（最多 3 次）；仍失败请联系平台管理员。详见 \`qpc agent errors\`。`;
+   const record = auditRecordOf(detail);
+   if (!record) {
+      return {
+         code: 'AUDIT_INFRA_ERROR',
+         retryable: true,
+         summary: '平台没有写回判题记录（审计任务丢失或判题机崩溃）',
+         nextAction: retry,
+      };
+   }
+   if (record.result === 'pending') {
+      return {
+         code: 'AUDIT_INFRA_ERROR',
+         retryable: true,
+         summary: `题目状态已是 ${detail.status}，但判题记录仍是 pending（审计任务丢失）`,
+         nextAction: retry,
+      };
+   }
+   const { results, errorMessage } = readAuditResults(record);
+   if (results.length === 0) {
+      if (!errorMessage || INFRA_ERROR_PATTERN.test(errorMessage)) {
+         return {
+            code: 'AUDIT_INFRA_ERROR',
+            retryable: true,
+            summary: `平台侧审计执行失败${errorMessage ? `（${errorMessage.slice(0, 120)}）` : ''}`,
+            nextAction: retry,
+         };
+      }
+      return {
+         code: 'AUDIT_SCRIPT_ERROR',
+         retryable: false,
+         summary: `判题脚本整体执行失败（${errorMessage.slice(0, 120)}）`,
+         nextAction:
+            '脚本级异常会让所有检查点作废（常见：超过 20 秒预算、语法错误、用了沙箱里没有的 setTimeout/fetch）。先跑 `qpc check` 在本地复现并修好，再 `qpc upload --write`。',
+      };
+   }
+   const failed = results.filter((item) => item.status !== 'pass');
+   return {
+      code: 'AUDIT_CHECKPOINT_FAILED',
+      retryable: false,
+      summary:
+         failed.length > 0
+            ? `参考解没有拿满分（${failed.length} 个检查点未通过）`
+            : `审计得分 ${record.score} 与 totalScore ${detail.totalScore} 不一致`,
+      nextAction:
+         '按上面 ✖ 的检查点原因修改 judge.js 或 answer/；先跑 `qpc check` 在本地复现到满分，再 `qpc upload --write`。',
+   };
 };
 
 /** 轮询审计状态直到 judgeRecord 不再是 pending */

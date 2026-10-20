@@ -1,5 +1,6 @@
 import { pathExists, readText } from '../utils/fs';
 import { displayPath, formatBytes } from '../utils/paths';
+import { detailBaseDir, findLocalImageRefs } from './detail-images';
 import { analyzeJudgeScript, type JudgeScriptAnalysis } from './judge-script';
 import type { ResolvedProblemConfig } from './problem-config';
 import { collectSnapshot, type SnapshotResult } from './snapshot';
@@ -220,6 +221,27 @@ export const validateProblem = async (
          message: 'cover.mode=custom 时必须提供 imageId',
          file: rel(config.configFile),
          hint: '配置了 cover.generate 的话，跑 `qpc cover --upload --write` 一键生成并写回；否则把平台上的图片 id 填进 imageId。',
+      });
+   }
+
+   // 题面里的本地图片上传后学生看不到：必须先换成平台地址。
+   for (const image of findLocalImageRefs(
+      config.detail,
+      detailBaseDir(config),
+   )) {
+      const exists = await pathExists(image.file);
+      push({
+         rule: 'IMG003',
+         severity: 'error',
+         message: exists
+            ? `题面引用了本地图片 ${image.ref}，上传后学生看不到`
+            : `题面引用的本地图片不存在：${image.ref}`,
+         file: config.detailFile ?? rel(config.configFile),
+         // 内联题面的行号相对题面正文，对不上配置文件，不报
+         line: config.detailFile ? image.line : undefined,
+         hint: exists
+            ? '运行 `qpc image --write` 上传题面里的本地图片并把地址回写到题面。'
+            : '先用 `qpc gen-img` 生成图片（或修正路径），再 `qpc image --write`。',
       });
    }
 

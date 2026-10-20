@@ -177,7 +177,7 @@ export const multiselect = async <T extends string>(
 ): Promise<T[]> => {
    if (!isInteractive(io.stdin)) {
       throw new UsageError('当前不是交互式终端，无法多选', {
-         hint: '请在命令里显式指定，例如 `qpc tag --set 1,2`。',
+         hint: '请在命令里显式指定，例如 `qpc tag --write 1,2`。',
       });
    }
 

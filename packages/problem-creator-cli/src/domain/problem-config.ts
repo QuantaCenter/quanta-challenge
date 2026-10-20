@@ -50,7 +50,7 @@ export const loadProblemConfig = async (
          `题目配置校验失败：${configFile}\n  - ${issues.join('\n  - ')}`,
          {
             details: { issues },
-            hint: '对照 examples/hello-total/problem.config.ts 的字段说明修正。',
+            hint: '运行 `qpc agent config` 查看字段说明与最小示例。',
          },
       );
    }
@@ -99,6 +99,19 @@ export const findConfigFile = async (
 };
 
 const importConfig = async (file: string): Promise<unknown> => {
+   // jiti 的 moduleCache: false 管不到 .json：同一进程写回后再加载会读到旧内容。
+   if (file.endsWith('.json')) {
+      try {
+         return JSON.parse(await readFile(file, 'utf8'));
+      } catch (error) {
+         throw new ConfigError(`无法解析 JSON 配置：${file}`, {
+            cause: error,
+            details: {
+               reason: error instanceof Error ? error.message : String(error),
+            },
+         });
+      }
+   }
    const { createJiti } = await import('jiti');
    const jiti = createJiti(import.meta.url, {
       interopDefault: true,
