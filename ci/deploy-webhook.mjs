@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** 部署机侧 webhook：拉镜像 → 重启容器 → 失败回滚，契约见 docs/IMAGE_WEBHOOK.md；拉取静默上限 8 分钟（PULL_IDLE_MS），其余等待 20s；同步执行，成功 200 / 失败 5xx。 */
+/** 部署机侧 webhook：拉镜像 → 重启容器 → 失败回滚；web-app 为蓝绿 slot（见 ci/README.md）；拉取静默上限 8 分钟（PULL_IDLE_MS），其余等待 20s。 */
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:http';
 import { spawn } from 'node:child_process';
@@ -26,14 +26,34 @@ const CFG = {
    // ghcr.io 本机直连不可用（约 0.01 MiB/s），按序回退（部署机实测 dockerproxy 成功率更高，放前面）
    mirrors: (env.GHCR_MIRRORS || 'ghcr.dockerproxy.net,ghcr.nju.edu.cn').split(',').map((s) => s.trim()).filter(Boolean),
    alertUrl: env.ALERT_WEBHOOK_URL || '',
+   webBlueGreen: env.WEB_BLUEGREEN !== '0',
+   webSlotCompose: env.WEB_SLOT_COMPOSE || 'docker/docker-compose.web-slot.yaml',
+   webBgNetwork: env.WEB_BG_NETWORK || 'quanta-challenge_quanta-challenge-network',
+   webBgVolume: env.WEB_BG_VOLUME || 'quanta-challenge_qtc_app_storage',
+   webUpstreamConf: env.WEB_UPSTREAM_CONF || '/www/qc-secrets/web-upstream.conf',
 };
+
+const WEB_SLOT_META = {
+   blue: {
+      project: env.WEB_SLOT_BLUE_PROJECT || 'qc-web-blue',
+      port: Number(env.WEB_SLOT_BLUE_PORT || 3000),
+      alias: 'challenge-web-app-blue',
+   },
+   green: {
+      project: env.WEB_SLOT_GREEN_PROJECT || 'qc-web-green',
+      port: Number(env.WEB_SLOT_GREEN_PORT || 3002),
+      alias: 'challenge-web-app-green',
+   },
+};
+
+const WEB_HEALTH = { codes: [200, 302, 401, 403], healthDeadlineMs: 60_000 };
 
 // 由 compose 管理的服务：ref 走 compose 变量（web-app）或原样重打标签（调度器无 image:，只能换标签）
 const SERVICES = {
    // 健康窗口 60s：web-app 容器入口（scripts/docker-entrypoint.sh）先跑 prisma migrate
    // deploy（失败最多重试 5 次 × 5s）+ 种子脚本，之后才开始监听 3000，冷启动可能超过
    // 默认的 20s（IDLE_MS），与 challenge-cloud-function 同理放宽，避免迁移慢时被误杀回滚。
-   'challenge-web-app': { refVar: 'WEB_APP_REF', health: env.HEALTH_WEB_APP || 'http://127.0.0.1:3000/', codes: [200, 302, 401, 403], healthDeadlineMs: 60_000 },
+   'challenge-web-app': { refVar: 'WEB_APP_REF', blueGreen: true },
    'challenge-judge-scheduler': { refVar: '', health: env.HEALTH_JUDGE_SCHEDULER || 'http://127.0.0.1:1888/health', codes: [200] },
    // 云函数服务与调度器同理：compose 里没有 image:，按正在用的标签重打。 健康检查端点由服务自己提供（/healthz 不验签，会实际 ping Redis 与 Postgres， 依赖不可用时返回 503）；它的容器启动时先跑 prisma migrate deploy， 因此健康探测窗口给到 60s，不能用默认的 20s。
    'challenge-cloud-function': {
@@ -95,7 +115,36 @@ const sh = (cmd, args, { idleMs = IDLE_MS, env: extra } = {}) =>
    });
 
 const docker = (args, opts) => sh('docker', args, opts);
+const repoPath = (rel) => (isAbsolute(rel) ? rel : join(CFG.repoDir, rel));
 const composeArgs = ['compose', '-f', CFG.composeBase, '-f', CFG.composeOverride, '--env-file', CFG.envFile];
+
+const defaultWebBgState = () => ({
+   activeWebSlot: 'blue',
+   webSlots: {
+      blue: { hostPort: WEB_SLOT_META.blue.port, project: WEB_SLOT_META.blue.project },
+      green: { hostPort: WEB_SLOT_META.green.port, project: WEB_SLOT_META.green.project },
+   },
+});
+
+const mergeWebBgState = (state) => ({
+   ...defaultWebBgState(),
+   ...state,
+   webSlots: { ...defaultWebBgState().webSlots, ...(state.webSlots || {}) },
+});
+
+const webSlotComposeArgs = (project) => [
+   'compose',
+   '-p',
+   project,
+   '-f',
+   CFG.composeBase,
+   '-f',
+   CFG.composeOverride,
+   '-f',
+   CFG.webSlotCompose,
+   '--env-file',
+   CFG.envFile,
+];
 
 const readState = () => (existsSync(CFG.stateFile) ? JSON.parse(readFileSync(CFG.stateFile, 'utf8')) : {});
 const writeState = (state) => {
@@ -170,28 +219,143 @@ const freeJudgeMachinePort = async () => {
    log(`[cleanup] 移除占用 1889 的容器 ${ids.length} 个`);
 };
 
-const snapshot = async (service) => {
-   const cid = await docker(['ps', '-q', '--filter', `label=com.docker.compose.service=${service}`]);
-   if (!cid) return { service, ref: '', imageId: '', containerId: '' };
+const snapshot = async (service, { project } = {}) => {
+   const psArgs = ['ps', '-q', '--filter', `label=com.docker.compose.service=${service}`];
+   if (project) psArgs.push('--filter', `label=com.docker.compose.project=${project}`);
+   const cid = await docker(psArgs);
+   if (!cid) return { service, ref: '', imageId: '', containerId: '', project: project || '' };
    const info = JSON.parse(await docker(['inspect', cid]))[0];
-   return { service, ref: info.Config.Image, imageId: info.Image, containerId: info.Id };
+   return { service, ref: info.Config.Image, imageId: info.Image, containerId: info.Id, project: project || '' };
 };
 
-const waitHealthy = async (service) => {
-   const { health, codes, healthDeadlineMs } = SERVICES[service];
+const snapshotWebActive = async (activeSlot) => {
+   const slot = activeSlot === 'green' ? 'green' : 'blue';
+   return snapshot('challenge-web-app', { project: WEB_SLOT_META[slot].project });
+};
+
+const waitHealthyUrl = async (health, { codes, healthDeadlineMs } = {}) => {
+   const codeList = codes || [200];
    const deadline = Date.now() + (healthDeadlineMs ?? IDLE_MS);
    let last = '';
    while (Date.now() < deadline) {
       try {
          const res = await fetch(health, { signal: AbortSignal.timeout(5_000), redirect: 'manual' });
-         if (codes.includes(res.status)) return;
+         if (codeList.includes(res.status)) return;
          last = `HTTP ${res.status}`;
       } catch (e) {
          last = e.message;
       }
       await new Promise((r) => setTimeout(r, 2_000));
    }
-   throw new Error(`${service} 健康检查未通过（${health}）：${last}`);
+   throw new Error(`健康检查未通过（${health}）：${last}`);
+};
+
+const waitHealthy = async (service) => {
+   const cfg = SERVICES[service];
+   return waitHealthyUrl(cfg.health, { codes: cfg.codes, healthDeadlineMs: cfg.healthDeadlineMs });
+};
+
+const stopMainStackWebApp = async () => {
+   try {
+      await docker([...composeArgs, 'stop', 'challenge-web-app']);
+      await docker([...composeArgs, 'rm', '-f', 'challenge-web-app']);
+      log('[web-bg] 已停止主栈 challenge-web-app（迁移到 slot）');
+   } catch {
+      /* 主栈可能已无 web */
+   }
+};
+
+const stopWebSlot = async (slot) => {
+   const meta = WEB_SLOT_META[slot];
+   try {
+      await docker([...webSlotComposeArgs(meta.project), 'stop', 'challenge-web-app']);
+      await docker([...webSlotComposeArgs(meta.project), 'rm', '-f', 'challenge-web-app']);
+      log(`[web-bg] 已停止 slot ${slot} (${meta.project})`);
+   } catch {
+      /* 可能尚未创建 */
+   }
+};
+
+const composeWebSlotUp = async (slot, webAppRef) => {
+   const meta = WEB_SLOT_META[slot];
+   const extra = {
+      WEB_APP_REF: webAppRef,
+      WEB_SLOT_HOST_PORT: String(meta.port),
+      WEB_SLOT_NETWORK_ALIAS: meta.alias,
+      WEB_BG_NETWORK: CFG.webBgNetwork,
+      WEB_BG_VOLUME: CFG.webBgVolume,
+   };
+   await docker([...webSlotComposeArgs(meta.project), 'up', '-d', '--force-recreate', 'challenge-web-app'], { env: extra });
+   const cid = await docker([
+      'ps',
+      '-q',
+      '--filter',
+      `label=com.docker.compose.project=${meta.project}`,
+      '--filter',
+      'label=com.docker.compose.service=challenge-web-app',
+   ]);
+   if (!cid || (await docker(['inspect', '--format', '{{.State.Running}}', cid])) !== 'true') {
+      throw new Error(`web slot ${slot} 容器未运行`);
+   }
+};
+
+const switchWebUpstream = async (port) => {
+   const script = repoPath('ci/switch-web-upstream.sh');
+   if (!existsSync(script)) throw new Error(`找不到 ${script}`);
+   await sh('bash', [script, String(port)], { idleMs: IDLE_MS });
+   log(`[web-bg] upstream -> 127.0.0.1:${port}`);
+};
+
+/** web-app 蓝绿：inactive 起服 → 探活 → 切 OpenResty → 停 active slot */
+const deployWebAppBlueGreen = async (webTarget, imageId) => {
+   const state = mergeWebBgState(readState());
+   const active = state.activeWebSlot === 'green' ? 'green' : 'blue';
+   const inactive = active === 'blue' ? 'green' : 'blue';
+   const activeMeta = WEB_SLOT_META[active];
+   const inactiveMeta = WEB_SLOT_META[inactive];
+   const webAppRef = `${webTarget.image}:${webTarget.tag}`;
+   const savedActive = await snapshotWebActive(active);
+
+   await docker(['tag', imageId, webAppRef]);
+
+   try {
+      await composeWebSlotUp(inactive, webAppRef);
+      await waitHealthyUrl(`http://127.0.0.1:${inactiveMeta.port}/`, WEB_HEALTH);
+      await switchWebUpstream(inactiveMeta.port);
+      await stopWebSlot(active);
+      await stopMainStackWebApp();
+
+      upsertEnvVar(CFG.envFile, 'WEB_APP_REF', webAppRef);
+      const next = mergeWebBgState(readState());
+      next.activeWebSlot = inactive;
+      next.webSlots[inactive] = { ...next.webSlots[inactive], appRef: webAppRef };
+      next.appRef = webAppRef;
+      writeState(next);
+      log(`[web-bg] 成功 ${webAppRef} active=${inactive} port=${inactiveMeta.port}`);
+      return { webAppRef, activeSlot: inactive };
+   } catch (error) {
+      log(`[web-bg] 失败：${error.message}，回滚 upstream/slot`);
+      await stopWebSlot(inactive).catch(() => {});
+      try {
+         await switchWebUpstream(activeMeta.port);
+      } catch (e) {
+         log(`[web-bg] 回滚 upstream 失败：${e.message}`);
+      }
+      if (savedActive.imageId && savedActive.ref) {
+         const running = await docker(['image', 'inspect', '--format', '{{.Id}}', savedActive.imageId]).catch(() => '');
+         if (running) {
+            try {
+               await docker(['tag', savedActive.imageId, savedActive.ref]);
+               await composeWebSlotUp(active, savedActive.ref);
+               await waitHealthyUrl(`http://127.0.0.1:${activeMeta.port}/`, WEB_HEALTH);
+               upsertEnvVar(CFG.envFile, 'WEB_APP_REF', savedActive.ref);
+            } catch (e) {
+               log(`[web-bg] 恢复 active slot 失败：${e.message}`);
+            }
+         }
+      }
+      throw error;
+   }
 };
 
 const composeUp = async (services, refs) => {
@@ -235,14 +399,17 @@ const jobs = new Map();
 
 const deploy = async (payload) => {
    const targets = payload.images.filter((i) => SERVICES[i.service]);
+   const webTarget = CFG.webBlueGreen ? targets.find((t) => t.service === 'challenge-web-app') : null;
+   const stackTargets = targets.filter((t) => t.service !== 'challenge-web-app' || !CFG.webBlueGreen);
    const refs = {};
    const saved = [];
-   for (const t of targets) saved.push(await snapshot(t.service));
+   for (const t of stackTargets) saved.push(await snapshot(t.service));
+
+   let webBgResult = null;
 
    try {
       const ids = await pullAll(payload.images);
 
-      // 非 compose 管理的镜像：把调度器使用的本地名 :latest 指到本次拉取的镜像
       for (const image of payload.images) {
          const localName = LOCAL_IMAGE_NAMES[image.name];
          if (!localName) continue;
@@ -250,29 +417,55 @@ const deploy = async (payload) => {
          log(`[tag] ${localName}:latest -> ${ids.get(image.name).slice(0, 19)}`);
       }
 
-      // 打标签：web-app 用「官方名:tag」并写入 compose 变量；调度器无 image:，只能换成正在用的标签；
-      // observation 用固定的本地标签 challenge-observation:latest（compose 里就这么写）
-      for (const t of targets) {
+      for (const t of stackTargets) {
          const prev = saved.find((s) => s.service === t.service);
          refs[t.service] = SERVICES[t.service].refVar ? `${t.image}:${t.tag}` : SERVICES[t.service].ref || prev.ref;
          await docker(['tag', ids.get(t.name), refs[t.service]]);
       }
-      await composeUp(targets.map((t) => t.service), refs);
-      for (const t of targets) await waitHealthy(t.service);
+      if (stackTargets.length) {
+         await composeUp(stackTargets.map((t) => t.service), refs);
+         for (const t of stackTargets) await waitHealthy(t.service);
+      }
 
-      const state = readState();
-      if (targets.some((t) => SERVICES[t.service].refVar)) upsertEnvVar(CFG.envFile, 'WEB_APP_REF', refs['challenge-web-app']);
-      // 记下这批镜像的 digest，供下次幂等判断
+      if (webTarget) {
+         if (CFG.webBlueGreen) {
+            webBgResult = await deployWebAppBlueGreen(webTarget, ids.get(webTarget.name));
+            refs['challenge-web-app'] = webBgResult.webAppRef;
+         } else {
+            const prev = await snapshot('challenge-web-app');
+            saved.push(prev);
+            refs['challenge-web-app'] = `${webTarget.image}:${webTarget.tag}`;
+            await docker(['tag', ids.get(webTarget.name), refs['challenge-web-app']]);
+            await composeUp(['challenge-web-app'], refs);
+            await waitHealthyUrl(env.HEALTH_WEB_APP || `http://127.0.0.1:${WEB_SLOT_META.blue.port}/`, WEB_HEALTH);
+            upsertEnvVar(CFG.envFile, 'WEB_APP_REF', refs['challenge-web-app']);
+         }
+      }
+
+      const state = mergeWebBgState(readState());
       const deployedDigests = { ...(state.deployedDigests || {}), ...Object.fromEntries(payload.images.map((i) => [i.name, i.digest])) };
       const history = [{ tag: payload.tag, commit: payload.commit, at: new Date().toISOString(), status: 'ok', images: payload.images.map((i) => i.name) }, ...(state.history || [])].slice(0, 20);
-      writeState({ ...state, delivery: payload.delivery, commit: payload.commit, tag: payload.tag, at: new Date().toISOString(), status: 'ok', refs, appRef: refs['challenge-web-app'] || state.appRef || '', deployedDigests, history });
-      log(`[deploy] 成功 ${payload.tag} ${payload.commit.slice(0, 7)}（${targets.map((t) => t.service).join(',')}）`);
+      writeState({
+         ...state,
+         delivery: payload.delivery,
+         commit: payload.commit,
+         tag: payload.tag,
+         at: new Date().toISOString(),
+         status: 'ok',
+         refs,
+         appRef: refs['challenge-web-app'] || state.appRef || '',
+         deployedDigests,
+         history,
+      });
+      const names = targets.map((t) => t.service).join(',');
+      log(`[deploy] 成功 ${payload.tag} ${payload.commit.slice(0, 7)}（${names}）${webBgResult ? ` web=${webBgResult.activeSlot}` : ''}`);
       return { ok: true, status: 'ok' };
    } catch (error) {
       log(`[deploy] 失败：${error.message}，开始回滚`);
       const restored = {};
       for (const s of saved) {
-         const running = s.imageId ? await docker(['image', 'inspect', '--format', '{{.Id}}', s.imageId]).catch(() => '') : '';
+         if (!s.imageId) continue;
+         const running = await docker(['image', 'inspect', '--format', '{{.Id}}', s.imageId]).catch(() => '');
          if (!running) {
             log(`[rollback] ${s.service} 上一版本镜像 ${s.imageId.slice(0, 19)} 已不在本地，无法回滚`);
             continue;
@@ -286,7 +479,6 @@ const deploy = async (payload) => {
             await composeUp(Object.keys(restored), restored);
             for (const s of Object.keys(restored)) await waitHealthy(s);
             status = 'rolled-back';
-            if (restored['challenge-web-app']) upsertEnvVar(CFG.envFile, 'WEB_APP_REF', restored['challenge-web-app']);
             log(`[rollback] 已回到原版本：${Object.values(restored).join(', ')}`);
          } catch (e) {
             status = 'rollback-failed';
@@ -319,7 +511,15 @@ const server = createServer((req, res) => {
    const state = readState();
 
    if (req.method === 'GET' && req.url === '/health') {
-      return json(res, 200, { status: 'ok', busy, deployed: { commit: state.commit || '', tag: state.tag || '', at: state.at || '', status: state.status || '' } });
+      const bg = mergeWebBgState(state);
+      return json(res, 200, {
+         status: 'ok',
+         busy,
+         deployed: { commit: state.commit || '', tag: state.tag || '', at: state.at || '', status: state.status || '' },
+         webBlueGreen: CFG.webBlueGreen,
+         activeWebSlot: bg.activeWebSlot,
+         webSlots: bg.webSlots,
+      });
    }
    // 异步模式的状态查询：GET /hooks/images?delivery=<uuid> -> {status: running|ok|failed|unknown}
    if (req.method === 'GET' && req.url.startsWith('/hooks/images')) {
@@ -409,8 +609,12 @@ if (!CFG.secret) {
    console.error('缺少 DEPLOY_WEBHOOK_SECRET，拒绝启动');
    process.exit(1);
 }
-for (const p of [CFG.envFile, join(CFG.repoDir, CFG.composeBase)]) {
+for (const p of [CFG.envFile, join(CFG.repoDir, CFG.composeBase), join(CFG.repoDir, CFG.webSlotCompose)]) {
    if (!existsSync(isAbsolute(p) ? p : join(CFG.repoDir, p))) console.error(`警告：找不到 ${p}`);
+}
+if (CFG.webBlueGreen) {
+   const init = mergeWebBgState(readState());
+   if (!existsSync(CFG.stateFile) || !readState().activeWebSlot) writeState({ ...readState(), ...init });
 }
 
 server.listen(CFG.port, CFG.host, () => log(`[boot] listening on ${CFG.host}:${CFG.port} repo=${CFG.repoDir} mirrors=${CFG.mirrors.join(',')}`));

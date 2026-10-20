@@ -8,7 +8,7 @@ services:
     networks:
       - quanta-challenge-network
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     environment:
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
@@ -73,7 +73,8 @@ services:
       - PORT=1888
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
-      - APP_SERVER_URL=http://challenge-web-app:3000
+      # 判题回调走 OpenResty（与 web 蓝绿切流一致）；未设时回退容器内 DNS
+      - APP_SERVER_URL=${APP_SERVER_URL:-${APP_SERVER:-http://challenge-web-app:3000}}
       - OPENAPI_WEBHOOK_SECRET=${OPENAPI_WEBHOOK_SECRET:?请设置 OPENAPI_WEBHOOK_SECRET}
       - JUDGE_MACHINE_WS_URL=ws://host.docker.internal:1889/link
       # 后端题型判题机容器映射到宿主机 1891，与前端判题机（1889）分开，

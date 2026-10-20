@@ -1,0 +1,26 @@
+# Web 蓝绿 slot：与主栈共用 prod.env，独立 COMPOSE_PROJECT_NAME（qc-web-blue / qc-web-green）。
+# webhook 注入 WEB_APP_REF、WEB_SLOT_HOST_PORT、WEB_SLOT_NETWORK_ALIAS。
+services:
+  challenge-web-app:
+    build: !reset null
+    image: ${WEB_APP_REF:?请设置 WEB_APP_REF}
+    depends_on: !reset []
+    ports: !reset
+      - "127.0.0.1:${WEB_SLOT_HOST_PORT:?请设置 WEB_SLOT_HOST_PORT}:3000"
+    networks: !reset
+      quanta-challenge-network:
+        aliases:
+          - ${WEB_SLOT_NETWORK_ALIAS:-challenge-web-app-slot}
+    volumes: !reset
+      - qtc_app_storage:/app/packages/challenge-web-app/local_store
+      - /app/tmp:/app/tmp
+
+networks:
+  quanta-challenge-network:
+    external: true
+    name: ${WEB_BG_NETWORK:-quanta-challenge_quanta-challenge-network}
+
+volumes:
+  qtc_app_storage:
+    external: true
+    name: ${WEB_BG_VOLUME:-quanta-challenge_qtc_app_storage}

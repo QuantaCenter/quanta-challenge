@@ -12,12 +12,16 @@ CI 把镜像推到 GHCR 后回调本目录的 webhook，由它拉镜像、重启
 | `quanta-deploy-webhook.service` | systemd 单元模板（安装脚本会替换路径） |
 | `install.sh` | 安装/更新服务、生成密钥、给 compose override 注入 `WEB_APP_REF` |
 | `expose-hook-path.sh` | 把端点挂到既有站点的 `/hooks/images`（1Panel 的 `proxy/*.conf`） |
+| `docker/docker-compose.web-slot.yaml` | Web 蓝绿 slot overlay（`qc-web-blue` / `qc-web-green`） |
+| `install-web-bluegreen.sh` | 初始化 upstream 指针 + OpenResty include 片段 |
+| `switch-web-upstream.sh` | 切换 active 端口并重载 OpenResty |
 
 ## 部署
 
 ```bash
-sudo bash ci/install.sh            # 服务 + 密钥（幂等，可重复执行）
-sudo bash ci/expose-hook-path.sh   # 挂到 challenge.quantacenter.com/hooks/images
+sudo bash ci/install.sh                 # 服务 + 密钥（幂等，可重复执行）
+sudo bash ci/install-web-bluegreen.sh   # Web 蓝绿 upstream（首次或升级后）
+sudo bash ci/expose-hook-path.sh        # 挂到 challenge.quantacenter.com/hooks/images
 ```
 
 然后在 GitHub 仓库 secrets 里填（`install.sh` 结尾会打印现成两行）：
@@ -45,8 +49,12 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
    失败按 `ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）；
    镜像一多时并行能把总耗时从「串行求和」压到「最慢的那个镜像」附近。
-5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz`、
-   `:9310/healthz` 做健康检查。
+5. **`challenge-web-app` 蓝绿**（默认开启，设 `WEB_BLUEGREEN=0` 可退回主栈原地重启）：
+   inactive slot（`qc-web-blue`@3000 ↔ `qc-web-green`@3002）先 `up --force-recreate` →
+   探活 `127.0.0.1:<slot-port>/`（60s）→ `switch-web-upstream.sh` 切 OpenResty →
+   停 active slot 与主栈遗留的 web 容器。`state.json` 含 `activeWebSlot` / `webSlots`。
+   其它服务仍 `docker compose up -d --no-deps`，再对 `:1888/health`、`:1890/healthz`、
+   `:9310/healthz` 做健康检查（web 公网流量不再依赖固定 `:3000` 探针）。
    启动调度器前先移除占用 1889 的残留容器（前端判题机容器由调度器自己创建，不随上一实例退出而消失）。
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
@@ -89,7 +97,16 @@ DNS 解析失败。
 compose 文件（带项目目录下的 `.env`）`up -d --no-deps observation`，健康检查 `:9310/healthz`。
 监控栈其余组件（Prometheus/Loki/Grafana 等）用上游官方镜像，不随发布更新。
 
-状态：`/var/lib/quanta-deploy/state.json`（含最近 20 次记录、回滚点），日志 `/var/log/quanta-deploy-webhook.log`。
+状态：`/var/lib/quanta-deploy/state.json`（含最近 20 次记录、回滚点、`activeWebSlot`），日志 `/var/log/quanta-deploy-webhook.log`。
+
+### Web 蓝绿（部署机一次性）
+
+1. 在站点反代 web 的 `location` 里、`proxy_pass` 前加入（路径见 `install-web-bluegreen.sh` 输出）：
+   `include .../web-bluegreen-upstream.conf;` 与 `proxy_pass http://$web_backend;`
+2. `prod.env` 建议：`APP_SERVER_URL=${APP_SERVER}`，判题回调与公网切流一致。
+3. 若此前 web 跑在主栈 `quanta-challenge` 项目里，首次发布后 webhook 会停掉主栈 web，改由 slot 接管；也可事先手工 `compose stop challenge-web-app`。
+4. 共享卷 `qtc_app_storage` 同一时刻只应有一个 web 挂载；切流后会立刻停掉旧 slot。
+5. 网络/卷全名若非默认，在 systemd 或 `deploy-webhook.env` 里设 `WEB_BG_NETWORK` / `WEB_BG_VOLUME`（默认 `quanta-challenge_quanta-challenge-network` / `quanta-challenge_qtc_app_storage`）。
 
 ## 运维
 

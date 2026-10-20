@@ -283,7 +283,7 @@ pnpm docker:down
 
 ### CI/CD
 
-CI 构建镜像推送到 GHCR 后回调部署机的 webhook（`ci/deploy-webhook.mjs`），
+CI 构建镜像推送到 GHCR 后回调部署机的 webhook（`ci/deploy-webhook.mjs`）；**Web 应用默认蓝绿发布**（`qc-web-blue` / `qc-web-green` + OpenResty 切 upstream，见 [`ci/README.md`](ci/README.md)）。
 由其按 digest 拉取镜像、重打标签、`docker compose up -d` 只重启变化的服务，
 失败自动回滚。契约见 `docs/IMAGE_WEBHOOK.md`，部署与运维见 `ci/README.md`。
 
@@ -329,7 +329,7 @@ CI 构建镜像推送到 GHCR 后回调部署机的 webhook（`ci/deploy-webhook
 | `DATABASE_URL` | PostgreSQL 连接字符串 | `postgres://user:pass@host:5432/db` |
 | `REDIS_HOST` | Redis 主机 | `redis` |
 | `PORT` | 服务端口 | `1888` |
-| `APP_SERVER_URL` | Web 应用地址（判题后回调同步排行榜与通知） | `http://challenge-web-app:3000` |
+| `APP_SERVER_URL` | Web 应用地址（判题后回调；生产建议与 `APP_SERVER` 相同以配合 web 蓝绿） | `${APP_SERVER}` 或 `http://challenge-web-app:3000` |
 | `OPENAPI_WEBHOOK_SECRET` | 回调签名密钥（与 Web 应用共享） | - |
 | `JUDGE_MACHINE_WS_URL` | 前端判题机 WebSocket 地址 | `ws://host.docker.internal:1889/link` |
 | `BACKEND_JUDGE_MACHINE_WS_URL` | 后端判题机 WebSocket 地址 | `ws://host.docker.internal:1891/link` |
