@@ -329,7 +329,7 @@ CI 构建镜像推送到 GHCR 后回调部署机的 webhook（`ci/deploy-webhook
 | `DATABASE_URL` | PostgreSQL 连接字符串 | `postgres://user:pass@host:5432/db` |
 | `REDIS_HOST` | Redis 主机 | `redis` |
 | `PORT` | 服务端口 | `1888` |
-| `APP_SERVER_URL` | Web 应用地址（判题后回调；生产建议与 `APP_SERVER` 相同以配合 web 蓝绿） | `${APP_SERVER}` 或 `http://challenge-web-app:3000` |
+| `APP_SERVER_URL` | Web 应用地址（判题后回调同步排行榜与通知） | `http://challenge-web-app:3000` |
 | `OPENAPI_WEBHOOK_SECRET` | 回调签名密钥（与 Web 应用共享） | - |
 | `JUDGE_MACHINE_WS_URL` | 前端判题机 WebSocket 地址 | `ws://host.docker.internal:1889/link` |
 | `BACKEND_JUDGE_MACHINE_WS_URL` | 后端判题机 WebSocket 地址 | `ws://host.docker.internal:1891/link` |

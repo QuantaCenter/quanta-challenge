@@ -13,8 +13,8 @@ CI 把镜像推到 GHCR 后回调本目录的 webhook，由它拉镜像、重启
 | `install.sh` | 安装/更新服务、生成密钥、给 compose override 注入 `WEB_APP_REF` |
 | `expose-hook-path.sh` | 把端点挂到既有站点的 `/hooks/images`（1Panel 的 `proxy/*.conf`） |
 | `docker/docker-compose.web-slot.yaml` | Web 蓝绿 slot overlay（`qc-web-blue` / `qc-web-green`） |
-| `install-web-bluegreen.sh` | 初始化 upstream 指针 + OpenResty include 片段 |
-| `switch-web-upstream.sh` | 切换 active 端口并重载 OpenResty |
+| `install-web-bluegreen.sh` | 初始化 upstream 指针文件并检查 OpenResty 是否已 include（幂等，不覆盖现有流向） |
+| `switch-web-upstream.sh` | 切换 active 端口并重载 OpenResty；失败时恢复原值并非 0 退出 |
 
 ## 部署
 
@@ -49,14 +49,19 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
    失败按 `ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
    （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）；
    镜像一多时并行能把总耗时从「串行求和」压到「最慢的那个镜像」附近。
-5. **`challenge-web-app` 蓝绿**（默认开启，设 `WEB_BLUEGREEN=0` 可退回主栈原地重启）：
-   inactive slot（`qc-web-blue`@3000 ↔ `qc-web-green`@3002）先 `up --force-recreate` →
-   探活 `127.0.0.1:<slot-port>/`（60s）→ `switch-web-upstream.sh` 切 OpenResty →
-   停 active slot 与主栈遗留的 web 容器。`state.json` 含 `activeWebSlot` / `webSlots`。
-   其它服务仍 `docker compose up -d --no-deps`，再对 `:1888/health`、`:1890/healthz`、
-   `:9310/healthz` 做健康检查（web 公网流量不再依赖固定 `:3000` 探针）。
+5. 其它服务先 `docker compose up -d --no-deps`，再对 `:1888/health`、`:1890/healthz`、
+   `:9310/healthz` 做健康检查。
    启动调度器前先移除占用 1889 的残留容器（前端判题机容器由调度器自己创建，不随上一实例退出而消失）。
-6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
+6. **`challenge-web-app` 蓝绿**（默认开启，设 `WEB_BLUEGREEN=0` 退回主栈原地重启，会短暂中断）：
+   active slot 以 upstream 指针文件的端口为准（`state.json` 的 `activeWebSlot` 只作记录）。
+   inactive slot（`qc-web-blue`@3000 ↔ `qc-web-green`@3002）`up --force-recreate` →
+   探活 `127.0.0.1:<slot-port>/`（60s）→ `switch-web-upstream.sh` 切 OpenResty →
+   落盘 `activeWebSlot` → 等 `WEB_DRAIN_MS`（默认 10s）让在途请求收尾 →
+   `docker stop -t WEB_STOP_TIMEOUT_S`（默认 30s）停旧 slot 与主栈遗留的 web 容器。
+   - **切流前**失败：只清理 inactive slot，线上实例全程不动，记为 `rolled-back`。
+   - **切流后**已无回头路：收尾步骤失败只记日志并告警，不回滚。
+   - upstream 指针文件不存在时，含 web-app 的发布在动任何容器前就被拒绝。
+7. 任一步失败 → 其它服务用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
 
 `service` 为 `null` 的镜像（`judge-machine`、`live-server`、`backend-service`、
@@ -101,12 +106,23 @@ compose 文件（带项目目录下的 `.env`）`up -d --no-deps observation`，
 
 ### Web 蓝绿（部署机一次性）
 
-1. 在站点反代 web 的 `location` 里、`proxy_pass` 前加入（路径见 `install-web-bluegreen.sh` 输出）：
-   `include .../web-bluegreen-upstream.conf;` 与 `proxy_pass http://$web_backend;`
-2. `prod.env` 建议：`APP_SERVER_URL=${APP_SERVER}`，判题回调与公网切流一致。
-3. 若此前 web 跑在主栈 `quanta-challenge` 项目里，首次发布后 webhook 会停掉主栈 web，改由 slot 接管；也可事先手工 `compose stop challenge-web-app`。
-4. 共享卷 `qtc_app_storage` 同一时刻只应有一个 web 挂载；切流后会立刻停掉旧 slot。
-5. 网络/卷全名若非默认，在 systemd 或 `deploy-webhook.env` 里设 `WEB_BG_NETWORK` / `WEB_BG_VOLUME`（默认 `quanta-challenge_quanta-challenge-network` / `quanta-challenge_qtc_app_storage`）。
+1. `sudo bash ci/install-web-bluegreen.sh` 创建指针文件
+   `/opt/1panel/www/sites/<域名>/web-upstream.conf`（OpenResty 容器内是 `/www/sites/<域名>/web-upstream.conf`），
+   再按脚本提示把站点反代 web 的 `location` 里的 `proxy_pass http://127.0.0.1:3000;` 改为
+   `include /www/sites/<域名>/web-upstream.conf;` + `proxy_pass http://$web_backend;`，reload 后重跑脚本，
+   看到「蓝绿切流可用」才算完成。在 1Panel 面板里重新保存该反向代理会覆盖这处修改，需重做。
+2. 首次发布时线上 web 是主栈容器（@3000，视为 blue），新版本进 green@3002，切流后主栈 web 被停掉，此后只由 slot 承载。
+3. 两个 slot 都带网络别名 `challenge-web-app`，调度器回调（`APP_SERVER_URL=http://challenge-web-app:3000`）
+   与 Prometheus 抓取不用改；两者并存的几十秒里 DNS 返回两个 IP，都是已通过探活的实例。
+4. 迁移到 slot 后**不要再手工 `docker compose up -d`（不带服务名）启动主栈**：主栈的 web 会去抢 3000，
+   与 blue slot 冲突。手工操作请写明服务名，例如 `up -d challenge-judge-scheduler`。
+5. 共享卷 `qtc_app_storage` 会被新旧 slot 与调度器同时挂载（与原先 web + 调度器并存相同）。
+6. 网络/卷全名若非默认，在 systemd 或 `deploy-webhook.env` 里设 `WEB_BG_NETWORK` / `WEB_BG_VOLUME`（默认 `quanta-challenge_quanta-challenge-network` / `quanta-challenge_qtc_app_storage`）；
+   域名或 1Panel 目录非默认时设 `SITE_DOMAIN` / `WEB_UPSTREAM_CONF` / `WEB_UPSTREAM_INCLUDE`。
+
+**数据库迁移必须向后兼容**：新 slot 启动即对共享库跑 `prisma migrate deploy`，此时旧 slot 仍在服务；
+新版本探活失败回到旧版本时，迁移也不会撤销。因此一次发布只做「加」（加表/加可空列/加索引），
+删列、改名、改类型拆成两次发布：先发不再读写旧字段的代码，下一次再删字段。
 
 ## 运维
 

@@ -52,6 +52,6 @@ cat <<EOF
 1) 在 GitHub 仓库 secrets 里设置
      DEPLOY_WEBHOOK_URL=https://challenge.quantacenter.com/hooks/images
      DEPLOY_WEBHOOK_SECRET=$(sed -n 's/^DEPLOY_WEBHOOK_SECRET=//p' "$SECRET_FILE")
-2) Web 蓝绿 upstream：sudo bash ci/install-web-bluegreen.sh（并按脚本提示改 OpenResty location）
+2) Web 蓝绿 upstream：sudo bash ci/install-web-bluegreen.sh（按提示改 OpenResty location，重跑直到显示「蓝绿切流可用」）
 3) 把端点挂到现有站点上（不新增子域名/证书）：sudo bash ci/expose-hook-path.sh
 EOF
