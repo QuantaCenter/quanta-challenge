@@ -8,6 +8,10 @@ import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
 import { onClickOutside } from '@vueuse/core';
+import {
+   hasBinarySnapshotExtension,
+   toSnapshotDataUrl,
+} from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
 
@@ -134,9 +138,8 @@ onEditorInstanceReady(() => {
       (fs) => {
          if (!fs) return;
          const models = objectMap(fs, ({ value }) => value.content);
-         const excludeExt = ['.svg', '.png', '.jpg'];
          Object.keys(models)
-            .filter((k) => excludeExt.some((ext) => k.endsWith(ext)))
+            .filter((k) => k.endsWith('.svg') || hasBinarySnapshotExtension(k))
             .forEach((key) => delete models[key]);
 
          createModels(models);
@@ -171,6 +174,13 @@ const setModel = (path: string | null, forceRecreate = false) => {
       // 统一规范化路径为前置 / 格式
       const normalizedPath = normalizePath(path);
 
+      // 二进制文件不进 Monaco：编辑会把文本写回 WebContainer，损坏原文件
+      if (hasBinarySnapshotExtension(normalizedPath)) {
+         instance.setModel(null);
+         currentFilePath.value = normalizedPath;
+         return;
+      }
+
       const model = monaco.editor.getModel(monaco.Uri.file(normalizedPath));
 
       // 如果需要强制重新创建 model（例如处理 suspense 文件）
@@ -200,6 +210,19 @@ const setModel = (path: string | null, forceRecreate = false) => {
       }
    });
 };
+
+const isBinaryFile = computed(
+   () =>
+      !!currentFilePath.value &&
+      hasBinarySnapshotExtension(currentFilePath.value)
+);
+
+const imagePreviewSrc = computed(() => {
+   if (!isBinaryFile.value) return undefined;
+   const normalizedPath = normalizePath(currentFilePath.value!);
+   const content = props.defaultFs?.[normalizedPath]?.content;
+   return content ? toSnapshotDataUrl(normalizedPath, content) : undefined;
+});
 
 defineExpose({
    setModel,
@@ -278,6 +301,20 @@ defineExpose({
             v-show="hasEditorReady"
             :ref="containerKey"
             class="absolute top-0 left-0 size-full"></main>
+         <StSpace
+            v-if="hasEditorReady && isBinaryFile"
+            fill
+            center
+            class="absolute top-0 left-0 size-full p-4 bg-[#1C1C1C]">
+            <img
+               v-if="imagePreviewSrc"
+               :src="imagePreviewSrc"
+               :alt="currentFilePath"
+               class="max-w-full max-h-full object-contain" />
+            <span v-else class="st-font-body-normal text-accent-400">
+               该文件无法预览
+            </span>
+         </StSpace>
       </StSpace>
    </StSpace>
 

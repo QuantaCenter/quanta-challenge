@@ -334,6 +334,15 @@ export const validateProblem = async (
             file: relative,
          });
       }
+      for (const decoded of snapshot.decodedDataUrls) {
+         push({
+            rule: 'SNAP004',
+            severity: 'warn',
+            message: `${relative}/${decoded} 的内容是 data URL 文本，不是图片二进制；已在上传时还原`,
+            file: `${relative}/${decoded}`,
+            hint: '平台下发的是还原后的图片，但本地预览和本地判题读的仍是这份文本。把逗号后的 base64 解码写回原文件即可。',
+         });
+      }
    };
 
    await checkArtifact(

@@ -35,7 +35,19 @@ export interface SnapshotResult {
    totalBytes: number;
    /** 被忽略规则跳过的顶层条目，用于在预检里提示"你可能漏传了东西" */
    ignored: string[];
+   /** 二进制扩展名但内容是 data URL 文本、已还原成真实字节的文件（相对路径） */
+   decodedDataUrls: string[];
 }
+
+const DATA_URL_PATTERN = /^data:[^,]*;base64,/i;
+
+/** 内容是 `data:...;base64,` 文本时返回解出的字节，否则返回 undefined */
+const decodeDataUrlBuffer = (buffer: Buffer): Buffer | undefined => {
+   const head = buffer.subarray(0, 128).toString('latin1');
+   if (!DATA_URL_PATTERN.test(head)) return undefined;
+   const text = buffer.toString('latin1').trim();
+   return Buffer.from(text.slice(text.indexOf(',') + 1), 'base64');
+};
 
 export interface SnapshotOptions {
    /** 挂载路径，默认 `project`（等于 judgeUploadPath） */
@@ -62,6 +74,7 @@ export const collectSnapshot = async (
    });
 
    const files: Record<string, string> = {};
+   const decodedDataUrls: string[] = [];
    let totalBytes = 0;
 
    for (const relativePath of relativePaths) {
@@ -73,9 +86,15 @@ export const collectSnapshot = async (
          throw new CliError(`快照读取失败：${absolutePath}`, { cause: error });
       }
       const extension = extname(relativePath).slice(1).toLowerCase();
-      files[joinSnapshotKey(mountPath, relativePath)] = BINARY_EXTENSIONS.has(
-         extension,
-      )
+      const isBinary = BINARY_EXTENSIONS.has(extension);
+      if (isBinary) {
+         const decoded = decodeDataUrlBuffer(buffer);
+         if (decoded) {
+            buffer = decoded;
+            decodedDataUrls.push(relativePath);
+         }
+      }
+      files[joinSnapshotKey(mountPath, relativePath)] = isBinary
          ? buffer.toString('base64')
          : buffer.toString('utf8');
       totalBytes += buffer.byteLength;
@@ -86,5 +105,6 @@ export const collectSnapshot = async (
       fileCount: Object.keys(files).length,
       totalBytes,
       ignored: [...ignored].sort(),
+      decodedDataUrls,
    };
 };
