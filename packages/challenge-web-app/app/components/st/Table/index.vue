@@ -24,13 +24,20 @@ const props = withDefaults(
       skeletonCount?: number;
       /** 空态文案，也可用 `#empty` 插槽替换 */
       emptyText?: string;
+      /** 开启后整行可点击（加 hover/cursor 样式），配合 @row-click 使用 */
+      clickableRows?: boolean;
    }>(),
    {
       loading: false,
       skeletonCount: 8,
       emptyText: '暂无数据',
+      clickableRows: false,
    }
 );
+
+const emits = defineEmits<{
+   rowClick: [row: T];
+}>();
 
 const isFirstColumn = (index: number) => index === 0;
 const isLastColumn = (index: number) => index === props.columns.length - 1;
@@ -109,7 +116,13 @@ const rowIdentifier = (row: T, index: number) => {
          <tr
             v-for="(row, index) in rows"
             :key="rowIdentifier(row, index)"
-            class="even:bg-accent-600">
+            :class="[
+               'even:bg-accent-600',
+               props.clickableRows
+                  ? 'cursor-pointer hover:bg-accent-500 transition-colors'
+                  : '',
+            ]"
+            @click="emits('rowClick', row)">
             <td
                v-for="(column, columnIndex) in columns"
                :key="column.key"
