@@ -22,6 +22,8 @@ import { useFileChangeSync } from './_composables/use-file-change-sync';
 import { useManifestSync } from './_composables/use-manifest-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
+import { useEditorShortcuts } from './_composables/use-editor-shortcuts';
+import { useMessage } from '~/components/st/Message/use-message';
 
 const props = defineProps<{ id: number }>();
 
@@ -402,6 +404,21 @@ const fileLoader = async (filePath: string) => {
 
 // preview
 const previewUrl = computed(() => exposeServer.value?.url);
+const preview = useTemplateRef('preview');
+
+// shortcuts
+const message = useMessage();
+let saveHintShown = false;
+useEditorShortcuts({
+   onSave: () => {
+      if (saveHintShown) return;
+      saveHintShown = true;
+      message.info('代码会自动保存', '无需手动保存，修改会自动同步到云端');
+   },
+   onRefreshPreview: () => preview.value?.refresh(),
+   onCloseTab: () => codeEditor.value?.closeCurrentTab(),
+   onToggleTerminal: () => terminal.value?.toggleFold(),
+});
 
 // 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，
 // 重定向到当前版本。旧版本可能已被弃用或取消发布，因此必须在加载
@@ -628,6 +645,7 @@ useSeoMeta({
                   :write-file="writeFile" />
                <PreviewPanel
                   v-else
+                  ref="preview"
                   :steps="steps"
                   :current-step="currentStep"
                   :preview-url="previewUrl"

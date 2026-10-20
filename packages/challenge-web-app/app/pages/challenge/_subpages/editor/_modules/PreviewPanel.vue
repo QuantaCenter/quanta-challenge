@@ -96,6 +96,28 @@ const iframeSrc = computed(() => {
 const refresh = () => {
    refreshKey.value++;
 };
+
+/** 服务就绪过一次后又停掉（例如终端里 Ctrl+C），不再回到启动步骤列表 */
+const serverStopped = ref(false);
+const stoppedPort = ref<string>();
+watch(
+   () => props.previewUrl,
+   (url, oldUrl) => {
+      if (url) {
+         serverStopped.value = false;
+         return;
+      }
+      if (!oldUrl) return;
+      serverStopped.value = true;
+      try {
+         stoppedPort.value = new URL(toDisplayUrl(oldUrl)).port || undefined;
+      } catch {
+         stoppedPort.value = undefined;
+      }
+   },
+);
+
+defineExpose({ refresh });
 </script>
 
 <template>
@@ -175,6 +197,9 @@ const refresh = () => {
                   且能正常访问 stackblitz.com。
                </span>
             </StSpace>
+            <span v-else-if="serverStopped" class="text-sm text-accent-100">
+               当前端口{{ stoppedPort ? ` ${stoppedPort} ` : '' }}暂无服务运行
+            </span>
             <StSpace v-else direction="vertical" gap="0.5rem">
                <StSpace
                   v-if="!iframeSrc"

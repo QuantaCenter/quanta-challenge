@@ -224,8 +224,16 @@ const imagePreviewSrc = computed(() => {
    return content ? toSnapshotDataUrl(normalizedPath, content) : undefined;
 });
 
+const closeCurrentTab = () => {
+   const tab = openedTabs.value.find(
+      (item) => item.path === currentFilePath.value
+   );
+   tab && onCloseTab(tab);
+};
+
 defineExpose({
    setModel,
+   closeCurrentTab,
    onModelContentChange,
    addExtraLibs,
    onEditorInstanceReady,

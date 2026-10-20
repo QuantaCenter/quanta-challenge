@@ -157,6 +157,7 @@ defineExpose({
    attachProcess,
    writeTerminal,
    createTerminal,
+   toggleFold,
 });
 </script>
 

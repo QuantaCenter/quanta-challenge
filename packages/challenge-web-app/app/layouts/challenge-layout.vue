@@ -173,7 +173,8 @@ const avatarUrl = computed(() => {
                align="center"
                gap="0.5rem"
                class="mb-1">
-               <StSidebarSidePopper content="设置">
+               <!-- 设置按钮暂无实际功能，先隐藏 -->
+               <StSidebarSidePopper v-if="false" content="设置">
                   <StRippleEffect>
                      <button
                         class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
