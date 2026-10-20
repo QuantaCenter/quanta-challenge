@@ -80,10 +80,10 @@ const gotoQuantaLogin = async () => {
          quantaOAuthIssuer,
       );
       window.location.assign(target);
+      // 跳转未完成前保持 loading，避免按钮状态切回造成闪烁
    } catch (error) {
-      message.error(loginError(error).message);
-   } finally {
       quantaLoading.value = false;
+      message.error(loginError(error).message);
    }
 };
 </script>
