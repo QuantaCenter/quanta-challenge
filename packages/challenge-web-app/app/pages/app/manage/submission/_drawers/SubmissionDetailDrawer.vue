@@ -186,17 +186,13 @@ onUnmounted(stopPolling);
             <StSpace
               fill-x
               justify="between"
-              align="end"
-              class="bg-[#1C1C1C]">
-              <StSpace gap="0.5rem" align="end">
+              align="end">
+              <StSpace gap="0.5rem" align="center">
                 <span class="st-font-third-bold text-warning">
                   #{{ detail.id }}
                 </span>
                 <span class="st-font-third-normal">
                   {{ detail.problem.title }}
-                </span>
-                <span class="st-font-caption text-accent-300 font-family-manrope">
-                  PID {{ detail.problem.pid }}
                 </span>
               </StSpace>
               <StatusIcon />

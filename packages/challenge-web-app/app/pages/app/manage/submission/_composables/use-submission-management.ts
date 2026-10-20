@@ -4,7 +4,7 @@ import type { ISelectOption } from '~/components/st/Select/type';
 import { logger } from '~~/lib/logger';
 import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 
 /** 表格每页条数；页面用它作为骨架屏数量。 */
 export const SUBMISSION_PAGE_SIZE = PAGE_SIZE;
@@ -33,11 +33,16 @@ export interface SubmissionRow {
   submittedAt: string;
 }
 
-/** datetime-local 输入值转 ISO 字符串；空串返回 undefined。 */
-const toISOString = (value: string) => {
+/**
+ * StDatePicker 的日期值（YYYY-MM-DD）转查询边界：
+ * 开始时间取当天零点，截止时间取当天末尾，保证所选整天完整覆盖。
+ */
+const toRangeBoundary = (value: string, endOfDay = false) => {
   if (!value) return undefined;
-  const date = new Date(value);
-  return isNaN(date.getTime()) ? undefined : date.toISOString();
+  const date = dayjs(value);
+  return date.isValid()
+    ? (endOfDay ? date.endOf('day') : date.startOf('day')).toISOString()
+    : undefined;
 };
 
 /**
@@ -66,8 +71,8 @@ export const useSubmissionManagement = () => {
         userKeyword: userKeyword.value || undefined,
         problemKeyword: problemKeyword.value || undefined,
         result: result.value === 'ALL' ? undefined : result.value,
-        startTime: toISOString(startTimeInput.value),
-        endTime: toISOString(endTimeInput.value),
+        startTime: toRangeBoundary(startTimeInput.value),
+        endTime: toRangeBoundary(endTimeInput.value, true),
         page: page.value,
         pageSize: PAGE_SIZE,
       });
