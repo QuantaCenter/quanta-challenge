@@ -26,6 +26,39 @@ const registerHighligher = (monaco: MonacoEditor) => {
    shikiToMonaco(highlighter, monaco);
 };
 
+/** 切换 model 时保存 / 恢复各文件的视图状态（滚动、光标、折叠等）。 */
+const preserveViewStateOnModelSwitch = (
+   monaco: MonacoEditor,
+   instance: editor.IStandaloneCodeEditor
+) => {
+   const viewStates = new Map<string, editor.ICodeEditorViewState>();
+   const originalSetModel = instance.setModel.bind(instance);
+
+   instance.setModel = (model) => {
+      const currentModel = instance.getModel();
+      if (currentModel === model) return originalSetModel(model);
+
+      if (currentModel) {
+         const state = instance.saveViewState();
+         state && viewStates.set(currentModel.uri.toString(), state);
+      }
+      originalSetModel(model);
+      if (model) {
+         const state = viewStates.get(model.uri.toString());
+         state && instance.restoreViewState(state);
+      }
+   };
+
+   const disposable = monaco.editor.onWillDisposeModel((model) => {
+      viewStates.delete(model.uri.toString());
+   });
+
+   return () => {
+      disposable.dispose();
+      viewStates.clear();
+   };
+};
+
 const autoRemeasureFont = (monaco: MonacoEditor, interval = 2000) => {
    let timer: ReturnType<typeof setInterval>;
 
@@ -57,6 +90,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
    let monaco: MonacoEditor | null = null;
    let editorInstance: editor.IStandaloneCodeEditor | null = null;
    let disposeLanguageWorkers: (() => void) | null = null;
+   let disposeViewStatePreserver: (() => void) | null = null;
 
    // 编辑器准备回调
    const monacoReadyCallbacks = new Set<MonacoReadyCallback>();
@@ -204,6 +238,10 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          ...options?.options,
       });
       editorInstance = instance;
+      disposeViewStatePreserver = preserveViewStateOnModelSwitch(
+         monaco,
+         instance
+      );
       markMonacoThemeActive(
          options?.options?.theme ?? defaultEditorOptions.theme ?? 'ayu-dark'
       );
@@ -221,6 +259,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          editorBeforeDisposedCallbacks.forEach((callback) =>
             callback(editorInstance!)
          );
+      disposeViewStatePreserver?.();
       monaco && monaco.editor.getModels().forEach((model) => model.dispose());
       editorInstance?.dispose();
       disposeLanguageWorkers?.();
