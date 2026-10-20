@@ -186,7 +186,7 @@ routeRules: {
     security: {
       headers: {
         crossOriginOpenerPolicy: 'same-origin',
-        crossOriginEmbedderPolicy: 'require-corp'
+        crossOriginEmbedderPolicy: 'credentialless'
       }
     }
   }

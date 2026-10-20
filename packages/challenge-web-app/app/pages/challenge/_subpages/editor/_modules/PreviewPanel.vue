@@ -12,23 +12,66 @@ import {
    WholeSiteAccelerator,
 } from '@icon-park/vue-next';
 import { useViewTransition } from '~/composables/use-view-transition';
+import {
+   type IPreviewServer,
+   resolvePreviewUrl,
+   toDisplayUrl,
+} from '../_utils/preview-url';
 
 const props = defineProps<{
-   hostName?: string;
    previewUrl?: string;
+   /** 所有已就绪的服务，用于把地址栏里的 localhost:<port> 映射到对应预览域名 */
+   servers?: IPreviewServer[];
    steps?: { idle: string; running: string }[];
    currentStep?: number;
    /** 环境不支持时展示的原因；非空时不再显示"正在启动"步骤列表 */
    unsupportedReason?: string | null;
 }>();
 
-const displayUrl = computed(() => {
-   if (props.hostName) {
-      const regex = new RegExp('^https://(.*\.io)');
-      return props.previewUrl?.replace(regex, `http://${props.hostName}`);
-   }
-   return props.previewUrl;
-});
+/** iframe 当前加载的真实地址（预览域名）；主服务变化时重置 */
+const currentUrl = ref<string>();
+watch(
+   () => props.previewUrl,
+   (url) => {
+      currentUrl.value = url;
+   },
+   { immediate: true },
+);
+
+const displayUrl = computed(() =>
+   currentUrl.value ? toDisplayUrl(currentUrl.value) : '',
+);
+
+const addressInput = ref('');
+const addressFocused = ref(false);
+// 输入中不回写，避免防抖跳转后改写地址导致光标跳动
+watch(
+   displayUrl,
+   (value) => {
+      if (!addressFocused.value) addressInput.value = value;
+   },
+   { immediate: true },
+);
+
+const navigate = () => {
+   const target = resolvePreviewUrl(
+      addressInput.value,
+      currentUrl.value,
+      props.servers ?? [],
+   );
+   if (!target || target === currentUrl.value) return;
+   currentUrl.value = target;
+};
+const debouncedNavigate = useDebounceFn(navigate, 800);
+
+const onAddressBlur = () => {
+   addressFocused.value = false;
+   addressInput.value = displayUrl.value;
+};
+const onAddressEscape = (event: KeyboardEvent) => {
+   addressInput.value = displayUrl.value;
+   (event.target as HTMLInputElement).blur();
+};
 
 const fullScreenMode = ref(false);
 const { startViewTransition } = useViewTransition({ delay: 150 });
@@ -44,8 +87,11 @@ const leaveFullScreenMode = () => {
 };
 
 const refreshKey = ref(0);
-const previewUrl = computed(() => {
-   return props.previewUrl ? `${props.previewUrl}?v=${refreshKey.value}` : '';
+const iframeSrc = computed(() => {
+   if (!currentUrl.value) return '';
+   const url = new URL(currentUrl.value);
+   url.searchParams.set('v', String(refreshKey.value));
+   return url.href;
 });
 const refresh = () => {
    refreshKey.value++;
@@ -66,15 +112,16 @@ const refresh = () => {
             gap="0.5rem"
             class="h-[2rem] relative bg-accent-500 m-0.5 rounded-[0.5rem] px-3 text-accent-100">
             <WholeSiteAccelerator v-show="displayUrl" />
-            <StSpace
-               fill
-               align="center"
-               class="relative overflow-auto mini-scrollbar text-xs">
-               <div
-                  class="absolute left-0 w-full overflow-ellipsis text-nowrap whitespace-nowrap flex shrink-0">
-                  {{ displayUrl }}
-               </div>
-            </StSpace>
+            <input
+               v-model="addressInput"
+               :disabled="!currentUrl"
+               spellcheck="false"
+               class="flex-1 min-w-0 h-full bg-transparent outline-none text-xs text-ellipsis"
+               @focus="addressFocused = true"
+               @blur="onAddressBlur"
+               @input="debouncedNavigate"
+               @keydown.enter="navigate"
+               @keydown.esc="onAddressEscape" />
          </StSpace>
          <StRippleEffect>
             <StSpace
@@ -130,7 +177,7 @@ const refresh = () => {
             </StSpace>
             <StSpace v-else direction="vertical" gap="0.5rem">
                <StSpace
-                  v-if="!previewUrl"
+                  v-if="!iframeSrc"
                   v-for="(step, idx) in steps ?? []"
                   :key="idx"
                   align="center"
@@ -172,7 +219,7 @@ const refresh = () => {
                   class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
                   <OffScreen />
                </StSpace>
-               <iframe :src="previewUrl" class="size-full"></iframe>
+               <iframe :src="iframeSrc" class="size-full"></iframe>
             </div>
          </Teleport>
       </StSpace>

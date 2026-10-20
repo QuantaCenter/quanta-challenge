@@ -60,7 +60,11 @@ const initWebContainer = async (
 
    try {
       instance = await Promise.race([
-         WebContainer.boot({ workdirName: options?.workdirName }),
+         // 必须与 nuxt.config.ts 中 /challenge/** 下发的 COEP 头一致
+         WebContainer.boot({
+            workdirName: options?.workdirName,
+            coep: 'credentialless',
+         }),
          timeout,
       ]);
       released = false;
@@ -94,6 +98,11 @@ const startBoot = async (
       bootingPromise = null;
    }
 };
+
+export interface IExposedServer {
+   port: number;
+   url: string;
+}
 
 export interface IUseWebContainerOptions {
    workdirName?: string;
@@ -221,7 +230,10 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       return await instance.spawn(command, args);
    };
 
-   const exposeServer = ref<{ port: number; url: string }>();
+   /** 当前所有已就绪的服务（按就绪顺序） */
+   const servers = ref<IExposedServer[]>([]);
+   /** 主服务：固定为最先就绪的端口，后起的服务不会抢占；仅在其端口关闭后才让位 */
+   const exposeServer = ref<IExposedServer>();
    const error = ref<{ message: string }>();
    const openedPort = ref<number>();
    const closePort = ref<number>();
@@ -237,7 +249,13 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
          }
 
          instance!.on('server-ready', (port, url) => {
-            exposeServer.value = { port, url };
+            servers.value = [
+               ...servers.value.filter((s) => s.port !== port),
+               { port, url },
+            ];
+            if (!exposeServer.value || exposeServer.value.port === port) {
+               exposeServer.value = { port, url };
+            }
          });
 
          instance!.on('error', (err) => {
@@ -249,6 +267,10 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
                openedPort.value = port;
             } else {
                closePort.value = port;
+               servers.value = servers.value.filter((s) => s.port !== port);
+               if (exposeServer.value?.port === port) {
+                  exposeServer.value = servers.value[0];
+               }
             }
          });
       } catch (err: any) {
@@ -270,6 +292,7 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       writeFile,
       removeFile,
       runCommand,
+      servers,
       exposeServer,
       openedPort,
       closePort,

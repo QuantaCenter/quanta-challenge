@@ -191,6 +191,7 @@ const {
    mountFileSystem,
    runCommand,
    getInstance,
+   servers,
    exposeServer,
    writeFile,
    onWebContainerFailed,
@@ -250,7 +251,8 @@ const checkRuntimeSupport = (): string | null => {
    if (!window.crossOriginIsolated) {
       return (
          '页面未处于跨源隔离状态（crossOriginIsolated = false）。' +
-         '通常是 COOP/COEP 响应头被反向代理或 CDN 剥离所致，也可能是浏览器扩展干扰。'
+         '通常是 COOP/COEP 响应头被反向代理或 CDN 剥离所致，也可能是浏览器扩展干扰。' +
+         'Safari 不支持 COEP: credentialless，请改用 Chrome、Edge 或 Firefox。'
       );
    }
    return null;
@@ -400,15 +402,7 @@ const fileLoader = async (filePath: string) => {
 };
 
 // preview
-const previewUrl = ref<string>();
-const hostName = ref<string>();
-onMounted(() => {
-   watch(exposeServer, (server) => {
-      if (!server) return;
-      previewUrl.value = server.url;
-      hostName.value = `localhost:${server.port}`;
-   });
-});
+const previewUrl = computed(() => exposeServer.value?.url);
 
 // 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，
 // 重定向到当前版本。旧版本可能已被弃用或取消发布，因此必须在加载
@@ -638,7 +632,7 @@ useSeoMeta({
                   :steps="steps"
                   :current-step="currentStep"
                   :preview-url="previewUrl"
-                  :host-name="hostName"
+                  :servers="servers"
                   :unsupported-reason="unsupportedReason" />
             </template>
          </EditorBoardLayout>

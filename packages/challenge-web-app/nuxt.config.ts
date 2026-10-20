@@ -81,7 +81,7 @@ export default defineNuxtConfig({
       server: {
          headers: {
             'Cross-Origin-Opener-Policy': 'same-origin',
-            'Cross-Origin-Embedder-Policy': 'require-corp',
+            'Cross-Origin-Embedder-Policy': 'credentialless',
             'Cross-Origin-Resource-Policy': 'cross-origin',
             'Access-Control-Allow-Origin': '*',
          },
@@ -128,23 +128,24 @@ export default defineNuxtConfig({
             },
          },
       },
+      // COEP 必须与 WebContainer.boot({ coep }) 保持一致（见 use-web-container）。 用 credentialless 而非 require-corp：预览 iframe 会继承该策略，require-corp 下 不同端口（即不同子域）的图片等资源因缺少 CORP 头被浏览器拦截。 代价是 Safari 不支持 credentialless，无法进入跨源隔离。
       '/challenge/**': {
          security: {
             headers: {
                crossOriginOpenerPolicy: 'same-origin',
-               crossOriginEmbedderPolicy: 'require-corp',
+               crossOriginEmbedderPolicy: 'credentialless',
             },
          },
       },
       '/_nuxt/**': {
          headers: {
-            'Cross-Origin-Embedder-Policy': 'require-corp',
+            'Cross-Origin-Embedder-Policy': 'credentialless',
             'Cross-Origin-Resource-Policy': 'cross-origin',
          },
          security: {
             headers: {
                crossOriginOpenerPolicy: 'same-origin',
-               crossOriginEmbedderPolicy: 'require-corp',
+               crossOriginEmbedderPolicy: 'credentialless',
                crossOriginResourcePolicy: 'cross-origin',
             },
          },
