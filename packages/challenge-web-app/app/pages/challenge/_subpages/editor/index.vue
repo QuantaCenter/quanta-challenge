@@ -251,8 +251,7 @@ const checkRuntimeSupport = (): string | null => {
    if (!window.crossOriginIsolated) {
       return (
          '页面未处于跨源隔离状态（crossOriginIsolated = false）。' +
-         '通常是 COOP/COEP 响应头被反向代理或 CDN 剥离所致，也可能是浏览器扩展干扰。' +
-         'Safari 不支持 COEP: credentialless，请改用 Chrome、Edge 或 Firefox。'
+         '通常是 COOP/COEP 响应头被反向代理或 CDN 剥离所致，也可能是浏览器扩展干扰。'
       );
    }
    return null;

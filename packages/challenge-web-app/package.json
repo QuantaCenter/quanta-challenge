@@ -45,7 +45,7 @@
       "@volar/jsdelivr": "^2.4.23",
       "@volar/monaco": "^2.4.23",
       "@vue/language-service": "^2.2.0",
-      "@webcontainer/api": "^1.6.1",
+      "@webcontainer/api": "^1.6.4",
       "bcrypt": "^6.0.0",
       "class-variance-authority": "^0.7.1",
       "clsx": "^2.1.1",
