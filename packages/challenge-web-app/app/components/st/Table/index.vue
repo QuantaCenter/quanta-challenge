@@ -50,7 +50,7 @@ const alignClass = (align?: ITableColumn['align']) => {
 
 const headerClass = (column: ITableColumn, index: number) => [
    'bg-secondary py-[0.625rem] pr-3',
-   isFirstColumn(index) ? 'pl-6 rounded-l-lg z-[10000]' : '',
+   isFirstColumn(index) ? 'pl-6 rounded-l-lg' : '',
    isLastColumn(index) ? 'pr-6 rounded-r-lg' : '',
    alignClass(column.align),
 ];
@@ -76,7 +76,8 @@ const rowIdentifier = (row: T, index: number) => {
             :style="column.width ? { width: column.width } : undefined" />
       </colgroup>
 
-      <thead class="sticky top-[5.75rem] z-[10000]">
+      <!-- sticky 表头只需盖住表格行，必须低于 Drawer(9999)/Sidebar(9999)，否则会穿透弹层 -->
+      <thead class="sticky top-[5.75rem] z-10">
          <tr class="text-accent-700 text-nowrap whitespace-nowrap">
             <th
                v-for="(column, index) in columns"
