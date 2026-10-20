@@ -22,7 +22,7 @@ export default defineEventHandler(async (event) => {
       );
       setHeader(event, 'access-control-max-age', 600);
    }
-   // challenge 页面处于跨源隔离（COEP）下，跨源资源需要显式放行。
+   // challenge 页面处于 COEP require-corp 下，跨源资源需要显式放行。
    setHeader(event, 'cross-origin-resource-policy', 'cross-origin');
 
    if (event.method === 'OPTIONS') {

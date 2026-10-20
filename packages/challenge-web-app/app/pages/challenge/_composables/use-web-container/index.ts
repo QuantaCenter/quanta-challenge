@@ -60,11 +60,7 @@ const initWebContainer = async (
 
    try {
       instance = await Promise.race([
-         // 必须与 nuxt.config.ts 中 /challenge/** 下发的 COEP 头一致
-         WebContainer.boot({
-            workdirName: options?.workdirName,
-            coep: 'credentialless',
-         }),
+         WebContainer.boot({ workdirName: options?.workdirName }),
          timeout,
       ]);
       released = false;

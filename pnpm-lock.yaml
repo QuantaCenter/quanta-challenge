@@ -336,8 +336,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0(typescript@5.8.3)
       '@webcontainer/api':
-        specifier: ^1.6.1
-        version: 1.6.1
+        specifier: ^1.6.4
+        version: 1.6.4
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -3171,8 +3171,8 @@ packages:
     peerDependencies:
       vue: ^3.5.0
 
-  '@webcontainer/api@1.6.1':
-    resolution: {integrity: sha512-2RS2KiIw32BY1Icf6M1DvqSmcon9XICZCDgS29QJb2NmF12ZY2V5Ia+949hMKB3Wno+P/Y8W+sPP59PZeXSELg==}
+  '@webcontainer/api@1.6.4':
+    resolution: {integrity: sha512-r9sHCXg1FcC1AMgppGwAc0vYWaQhqvg282cnsuPbJEzYnWifAdCVvg+8ngJUEHyHcomhJJp+/zuytite4ITHLw==}
 
   '@whatwg-node/disposablestack@0.0.6':
     resolution: {integrity: sha512-LOtTn+JgJvX8WfBVJtF08TGrdjuFzGJc4mkP8EdDI8ADbvO7kiexYep1o8dwnt0okb0jYclCDXF13xU7Ge4zSw==}
@@ -9708,7 +9708,7 @@ snapshots:
     dependencies:
       vue: 3.5.17(typescript@5.8.3)
 
-  '@webcontainer/api@1.6.1': {}
+  '@webcontainer/api@1.6.4': {}
 
   '@whatwg-node/disposablestack@0.0.6':
     dependencies:
