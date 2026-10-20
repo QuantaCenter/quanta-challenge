@@ -1,4 +1,8 @@
 <script setup lang="ts">
+import { Lock, Mail } from '@icon-park/vue-next';
+import z from 'zod';
+import type StForm from '~/components/st/Form/index.vue';
+import type { IRule } from '~/components/st/Form/type';
 import useAuthStore from '~/stores/auth-store';
 import {
    LoginResponseError,
@@ -22,8 +26,24 @@ const linkName = ref('');
 const csrfToken = ref('');
 const message = ref('');
 const busy = ref(false);
-const email = ref('');
-const password = ref('');
+const formdata = reactive<{ email: string; password: string }>({
+   email: '',
+   password: '',
+});
+const formKey = 'quantaVerifyForm';
+const form = useTemplateRef<InstanceType<typeof StForm>>(formKey);
+const rules: IRule[] = [
+   {
+      field: 'email',
+      required: true,
+      validator: (value: string) => z.email().safeParse(value).success,
+   },
+   {
+      field: 'password',
+      required: true,
+      validator: (value: string) => value.length >= 6,
+   },
+];
 const restart = ref(false);
 let alive = true;
 
@@ -88,6 +108,9 @@ async function act(action: 'verify' | 'create' | 'link') {
    if (busy.value) {
       return;
    }
+   if (action === 'verify' && !(form.value?.validate().success ?? false)) {
+      return;
+   }
    if (
       action === 'create' &&
       !window.confirm(
@@ -106,8 +129,8 @@ async function act(action: 'verify' | 'create' | 'link') {
             ? {
                  action,
                  csrfToken: proof,
-                 email: email.value,
-                 password: password.value,
+                 email: formdata.email,
+                 password: formdata.password,
               }
             : { action, csrfToken: proof };
       const result = await $trpc.auth.quanta.onboarding.mutate(input);
@@ -126,7 +149,7 @@ async function act(action: 'verify' | 'create' | 'link') {
    } catch (error) {
       showError(error, action !== 'verify');
    } finally {
-      password.value = '';
+      formdata.password = '';
       busy.value = false;
    }
 }
@@ -162,19 +185,19 @@ function retry() {
 }
 
 function showOriginalAccountForm() {
-   password.value = '';
+   formdata.password = '';
    status.value = 'verify';
 }
 
 function backToChoice() {
-   password.value = '';
+   formdata.password = '';
    message.value = '';
    status.value = 'choice';
 }
 
 onBeforeUnmount(() => {
    alive = false;
-   password.value = '';
+   formdata.password = '';
 });
 
 onMounted(() => {
@@ -231,43 +254,65 @@ onMounted(() => {
             </p>
          </template>
 
-         <form v-else-if="status === 'verify'" @submit.prevent="act('verify')">
-            <h1 class="my-4 text-2xl font-bold">验证原 Challenge 账号</h1>
-            <p class="text-accent-300 leading-relaxed">
+         <StForm
+            v-else-if="status === 'verify'"
+            :ref="formKey"
+            v-model:model-value="formdata"
+            :rules="rules"
+            class="text-left"
+            @keydown.enter.prevent="act('verify')"
+         >
+            <h1 class="my-4 text-center text-2xl font-bold">
+               验证原 Challenge 账号
+            </h1>
+            <p class="text-center text-accent-300 leading-relaxed">
                验证后还需确认绑定，不会自动合并账号。
             </p>
-            <!-- biome-ignore lint/a11y/noLabelWithoutControl: StInput renders the nested input, so this label associates implicitly. -->
-            <label class="my-4 block text-sm">
-               原账号邮箱
+            <StFormItem
+               class="mt-4"
+               name="email"
+               error-message="请输入有效的邮箱地址"
+            >
                <StInput
-                  v-model:value="email"
+                  v-model:value="formdata.email"
                   type="email"
                   autocomplete="username"
-                  required
                   maxlength="254"
                   :disabled="busy"
-                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0 [&_input]:text-center"
-               />
-            </label>
-            <!-- biome-ignore lint/a11y/noLabelWithoutControl: StInput renders the nested input, so this label associates implicitly. -->
-            <label class="my-4 block text-sm">
-               原账号密码
+                  outer-class="bg-accent-700 border border-transparent focus-within:border-primary"
+                  placeholder="请输入邮箱"
+               >
+                  <template #prefix>
+                     <Mail class="text-2xl" />
+                  </template>
+               </StInput>
+            </StFormItem>
+            <StFormItem
+               class="mt-4"
+               name="password"
+               error-message="密码至少需要6个字符"
+            >
                <StInput
-                  v-model:value="password"
+                  v-model:value="formdata.password"
                   password
                   autocomplete="current-password"
-                  required
                   maxlength="200"
                   :disabled="busy"
-                  outer-class="mt-2 border border-accent-500 bg-background focus-within:border-primary [&_input]:min-w-0 [&_input]:text-center"
-               />
-            </label>
+                  outer-class="bg-accent-700 border border-transparent focus-within:border-primary"
+                  placeholder="请输入密码"
+               >
+                  <template #prefix>
+                     <Lock class="text-2xl" />
+                  </template>
+               </StInput>
+            </StFormItem>
             <StButton
-               type="submit"
-               class="mt-3 w-full"
-               :disabled="busy"
-               :text="busy ? '正在验证…' : '验证原账号'"
-            />
+               class="mt-4 w-full"
+               :loading="busy"
+               @click.prevent="act('verify')"
+            >
+               验证原账号
+            </StButton>
             <StButton
                class="mt-3 w-full !bg-accent-600 !text-accent-100"
                :disabled="busy"
@@ -275,7 +320,7 @@ onMounted(() => {
             >
                返回选择
             </StButton>
-         </form>
+         </StForm>
 
          <template v-else-if="status === 'confirm'">
             <h1 class="my-4 text-2xl font-bold">确认绑定账号</h1>
@@ -286,8 +331,8 @@ onMounted(() => {
             <p class="my-4 text-sm text-accent-300 leading-relaxed">
                将保留原 Challenge 账号的权限、做题记录与资料。
             </p>
-            <StButton class="mt-3 w-full" :disabled="busy" @click="act('link')">
-               {{ busy ? '正在绑定…' : '确认绑定并登录' }}
+            <StButton class="mt-3 w-full" :loading="busy" @click="act('link')">
+               确认绑定并登录
             </StButton>
             <StButton
                class="mt-3 w-full !bg-accent-600 !text-accent-100"
@@ -300,7 +345,7 @@ onMounted(() => {
 
          <template v-else>
             <h1 class="my-4 text-2xl font-bold">暂时无法完成登录</h1>
-            <StButton class="mt-3 w-full" :disabled="busy" @click="retry">
+            <StButton class="mt-3 w-full" :loading="busy" @click="retry">
                {{ restart ? '重新发起 Quanta 登录' : '重新检查' }}
             </StButton>
          </template>
