@@ -80,11 +80,11 @@ onUnmounted(() => {
    <Teleport to="body">
       <div
          id="st-message-portal"
-         class="w-screen h-screen fixed top-0 left-0 pointer-events-none z-[10000]">
+         class="fixed inset-0 pointer-events-none z-[10000]">
          <!-- 容器本身不接鼠标事件（继承外层的 pointer-events-none），只有每条消息自己接，
               否则这条通屏高的盒子会把右侧一整列的点击全吃掉 -->
          <div
-            class="absolute bottom-4 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-y-auto">
+            class="absolute bottom-4 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain">
             <TransitionGroup name="message" appear>
                <div v-for="msg in messages" :key="msg.id" class="pointer-events-auto">
                   <Component
