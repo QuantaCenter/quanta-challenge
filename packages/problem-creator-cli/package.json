@@ -1,6 +1,6 @@
 {
    "name": "@quantacenter/quanta-problem-cli",
-   "version": "1.1.0",
+   "version": "1.1.1",
    "description": "Quanta 出题工具链：脚手架、离线预检、上传与发布（qpc）",
    "license": "ISC",
    "repository": {

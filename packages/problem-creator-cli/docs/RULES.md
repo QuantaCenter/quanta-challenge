@@ -55,6 +55,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | SNAP001 | error | 快照体积超过上限（默认 5 MiB，`QUANTA_MAX_UPLOAD_BYTES`） | 多半把 `dist/`、`node_modules/` 或大图打进去了 |
 | SNAP002 | error | 快照文件数超过 500 | 同上 |
 | SNAP003 | info | 跳过了 `node_modules/` / `dist/` 等条目 | 让"我明明放了文件却没上传"变可见 |
+| SNAP004 | warn | 图片扩展名的文件内容是 `data:...;base64,` 文本 | 上传时已还原成真实字节；否则平台只能解开一层，学生环境里拿到的是 data URL 文本 |
 
 ## 本地微判题（LOC）
 
