@@ -84,7 +84,7 @@ onUnmounted(() => {
          <!-- 容器本身不接鼠标事件（继承外层的 pointer-events-none），只有每条消息自己接，
               否则这条通屏高的盒子会把右侧一整列的点击全吃掉 -->
          <div
-            class="absolute bottom-4 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain">
+            class="absolute bottom-0 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4">
             <TransitionGroup name="message" appear>
                <div v-for="msg in messages" :key="msg.id" class="pointer-events-auto">
                   <Component

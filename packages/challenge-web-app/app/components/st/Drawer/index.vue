@@ -21,18 +21,18 @@ const opened = defineModel<boolean>('opened', {
          @click.self="opened = false"
          :class="[
             global
-               ? 'w-screen h-screen absolute top-0 left-0'
+               ? 'w-screen h-screen fixed top-0 left-0'
                : 'w-full h-full',
             { 'pointer-events-none': !opened },
             {
-               'fixed top-0 left-0': global,
                'bg-background/50 backdrop-blur-xs': opened,
+               'opacity-0': !opened,
             },
          ]"
-         class="z-[9999] flex items-center justify-end transition-all">
+         class="z-[9999] flex items-center justify-end overflow-hidden transition-all duration-300">
          <div
-            class="h-screen w-fit bg-black border-l border-accent-600 transition-all duration-300"
-            :class="[opened ? 'right-0' : 'translate-x-full', ,]"
+            class="h-screen w-fit bg-black border-l border-accent-600 text-white transition-all duration-300"
+            :class="[opened ? 'right-0' : 'translate-x-full']"
             :style="{ width: props.width }">
             <slot></slot>
          </div>

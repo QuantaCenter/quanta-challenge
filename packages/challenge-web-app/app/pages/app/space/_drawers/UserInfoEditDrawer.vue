@@ -22,6 +22,10 @@ const formdata = reactive({
    avatarImageId: '',
 });
 
+// 当前已保存的头像/背景图地址，用于回显图片
+const avatarImageUrl = ref('');
+const bannerImageUrl = ref('');
+
 const rules: IRule[] = [
    {
       field: 'email',
@@ -52,6 +56,8 @@ const loadUserInfo = async () => {
          }
          formdata.bannerImageId = data.bannerImageId || '';
          formdata.avatarImageId = data.avatarImageId || '';
+         bannerImageUrl.value = data.bannerImageUrl || '';
+         avatarImageUrl.value = data.avatarUrl || '';
       }
    } catch (e) {
       console.error('加载用户信息失败:', e);
@@ -121,6 +127,7 @@ const enableSubmit = computed(() => {
                      <StFormItem name="avatarImageId" label="头像">
                         <StUploadImage
                            v-model:image-id="formdata.avatarImageId"
+                           v-model:image-url="avatarImageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="8rem"
                            placeholder="请选择头像"
@@ -160,6 +167,7 @@ const enableSubmit = computed(() => {
                      <StFormItem name="bannerImageId" label="背景图">
                         <StUploadImage
                            v-model:image-id="formdata.bannerImageId"
+                           v-model:image-url="bannerImageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="8rem"
                            placeholder="请选择背景图"

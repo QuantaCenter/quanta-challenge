@@ -64,7 +64,7 @@
       "monaco-editor": "^0.52.2",
       "node-sql-parser": "^5.3.12",
       "nodemailer": "^8.0.1",
-      "nuxt": "^4.0.0",
+      "nuxt": "^4.6.2",
       "nuxt-security": "^2.3.0",
       "openid-client": "6.8.8",
       "path-browserify": "^1.0.1",
