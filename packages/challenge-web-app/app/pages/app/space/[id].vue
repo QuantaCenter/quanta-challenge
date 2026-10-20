@@ -231,10 +231,12 @@ onMounted(() => {
                      class="st-font-third-bold font-family-manrope text-3xl text-shadow-sm tracking-wide">
                      {{ targetUser?.displayName ?? targetUser?.name }}
                   </div>
+                  <!-- 暂时隐藏：20th 前端工程师 badge
                   <div
                      class="st-font-body-caption text-sm border border-primary py-0.5 px-2 rounded-md text-primary bg-primary/5">
                      20th 前端工程师
                   </div>
+                  -->
                </StSpace>
 
                <StSpace v-if="isOwnSpace" gap="1rem">
