@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Fingerprint, Lock, Mail } from '@icon-park/vue-next';
+import { Fingerprint, LoadingFour, Lock, Mail } from '@icon-park/vue-next';
 import * as clientAuthn from '@simplewebauthn/browser';
 import z from 'zod';
 import type { IRule } from '~/components/st/Form/type';
@@ -158,14 +158,23 @@ const gotoQuantaLogin = async () => {
                @click="gotoQuantaLogin"
                class="!bg-accent-600 !text-accent-200 w-full"
             >
-               <div class="flex gap-2 items-center">
+               <template #icon="{ loading: isLoading }">
                   <span
-                     class="inline-flex w-5 shrink-0 brightness-0 invert [&_svg]:w-5 [&_svg]:h-4"
+                     class="inline-flex items-center justify-center w-5 h-4 mr-2 shrink-0"
                   >
-                     <IconLogo />
+                     <LoadingFour
+                        v-if="isLoading"
+                        class="animate-spin text-lg"
+                     />
+                     <span
+                        v-else
+                        class="inline-flex brightness-0 invert [&_svg]:w-5 [&_svg]:h-4"
+                     >
+                        <IconLogo />
+                     </span>
                   </span>
-                  <span class="whitespace-nowrap">Quanta 登录</span>
-               </div>
+               </template>
+               <span class="whitespace-nowrap">Quanta 登录</span>
             </StButton>
          </div>
       </div>
