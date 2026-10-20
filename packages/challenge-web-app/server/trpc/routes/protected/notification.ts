@@ -50,7 +50,7 @@ const listNotificationsProcedure = protectedProcedure
          },
       });
 
-      let nextCursor: typeof cursor | undefined = undefined;
+      let nextCursor: string | null = null;
       if (items.length > limit) {
          const nextItem = items.pop();
          nextCursor = nextItem!.id;
