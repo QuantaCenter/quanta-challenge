@@ -76,11 +76,11 @@ const syncFileChangesProcedure = protectedProcedure
 
       try {
          await prisma.$transaction(async (tx) => {
-            // 获取用户的项目和文件系统
             const project = await tx.projects.findFirst({
                where: {
                   ownerId: userId,
                   problemId: problemId,
+                  isTemplate: false,
                },
                include: {
                   FileSystem: {

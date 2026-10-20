@@ -18,6 +18,7 @@ const getOrForkProjectProcedure = protectedProcedure
          where: {
             ownerId: userId,
             problemId: input.problemId,
+            isTemplate: false,
          },
          include: {
             FileSystem: {
