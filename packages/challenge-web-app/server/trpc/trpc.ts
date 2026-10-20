@@ -1,11 +1,12 @@
 import { initTRPC } from '@trpc/server';
-import { Context } from './context';
-import { log } from './middlewares/log';
 import z, { ZodError } from 'zod';
+import { oauthErrorKind } from '../services/quanta-oauth/rpc-errors';
+import type { Context } from './context';
+import { log } from './middlewares/log';
 
 /** 只透出带 quantaCode 标记的 cause，避免泄漏内部异常细节 */
 const businessErrorDetails = (
-   cause: unknown
+   cause: unknown,
 ): Record<string, unknown> | undefined => {
    if (typeof cause !== 'object' || cause === null) return undefined;
    const { quantaCode, ...rest } = cause as Record<string, unknown>;
@@ -30,6 +31,7 @@ const t = initTRPC.context<Context>().create({
             ...shape.data,
             ...businessErrorDetails(error.cause),
             traceId: ctx?.traceId ?? 'unknown',
+            quantaOAuthError: oauthErrorKind(error),
             zodError:
                error.cause instanceof ZodError
                   ? z.treeifyError(error.cause)

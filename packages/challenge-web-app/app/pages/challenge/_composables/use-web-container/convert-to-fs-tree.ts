@@ -1,4 +1,4 @@
-import type { DirectoryNode, FileSystemTree } from '@WebContainer/api';
+import type { DirectoryNode, FileSystemTree } from '@webcontainer/api';
 import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
 import { normalizePath, splitPath } from '~/utils/path-utils';
 

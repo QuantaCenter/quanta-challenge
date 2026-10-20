@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import useAuthStore from './stores/auth-store';
+import { isQuantaLoginPath } from './utils/quanta-login';
 
 const authStore = useAuthStore();
+const route = useRoute();
 onMounted(() => {
    authStore.initToken();
 });
@@ -9,7 +11,9 @@ onMounted(() => {
 
 <template>
    <div
-      class="bg-background text-white font-family-sans text-base min-w-[1440px]">
+      class="bg-background text-white font-family-sans text-base"
+      :class="{ 'min-w-[1440px]': !isQuantaLoginPath(route.path) }"
+   >
       <NuxtPage />
    </div>
 </template>

@@ -92,6 +92,7 @@ model RoleTransition {
 enum AuthProvider {
   QQ
   EMAIL
+  QUANTA
 }
 
 // 认证表

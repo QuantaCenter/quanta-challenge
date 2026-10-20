@@ -12,6 +12,12 @@ services:
     environment:
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
+      # Nuxt 编译后的 runtimeConfig 需要 NUXT_ 前缀才能在启动时覆盖。
+      # 保持现有内部 Redis 地址，优先使用显式运行配置；凭据仅从私密环境传入。
+      - NUXT_REDIS_HOST=${NUXT_REDIS_HOST:-redis}
+      - NUXT_REDIS_PORT=${NUXT_REDIS_PORT:-6379}
+      - NUXT_REDIS_USERNAME=${NUXT_REDIS_USERNAME:-${REDIS_USERNAME:-}}
+      - NUXT_REDIS_PASSWORD=${NUXT_REDIS_PASSWORD:-${REDIS_PASSWORD:-}}
       - APP_SERVER=${APP_SERVER:?请设置 APP_SERVER，例如 https://your-domain.example}
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:?请设置 SUPER_ADMIN_ACCOUNT}
@@ -20,6 +26,14 @@ services:
       - TEMP_DIR=/app/tmp
       - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET}
       - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET}
+      # OAuth secret is runtime/server-only; keep disabled until HTTPS integration passes.
+      - QUANTA_OAUTH_ENABLED=${QUANTA_OAUTH_ENABLED:-false}
+      - QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
+      # 前端 issuer 白名单与服务端校验共用同一变量，避免两处配置漂移。
+      - NUXT_PUBLIC_QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
+      - QUANTA_OAUTH_APP_ORIGIN=${QUANTA_OAUTH_APP_ORIGIN:-https://challenge.example.com}
+      - QUANTA_OAUTH_CLIENT_ID=${QUANTA_OAUTH_CLIENT_ID:-quanta-challenge}
+      - QUANTA_OAUTH_CLIENT_SECRET=${QUANTA_OAUTH_CLIENT_SECRET:-}
       - CF_SERVER=http://challenge-cloud-function:1890
       - CF_INTERNAL_KEY_ID=web-app
       - CF_INTERNAL_SECRET=${CF_WEBAPP_SECRET:?请设置 CF_WEBAPP_SECRET}
