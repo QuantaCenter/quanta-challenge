@@ -102,10 +102,15 @@ export interface AdminApi {
       problemId: number;
       message: string;
    }>;
-   /** 在已有基础题目（baseId）下创建新版本（发布页的"重新发布"） */
+   /**
+    * 更新已有基础题目（baseId）：只改基本信息（标题/描述/标签/难度/封面）时原地生效（mode=quick），
+    * 否则创建新版本并进入审核（mode=audit）。旧版服务端不返回 mode，按 audit 处理。
+    */
    reuploadProblem(input: UploadProblemInput & { baseId: number }): Promise<{
       problemId: number;
       message: string;
+      mode?: 'quick' | 'audit';
+      auditReasons?: string[];
    }>;
    getAuditDetail(problemId: number): Promise<AuditDetail>;
    setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
@@ -144,7 +149,12 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
       ),
 
    reuploadProblem: (input) =>
-      client.call<{ problemId: number; message: string }>(
+      client.call<{
+         problemId: number;
+         message: string;
+         mode?: 'quick' | 'audit';
+         auditReasons?: string[];
+      }>(
          'admin.problem.reupload',
          {
             input,

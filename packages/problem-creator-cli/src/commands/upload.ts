@@ -218,7 +218,7 @@ export const runUpload = async (
       ctx,
       targetProblemId === undefined
          ? '确认创建新题目？'
-         : `确认在题目 #${targetProblemId} 下创建新版本？`,
+         : `确认更新题目 #${targetProblemId}？（只改基本信息时直接生效，否则创建新版本并审核）`,
    );
 
    ctx.logger.step(
@@ -229,10 +229,13 @@ export const runUpload = async (
          ? await api.uploadProblem(payload)
          : await api.reuploadProblem({ ...payload, baseId });
    const problemId = created.problemId;
+   const quickUpdated = 'mode' in created && created.mode === 'quick';
    ctx.logger.success(
       baseId === undefined
          ? `题目已创建：#${problemId}（${created.message}）`
-         : `新版本已创建：#${problemId}（${created.message}）`,
+         : quickUpdated
+           ? `题目 #${problemId} 已直接更新：只改了基本信息，无需重新审核`
+           : `新版本已创建：#${problemId}（${created.message}）`,
    );
 
    // 只在整条命令成功后写回：失败时留下 problemId 会把配置指向一道没通过的题。
@@ -266,6 +269,14 @@ export const runUpload = async (
             `  配置里的 problemId: ${config.problemId} 仍指向旧题目；要改用新题目请加 --write`,
          );
       }
+   }
+
+   if (quickUpdated) {
+      const writeBack = await writeBackIfRequested();
+      if (ctx.logger.json) {
+         ctx.logger.result({ problemId, mode: 'quick', writeBack });
+      }
+      return;
    }
 
    if (options.wait === false) {
