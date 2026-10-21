@@ -7,6 +7,7 @@ import path from 'path';
 import { TRPCError } from '@trpc/server';
 import { logger } from '~~/server/utils/logger';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
+import { problemStatService } from '../../services/problem-stat';
 
 // 获取用户信息
 const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -363,78 +364,79 @@ const getRecentProblemsProcedure = protectedProcedure
          });
       }
 
-      const recentSubmissions = await prisma.judgeRecords.findMany({
-         where: {
-            userId: user.id,
-            problem: {
-               isDeprecated: false,
-               status: 'published',
-               // 只保留母题的当前版本，过滤掉旧版本的提交
-               CurrentOfBase: { isNot: null },
-            },
-         },
-         distinct: ['problemId'],
-         orderBy: { createdAt: 'desc' },
-         take: 5,
-         select: {
-            problem: {
-               select: {
-                  pid: true,
-                  title: true,
-                  difficulty: true,
-                  totalScore: true,
-                  tags: {
-                     select: {
-                        name: true,
-                        color: true,
-                     },
+      // 按基础题汇总最近提交（任一版本的提交都算），展示基础题当前已发布的版本
+      const recentBases = await prisma.$queryRaw<
+         { baseId: number; currentPid: number }[]
+      >`
+         SELECT base_problems.id AS "baseId", base_problems."currentPid" AS "currentPid"
+         FROM judge_records
+         JOIN problems ON judge_records."problemId" = problems.pid
+         JOIN base_problems ON base_problems.id = problems."baseId"
+         JOIN problems current ON current.pid = base_problems."currentPid"
+         WHERE judge_records."userId" = ${user.id}
+            AND current.status = 'published'
+            AND current."isDeprecated" = false
+         GROUP BY base_problems.id, base_problems."currentPid"
+         ORDER BY MAX(judge_records."createdAt") DESC
+         LIMIT 5
+      `;
+      const currentPids = recentBases.map((row) => row.currentPid);
+
+      const [problems, passRates] = await Promise.all([
+         prisma.problems.findMany({
+            where: { pid: { in: currentPids } },
+            select: {
+               pid: true,
+               baseId: true,
+               title: true,
+               difficulty: true,
+               totalScore: true,
+               tags: {
+                  select: {
+                     name: true,
+                     color: true,
                   },
-                  JudgeStatus: {
-                     select: {
-                        totalCount: true,
-                        passedCount: true,
-                     },
+               },
+               CoverImage: {
+                  select: {
+                     name: true,
+                     thumbhash: true,
                   },
-                  CoverImage: {
-                     select: {
-                        name: true,
-                        thumbhash: true,
-                     },
-                  },
-                  ProblemDefaultCover: {
-                     select: {
-                        image: {
-                           select: { name: true, thumbhash: true },
-                        },
+               },
+               ProblemDefaultCover: {
+                  select: {
+                     image: {
+                        select: { name: true, thumbhash: true },
                      },
                   },
                },
             },
-         },
-      });
+         }),
+         problemStatService.getPassRates(recentBases.map((row) => row.baseId)),
+      ]);
+      const problemByPid = new Map(problems.map((p) => [p.pid, p]));
 
-      const rawProblems = recentSubmissions.map((submission) => {
-         const p = submission.problem;
-         const passCount = p.JudgeStatus?.passedCount ?? 0;
-         const totalCount = p.JudgeStatus?.totalCount ?? 0;
-         const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
-         return {
-            ...p,
-            // 同 public/problem.ts：无封面返回 null，避免拼出 /api/static/unknown（403）
-            imageName:
-               p.CoverImage?.name ||
-               p.ProblemDefaultCover?.[0]?.image?.name ||
-               null,
-            imageHash:
-               p.CoverImage?.thumbhash ||
-               p.ProblemDefaultCover?.[0]?.image?.thumbhash ||
-               null,
-            passRate,
-            CoverImage: undefined,
-            ProblemDefaultCover: undefined,
-            JudgeStatus: undefined,
-         };
-      });
+      const rawProblems = currentPids
+         .map((pid) => problemByPid.get(pid))
+         .filter((p) => p !== undefined)
+         .map((p) => {
+            const passRate = (passRates.get(p.baseId) ?? 0) * 100;
+            return {
+               ...p,
+               // 同 public/problem.ts：无封面返回 null，避免拼出 /api/static/unknown（403）
+               imageName:
+                  p.CoverImage?.name ||
+                  p.ProblemDefaultCover?.[0]?.image?.name ||
+                  null,
+               imageHash:
+                  p.CoverImage?.thumbhash ||
+                  p.ProblemDefaultCover?.[0]?.image?.thumbhash ||
+                  null,
+               passRate,
+               CoverImage: undefined,
+               ProblemDefaultCover: undefined,
+            };
+         });
 
       // 服务端带缓存地把 thumbhash 渲染为 data URL，供 SSR 首帧直接使用
       const imageThumbhashUrls = await renderThumbhashDataUrls(

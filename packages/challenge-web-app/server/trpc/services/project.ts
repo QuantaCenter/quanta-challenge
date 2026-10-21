@@ -201,7 +201,38 @@ const fork = async (options: IForkProjectOptions) => {
    return result;
 };
 
+/** 历史数据的路径可能是 `index.html`、`/index.html` 或 `/project/index.html`，编辑器挂载时视为同一个文件 */
+const normalizeFilePath = (path: string) =>
+   path
+      .replace(/^(\.?\/)+/, '')
+      .replace(/^project(\/|$)/, '')
+      .replace(/\/+$/, '');
+
+/** 两组文件路径和内容完全一致（忽略路径前缀写法差异） */
+const isSameFiles = (
+   a: Pick<IFile, 'path' | 'content'>[],
+   b: Pick<IFile, 'path' | 'content'>[],
+) => {
+   if (a.length !== b.length) return false;
+   const map = new Map(a.map((file) => [normalizeFilePath(file.path), file.content]));
+   if (map.size !== b.length) return false;
+   return b.every((file) => map.get(normalizeFilePath(file.path)) === file.content);
+};
+
+/** 读取某个题目版本的作答模板文件 */
+const getTemplateFiles = async (problemId: number) => {
+   const template = await prisma.projects.findFirst({
+      where: { problemId, isTemplate: true },
+      select: {
+         FileSystem: { select: { files: { select: { path: true, content: true } } } },
+      },
+   });
+   return template?.FileSystem[0]?.files ?? [];
+};
+
 export const projectService = {
    create,
    fork,
+   isSameFiles,
+   getTemplateFiles,
 };
