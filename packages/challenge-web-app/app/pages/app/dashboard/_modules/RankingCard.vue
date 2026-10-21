@@ -1,7 +1,17 @@
 <script setup lang="ts">
-import { Lock, Ranking, TrendingDown, TrendingUp } from '@icon-park/vue-next';
+import {
+   Lock,
+   Ranking,
+   TrendingDown,
+   TrendingUp,
+   UserPositioning,
+} from '@icon-park/vue-next';
 import RankingSkeleton from '../_skeletons/RankingSkeleton.vue';
 import LinkButton from '../_components/LinkButton.vue';
+import useAuthStore from '~/stores/auth-store';
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role !== 'USER');
 
 type Ranking = { from: number; to: number; count: number };
 
@@ -61,6 +71,18 @@ const increaseRatioText = computed(() => {
          <LinkButton description="查看排行榜" to="/app/rankings" />
       </template>
       <RankingSkeleton v-if="loading" />
+
+      <StSpace
+         v-else-if="isAdmin"
+         fill
+         direction="vertical"
+         gap="0.75rem"
+         align="center"
+         justify="center"
+         class="text-accent-400">
+         <UserPositioning size="3.625rem" :strokeWidth="2" />
+         <div class="st-font-body-normal">管理员不参与排名</div>
+      </StSpace>
 
       <StSpace
          v-else-if="globalRankData?.selfRanking.rank === -1"
