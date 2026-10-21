@@ -428,13 +428,14 @@ const loadGlobalRankings = async () => {
       select: { userId: true, score: true },
    });
 
-   const ttl = useRuntimeConfig().rank.problemCacheTTL;
-   const pipeline = redis.pipeline().expire(rankingKey, ttl ?? 3600);
-
+   const pipeline = redis.pipeline();
    rankData.forEach(({ userId, score }) => {
       pipeline.zadd(rankingKey, score, userId);
    });
 
+   // EXPIRE 必须排在 ZADD 之后：key 不存在时 EXPIRE 是空操作，ZADD 新建的 key 会永不过期
+   const ttl = useRuntimeConfig().rank.problemCacheTTL;
+   pipeline.expire(rankingKey, ttl ?? 3600);
    await pipeline.exec();
 };
 
