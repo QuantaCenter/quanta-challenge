@@ -25,6 +25,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
          },
          user: {
             select: {
+               displayName: true,
                imageId: true,
                avatar: {
                   select: {
@@ -38,6 +39,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
 
    return {
       ...result,
+      displayName: result?.user?.displayName || null,
       bannerImageUrl: result?.bannerImage?.name
          ? `/api/static/${result?.bannerImage?.name}`
          : null,
@@ -50,6 +52,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
 
 // 更新用户信息
 const UpdateUserInfoSchema = z.object({
+   displayName: z.string().max(30).optional(),
    bio: z.string().max(500).optional(),
    email: z.email().optional().or(z.literal('')),
    major: z.string().max(100).optional(),
@@ -69,13 +72,21 @@ const updateUserInfoProcedure = protectedProcedure
          ? { birthday: new Date(input.birthday) }
          : {};
 
-      // 如果提供了头像，更新 User 表
+      // 如果提供了昵称或头像，更新 User 表
+      const userUpdate: {
+         displayName?: string | null;
+         imageId?: string | null;
+      } = {};
+      if (input.displayName !== undefined) {
+         userUpdate.displayName = input.displayName.trim() || null;
+      }
       if (input.avatarImageId !== undefined) {
+         userUpdate.imageId = input.avatarImageId || null;
+      }
+      if (Object.keys(userUpdate).length > 0) {
          await prisma.user.update({
             where: { id: userId },
-            data: {
-               imageId: input.avatarImageId || null,
-            },
+            data: userUpdate,
          });
       }
 

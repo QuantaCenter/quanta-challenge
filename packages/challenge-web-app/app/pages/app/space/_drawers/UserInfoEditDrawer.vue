@@ -13,6 +13,7 @@ const outerClass = 'border !py-4 !px-4 !rounded-[0.5rem] w-full';
 const { $trpc } = useNuxtApp();
 
 const formdata = reactive({
+   displayName: '',
    bio: '',
    email: '',
    major: '',
@@ -27,6 +28,12 @@ const avatarImageUrl = ref('');
 const bannerImageUrl = ref('');
 
 const rules: IRule[] = [
+   {
+      field: 'displayName',
+      validator(value) {
+         return ((value as string) || '').trim().length <= 30;
+      },
+   },
    {
       field: 'email',
       validator(value) {
@@ -44,6 +51,7 @@ const loadUserInfo = async () => {
    try {
       const data = await $trpc.protected.user.getUserInfo.query();
       if (data) {
+         formdata.displayName = data.displayName || '';
          formdata.bio = data.bio || '';
          formdata.email = data.email || '';
          formdata.major = data.major || '';
@@ -80,6 +88,7 @@ const handleUpdate = async () => {
 
    const updateUserInfo = async () => {
       await $trpc.protected.user.updateUserInfo.mutate({
+         displayName: formdata.displayName,
          bio: formdata.bio || undefined,
          email: formdata.email || undefined,
          major: formdata.major || undefined,
@@ -133,6 +142,12 @@ const enableSubmit = computed(() => {
                            placeholder="请选择头像"
                            aspect-ratio="1/1"
                            upload-level="USER" />
+                     </StFormItem>
+                     <StFormItem name="displayName" label="昵称">
+                        <StInput
+                           v-model:value="formdata.displayName"
+                           placeholder="请输入昵称（留空则显示用户名）"
+                           :outer-class />
                      </StFormItem>
                      <StFormItem name="bio" label="个性签名">
                         <StTextarea
