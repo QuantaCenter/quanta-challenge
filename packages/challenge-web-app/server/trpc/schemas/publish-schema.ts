@@ -15,8 +15,11 @@ export const difficulties: Difficulty[] = [
    'very_hard',
 ] as const;
 
-const hasEntries = (snapshot?: Record<string, string>) =>
+export const hasEntries = (snapshot?: Record<string, string>) =>
    !!snapshot && Object.keys(snapshot).length > 0;
+
+export const REFERENCE_ANSWER_REQUIRED_MESSAGE =
+   '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）';
 
 const uploadShape = {
    title: z.string().min(1, '题目名称不能为空'),
@@ -48,18 +51,18 @@ const uploadShape = {
    servicePort: z.number().int().positive().max(65535).optional(),
 };
 
+const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>
+   schema.refine(
+      (data: any) => {
+         return data.coverMode === 'default'
+            ? hasEntries(data.referenceAnswerSnapshot)
+            : true;
+      },
+      { error: REFERENCE_ANSWER_REQUIRED_MESSAGE }
+   );
+
 const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
    schema
-      .refine(
-         (data: any) => {
-            return data.coverMode === 'default'
-               ? hasEntries(data.referenceAnswerSnapshot)
-               : true;
-         },
-         {
-            error: '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）',
-         }
-      )
       .refine(
          (data: any) => {
             return data.coverMode === 'custom'
@@ -96,9 +99,14 @@ export const resolveBackendServiceRuntime = (input: {
 };
 
 /** 上传新题目 */
-export const UploadSchema = withUploadRefinements(z.object(uploadShape));
+export const UploadSchema = withReferenceAnswerRefinement(
+   withUploadRefinements(z.object(uploadShape))
+);
 
-/** 重新发布（在已有 baseProblem 上创建新版本） */
+/**
+ * 编辑已有题目：只改基本信息时原地生效，否则在 baseProblem 上创建新版本并审核。
+ * 参考答案只在需要审核时才必填，由路由在判定变更类型后校验。
+ */
 export const ReuploadSchema = withUploadRefinements(
    z.object(uploadShape).extend({
       baseId: z.number('Base Problem ID must be a number').int(),
