@@ -62,43 +62,65 @@ const iconMapping = {
 
 type IconKey = keyof typeof iconMapping;
 
-// 获取目标用户的信息
-const { data: targetUser, refresh: refreshTargetUser } = await useAsyncData(
-   `get-user-by-name-${userName.value}`,
-   () => $trpc.protected.user.getUserByName.query({ name: userName.value }),
-   {
-      watch: [userName],
-   },
-);
-
-// 获取用户的空间配置
-const { data: spaceConfig, refresh: refreshSpaceConfig } = await useAsyncData(
-   `get-user-space-config-${userName.value}`,
-   () =>
-      $trpc.protected.user.getUserSpaceConfig.query({ name: userName.value }),
-   {
-      watch: [userName],
-   },
-);
-
-// 获取用户提交状态
-const { data: commitStatistics } = await useAsyncData(
-   `get-user-commit-status-${userName.value}`,
-   () =>
-      $trpc.protected.user.getCommitStatistic.query({ name: userName.value }),
-   {
-      watch: [userName],
-   },
-);
-
-// 获取最近提交的题目
-const { data: recentProblems } = await useAsyncData(
-   `get-user-recent-problems-${userName.value}`,
-   () => $trpc.protected.user.getRecentProblems.query({ name: userName.value }),
-   {
-      watch: [userName],
-   },
-);
+// 以下请求互不依赖，并行发出（useAsyncData 需在首个 await 之前同步调用）
+const [
+   { data: targetUser, refresh: refreshTargetUser },
+   { data: spaceConfig, refresh: refreshSpaceConfig },
+   { data: commitStatistics },
+   { data: recentProblems },
+   { data: rawUserInfo, refresh: refreshRawUserInfo },
+] = await Promise.all([
+   // 获取目标用户的信息
+   useAsyncData(
+      `get-user-by-name-${userName.value}`,
+      () => $trpc.protected.user.getUserByName.query({ name: userName.value }),
+      {
+         watch: [userName],
+      },
+   ),
+   // 获取用户的空间配置
+   useAsyncData(
+      `get-user-space-config-${userName.value}`,
+      () =>
+         $trpc.protected.user.getUserSpaceConfig.query({
+            name: userName.value,
+         }),
+      {
+         watch: [userName],
+      },
+   ),
+   // 获取用户提交状态
+   useAsyncData(
+      `get-user-commit-status-${userName.value}`,
+      () =>
+         $trpc.protected.user.getCommitStatistic.query({
+            name: userName.value,
+         }),
+      {
+         watch: [userName],
+      },
+   ),
+   // 获取最近提交的题目
+   useAsyncData(
+      `get-user-recent-problems-${userName.value}`,
+      () =>
+         $trpc.protected.user.getRecentProblems.query({ name: userName.value }),
+      {
+         watch: [userName],
+      },
+   ),
+   // 为了兼容编辑功能，保留获取自己信息的接口（仅在查看自己空间时调用）
+   useAsyncData(
+      'get-raw-user-info',
+      () =>
+         isOwnSpace.value
+            ? $trpc.protected.user.getUserInfo.query()
+            : Promise.resolve(null),
+      {
+         watch: [isOwnSpace],
+      },
+   ),
+]);
 
 // 安全获取可见性配置
 const getVisibility = (field: string): boolean => {
@@ -154,21 +176,8 @@ const userInfo = computed(() => {
    return isOwnSpace.value ? allInfo : allInfo.filter((item) => item.visible);
 });
 
-// 为了兼容编辑功能，保留获取自己信息的接口（仅在查看自己空间时调用）
-const { data: rawUserInfo, refresh: refreshRawUserInfo } = await useAsyncData(
-   'get-raw-user-info',
-   () =>
-      isOwnSpace.value
-         ? $trpc.protected.user.getUserInfo.query()
-         : Promise.resolve(null),
-   {
-      watch: [isOwnSpace],
-   },
-);
-
 const handleUserInfoUpdated = async () => {
-   await refreshTargetUser();
-   await refreshRawUserInfo();
+   await Promise.all([refreshTargetUser(), refreshRawUserInfo()]);
 };
 
 const handleSpaceConfigUpdated = async () => {

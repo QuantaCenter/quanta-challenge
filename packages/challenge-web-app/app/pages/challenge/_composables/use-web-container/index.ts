@@ -164,10 +164,10 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
    };
 
    const writeFile = async (path: string, content: string | Uint8Array) => {
-      const instance = await getInstance();
-      const { getParentPath, normalizePath } = await import(
-         '~/utils/path-utils'
-      );
+      const [instance, { getParentPath, normalizePath }] = await Promise.all([
+         getInstance(),
+         import('~/utils/path-utils'),
+      ]);
 
       // 规范化路径
       const normalizedPath = normalizePath(path);
@@ -189,8 +189,10 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
    };
 
    const removeFile = async (path: string) => {
-      const instance = await getInstance();
-      const { normalizePath } = await import('~/utils/path-utils');
+      const [instance, { normalizePath }] = await Promise.all([
+         getInstance(),
+         import('~/utils/path-utils'),
+      ]);
 
       // 规范化路径
       const normalizedPath = normalizePath(path);

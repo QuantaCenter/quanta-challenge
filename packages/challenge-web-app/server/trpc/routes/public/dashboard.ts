@@ -19,21 +19,21 @@ const getSubmissionStatus = publicProcedure
          },
       });
 
-      // 检查用户空间配置是否公开提交状态
-      const userSpaceConfig = await prisma.userSpaceConfig.findUnique({
-         where: { userId },
-         select: { showSubmissionStatus: true },
-      });
+      // 检查用户空间配置是否公开提交状态，同时读取 Redis 缓存
+      const redis = useRedis();
+      const cacheKey = `public:submission-status:${userId}`;
+      const [userSpaceConfig, cached] = await Promise.all([
+         prisma.userSpaceConfig.findUnique({
+            where: { userId },
+            select: { showSubmissionStatus: true },
+         }),
+         redis.get(cacheKey),
+      ]);
 
       // 如果用户不存在或未公开提交状态，返回 null
       if (!userSpaceConfig || !userSpaceConfig.showSubmissionStatus) {
          return null;
       }
-
-      // 检查 Redis 缓存
-      const redis = useRedis();
-      const cacheKey = `public:submission-status:${userId}`;
-      const cached = await redis.get(cacheKey);
 
       if (cached) {
          return JSON.parse(cached);
@@ -73,21 +73,21 @@ const getAchievements = publicProcedure
          },
       });
 
-      // 检查用户空间配置是否公开成就
-      const userSpaceConfig = await prisma.userSpaceConfig.findUnique({
-         where: { userId },
-         select: { showAchievements: true },
-      });
+      // 检查用户空间配置是否公开成就，同时读取 Redis 缓存
+      const redis = useRedis();
+      const cacheKey = `public:achievements:${userId}`;
+      const [userSpaceConfig, cached] = await Promise.all([
+         prisma.userSpaceConfig.findUnique({
+            where: { userId },
+            select: { showAchievements: true },
+         }),
+         redis.get(cacheKey),
+      ]);
 
       // 如果用户不存在或未公开成就，返回 null
       if (!userSpaceConfig || !userSpaceConfig.showAchievements) {
          return null;
       }
-
-      // 检查 Redis 缓存
-      const redis = useRedis();
-      const cacheKey = `public:achievements:${userId}`;
-      const cached = await redis.get(cacheKey);
 
       if (cached) {
          return JSON.parse(cached);

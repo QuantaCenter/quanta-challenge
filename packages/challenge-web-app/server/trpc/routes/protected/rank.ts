@@ -66,16 +66,18 @@ const getMyRankingTrendsProcedure = protectedProcedure.query(
       const { userId } = ctx.user;
 
       // 必须先按日期倒序取「最近」6 条，再翻转成由旧到新交给折线图。 原实现是 `orderBy: { date: 'asc' }` + `take: 6`，拿到的是**最早**的 6 天： 历史超过 6 天的用户，曲线永远停在最初 6 天，之后的名次变化再也画不出来； 下面的 `history.slice(-6)` 也因此成了死代码（history.length 恒 ≤ 6）。
-      const history = (
-         await prisma.rankingHistory.findMany({
+      const [recentHistory, { total }] = await Promise.all([
+         prisma.rankingHistory.findMany({
             where: { userId },
             orderBy: { date: 'desc' },
             select: {
                rank: true,
             },
             take: 6,
-         })
-      ).reverse();
+         }),
+         rankService.getSelfGlobalRanking(userId),
+      ]);
+      const history = recentHistory.reverse();
 
       let rankings: number[] = [];
       if (history.length < 6) {
@@ -91,8 +93,6 @@ const getMyRankingTrendsProcedure = protectedProcedure.query(
 
       // 名次变化按「占全体名次的比例」展示，因此连同榜单总人数一并返回，
       // 避免前端再单独发一次请求（仪表盘与排行榜页都要用）。
-      const { total } = await rankService.getSelfGlobalRanking(userId);
-
       return { trends: rankings, total };
    }
 );
