@@ -154,13 +154,10 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
          message: string;
          mode?: 'quick' | 'audit';
          auditReasons?: string[];
-      }>(
-         'admin.problem.reupload',
-         {
-            input,
-            method: 'POST',
-         },
-      ),
+      }>('admin.problem.reupload', {
+         input,
+         method: 'POST',
+      }),
 
    uploadImage: (input) =>
       client.call<UploadedImage>('admin.image.upload', {
