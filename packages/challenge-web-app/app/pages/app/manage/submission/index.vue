@@ -71,9 +71,9 @@ const openDetail = (row: SubmissionRow) => {
         :total="total"
         :total-pages="totalPages" />
     </StSpace>
-  </StSpace>
 
-  <SubmissionDetailDrawer
-    v-model:opened="drawerOpened"
-    :record-id="selectedRecordId" />
+    <SubmissionDetailDrawer
+      v-model:opened="drawerOpened"
+      :record-id="selectedRecordId" />
+  </StSpace>
 </template>
