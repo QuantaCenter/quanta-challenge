@@ -13,6 +13,7 @@ import {
    RockGesture,
    History,
    Box,
+   IdCard,
 } from '@icon-park/vue-next';
 import SubmissionStatusCard from '../dashboard/_modules/SubmissionStatusCard.vue';
 import AchievementsCard from '../dashboard/_modules/AchievementsCard.vue';
@@ -47,6 +48,7 @@ const openConfigDialog = () => {
 };
 
 const infoLabelMapping = {
+   id: '标识',
    birthday: '生日',
    email: '邮箱',
    identifier: '身份',
@@ -54,6 +56,7 @@ const infoLabelMapping = {
 };
 
 const iconMapping = {
+   id: IdCard,
    birthday: BirthdayCake,
    email: Mail,
    identifier: PeopleBottomCard,
@@ -144,6 +147,12 @@ const userInfo = computed(() => {
    const info = targetUser.value.UserInfo;
 
    const allInfo = [
+      {
+         label: infoLabelMapping.id,
+         value: targetUser.value.name || '--',
+         iconKey: 'id' as IconKey,
+         visible: true,
+      },
       {
          label: infoLabelMapping.birthday,
          value: info.birthday
