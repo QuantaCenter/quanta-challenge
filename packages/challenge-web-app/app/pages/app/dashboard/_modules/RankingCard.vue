@@ -7,10 +7,14 @@ type Ranking = { from: number; to: number; count: number };
 
 const { $trpc } = useNuxtApp();
 
-const { data: globalRankData, error } = await useAsyncData(
-   'global-rank-data',
-   () => $trpc.protected.rank.getMyGlobalRankStatistic.query()
+// 两个请求互不依赖，先注册 trends 再 await，使其并行发出
+const globalRankRequest = useAsyncData('global-rank-data', () =>
+   $trpc.protected.rank.getMyGlobalRankStatistic.query()
 );
+const { data: trends } = useAsyncData('my-ranking-trends', () =>
+   $trpc.protected.rank.getMyRankingTrends.query()
+);
+const { data: globalRankData, error } = await globalRankRequest;
 
 const statistics = computed(() => {
    if (!globalRankData.value) {
@@ -24,10 +28,6 @@ const statistics = computed(() => {
    };
 });
 const rankings = computed(() => globalRankData.value?.rankingIntervals ?? null);
-
-const { data: trends } = useAsyncData('my-ranking-trends', () =>
-   $trpc.protected.rank.getMyRankingTrends.query()
-);
 
 const loading = computed(
    () => !error.value && (!rankings.value || !trends.value)

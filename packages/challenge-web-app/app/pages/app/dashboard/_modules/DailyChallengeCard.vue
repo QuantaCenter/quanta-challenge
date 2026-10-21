@@ -19,9 +19,42 @@ export type DailyProblem = NonNullable<
 >;
 
 // 业务口径的「今天」以服务端为准。 SSR 渲染跑在容器本地时区（线上是 UTC），而水合后跑在浏览器本地时区， 两端各自 `dayjs()` 在北京时间 00:00–08:00 会差一天（日历选中的日期、 可见区间、签到状态全部错位）。这里先拿到服务端业务日期，SSR 与客户端 共用同一份 payload，不再依赖运行环境时区。
-const { data: serverToday } = await useAsyncData('daily-today', () =>
+const serverTodayRequest = useAsyncData('daily-today', () =>
    $trpc.public.daily.getToday.query()
 );
+
+// 以下请求不依赖业务日期，先于 await 注册，与 getToday 并行发出
+const { data: continueCheckinCounts } = useAsyncData(
+   'continue-checkin-counts',
+   () => $trpc.protected.daily.continuesCheckinCount.query(),
+   { transform: (count) => count.toString().padStart(2, '0') }
+);
+
+const { data: hasCheckedIn } = useAsyncData('has-checked-in', () =>
+   $trpc.protected.daily.hasCheckedin.query()
+);
+
+const { data: hasCompletedTodayChallenge } = useAsyncData(
+   'has-completed-today-challenge',
+   () => $trpc.protected.daily.hasCompletedDailyProblem.query()
+);
+
+// 当前用户已完成的题目 pid 列表，用于在题目卡片上显示完成状态
+const { data: completedProblemIds } = useAsyncData(
+   'completed-problem-ids',
+   () => $trpc.protected.problem.listCompletedProblemIds.query(),
+   { default: () => [] as number[] }
+);
+const completedProblemIdSet = computed(
+   () => new Set(completedProblemIds.value)
+);
+
+const { data: trackingAchievement, refresh: refreshTrackingAchievement } =
+   useAsyncData('tracking-achievement', () =>
+      $trpc.protected.achievement.getCurrentCheckinAchievement.query()
+   );
+
+const { data: serverToday } = await serverTodayRequest;
 const todayKey = computed(
    () => serverToday.value ?? dayjs().format('YYYY-MM-DD')
 );
@@ -64,36 +97,6 @@ const { data: checkedinDates } = useAsyncData(
       }),
    { watch: [visibleRange], default: () => [] as string[] }
 );
-
-const { data: continueCheckinCounts } = useAsyncData(
-   'continue-checkin-counts',
-   () => $trpc.protected.daily.continuesCheckinCount.query(),
-   { transform: (count) => count.toString().padStart(2, '0') }
-);
-
-const { data: hasCheckedIn } = useAsyncData('has-checked-in', () =>
-   $trpc.protected.daily.hasCheckedin.query()
-);
-
-const { data: hasCompletedTodayChallenge } = useAsyncData(
-   'has-completed-today-challenge',
-   () => $trpc.protected.daily.hasCompletedDailyProblem.query()
-);
-
-// 当前用户已完成的题目 pid 列表，用于在题目卡片上显示完成状态
-const { data: completedProblemIds } = useAsyncData(
-   'completed-problem-ids',
-   () => $trpc.protected.problem.listCompletedProblemIds.query(),
-   { default: () => [] as number[] }
-);
-const completedProblemIdSet = computed(
-   () => new Set(completedProblemIds.value)
-);
-
-const { data: trackingAchievement, refresh: refreshTrackingAchievement } =
-   useAsyncData('tracking-achievement', () =>
-      $trpc.protected.achievement.getCurrentCheckinAchievement.query()
-   );
 
 const achievementProgress = computed(() => {
    const progress = trackingAchievement.value?.progress ?? 0;

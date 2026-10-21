@@ -32,17 +32,46 @@ const getOrForkProjectProcedure = protectedProcedure
          return project;
       }
 
-      const templateProject = await prisma.projects.findFirstOrThrow({
-         where: {
-            problemId: input.problemId,
-            isTemplate: true,
-         },
-         select: { pid: true },
-      });
-      const templateProjectId = templateProject.pid;
+      const [templateProject, previousProject] = await Promise.all([
+         prisma.projects.findFirstOrThrow({
+            where: {
+               problemId: input.problemId,
+               isTemplate: true,
+            },
+            select: { pid: true },
+         }),
+         // 同一道基础题在其他版本上的作答工程（取最新版本）
+         prisma.projects.findFirst({
+            where: {
+               ownerId: userId,
+               isTemplate: false,
+               problemId: { not: input.problemId },
+               problem: {
+                  BaseProblem: {
+                     ProblemVersions: { some: { pid: input.problemId } },
+                  },
+               },
+            },
+            orderBy: { problemId: 'desc' },
+            select: { pid: true, problemId: true },
+         }),
+      ]);
+
+      // 新版本没改作答模板时沿用用户已有的作答文件，否则从新模板开始
+      let sourceProjectId = templateProject.pid;
+      if (previousProject) {
+         const [currentTemplate, previousTemplate] = await Promise.all([
+            projectService.getTemplateFiles(input.problemId),
+            projectService.getTemplateFiles(previousProject.problemId),
+         ]);
+         if (projectService.isSameFiles(currentTemplate, previousTemplate)) {
+            sourceProjectId = previousProject.pid;
+         }
+      }
 
       const { projectId } = await projectService.fork({
-         projectId: templateProjectId,
+         projectId: sourceProjectId,
+         problemId: input.problemId,
          isTemplate: false,
          userId: userId,
       });
@@ -197,11 +226,16 @@ const getAllCommitRecordsProcedure = protectedProcedure
    .input(GetAllCommitRecordsSchema)
    .query(async ({ ctx, input }) => {
       const { userId } = ctx.user;
+      // 提交记录按基础题汇总，题目发新版本后历史提交仍可见
       const records = await prisma.judgeRecords.findMany({
          where: {
             userId: userId,
-            problemId: input.problemId,
             type: 'judge',
+            problem: {
+               BaseProblem: {
+                  ProblemVersions: { some: { pid: input.problemId } },
+               },
+            },
          },
          select: {
             id: true,
@@ -286,7 +320,8 @@ const getCurrentProblemPidProcedure = protectedProcedure
       return { pid: problem.BaseProblem?.currentPid ?? problem.pid };
    });
 
-// 获取当前用户已完成（judge 通过）的题目 pid 列表
+// 获取当前用户已完成（judge 通过）的题目 pid 列表：完成按基础题计算，做过任一版本即视为完成，
+// 因此除了做过的版本 pid，还会带上对应基础题的当前版本 pid
 const listCompletedProblemIdsProcedure = protectedProcedure.query(
    async ({ ctx }) => {
       const { userId } = ctx.user;
@@ -297,11 +332,22 @@ const listCompletedProblemIdsProcedure = protectedProcedure.query(
             result: 'success',
             type: 'judge',
          },
-         select: { problemId: true },
+         select: {
+            problemId: true,
+            problem: {
+               select: { BaseProblem: { select: { currentPid: true } } },
+            },
+         },
          distinct: ['problemId'],
       });
 
-      return records.map((record) => record.problemId);
+      const pids = new Set<number>();
+      for (const record of records) {
+         pids.add(record.problemId);
+         const currentPid = record.problem.BaseProblem.currentPid;
+         if (currentPid !== null) pids.add(currentPid);
+      }
+      return [...pids];
    },
 );
 

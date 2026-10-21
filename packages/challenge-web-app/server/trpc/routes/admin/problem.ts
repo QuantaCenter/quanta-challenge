@@ -1,6 +1,8 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import {
+   hasEntries,
+   REFERENCE_ANSWER_REQUIRED_MESSAGE,
    ReuploadSchema,
    resolveBackendServiceRuntime,
    UploadSchema,
@@ -21,23 +23,89 @@ type TX = Omit<
    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
 
+type UploadInput = z.infer<typeof UploadSchema>;
+
+/** 编辑题目时需要重新审核的原因 */
+type AuditReason =
+   | 'status'
+   | 'judgeScript'
+   | 'answerTemplate'
+   | 'totalScore'
+   | 'runtime'
+   | 'cover';
+
+/** 版本的运行时配置。后端题的 bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样） */
+const resolveVersionRuntime = (input: UploadInput) => {
+   const backendRuntime =
+      input.problemType === 'backend_service'
+         ? resolveBackendServiceRuntime({
+              serviceImage: input.serviceImage,
+              servicePort: input.servicePort,
+              judgeUploadPath: input.judgeUploadPath,
+           })
+         : undefined;
+   return {
+      bootCommand: backendRuntime?.bootCommand ?? input.bootCommand,
+      initCommand: input.initCommand,
+      buildCommand: input.buildCommand,
+      judgeUploadPath: input.judgeUploadPath,
+      // 后端题：云函数在判题容器里调不通（不签发令牌），强制关掉
+      enableCloudFunction:
+         backendRuntime?.enableCloudFunction ??
+         (input.enableCloudFunction ?? false),
+      problemType: input.problemType ?? 'frontend',
+      serviceImage: backendRuntime?.serviceImage ?? input.serviceImage,
+      servicePort: backendRuntime?.servicePort ?? input.servicePort ?? 3000,
+   };
+};
+
+/** 提取判题脚本的 default export；同一份脚本多次提取结果一致，可用于比较脚本是否变化 */
+const extractJudgeScript = async (options: {
+   judgeServerUrl: string;
+   traceId: string;
+   code: string;
+}) => {
+   const { code } = await fetch(`${options.judgeServerUrl}/code/extract`, {
+      method: 'POST',
+      headers: {
+         'Content-Type': 'application/json',
+         'x-trace-id': options.traceId,
+      },
+      body: JSON.stringify({ code: options.code }),
+   }).then((res) => res.json());
+   return typeof code === 'string' && code ? code : null;
+};
+
+/** 自定义封面需要预先计算 thumbhash */
+const ensureCoverThumbhash = async (coverImageId?: string) => {
+   if (!coverImageId) return;
+   const { name } = await prisma.image.findUniqueOrThrow({
+      where: { id: coverImageId },
+      select: { name: true },
+   });
+   const store = useStore();
+   const buffer = await store.getBuffer(name);
+   if (!buffer) {
+      throw new TRPCError({
+         code: 'BAD_REQUEST',
+         message: 'Cover image not found in storage',
+      });
+   }
+   const hash = await generateThumbhashFromBuffer(buffer);
+   await prisma.image.update({
+      where: { id: coverImageId },
+      data: { thumbhash: hash },
+   });
+};
+
 const handleCreateVersion = async (options: {
    tx: TX;
-   input: z.infer<typeof UploadSchema>;
+   input: UploadInput;
    userId: string;
    baseProblemId: number;
    judgeScript: string;
 }) => {
    const { tx, input, userId, baseProblemId, judgeScript } = options;
-   // 后端题：bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样）
-   const isBackendService = input.problemType === 'backend_service';
-   const backendRuntime = isBackendService
-      ? resolveBackendServiceRuntime({
-           serviceImage: input.serviceImage,
-           servicePort: input.servicePort,
-           judgeUploadPath: input.judgeUploadPath,
-        })
-      : undefined;
    // 创建问题版本
    const problem = await tx.problems.create({
       data: {
@@ -48,17 +116,7 @@ const handleCreateVersion = async (options: {
          totalScore: input.totalScore,
          status: 'draft',
          coverImageId: input.coverImageId,
-         bootCommand: backendRuntime?.bootCommand ?? input.bootCommand,
-         initCommand: input.initCommand,
-         buildCommand: input.buildCommand,
-         judgeUploadPath: input.judgeUploadPath,
-         // 后端题：云函数在判题容器里调不通（不签发令牌），强制关掉
-         enableCloudFunction:
-            backendRuntime?.enableCloudFunction ??
-            (input.enableCloudFunction ?? false),
-         problemType: input.problemType ?? 'frontend',
-         serviceImage: backendRuntime?.serviceImage ?? input.serviceImage,
-         servicePort: backendRuntime?.servicePort ?? input.servicePort ?? 3000,
+         ...resolveVersionRuntime(input),
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,
@@ -135,7 +193,7 @@ const createAuditTask = async (options: {
    problemId: number;
    judgeRecordId: number;
    judgeScript: string;
-   fsSnapshot: z.infer<typeof UploadSchema>['referenceAnswerSnapshot'];
+   fsSnapshot: UploadInput['referenceAnswerSnapshot'];
 }) => {
    const {
       judgeServerUrl,
@@ -178,46 +236,19 @@ const uploadProcedure = protectedAdminProcedure
       const { userId } = ctx.user;
       const { judge } = useRuntimeConfig();
 
-      const { code: judgeScript } = await fetch(
-         `${judge.serverUrl}/code/extract`,
-         {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'x-trace-id': ctx.traceId ?? '',
-            },
-            body: JSON.stringify({
-               code: input.judgeScript,
-            }),
-         },
-      ).then((res) => res.json());
-      if (!judgeScript || typeof judgeScript !== 'string') {
+      const judgeScript = await extractJudgeScript({
+         judgeServerUrl: judge.serverUrl,
+         traceId: ctx.traceId ?? '',
+         code: input.judgeScript,
+      });
+      if (!judgeScript) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'Judge script must export a default function',
          });
       }
 
-      // 如果有封面图片，计算其 thumbhash
-      if (input.coverImageId) {
-         const { name } = await prisma.image.findUniqueOrThrow({
-            where: { id: input.coverImageId },
-            select: { name: true },
-         });
-         const store = useStore();
-         const buffer = await store.getBuffer(name);
-         if (!buffer) {
-            throw new TRPCError({
-               code: 'BAD_REQUEST',
-               message: 'Cover image not found in storage',
-            });
-         }
-         const hash = await generateThumbhashFromBuffer(buffer);
-         await prisma.image.update({
-            where: { id: input.coverImageId },
-            data: { thumbhash: hash },
-         });
-      }
+      await ensureCoverThumbhash(input.coverImageId);
 
       const { problemId, judgeRecordId } = await prisma.$transaction(
          async (tx) => {
@@ -535,6 +566,7 @@ const getDetailProcedure = protectedAdminProcedure
             BaseProblem: {
                select: {
                   id: true,
+                  currentPid: true,
                },
             },
             CoverImage: {
@@ -542,6 +574,10 @@ const getDetailProcedure = protectedAdminProcedure
                   name: true,
                   id: true,
                },
+            },
+            ProblemDefaultCover: {
+               select: { imageId: true },
+               take: 1,
             },
             Project: {
                where: {
@@ -580,36 +616,146 @@ const reuploadProcedure = protectedAdminProcedure
       const { userId } = ctx.user;
       const { baseId } = input;
       const { judge } = useRuntimeConfig();
+      const traceId = ctx.traceId ?? '';
 
       // 检查问题是否存在且属于当前用户
-      const { currentPid } = await prisma.baseProblems.findUniqueOrThrow({
-         where: {
-            id: baseId,
-            authorId: userId,
-         },
-         select: {
-            currentPid: true,
-         },
-      });
-
-      // 转化判题脚本
-      const { code: judgeScript } = await fetch(
-         `${judge.serverUrl}/code/extract`,
-         {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'x-trace-id': ctx.traceId ?? '',
+      const { CurrentProblem: current } =
+         await prisma.baseProblems.findUniqueOrThrow({
+            where: {
+               id: baseId,
+               authorId: userId,
             },
-            body: JSON.stringify({
+            select: {
+               CurrentProblem: {
+                  select: {
+                     pid: true,
+                     status: true,
+                     totalScore: true,
+                     bootCommand: true,
+                     initCommand: true,
+                     buildCommand: true,
+                     judgeUploadPath: true,
+                     enableCloudFunction: true,
+                     problemType: true,
+                     serviceImage: true,
+                     servicePort: true,
+                     JudgeFile: { select: { judgeScript: true }, take: 1 },
+                     ProblemDefaultCover: { select: { imageId: true }, take: 1 },
+                  },
+               },
+            },
+         });
+      const currentPid = current?.pid ?? null;
+
+      // 转化判题脚本；当前版本的脚本也重新提取一遍，用于判断脚本是否变化
+      const currentScript = current?.JudgeFile[0]?.judgeScript;
+      const [judgeScript, currentJudgeScript, currentTemplateFiles] =
+         await Promise.all([
+            extractJudgeScript({
+               judgeServerUrl: judge.serverUrl,
+               traceId,
                code: input.judgeScript,
             }),
-         },
-      ).then((res) => res.json());
-      if (!judgeScript || typeof judgeScript !== 'string') {
+            currentScript
+               ? extractJudgeScript({
+                    judgeServerUrl: judge.serverUrl,
+                    traceId,
+                    code: currentScript,
+                 })
+               : null,
+            currentPid ? projectService.getTemplateFiles(currentPid) : [],
+         ]);
+      if (!judgeScript) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'Judge script must export a default function',
+         });
+      }
+
+      await ensureCoverThumbhash(input.coverImageId);
+
+      // 只改了标题、描述、标签、难度、封面时原地更新当前版本，不重新审核；
+      // 其余字段会影响判题结果，必须创建新版本并审核
+      const auditReasons: AuditReason[] = [];
+      if (!current) {
+         auditReasons.push('status');
+      } else {
+         const runtime = resolveVersionRuntime(input);
+         const sameText = (a?: string | null, b?: string | null) =>
+            (a?.trim() || null) === (b?.trim() || null);
+         if (!['ready', 'published'].includes(current.status)) {
+            auditReasons.push('status');
+         }
+         // CLI 传的是源码（提取后应等于库里的值），Web 回传的是库里已提取的代码（再提取后比较）
+         if (judgeScript !== currentScript && judgeScript !== currentJudgeScript) {
+            auditReasons.push('judgeScript');
+         }
+         const templateFiles = Object.entries(input.answerTemplateSnapshot).map(
+            ([path, content]) => ({ path, content }),
+         );
+         if (!projectService.isSameFiles(templateFiles, currentTemplateFiles)) {
+            auditReasons.push('answerTemplate');
+         }
+         if (input.totalScore !== current.totalScore) {
+            auditReasons.push('totalScore');
+         }
+         if (
+            !sameText(runtime.bootCommand, current.bootCommand) ||
+            !sameText(runtime.initCommand, current.initCommand) ||
+            !sameText(runtime.buildCommand, current.buildCommand) ||
+            !sameText(runtime.judgeUploadPath, current.judgeUploadPath) ||
+            !sameText(runtime.serviceImage, current.serviceImage) ||
+            runtime.enableCloudFunction !== current.enableCloudFunction ||
+            runtime.problemType !== current.problemType ||
+            runtime.servicePort !== current.servicePort
+         ) {
+            auditReasons.push('runtime');
+         }
+         // 首屏截图封面由审核生成，当前版本没有时只能重新审核
+         if (
+            input.coverMode === 'default' &&
+            current.ProblemDefaultCover.length === 0
+         ) {
+            auditReasons.push('cover');
+         }
+      }
+
+      if (current && auditReasons.length === 0) {
+         await prisma.$transaction([
+            prisma.problems.update({
+               where: { pid: current.pid },
+               data: {
+                  title: input.title,
+                  detail: input.detail,
+                  difficulty: input.difficulty,
+                  tags: { set: input.tagIds.map((tid) => ({ tid })) },
+                  CoverImage:
+                     input.coverMode === 'custom' && input.coverImageId
+                        ? { connect: { id: input.coverImageId } }
+                        : { disconnect: true },
+               },
+            }),
+            // 让「我的题目」列表按最近修改排序
+            prisma.baseProblems.update({
+               where: { id: baseId },
+               data: { updatedAt: new Date() },
+            }),
+         ]);
+         return {
+            message: 'Problem info updated without audit',
+            problemId: current.pid,
+            mode: 'quick' as const,
+            auditReasons,
+         };
+      }
+
+      if (
+         input.coverMode === 'default' &&
+         !hasEntries(input.referenceAnswerSnapshot)
+      ) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: REFERENCE_ANSWER_REQUIRED_MESSAGE,
          });
       }
 
@@ -640,7 +786,7 @@ const reuploadProcedure = protectedAdminProcedure
 
       await createAuditTask({
          judgeServerUrl: judge.serverUrl,
-         traceId: ctx.traceId ?? '',
+         traceId,
          userId,
          problemId,
          judgeRecordId,
@@ -651,6 +797,8 @@ const reuploadProcedure = protectedAdminProcedure
       return {
          message: 'Problem re-uploaded successfully',
          problemId,
+         mode: 'audit' as const,
+         auditReasons,
       };
    });
 

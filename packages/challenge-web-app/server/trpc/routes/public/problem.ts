@@ -1,5 +1,6 @@
 import prisma from '~~/lib/prisma';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
+import { problemStatService } from '../../services/problem-stat';
 import { publicProcedure, router } from '../../trpc';
 import z from 'zod';
 
@@ -63,12 +64,6 @@ const getAllPublicProblems = publicProcedure
                         color: true,
                      },
                   },
-                  JudgeStatus: {
-                     select: {
-                        totalCount: true,
-                        passedCount: true,
-                     },
-                  },
                   CoverImage: {
                      select: {
                         name: true,
@@ -92,10 +87,11 @@ const getAllPublicProblems = publicProcedure
          nextCursor = problems.pop()!.id;
       }
 
+      const passRates = await problemStatService.getPassRates(
+         problems.map((p) => p.id),
+      );
       const rawItems = problems.map((p) => {
-         const passCount = p.CurrentProblem?.JudgeStatus?.passedCount ?? 0;
-         const totalCount = p.CurrentProblem?.JudgeStatus?.totalCount ?? 0;
-         const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
+         const passRate = (passRates.get(p.id) ?? 0) * 100;
          return {
             ...p.CurrentProblem,
             // 没有封面时必须返回 null，而不是字符串 'unknown'： 前端会拼成 /api/static/unknown，该请求因无扩展名被 403， 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。
@@ -110,7 +106,6 @@ const getAllPublicProblems = publicProcedure
             passRate,
             CoverImage: undefined,
             ProblemDefaultCover: undefined,
-            JudgeStatus: undefined,
          };
       });
 

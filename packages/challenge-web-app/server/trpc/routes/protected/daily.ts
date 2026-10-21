@@ -56,19 +56,19 @@ const dailyCheckinProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    const { userId } = ctx.user;
    const today = toDailyDate(getDailyDateKey());
 
-   const hasCheckin = await hasDailyCheckin(userId, today);
+   const [hasCheckin, { baseProblemId: dailyProblemId }] = await Promise.all([
+      hasDailyCheckin(userId, today),
+      prisma.dailyProblem.findUniqueOrThrow({
+         where: { date: today },
+         select: { baseProblemId: true },
+      }),
+   ]);
    if (hasCheckin) {
       throw new TRPCError({
          code: 'BAD_REQUEST',
          message: 'Already checked in today',
       });
    }
-
-   const { baseProblemId: dailyProblemId } =
-      await prisma.dailyProblem.findUniqueOrThrow({
-         where: { date: today },
-         select: { baseProblemId: true },
-      });
    const existingCompleteRecord = await prisma.judgeRecords.findFirst({
       where: {
          userId,

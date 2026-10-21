@@ -58,6 +58,81 @@ const problemType = computed<'frontend' | 'backend_service'>({
 
 const detailLoading = ref(false);
 
+// 编辑时的原始数据，用于判断本次修改能否不经审核直接生效（以服务端判定为准）
+interface IEditBaseline {
+   isCurrent: boolean;
+   status: string;
+   hasDefaultCover: boolean;
+   judgeScript: string;
+   score?: number;
+   answerTemplate: Record<string, string>;
+   bootCommand: string;
+   initCommand: string;
+   buildCommand: string;
+   judgeUploadPath: string;
+   enableCloudFunction: boolean;
+   problemType: 'frontend' | 'backend_service';
+   serviceImage: string;
+   servicePort: number;
+}
+const baseline = ref<IEditBaseline>();
+
+const auditReasonLabels = {
+   version: '基于历史版本编辑',
+   status: '当前版本尚未通过审核',
+   judgeScript: '判题脚本',
+   answerTemplate: '作答模板',
+   totalScore: '题目总分',
+   runtime: '题型 / 命令 / 镜像 / 端口 / 云函数',
+   cover: '首屏截图封面（需由审核生成）',
+} as const;
+type AuditReason = keyof typeof auditReasonLabels;
+
+const isSameSnapshot = (a: Record<string, string>, b: Record<string, string>) => {
+   const left = removeRootDir(a);
+   const right = removeRootDir(b);
+   const keys = Object.keys(left);
+   return (
+      keys.length === Object.keys(right).length &&
+      keys.every((key) => left[key] === right[key])
+   );
+};
+
+const auditReasons = computed<AuditReason[]>(() => {
+   const base = baseline.value;
+   if (!base) return [];
+   const value = draft.value;
+   const reasons: AuditReason[] = [];
+   if (!base.isCurrent) reasons.push('version');
+   if (!['ready', 'published'].includes(base.status)) reasons.push('status');
+   if (value.judgeScript !== base.judgeScript) reasons.push('judgeScript');
+   if (!isSameSnapshot(value.answerTemplate, base.answerTemplate)) {
+      reasons.push('answerTemplate');
+   }
+   if (value.score !== base.score) reasons.push('totalScore');
+   if (
+      value.bootCommand !== base.bootCommand ||
+      value.initCommand !== base.initCommand ||
+      value.buildCommand !== base.buildCommand ||
+      value.judgeUploadPath !== base.judgeUploadPath ||
+      value.enableCloudFunction !== base.enableCloudFunction ||
+      value.problemType !== base.problemType ||
+      (value.problemType === 'backend_service' &&
+         (value.serviceImage !== base.serviceImage ||
+            value.servicePort !== base.servicePort))
+   ) {
+      reasons.push('runtime');
+   }
+   if (value.coverMode === 'default' && !base.hasDefaultCover) {
+      reasons.push('cover');
+   }
+   return reasons;
+});
+// 新建题目总是需要审核；编辑时只改基本信息可直接发布
+const needsAudit = computed(
+   () => !fromId || !baseline.value || auditReasons.value.length > 0,
+);
+
 const imageName = ref('');
 const imageUrl = computed(() => {
    return imageName.value ? `/api/static/${imageName.value}` : undefined;
@@ -102,6 +177,23 @@ const fetchProblemDetail = async () => {
             joinPath('/answer-template', normalizedPath)
          ] = file.content;
       }
+
+      baseline.value = {
+         isCurrent: problem.BaseProblem.currentPid === fromId,
+         status: problem.status,
+         hasDefaultCover: problem.ProblemDefaultCover.length > 0,
+         judgeScript: draft.value.judgeScript,
+         score: draft.value.score,
+         answerTemplate: { ...draft.value.answerTemplate },
+         bootCommand: draft.value.bootCommand,
+         initCommand: draft.value.initCommand,
+         buildCommand: draft.value.buildCommand,
+         judgeUploadPath: draft.value.judgeUploadPath,
+         enableCloudFunction: draft.value.enableCloudFunction,
+         problemType: draft.value.problemType,
+         serviceImage: draft.value.serviceImage,
+         servicePort: draft.value.servicePort,
+      };
    } finally {
       // 失败也要解锁，否则报错后字段永久置灰
       detailLoading.value = false;
@@ -160,6 +252,9 @@ const handleSubmit = async () => {
       const result = await atLeastTime(300, upload());
       // 只有成功了，才进行跳转
       if (result?.problemId) {
+         if ('mode' in result && result.mode === 'quick') {
+            message.success('已直接发布', '题目信息已更新，无需重新审核');
+         }
          navigateTo(`/app/publish/problem/detail/${result.problemId}`);
       }
    } catch (error) {
@@ -179,7 +274,7 @@ const handleSubmit = async () => {
          direction="vertical"
          gap="1.5rem"
          class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布题目</h1>
+         <h1 class="st-font-hero-bold">{{ fromId ? '编辑题目' : '发布题目' }}</h1>
          <StForm
             v-model:model-value="draft"
             :ref="formKey"
@@ -290,7 +385,7 @@ const handleSubmit = async () => {
                <StFormItem
                   name="referenceAnswer"
                   label="参考答案"
-                  :required="draft.coverMode === 'default'">
+                  :required="draft.coverMode === 'default' && needsAudit">
                   <UploadProject
                      :ignore-directories="
                         ignores.directories.filter((i) => i !== 'dist')
@@ -346,7 +441,40 @@ const handleSubmit = async () => {
                      :outer-class />
                </StFormItem>
             </StSpace>
-            <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">
+            <div
+               v-if="fromId && baseline"
+               class="mx-2 mt-[2.13rem] px-4 py-3 rounded-[0.5rem] border text-sm leading-6"
+               :class="
+                  needsAudit
+                     ? 'border-warning/40 bg-warning/5'
+                     : 'border-success/40 bg-success/5'
+               ">
+               <template v-if="needsAudit">
+                  <div>
+                     以下内容有变更，需要重新审核：{{
+                        auditReasons.map((r) => auditReasonLabels[r]).join('、')
+                     }}
+                  </div>
+                  <div class="text-accent-300">
+                     提交后会创建新版本，审核通过并发布后生效。{{
+                        auditReasons.includes('answerTemplate')
+                           ? '作答模板已变更，用户进入新版本时会从新模板开始作答。'
+                           : '作答模板未变，用户已有的作答文件会保留。'
+                     }}
+                  </div>
+               </template>
+               <template v-else>
+                  <div>只修改了标题、描述、标签、难度或封面，保存后直接生效，无需重新审核。</div>
+                  <div class="text-accent-300">
+                     用户的完成状态、作答文件和提交记录都不受影响。
+                  </div>
+               </template>
+            </div>
+            <StSpace
+               justify="between"
+               align="center"
+               class="px-2"
+               :class="fromId && baseline ? 'mt-4' : 'mt-[2.13rem]'">
                <div class="text-accent-300">已经自动保存</div>
                <StButton
                   :loading="submitLoading"
@@ -354,7 +482,7 @@ const handleSubmit = async () => {
                   class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]">
                   <div class="flex gap-2 items-center">
                      <UploadTwo class="text-[1.5rem]" />
-                     <span>提交审核</span>
+                     <span>{{ needsAudit ? '提交审核' : '直接发布' }}</span>
                   </div>
                </StButton>
             </StSpace>

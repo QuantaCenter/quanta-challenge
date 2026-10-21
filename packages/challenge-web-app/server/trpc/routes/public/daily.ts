@@ -9,8 +9,10 @@ import {
 } from '~~/server/utils/daily-date';
 import { publicProcedure, router } from '../../trpc';
 import { dailyService } from '../../services/daily';
+import { problemStatService } from '../../services/problem-stat';
 
 const problemQuery = {
+   id: true,
    CurrentProblem: {
       select: {
          pid: true,
@@ -20,7 +22,6 @@ const problemQuery = {
          status: true,
          tags: { select: { color: true, name: true } },
          CoverImage: { select: { name: true, thumbhash: true } },
-         JudgeStatus: { select: { totalCount: true, passedCount: true } },
          ProblemDefaultCover: {
             select: { image: { select: { name: true, thumbhash: true } } },
          },
@@ -43,12 +44,14 @@ const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
       return null;
    }
 
-   const { passedCount = 0, totalCount = 0 } = dailyProblem.JudgeStatus || {};
-   const passRate = totalCount === 0 ? 0 : passedCount / totalCount;
-
    const image =
       dailyProblem.CoverImage ?? dailyProblem.ProblemDefaultCover?.[0]?.image;
    const coverImageThumbhash = image?.thumbhash ?? null;
+   const [passRate, coverImageThumbhashUrl] = await Promise.all([
+      problemStatService.getPassRate(baseProblem.id),
+      // 服务端带缓存地渲染占位图，SSR 首帧即可见
+      renderThumbhashDataUrl(coverImageThumbhash),
+   ]);
 
    return {
       pid: dailyProblem.pid,
@@ -59,8 +62,7 @@ const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
       passRate: passRate,
       coverImageName: image?.name ?? null,
       coverImageThumbhash,
-      // 服务端带缓存地渲染占位图，SSR 首帧即可见
-      coverImageThumbhashUrl: await renderThumbhashDataUrl(coverImageThumbhash),
+      coverImageThumbhashUrl,
    };
 };
 

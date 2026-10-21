@@ -12,10 +12,12 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 403, message: 'Forbidden' });
    }
 
-   const users = await prisma.user.findMany({ select: { id: true, name: true } });
-   const achievements = await prisma.achievement.findMany({
-      select: { id: true, name: true, score: true },
-   });
+   const [users, achievements] = await Promise.all([
+      prisma.user.findMany({ select: { id: true, name: true } }),
+      prisma.achievement.findMany({
+         select: { id: true, name: true, score: true },
+      }),
+   ]);
 
    const results: {
       user: string;

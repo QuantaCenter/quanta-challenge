@@ -138,6 +138,8 @@ onMounted(() => {
          <slot></slot>
       </main>
 
+      <StPageLoading />
+
       <!-- 搜索覆盖层 -->
       <StSearchOverlay />
 

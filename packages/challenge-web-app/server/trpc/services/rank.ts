@@ -75,13 +75,15 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    const redis = useRedis();
    const rankKey = `problem:${problemId}:rankings`;
 
-   const maxScore = await redis.zrevrange(rankKey, 0, 0, 'WITHSCORES');
+   const [maxScore, minScore] = await Promise.all([
+      redis.zrevrange(rankKey, 0, 0, 'WITHSCORES'),
+      redis.zrange(rankKey, 0, 0, 'WITHSCORES'),
+   ]);
    if (maxScore.length < 2) {
       return [];
    }
    const max = parseInt(maxScore[1]) + 1;
 
-   const minScore = await redis.zrange(rankKey, 0, 0, 'WITHSCORES');
    if (minScore.length < 2) {
       return [];
    }
@@ -132,8 +134,10 @@ const getSelfProblemRanking = async (problemId: number, record: number) => {
    const redis = useRedis();
    const rankKey = `problem:${problemId}:rankings`;
 
-   const rank = await redis.zrevrank(rankKey, record.toString());
-   const total = await redis.zcard(rankKey);
+   const [rank, total] = await Promise.all([
+      redis.zrevrank(rankKey, record.toString()),
+      redis.zcard(rankKey),
+   ]);
    if (rank === null) {
       return { rank: -1, total, aheadRate: 0 };
    }
@@ -377,9 +381,12 @@ const getSelfGlobalRanking = async (userId: string) => {
       await loadGlobalRankings();
    }
 
-   const rank = await redis.zrevrank(rankingKey, userId);
-   const score = Number((await redis.zscore(rankingKey, userId)) ?? '0');
-   const total = await redis.zcard(rankingKey);
+   const [rank, rawScore, total] = await Promise.all([
+      redis.zrevrank(rankingKey, userId),
+      redis.zscore(rankingKey, userId),
+      redis.zcard(rankingKey),
+   ]);
+   const score = Number(rawScore ?? '0');
    if (rank === null) {
       return { rank: -1, total, aheadRate: 0, score: 0 };
    }
