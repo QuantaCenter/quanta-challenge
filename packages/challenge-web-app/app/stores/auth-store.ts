@@ -1,6 +1,6 @@
 import type { User } from '@prisma/client';
 import type { TRPCClient } from '@trpc/client';
-import { defineStore } from 'pinia';
+import { defineStore, skipHydrate } from 'pinia';
 import type { AppRouter } from '~~/server/trpc/routes';
 
 const useAuthStore = defineStore('auth', () => {
@@ -55,7 +55,8 @@ const useAuthStore = defineStore('auth', () => {
 
    return {
       user,
-      csrfToken,
+      // SSR 读不到 localStorage，序列化的 null 注水时会覆盖客户端已读到的值，导致首屏客户端请求缺 x-csrf-token
+      csrfToken: skipHydrate(csrfToken),
       setCsrfToken,
       initToken,
       fetchUserInfo,
