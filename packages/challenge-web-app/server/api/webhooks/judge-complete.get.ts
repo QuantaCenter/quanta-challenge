@@ -63,7 +63,7 @@ export default defineEventHandler(async (event) => {
    if (store) store.userId = String(userId);
 
    if (result === 'success') {
-      await rankService.pushToProblemRankings(problem.pid, recordId, score);
+      await rankService.pushToProblemRankings(problem.pid, recordId, score, userId);
    }
 
    const { score: totalScore } = await rankService.recalculateUserStatistics(userId);
