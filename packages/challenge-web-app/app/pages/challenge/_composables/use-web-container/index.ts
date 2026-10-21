@@ -11,22 +11,15 @@ let released = false;
 /** 进行中的 boot 过程，保证并发调用只 boot 一次 */
 let bootingPromise: Promise<WebContainer> | null = null;
 
-/** 订阅实例被销毁的事件，及时清空引用，避免继续使用已释放的代理 */
+/** 感知实例被销毁，及时清空引用，避免继续使用已释放的代理。 */
 const watchTeardown = (wc: WebContainer) => {
-   try {
-      // WebContainer 继承自 EventEmitter，'teardown' 在实例销毁时触发。
-      // 其类型定义未声明该事件，这里做最小化的结构化断言（而不是整对象 any）。
-      const emitter = wc as unknown as {
-         on: (event: string, listener: () => void) => void;
-      };
-      emitter.on('teardown', () => {
-         console.warn('[webcontainer] 实例已被 teardown，之后需要重新 boot');
-         released = true;
-         instance = null;
-      });
-   } catch (e) {
-      console.warn('[webcontainer] 无法订阅 teardown 事件:', e);
-   }
+   const teardown = wc.teardown.bind(wc);
+   wc.teardown = () => {
+      console.warn('[webcontainer] 实例已被 teardown，之后需要重新 boot');
+      released = true;
+      instance = null;
+      teardown();
+   };
 };
 
 /** 清空并重新 boot（用于实例已失效时的自愈） */
