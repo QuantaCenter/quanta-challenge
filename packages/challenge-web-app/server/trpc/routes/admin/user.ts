@@ -3,8 +3,10 @@ import { TRPCError } from '@trpc/server';
 import z from 'zod';
 import { hashPassword } from '~~/server/utils/password';
 import prisma from '~~/lib/prisma';
+import { logger } from '~~/server/utils/logger';
 import { protectedAdminProcedure, protectedSuperAdminProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
+import { rankService } from '../../services/rank';
 
 /** 「最近提交次数」统计的窗口（天） */
 const RECENT_SUBMISSION_DAYS = [7, 30] as const;
@@ -250,6 +252,18 @@ const updateRoleProcedure = protectedSuperAdminProcedure
             },
          }),
       ]);
+
+      if ((target.role === 'USER') !== (input.role === 'USER')) {
+         try {
+            await rankService.invalidateRankings();
+            await rankService.captureRankingSnapshot();
+         } catch (err) {
+            logger.warn(
+               { err, userId: input.userId },
+               'Failed to refresh rankings after role change (不影响角色变更)',
+            );
+         }
+      }
 
       return { role: input.role };
    });

@@ -4,6 +4,17 @@ import prisma from '~~/lib/prisma';
 import { observer } from './achievement';
 import type { ValidPath } from '~~/lib/track-wrapper';
 
+/** 只有普通用户参与排行榜（全局榜与单题榜），管理员及以上不计入。 */
+const RANKED_ROLE = 'USER' as const;
+
+const isRankedUser = async (userId: string) => {
+   const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+   });
+   return user?.role === RANKED_ROLE;
+};
+
 /**
  * 判断是否存在某题目的排行榜
  */
@@ -26,6 +37,7 @@ const loadProblemRankings = async (problemId: number) => {
          type: 'judge',
          score: { gt: 0 },
          result: 'success',
+         user: { role: RANKED_ROLE },
       },
       select: { id: true, score: true, createdAt: true },
    });
@@ -49,7 +61,9 @@ const pushToProblemRankings = async (
    problemId: number,
    recordId: number,
    score: number,
+   userId: string,
 ) => {
+   if (!(await isRankedUser(userId))) return;
    if (!(await getProblemRankingExistence(problemId))) {
       await loadProblemRankings(problemId);
    }
@@ -305,7 +319,11 @@ const setUserGlobalRankingScore = async (userId: string, score: number) => {
    if (!(await redis.exists(rankingKey))) {
       await loadGlobalRankings();
    }
-   await redis.zadd(rankingKey, score, userId);
+   if (await isRankedUser(userId)) {
+      await redis.zadd(rankingKey, score, userId);
+   } else {
+      await redis.zrem(rankingKey, userId);
+   }
 };
 
 /**
@@ -406,7 +424,7 @@ const loadGlobalRankings = async () => {
    const redis = useRedis();
    const rankingKey = `global:rankings`;
    const rankData = await prisma.userStatistic.findMany({
-      where: { score: { gte: 0 } },
+      where: { score: { gte: 0 }, user: { role: RANKED_ROLE } },
       select: { userId: true, score: true },
    });
 
@@ -427,6 +445,7 @@ const loadGlobalRankings = async () => {
  */
 const udpateGlobalRanking = async (userId: string, scoreDiff: number) => {
    if (scoreDiff === 0) return;
+   if (!(await isRankedUser(userId))) return;
 
    const redis = useRedis();
    const rankingKey = `global:rankings`;
@@ -493,6 +512,24 @@ const getGlobalRankingIntervals = async (
    return intervals;
 };
 
+/**
+ * 清空所有排行榜缓存（全局榜、单题榜及其结果缓存），下次读取时按当前角色从数据库重建。
+ * 成员角色变化后调用：参与资格变了，已缓存的榜单都可能包含/缺少该成员。
+ */
+const invalidateRankings = async () => {
+   const redis = useRedis();
+   const keys = ['global:rankings', 'global:rankings:with-userinfo'];
+   for (const pattern of ['global:rankings-result:*', 'problem:*:rankings']) {
+      let cursor = '0';
+      do {
+         const [next, found] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+         cursor = next;
+         keys.push(...found);
+      } while (cursor !== '0');
+   }
+   await redis.del(...keys);
+};
+
 export const rankService = {
    loadProblemRankings,
    pushToProblemRankings,
@@ -507,4 +544,5 @@ export const rankService = {
    recalculateUserStatistics,
    setUserGlobalRankingScore,
    captureRankingSnapshot,
+   invalidateRankings,
 };
