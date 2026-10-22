@@ -17,6 +17,7 @@ import { useStore } from '../../store';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
+import { ensureSnapshotImageReady } from '../../../services/image-build';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -116,6 +117,7 @@ const handleCreateVersion = async (options: {
          totalScore: input.totalScore,
          status: 'draft',
          coverImageId: input.coverImageId,
+         snapshotImageId: input.snapshotImageId ?? null,
          ...resolveVersionRuntime(input),
          tags: {
             connect: input.tagIds.map((id) => ({
@@ -249,6 +251,7 @@ const uploadProcedure = protectedAdminProcedure
       }
 
       await ensureCoverThumbhash(input.coverImageId);
+      await ensureSnapshotImageReady(input.snapshotImageId);
 
       const { problemId, judgeRecordId } = await prisma.$transaction(
          async (tx) => {
@@ -558,6 +561,7 @@ const getDetailProcedure = protectedAdminProcedure
             problemType: true,
             serviceImage: true,
             servicePort: true,
+            snapshotImageId: true,
             tags: {
                select: {
                   tid: true,
@@ -639,6 +643,7 @@ const reuploadProcedure = protectedAdminProcedure
                      problemType: true,
                      serviceImage: true,
                      servicePort: true,
+                     snapshotImageId: true,
                      JudgeFile: { select: { judgeScript: true }, take: 1 },
                      ProblemDefaultCover: { select: { imageId: true }, take: 1 },
                   },
@@ -673,8 +678,16 @@ const reuploadProcedure = protectedAdminProcedure
       }
 
       await ensureCoverThumbhash(input.coverImageId);
+      // 未传入时沿用当前版本的值
+      const snapshotImageId =
+         input.snapshotImageId === undefined
+            ? (current?.snapshotImageId ?? null)
+            : input.snapshotImageId;
+      if (snapshotImageId !== current?.snapshotImageId) {
+         await ensureSnapshotImageReady(snapshotImageId);
+      }
 
-      // 只改了标题、描述、标签、难度、封面时原地更新当前版本，不重新审核；
+      // 只改了标题、描述、标签、难度、封面、快照镜像时原地更新当前版本，不重新审核；
       // 其余字段会影响判题结果，必须创建新版本并审核
       const auditReasons: AuditReason[] = [];
       if (!current) {
@@ -733,6 +746,9 @@ const reuploadProcedure = protectedAdminProcedure
                      input.coverMode === 'custom' && input.coverImageId
                         ? { connect: { id: input.coverImageId } }
                         : { disconnect: true },
+                  SnapshotImage: snapshotImageId
+                     ? { connect: { id: snapshotImageId } }
+                     : { disconnect: true },
                },
             }),
             // 让「我的题目」列表按最近修改排序
@@ -764,7 +780,7 @@ const reuploadProcedure = protectedAdminProcedure
          async (tx) => {
             const version = await handleCreateVersion({
                tx,
-               input,
+               input: { ...input, snapshotImageId },
                userId,
                baseProblemId: baseId,
                judgeScript,

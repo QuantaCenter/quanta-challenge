@@ -1,109 +1,152 @@
-import { parseCustomImageId } from '@challenge/shared/backend-service-image';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import prisma from '~~/lib/prisma';
 import { useStore } from '../../store';
+import {
+   countImageBuildReferences,
+   findImageBuildReferences,
+} from '../../../services/image-build';
 import { TRPCError } from '@trpc/server';
 import z from 'zod';
 
-/**
- * WebContainer 基础镜像的管理接口。
- *
- * 镜像二进制（snapshot）走独立的 PUT 路由 /api/image-builds/upload（大文件，
- * 不适合塞进 tRPC 的 JSON body），这里的接口只管元数据 CRUD。
- */
+const nameSchema = z.string().trim().min(1, '快照镜像名称不能为空').max(50);
+const descriptionSchema = z.string().trim().max(500, '备注最多 500 字');
+const buildFileSchema = z
+   .string()
+   .min(1, '构建文件不能为空')
+   .max(20_000, '构建文件过长');
+
+/** 快照镜像元数据管理。产物文件与 ready 状态只由 PUT /api/image-builds/upload 切换 */
 export const imageBuildRouter = router({
-   list: protectedAdminProcedure.query(() =>
-      prisma.imageBuild.findMany({
-         orderBy: { createdAt: 'desc' },
-         select: {
-            id: true,
-            name: true,
-            status: true,
-            compression: true,
-            sizeBytes: true,
-            compressedSizeBytes: true,
-            fileName: true,
-            createdAt: true,
-         },
-      })
-   ),
+   list: protectedAdminProcedure.query(async () => {
+      const [builds, references] = await Promise.all([
+         prisma.imageBuild.findMany({
+            orderBy: { updatedAt: 'desc' },
+            select: {
+               id: true,
+               name: true,
+               description: true,
+               status: true,
+               compression: true,
+               sizeBytes: true,
+               compressedSizeBytes: true,
+               fileName: true,
+               createdAt: true,
+               updatedAt: true,
+            },
+         }),
+         countImageBuildReferences(),
+      ]);
+      return builds.map((build) => ({
+         ...build,
+         referenceCount: references.get(build.id) ?? 0,
+      }));
+   }),
+
+   /** 详情：含构建文件与引用它的题目 */
+   detail: protectedAdminProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .query(async ({ input }) => {
+         const [build, references] = await Promise.all([
+            prisma.imageBuild.findUnique({
+               where: { id: input.id },
+               select: {
+                  id: true,
+                  name: true,
+                  description: true,
+                  buildFile: true,
+                  status: true,
+                  compression: true,
+                  sizeBytes: true,
+                  compressedSizeBytes: true,
+                  createdAt: true,
+                  updatedAt: true,
+               },
+            }),
+            findImageBuildReferences(input.id),
+         ]);
+         if (!build) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: '快照镜像不存在或已被删除' });
+         }
+         return { ...build, references };
+      }),
 
    create: protectedAdminProcedure
       .input(
          z.object({
-            name: z.string().trim().min(1, '镜像名称不能为空').max(50),
-            buildFile: z.string().min(1, '构建文件不能为空'),
+            name: nameSchema,
+            description: descriptionSchema.default(''),
+            buildFile: buildFileSchema,
          })
       )
       .mutation(async ({ ctx, input }) => {
          return prisma.imageBuild.create({
             data: {
                name: input.name,
+               description: input.description,
                buildFile: input.buildFile,
                createdBy: ctx.user.userId,
             },
+            select: { id: true },
          });
       }),
 
    update: protectedAdminProcedure
       .input(
          z.object({
-            id: z.string(),
-            name: z.string().trim().min(1).max(50).optional(),
-            buildFile: z.string().min(1).optional(),
+            id: z.string().min(1),
+            name: nameSchema.optional(),
+            description: descriptionSchema.optional(),
+            buildFile: buildFileSchema.optional(),
          })
       )
       .mutation(async ({ input }) => {
          const { id, ...data } = input;
-         // 重新编辑构建文件后，旧产物即失效，回到 building 状态等待重新上传
-         const reset =
-            data.buildFile !== undefined
-               ? { status: 'building', fileId: null, fileName: null }
-               : {};
-         return prisma.imageBuild.update({
+         const result = await prisma.imageBuild.updateMany({
             where: { id },
-            data: { ...data, ...reset },
+            data,
          });
-      }),
-
-   remove: protectedAdminProcedure
-      .input(z.object({ id: z.string() }))
-      .mutation(async ({ input }) => {
-         const build = await prisma.imageBuild.findUnique({
-            where: { id: input.id },
-            select: { fileName: true },
-         });
-         if (build?.fileName) {
-            const store = useStore();
-            await store.delete(build.fileName).catch(() => undefined);
+         if (result.count === 0) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: '快照镜像不存在或已被删除' });
          }
-         await prisma.imageBuild.delete({ where: { id: input.id } });
          return { ok: true };
       }),
 
-   /** 供做题页解析 `custom:<id>` 引用：拿文件名与压缩格式 */
-   get: protectedAdminProcedure
-      .input(z.object({ id: z.string() }))
-      .query(async ({ input }) => {
-         const build = await prisma.imageBuild.findUnique({
-            where: { id: parseCustomImageId(input.id) },
-            select: {
-               id: true,
-               name: true,
-               status: true,
-               compression: true,
-               fileName: true,
-               sizeBytes: true,
-               compressedSizeBytes: true,
-            },
-         });
-         if (!build) {
-            throw new TRPCError({
-               code: 'NOT_FOUND',
-               message: '镜像不存在或已被删除',
-            });
+   /** 删除快照镜像。有题目引用时需 `force`，所有引用它的题目版本在同一事务中解绑 */
+   remove: protectedAdminProcedure
+      .input(z.object({ id: z.string().min(1), force: z.boolean().default(false) }))
+      .mutation(async ({ input }) => {
+         if (!input.force) {
+            const references = await findImageBuildReferences(input.id);
+            if (references.length > 0) {
+               throw new TRPCError({
+                  code: 'CONFLICT',
+                  message: `快照镜像仍被 ${references.length} 道题目使用，确认后可强制删除并将这些题目改为不使用快照镜像`,
+               });
+            }
          }
-         return build;
+
+         const result = await prisma.$transaction(async (tx) => {
+            const build = await tx.imageBuild.findUnique({
+               where: { id: input.id },
+               select: { fileId: true },
+            });
+            if (!build) return null;
+            const detached = await tx.problems.updateMany({
+               where: { snapshotImageId: input.id },
+               data: { snapshotImageId: null },
+            });
+            await tx.imageBuild.deleteMany({ where: { id: input.id } });
+            return { fileId: build.fileId, detachedCount: detached.count };
+         });
+         if (!result) return { ok: true, detachedCount: 0 };
+
+         // 事务提交后再删文件，失败最多留下孤儿文件
+         if (result.fileId) {
+            await useStore()
+               .delete(result.fileId)
+               .catch(() => undefined);
+         }
+         return { ok: true, detachedCount: result.detachedCount };
       }),
 });

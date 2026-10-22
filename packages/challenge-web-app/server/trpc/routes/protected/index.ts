@@ -8,7 +8,6 @@ import { rankRouter } from './rank';
 import { userRouter } from './user';
 import { searchRouter } from './search';
 import { fileSyncRouter } from './file-sync';
-import { imageBuildProtectedRouter } from './image-build';
 import { notificationRouter } from './notification';
 import { verifyRoute } from './verify';
 
@@ -24,5 +23,4 @@ export const protectedRouter = router({
    notification: notificationRouter,
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
-   imageBuild: imageBuildProtectedRouter,
 });

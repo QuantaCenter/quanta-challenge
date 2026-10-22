@@ -112,6 +112,15 @@ const getProblemDetailProcedure = protectedProcedure
                select: { image: { select: { name: true } } },
                take: 1,
             },
+            SnapshotImage: {
+               select: {
+                  id: true,
+                  name: true,
+                  status: true,
+                  fileName: true,
+                  sizeBytes: true,
+               },
+            },
          },
       });
       if (!problem) {

@@ -3,7 +3,7 @@ import {
    buildBackendBootCommand,
    DEFAULT_BACKEND_SERVICE_IMAGE_ID,
    getBackendServiceDefaultPort,
-   isCustomImageId,
+   type BackendServiceImageId,
 } from '@challenge/shared/backend-service-image';
 import { Difficulty } from '@prisma/client';
 import z from 'zod';
@@ -45,13 +45,16 @@ const uploadShape = {
    enableCloudFunction: z.boolean().optional(),
    /** 题型：前端（默认）或后端服务 */
    problemType: z.enum(['frontend', 'backend_service']).optional(),
-   /** 后端服务：初始镜像 id（内置注册表 id，或 `custom:<ImageBuild.id>` 自定义镜像） */
-   serviceImage: z
-      .enum(BACKEND_SERVICE_IMAGE_IDS)
-      .or(z.string().regex(/^custom:[A-Za-z0-9_-]+$/, '自定义镜像 id 不合法'))
-      .optional(),
+   /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
+   serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
    /** 后端服务：服务监听端口 */
    servicePort: z.number().int().positive().max(65535).optional(),
+   /** 快照镜像 id；null 表示不使用，编辑时未传入则沿用原值 */
+   snapshotImageId: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/, '快照镜像 id 不合法')
+      .nullable()
+      .optional(),
 };
 
 const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>
@@ -86,21 +89,12 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
       );
 
 export const resolveBackendServiceRuntime = (input: {
-   /** 内置注册表 id 或 `custom:<ImageBuild.id>` */
-   serviceImage?: string;
+   serviceImage?: BackendServiceImageId;
    servicePort?: number;
    judgeUploadPath: string;
 }) => {
    const serviceImage = input.serviceImage ?? DEFAULT_BACKEND_SERVICE_IMAGE_ID;
    const mountPath = input.judgeUploadPath || 'project';
-   if (isCustomImageId(serviceImage)) {
-      return {
-         serviceImage,
-         servicePort: input.servicePort ?? 3000,
-         bootCommand: undefined,
-         enableCloudFunction: false,
-      };
-   }
    return {
       serviceImage,
       servicePort:
