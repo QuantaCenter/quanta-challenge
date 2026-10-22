@@ -262,16 +262,6 @@ export const useProblemPublicationForm = (storageName: string) => {
          },
       },
       {
-         field: 'taskEndAt',
-         validator(value) {
-            return (
-               !draft.value.taskStartAt ||
-               !value ||
-               new Date(value) >= new Date(draft.value.taskStartAt)
-            );
-         },
-      },
-      {
          field: 'scheduledPublishAt',
          validator(value) {
             return !value || new Date(value).getTime() > Date.now();
