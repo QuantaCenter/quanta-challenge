@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Close, SettingOne } from '@icon-park/vue-next';
-import { useEventEmitter } from '~/composables/use-event-emitter';
+import { SettingOne } from '@icon-park/vue-next';
+import { onClickOutside } from '@vueuse/core';
 
+/** 侧边栏「设置」下拉菜单：与计时器一致，按钮旁弹出、无遮罩、点击外部关闭 */
 const opened = defineModel<boolean>('opened', { default: false });
 
 const props = defineProps<{
@@ -9,69 +10,60 @@ const props = defineProps<{
    problemId?: number;
 }>();
 
-const confirming = ref(false);
+const rootRef = useTemplateRef<HTMLElement>('settings-root');
+
+onClickOutside(rootRef, () => {
+   opened.value = false;
+});
 
 const { emit: emitResetProject } = useEventEmitter<{ at: number }>(
    'challenge-settings',
    'reset-project',
 );
 
-const handleReset = () => {
+const handleReset = async () => {
+   const confirmed = await dialog.confirm({
+      title: '重置题目',
+      description: '你对题目的全部修改将被清空，恢复为初始模板。',
+      variant: 'danger',
+      confirmText: '确认重置',
+      cancelText: '取消',
+   });
+   if (!confirmed) return;
    emitResetProject({ at: Date.now() });
-   confirming.value = false;
    opened.value = false;
 };
-
-watch(opened, (value) => {
-   if (!value) confirming.value = false;
-});
 </script>
 
 <template>
-   <StModal v-model:opened="opened">
-      <StSpace
-         direction="vertical"
-         gap="1.5rem"
-         class="bg-accent-600 rounded-xl p-6 min-w-[380px] max-w-[460px] border border-accent-500 text-white">
-         <StSpace justify="between" align="center" fill-x>
-            <StSpace align="center" gap="0.5rem">
-               <SettingOne class="text-[1.25rem] text-accent-100" />
-               <h2 class="text-xl font-semibold text-accent-50">设置</h2>
-            </StSpace>
-            <button
-               class="text-accent-200 hover:text-accent-50 transition-colors cursor-pointer"
-               aria-label="关闭设置"
-               @click="opened = false">
-               <Close />
-            </button>
-         </StSpace>
+   <div ref="settings-root" class="relative">
+      <StMiniSidebarButton
+         name="设置"
+         :class="{
+            '!text-primary': opened,
+         }"
+         @click="opened = !opened">
+         <SettingOne class="text-[1.1rem]" />
+      </StMiniSidebarButton>
 
-         <StSpace v-if="props.problemId" direction="vertical" gap="0.5rem" fill-x>
-            <template v-if="!confirming">
-               <button
-                  class="w-full rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer"
-                  @click="confirming = true">
-                  重置题目
-               </button>
-            </template>
-            <template v-else>
-               <span class="text-accent-100 text-sm">
-                  确认重置？你对题目的全部修改将被清空，恢复为初始模板。
-               </span>
-               <StSpace gap="0.5rem" fill-x>
-                  <button
-                     class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer"
-                     @click="confirming = false">
-                     取消
-                  </button>
-                  <button
-                     class="flex-1 rounded-md bg-error hover:opacity-90 transition-all text-white py-2 cursor-pointer"
-                     @click="handleReset">
-                     确认重置
-                  </button>
-               </StSpace>
-            </template>
-         </StSpace>
-      </StSpace>
-   </StModal>
+      <Transition
+         enter-active-class="transition-all duration-100 ease-out"
+         enter-from-class="opacity-0"
+         enter-to-class="opacity-100"
+         leave-active-class="transition-all duration-100 ease-in"
+         leave-from-class="opacity-100"
+         leave-to-class="opacity-0">
+         <div
+            v-show="opened"
+            class="absolute top-1/2 -translate-y-1/2 left-[calc(100%+0.5rem)] w-72 p-4 bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50">
+            <button
+               v-if="props.problemId"
+               class="w-full rounded-md bg-error hover:opacity-90 transition-all text-white py-2 cursor-pointer"
+               @click="handleReset">
+               重置题目
+            </button>
+            <span v-else class="text-accent-200 text-sm">暂无可用的设置项</span>
+         </div>
+      </Transition>
+   </div>
 </template>
