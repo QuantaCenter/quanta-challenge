@@ -152,6 +152,27 @@ model Image {
   @@map("images")
 }
 
+// WebContainer 基础镜像：发布者在浏览器里用构建脚本预装依赖，产物（二进制 snapshot）存 local_store
+model ImageBuild {
+  id                  String   @id @default(cuid())
+  name                String
+  buildFile           String
+  // building | ready | failed
+  status              String   @default("building")
+  // local_store 里的文件 id / 文件名（由上传接口回填）
+  fileId              String?
+  fileName            String?
+  // 固定 gzip：客户端 CompressionStream 压缩，服务端校验存储
+  compression         String   @default("gzip")
+  sizeBytes           Int?
+  compressedSizeBytes Int?
+  createdBy           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("image_builds")
+}
+
 model UserImage {
   id        String   @id @default(cuid())
   userId    String
