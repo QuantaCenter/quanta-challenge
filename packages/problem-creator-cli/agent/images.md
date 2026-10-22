@@ -4,7 +4,7 @@
 
 ## 1. 生成：`qpc gen-img`
 
-默认输出到题目目录的 `images/<name>.png`（不会进入学生工程）。
+默认输出到题目目录的 `images/<name>.png`（动图为 `.gif`），不会进入学生工程。
 
 ```bash
 # 流程图 / 请求链路 / 状态流转：每个参数一个步骤，步骤内用 \n 换行
@@ -18,11 +18,30 @@ qpc gen-img screenshot --selector ".card" --name card     # 只截某个元素
 
 # 其它示意图（布局草图、坐标系、数据结构）：先手写 SVG，再转 PNG
 qpc gen-img svg ./drafts/layout.svg --width 800
+
+# 前端题：录制参考解动效为 GIF（加载动画、轮播等直接录；交互触发的写成步骤）
+qpc gen-img record --duration 3000 --name loading
+qpc gen-img record --selector ".card" --padding 24 --cursor --name card hover:.card wait:800
+qpc gen-img record --cursor --name add-todo click:#new type:买牛奶 press:Enter
+#   步骤：wait:<ms> click:<选择器> hover:<选择器> type:<文本> press:<按键> scroll:<像素|选择器>
+#   --scale 2（高清屏清晰；1 体积更小）  --fps 15  --width 1600（上限）  --colors 256  --poster（另存最后一帧 PNG）
+
+# 分步动画（算法过程、状态流转）：手写多帧 SVG / PNG，按顺序拼成 GIF
+qpc gen-img frames drafts/step-01.svg drafts/step-02.svg drafts/step-03.svg --delay 800 --name bubble-sort
+#   --hold 2000（最后一帧停留）  --width 640  --background "#ffffff"
 ```
+
+录制 GIF 时：
+
+- `type:` 输入到当前聚焦的元素，先 `click:` 输入框再 `type:`。
+- `--cursor` 画出鼠标指针并平滑移动、显示点击涟漪；演示「点哪里」时建议加上。
+- 不给 `--duration` 时录到最后一步结束后再 1 秒；总时长上限 15 秒。
+- 只录关键区域（`--selector`）、控制宽度和时长，GIF 会小很多。超过 5MB 时自动依次降调色板、帧率、宽度并提示。
+- 录制期间画面没变化会提示：多半是触发动效的交互没写成步骤。
 
 手写 SVG 时：显式写 `width` / `height` / `viewBox`；中文字体用 `font-family="PingFang SC, Microsoft YaHei, Noto Sans CJK SC, sans-serif"`；背景画一个白色 `<rect>`，避免透明底在深色主题下看不清。
 
-截图需要无头浏览器（同本地微判题，缺失时会提示安装命令）。
+截图与录制需要无头浏览器（同本地微判题，缺失时会提示安装命令）。
 
 ## 2. 写进题面
 

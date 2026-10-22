@@ -45,7 +45,7 @@ qpc upload --wait
 | `qpc init [dir]` | 生成题目骨架（含 `AGENTS.md`）；`--type` 选题型，不传时交互选择 | 否 |
 | `qpc tag [dir]` | 查看平台标签；`--write` 交互多选，`--write 1,2`（或 `--set`）直接写回 tagIds | 否 |
 | `qpc snapshot-image [dir]` | 查看平台快照镜像；`--write` 交互单选，`--write <id>`（或 `--set`）直接写回 snapshotImageId，`none` 表示不使用 | 是 |
-| `qpc gen-img flow\|svg\|screenshot` | 生成题面插图到 `images/`：流程图 / SVG 转 PNG / 参考解页面截图 | 否 |
+| `qpc gen-img flow\|svg\|screenshot\|record\|frames` | 生成题面插图到 `images/`：流程图 / SVG 转 PNG / 参考解页面截图 / 参考解动效录成 GIF / 多帧拼 GIF | 否 |
 | `qpc image [files...]` | 上传图片；不给文件时上传题面里引用的全部本地图片，`--write` 回写地址 | 是 |
 | `qpc cover [dir]` | 生成封面图；`--random` 随机配色、`--upload` 上传、`--write` 写回配置 | 上传时 |
 | `qpc check [dir]` | ① 基础信息静态预检 ② 本地微判题（answer 须满分）；`--no-run` 只做 ①，`--strict` 使警告也算失败 | 否 |

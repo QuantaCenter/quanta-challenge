@@ -35,7 +35,7 @@ AGENTS.md           给 Agent 的入口说明
 | `qpc init [dir] --type <t>` | 生成题目骨架（含 AGENTS.md） | 否 |
 | `qpc tag [--write <ids>]` | 查看标签 / 写回 tagIds | 否 |
 | `qpc snapshot-image [--write <id>]` | 查看快照镜像 / 写回 snapshotImageId（启动命令的依赖在镜像里时必填） | 是 |
-| `qpc gen-img flow\|svg\|screenshot` | 生成题面插图到 images/ | 否 |
+| `qpc gen-img flow\|svg\|screenshot\|record\|frames` | 生成题面插图 / 动效 GIF 到 images/ | 否 |
 | `qpc image [--write]` | 上传题面里的本地图片并回写地址 | 是 |
 | `qpc cover --write` | 生成封面、上传、写回 imageId（后端题必做） | 是 |
 | `qpc check [--strict]` | ① 基础信息静态预检 ② 本地微判题 | 否 |

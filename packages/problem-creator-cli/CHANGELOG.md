@@ -12,6 +12,13 @@
   只能选已就绪的镜像；写回后重新加载校验，失败回滚。
 - 配置新增可选字段 `snapshotImageId`：`qpc upload` 随请求提交；不写时追加版本沿用平台上当前版本的值，
   `null` 表示明确不用。上传摘要新增「快照镜像」一行。
+- `qpc gen-img record [actions...]`：录制参考解（或模板）页面的动效，输出 GIF。按顺序执行
+  `wait:` / `click:` / `hover:` / `type:` / `press:` / `scroll:` 交互步骤；`--selector` 只录元素区域，
+  `--cursor` 画出鼠标指针（平滑移动 + 点击涟漪），`--poster` 另存最后一帧 PNG。默认 2 倍像素密度
+  （`--scale 1` 可关），输出宽度上限 1600。总时长上限 15 秒。
+- `qpc gen-img frames <inputs...>`：把多张 SVG / PNG 按顺序拼成 GIF（`--delay` / `--hold`），用于分步动画。
+- GIF 超过上传上限（5MB）时自动依次降调色板、帧率、宽度并提示；仍超限则报错不落盘。
+  相邻相同帧自动合并，不新增依赖（沿用 sharp 编码）。
 
 ### Changed
 

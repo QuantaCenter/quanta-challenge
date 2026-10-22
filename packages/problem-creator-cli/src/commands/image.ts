@@ -166,7 +166,9 @@ const assertUploadable = async (file: string): Promise<void> => {
    if (size > MAX_IMAGE_BYTES) {
       throw new UsageError(
          `图片超过 ${formatBytes(MAX_IMAGE_BYTES)}：${basename(file)}（${formatBytes(size)}）`,
-         { hint: '压缩或缩小尺寸后重试（`qpc gen-img svg --width` 可缩放）。' },
+         {
+            hint: '压缩或缩小尺寸后重试（`qpc gen-img svg --width` 可缩放；GIF 用 `--width` / `--fps` / `--colors` 或缩短时长）。',
+         },
       );
    }
 };

@@ -58,6 +58,7 @@ qpc snapshot-image --write <id>     # 写回 snapshotImageId（交互终端可�
 qpc gen-img flow "浏览器" "POST /items" "服务端校验" "201 Created"   # 流程图
 qpc gen-img screenshot --target answer                              # 前端：参考解效果图
 qpc gen-img svg ./sketch.svg                                        # 手写 SVG 转 PNG
+qpc gen-img record --cursor hover:.card click:.btn                  # 前端：参考解动效录成 GIF
 ```
 
 把命令输出的 `![...](images/xxx.png)` 写进题面，然后：
