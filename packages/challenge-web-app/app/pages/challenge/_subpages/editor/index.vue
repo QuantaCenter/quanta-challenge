@@ -623,6 +623,20 @@ const { operator } = useCommands({
    runCommand,
    getWebContainerInstance: getInstance,
    fsTree,
+   // 终端等场景直接操作 WebContainer 文件系统时，diff 出的变更也走云端同步
+   onFsChange: (changes) => {
+      for (const change of changes) {
+         if (change.type === 'rm') {
+            fileChangeSync.rm(change.path);
+         } else if (change.type === 'mv') {
+            fileChangeSync.mv(change.oldPath, change.newPath);
+         } else if (change.type === 'change') {
+            fileChangeSync.change(change.path, change.content);
+         } else {
+            fileChangeSync.create(change.path, change.content);
+         }
+      }
+   },
 });
 
 // handle move item
