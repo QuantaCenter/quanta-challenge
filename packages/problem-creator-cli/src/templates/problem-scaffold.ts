@@ -14,11 +14,7 @@ import {
    COVER_SUGGESTED_BG_TO,
    type CoverSpec,
 } from '../domain/cover';
-import {
-   DEFAULT_INIT_COMMAND,
-   type Difficulty,
-   type ProblemType,
-} from '../domain/problem-config';
+import type { Difficulty, ProblemType } from '../domain/problem-config';
 import { readText, walkFiles } from '../utils/fs';
 
 export interface ScaffoldVars {
@@ -134,7 +130,7 @@ const buildContext = (vars: ScaffoldVars): Record<string, string> => {
                  DEFAULT_BACKEND_SERVICE_IMAGE_ID,
                  mountPath,
               )
-            : DEFAULT_INIT_COMMAND.replace(/\sproject$/, ` ${mountPath}`),
+            : `npx -y vite --port 3000 ./${mountPath}`,
    };
 
    if (type === 'backend_service') {

@@ -13,6 +13,11 @@
 - 配置新增可选字段 `snapshotImageId`：`qpc upload` 随请求提交；不写时追加版本沿用平台上当前版本的值，
   `null` 表示明确不用。上传摘要新增「快照镜像」一行。
 
+### Changed
+
+- `qpc init` 生成的前端题启动命令改为 `npx -y vite --port 3000 ./<judgeUploadPath>`（原为 `npx serve -l 3000 <judgeUploadPath>`）。
+  已有题目与配置缺省 `initCommand` 时的默认值不变。
+
 ## [1.1.1] - 2026-10-20
 
 ### Fixed
