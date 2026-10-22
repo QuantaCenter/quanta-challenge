@@ -78,20 +78,3 @@ export const getBackendServiceDefaultPort = (id?: string | null): number =>
 export const BACKEND_SERVICE_CONTAINER_IMAGES = Object.values(
    BACKEND_SERVICE_IMAGES
 ).map((item) => item.image);
-
-/**
- * 自定义镜像（WebContainer 基础镜像）引用：存进 Problems.serviceImage 的值为
- * `custom:<ImageBuild.id>`。自定义镜像只影响在线编辑器（WebContainer）环境，
- * 判题容器仍使用 BACKEND_SERVICE_IMAGES 里的默认 docker 镜像。
- */
-export const CUSTOM_IMAGE_PREFIX = 'custom:';
-
-export const isCustomImageId = (
-   id?: string | null
-): id is `${typeof CUSTOM_IMAGE_PREFIX}${string}` =>
-   typeof id === 'string' &&
-   id.startsWith(CUSTOM_IMAGE_PREFIX) &&
-   id.length > CUSTOM_IMAGE_PREFIX.length;
-
-export const parseCustomImageId = (id: string): string =>
-   id.slice(CUSTOM_IMAGE_PREFIX.length);
