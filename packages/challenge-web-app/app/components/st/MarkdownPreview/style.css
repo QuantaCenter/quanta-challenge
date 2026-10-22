@@ -17,6 +17,7 @@
    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
    line-height: 1.75;
    margin: 0 auto;
+   overflow-wrap: anywhere;
 }
 
 .markdown-body h1 {

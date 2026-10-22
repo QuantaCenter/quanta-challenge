@@ -2,6 +2,7 @@ import z from 'zod';
 import { protectedProcedure } from '../../protected-trpc';
 import prisma from '~~/lib/prisma';
 import { projectService } from '../../services/project';
+import { observer } from '../../services/achievement';
 import { router } from '../../trpc';
 import { TRPCError } from '@trpc/server';
 
@@ -376,6 +377,71 @@ const getCommitStatisticProcedure = protectedProcedure.query(
    },
 );
 
+// 重置用户项目：删除用户 fork 项目的全部虚拟文件，再从模板项目复制一份干净的
+const ResetProjectSchema = z.object({
+   problemId: z.number('Problem ID must be a number'),
+});
+
+const resetProjectProcedure = protectedProcedure
+   .input(ResetProjectSchema)
+   .mutation(async ({ ctx, input }) => {
+      const { userId } = ctx.user;
+
+      await prisma.$transaction(async (tx) => {
+         const userProject = await tx.projects.findFirst({
+            where: {
+               ownerId: userId,
+               problemId: input.problemId,
+               isTemplate: false,
+            },
+            select: { pid: true },
+         });
+         // 没有 fork 过说明还没动过题目，无需重置
+         if (!userProject) {
+            return;
+         }
+         // 锁定项目行：串行化同一项目的并发重置，并保证后到的事务能看到前一个事务提交的插入，避免复制出同路径的重复文件
+         await tx.$queryRaw`SELECT pid FROM projects WHERE pid = ${userProject.pid} FOR UPDATE`;
+         const templateProject = await tx.projects.findFirstOrThrow({
+            where: {
+               problemId: input.problemId,
+               isTemplate: true,
+            },
+            select: { pid: true },
+         });
+
+         await tx.virtualFiles.deleteMany({
+            where: {
+               FileSystem: { projectId: userProject.pid },
+            },
+         });
+         await tx.$executeRaw`
+            INSERT INTO "virtual_files" (vid, path, content, "ownerId", "fileSystemFsid", "createdAt", "updatedAt")
+            SELECT
+               gen_random_uuid() AS vid,
+               path,
+               content,
+               ${userId},
+               (
+                  SELECT fsid FROM "file_systems" WHERE "projectId" = ${userProject.pid}
+               ),
+               NOW(),
+               NOW()
+            FROM "virtual_files"
+            WHERE "fileSystemFsid" = (
+               SELECT fsid FROM "file_systems" WHERE "projectId" = ${templateProject.pid}
+            )
+         `;
+         // 递增版本号，使携带旧版本号的文件同步请求（重置前发出）被服务端拒绝
+         await tx.$executeRaw`
+            UPDATE projects SET revision = revision + 1, "updatedAt" = NOW() WHERE pid = ${userProject.pid}
+         `;
+      });
+      observer.manualMarkDirty(['projects', 'file_systems', 'virtual_files']);
+
+      return { success: true };
+   });
+
 export const problemRouter = router({
    getOrForkProject: getOrForkProjectProcedure,
    getProblemDetail: getProblemDetailProcedure,
@@ -385,4 +451,5 @@ export const problemRouter = router({
    getCommitRecordDetail: getCommitRecordDetailProcedure,
    getCommitStatistic: getCommitStatisticProcedure,
    listCompletedProblemIds: listCompletedProblemIdsProcedure,
+   resetProject: resetProjectProcedure,
 });

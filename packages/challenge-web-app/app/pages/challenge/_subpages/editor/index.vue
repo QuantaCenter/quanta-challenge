@@ -35,9 +35,12 @@ const props = defineProps<{ id: number }>();
 const { $trpc, $authFetch } = useNuxtApp();
 
 // file change sync
+// 加载项目时的版本号；重置会递增服务端 revision，旧版本同步请求会被拒绝
+const projectRevision = ref<number>();
 const fileChangeSync = useFileChangeSync({
    problemId: props.id,
    ignorePatterns: IGNORE_FILE_PATTERNS,
+   getRevision: () => projectRevision.value,
 });
 
 // 监听文件移动/重命名事件
@@ -84,6 +87,7 @@ const getProject = async () => {
    const result = await $trpc.protected.problem.getOrForkProject.query({
       problemId: props.id,
    });
+   projectRevision.value = result.revision;
    pathContentMap.value = {};
    result.FileSystem[0]!.files.forEach((file) => {
       // 历史数据里 file.path 可能是相对路径，也可能已经带 /project 前缀。
@@ -700,6 +704,29 @@ usePreventLeave({
       // 离开页面前强制同步
       fileChangeSync.forceSync();
    },
+});
+
+// 设置菜单的「重置题目」：冲刷挂起的文件同步后重置服务端项目，再整页重载重建容器
+const { event: resetProjectEvent } = useEventEmitter<{ at: number }>(
+   'challenge-settings',
+   'reset-project',
+);
+watch(resetProjectEvent, async (val) => {
+   if (!val) return;
+   try {
+      await fileChangeSync.forceSync();
+      // forceSync 只处理排队中的变更，还需等待在途请求写完，避免旧内容覆盖重置结果
+      while (fileChangeSync.isSyncing.value) {
+         await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      await $trpc.protected.problem.resetProject.mutate({
+         problemId: props.id,
+      });
+   } catch (error) {
+      console.error('[challenge] 重置题目失败:', error);
+   } finally {
+      window.location.reload();
+   }
 });
 
 // steps

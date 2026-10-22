@@ -2,9 +2,7 @@
 import {
    AlignTextLeftOne,
    History,
-   LayoutFour,
    Return,
-   SettingOne,
    UploadWeb,
 } from '@icon-park/vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
@@ -16,9 +14,6 @@ const store = useEditorStore();
 const toggleDetailWindow = () => {
    store.detailWindowOpened = !store.detailWindowOpened;
 };
-
-/** 侧边栏「布局」菜单的开关 */
-const layoutMenuOpened = ref(false);
 
 /**
  * 提交事件。
@@ -156,11 +151,7 @@ const avatarUrl = computed(() => {
                      v-if="store.cloudFunctionEnabled"
                      :toolbar="true" />
 
-                  <StMiniSidebarButton
-                     name="布局"
-                     @click="layoutMenuOpened = true">
-                     <LayoutFour class="text-[1.1rem]" />
-                  </StMiniSidebarButton>
+                  <ChallengeLayoutMenu />
                </StSpace>
             </template>
 
@@ -173,15 +164,8 @@ const avatarUrl = computed(() => {
                align="center"
                gap="0.5rem"
                class="mb-1">
-               <!-- 设置按钮暂无实际功能，先隐藏 -->
-               <StSidebarSidePopper v-if="false" content="设置">
-                  <StRippleEffect>
-                     <button
-                        class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
-                        <SettingOne class="text-[1.1rem]" />
-                     </button>
-                  </StRippleEffect>
-               </StSidebarSidePopper>
+               <ChallengeSettingsMenu
+                  :problem-id="mode === 'problem' ? id : undefined" />
 
                <StAvatar size="2.25rem" :url="avatarUrl" />
             </StSpace>
@@ -194,9 +178,6 @@ const avatarUrl = computed(() => {
 
          <!-- 对话框覆盖层 -->
          <DialogOverlay />
-
-         <!-- 布局设置（面板比例 / 锁定 / 恢复默认） -->
-         <ChallengeLayoutMenu v-model:opened="layoutMenuOpened" />
       </div>
    </StMessageProvider>
 </template>

@@ -74,6 +74,7 @@ const zoomOut = () => {
          </StSpace>
       </template>
       <StSpace
+         direction="vertical"
          class="size-full overflow-auto p-4 hide-scrollbar transition-all"
          :style="{
             fontSize: `${fontSize}px`,

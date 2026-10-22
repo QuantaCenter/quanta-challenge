@@ -52,7 +52,7 @@ const isActive = defineModel<boolean>('isActive', {
                v-show="isActive"
                direction="vertical"
                gap="0"
-               class="relative left-0 top-0 bg-[#1C1C1C] rounded-xl z-[9999] border border-accent-500 text-white shadow-lg shadow-background pointer-events-auto transition-colors"
+               class="relative left-0 top-0 bg-[#1C1C1C] rounded-xl z-[9999] border border-accent-500 text-white shadow-lg shadow-background pointer-events-auto transition-colors overflow-hidden"
                :style="{
                   transform: containerTranslate,
                   width: `${width}px`,
@@ -66,7 +66,7 @@ const isActive = defineModel<boolean>('isActive', {
                <slot></slot>
                <div
                   ref="resizableHandle"
-                  class="cursor-se-resize absolute right-0 bottom-0 border-r-2 border-b-2 border-accent-500 hover:border-secondary size-4 hover:size-5 rounded-br-xl hover:border-r-4 hover:border-b-4 hover:translate-0.5 transition-all"></div>
+                  class="cursor-se-resize absolute right-0 bottom-0 border-r-2 border-b-2 border-secondary size-4 hover:size-5 rounded-br-xl hover:border-r-4 hover:border-b-4 hover:translate-0.5 transition-all"></div>
             </StSpace>
          </Transition>
       </StSpace>

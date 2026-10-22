@@ -453,6 +453,8 @@ model Projects {
   name       String
   ownerId    String
   problemId  Int
+  // 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端校验以拒绝重置前发出的旧请求
+  revision   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
