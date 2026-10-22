@@ -560,6 +560,29 @@ usePreventLeave({
    },
 });
 
+// 设置菜单的「重置题目」：冲刷挂起的文件同步后重置服务端项目，再整页重载重建容器
+const { event: resetProjectEvent } = useEventEmitter<{ at: number }>(
+   'challenge-settings',
+   'reset-project',
+);
+watch(resetProjectEvent, async (val) => {
+   if (!val) return;
+   try {
+      await fileChangeSync.forceSync();
+      // forceSync 只处理排队中的变更，还需等待在途请求写完，避免旧内容覆盖重置结果
+      while (fileChangeSync.isSyncing.value) {
+         await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      await $trpc.protected.problem.resetProject.mutate({
+         problemId: props.id,
+      });
+   } catch (error) {
+      console.error('[challenge] 重置题目失败:', error);
+   } finally {
+      window.location.reload();
+   }
+});
+
 // steps
 const steps = [
    { idle: '启动开发容器', running: '正在启动开发容器...' },
