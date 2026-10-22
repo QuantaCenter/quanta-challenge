@@ -13,6 +13,10 @@ const GetAllPublicProblemsSchema = z.object({
    tids: z.array(z.number('Tag ID must be a number')).optional(),
    difficulty: z.enum(['easy', 'medium', 'hard', 'very_hard']).optional(),
    keyword: z.string().optional(),
+   // 只显示未完成：由前端带上当前用户已完成（judge 通过）的题目 pid 列表
+   excludePids: z.array(z.number('Problem ID must be a number')).optional(),
+   // 只显示本周任务：任务日期范围与本周（周一 00:00 ~ 下周一 00:00）有交集的题目
+   currentWeekOnly: z.boolean().optional(),
    cursor: z.number('Cursor must be a number').int().nullish(),
    limit: z
       .number('Limit must be a number')
@@ -36,6 +40,26 @@ const getAllPublicProblems = publicProcedure
       const keywordFilter = input.keyword
          ? { title: { contains: input.keyword, mode: 'insensitive' as const } }
          : {};
+      const excludePidsFilter =
+         input.excludePids && input.excludePids.length > 0
+            ? { pid: { notIn: input.excludePids } }
+            : {};
+      let currentWeekFilter = {};
+      if (input.currentWeekOnly) {
+         const now = new Date();
+         const weekStart = new Date(now);
+         // 周一 00:00 为一周起点（getDay 周日为 0）
+         const day = (now.getDay() + 6) % 7;
+         weekStart.setDate(now.getDate() - day);
+         weekStart.setHours(0, 0, 0, 0);
+         const weekEnd = new Date(weekStart);
+         weekEnd.setDate(weekStart.getDate() + 7);
+         // 区间相交：taskStartAt < weekEnd && taskEndAt > weekStart
+         currentWeekFilter = {
+            taskStartAt: { lt: weekEnd },
+            taskEndAt: { gt: weekStart },
+         };
+      }
       const problems = await prisma.baseProblems.findMany({
          where: {
             CurrentProblem: {
@@ -43,6 +67,8 @@ const getAllPublicProblems = publicProcedure
                ...tagFilter,
                ...difficultyFilter,
                ...keywordFilter,
+               ...excludePidsFilter,
+               ...currentWeekFilter,
             },
          },
          // 多取一条用于判断是否还有下一页
