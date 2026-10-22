@@ -221,7 +221,7 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       }
 
       const instance = await getInstance();
-      // 注意：args 必须走 spawn 的第二参数重载；塞进 options 的 { args } 会被运行时静默丢弃
+      // args 须作为第二个参数传入，放进 options 会被忽略
       return await instance.spawn(
          command,
          args,
