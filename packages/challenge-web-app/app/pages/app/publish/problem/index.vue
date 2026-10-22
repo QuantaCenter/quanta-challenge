@@ -4,7 +4,10 @@ import UploadProject from './_components/UploadProject.vue';
 import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
-import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';
+import {
+   isCustomImageId,
+   normalizeBackendServiceImageId,
+} from '@challenge/shared/backend-service-image';
 import type { StForm } from '#components';
 import {
    useProblemPublicationForm,
@@ -48,6 +51,35 @@ const enableCloudFunction = computed<boolean>({
       draft.value.enableCloudFunction = value;
    },
 });
+
+interface ImageBuildItem {
+   id: string;
+   name: string;
+   status: string;
+}
+const customImageBuilds = ref<ImageBuildItem[]>([]);
+const imageListLoading = ref(false);
+const refreshCustomImages = async () => {
+   imageListLoading.value = true;
+   try {
+      customImageBuilds.value = await $trpc.admin.imageBuild.list.query();
+   } catch (error) {
+      console.error('[publish] 获取自定义镜像列表失败:', error);
+   } finally {
+      imageListLoading.value = false;
+   }
+};
+onMounted(() => refreshCustomImages());
+
+const allServiceImageOptions = computed(() => [
+   ...serviceImageOptions,
+   ...customImageBuilds.value
+      .filter((item) => item.status === 'ready')
+      .map((item) => ({
+         label: `${item.name}（自定义镜像）`,
+         value: `custom:${item.id}`,
+      })),
+]);
 
 const problemType = computed<'frontend' | 'backend_service'>({
    get: () => draft.value.problemType ?? 'frontend',
@@ -241,7 +273,9 @@ const handleSubmit = async () => {
          problemType: draft.value.problemType,
          serviceImage:
             draft.value.problemType === 'backend_service'
-               ? normalizeBackendServiceImageId(draft.value.serviceImage)
+               ? isCustomImageId(draft.value.serviceImage)
+                  ? draft.value.serviceImage
+                  : normalizeBackendServiceImageId(draft.value.serviceImage)
                : undefined,
          servicePort: draft.value.servicePort,
       });
@@ -337,12 +371,25 @@ const handleSubmit = async () => {
                </StFormItem>
                <template v-if="problemType === 'backend_service'">
                   <StFormItem name="serviceImage" label="初始镜像" required>
-                     <StSelect
-                        v-model:value="draft.serviceImage"
-                        placeholder="请选择初始镜像"
-                        attach-to-body
-                        :outer-class
-                        :options="serviceImageOptions" />
+                     <StSpace direction="vertical" gap="0.5rem" fill-x>
+                        <StSelect
+                           v-model:value="draft.serviceImage"
+                           placeholder="请选择初始镜像"
+                           attach-to-body
+                           :outer-class
+                           :options="allServiceImageOptions" />
+                        <StSpace gap="1rem" align="center">
+                           <StTextButton
+                              :text="imageListLoading ? '刷新中…' : '刷新镜像列表'"
+                              @click="refreshCustomImages" />
+                           <NuxtLink
+                              to="/app/publish/image"
+                              target="_blank"
+                              class="st-font-caption text-primary hover:underline">
+                              创建镜像 ↗
+                           </NuxtLink>
+                        </StSpace>
+                     </StSpace>
                   </StFormItem>
                   <StFormItem name="servicePort" label="服务端口" required>
                      <StInput
