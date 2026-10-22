@@ -37,9 +37,7 @@ export default defineNuxtConfig({
          format: 'es',
       },
       optimizeDeps: {
-         // 这里刻意 **不再** 排除 monaco-editor。 原先 exclude: ['monaco-editor'] 会让 Vite 不预打包 Monaco，改为按需处理 海量 ESM 文件，于是编辑器相关依赖会在**运行中**被逐个发现并触发 "new dependencies optimized → optimized dependencies changed. reloading"。 每次重载都会让浏览器整页刷新、切断 HMR WebSocket，进而抛出 read ECONNRESET / write ECONNABORTED；Nitro 的 unhandledRejection 报告器 随后终止 dev server——这就是"一打开做题页服务就崩"的完整因果链。 因此把编辑器与答题页会用到、且历史上反复触发重优化的依赖**全部预先声明**， 让 Vite 在启动时一次性打包完（可缓存），运行期间不再重优化、不再整页重载。
          include: [
-            // 编辑器 / 语言服务（体积最大、最容易触发重优化）
             'monaco-editor',
             'monaco-editor/esm/vs/editor/editor.worker',
             'monaco-editor/esm/vs/language/typescript/ts.worker',
@@ -53,7 +51,6 @@ export default defineNuxtConfig({
             'vscode-uri',
             'vscode-html-languageservice',
             'typescript',
-            // 答题页其它依赖
             '@webcontainer/api',
             'xterm',
             'xterm-addon-fit',
@@ -62,11 +59,9 @@ export default defineNuxtConfig({
             'color',
             'shiki',
             '@shikijs/monaco',
-            // 通用依赖（日志中同样出现过运行中重优化）
             'dayjs',
             'dayjs/plugin/duration',
             'dayjs/plugin/relativeTime',
-            // 服务端每日一题的时区计算用到，避免运行时再触发一次预构建
             'dayjs/plugin/utc',
             'dayjs/plugin/timezone',
             'dayjs/locale/zh-cn',
@@ -197,6 +192,7 @@ export default defineNuxtConfig({
       // 不输出 <link rel="prefetch">：HTTP/2 下浏览器会把几十个其他页面的 chunk 与首屏 modulepreload 同时发出，在出口带宽受限时直接挤占关键 JS 的带宽。路由跳转时 Vite 的 __vitePreload 仍会并行预加载目标页依赖。
       'build:manifest': (manifest) => {
          for (const key in manifest) {
+            if (!manifest[key]) continue;
             manifest[key].prefetch = false;
          }
       },
