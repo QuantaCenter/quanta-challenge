@@ -24,6 +24,7 @@ import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
 import { useEditorShortcuts } from './_composables/use-editor-shortcuts';
 import { useMessage } from '~/components/st/Message/use-message';
+import { isCustomImageId } from '@challenge/shared/backend-service-image';
 
 const props = defineProps<{ id: number }>();
 
@@ -265,6 +266,51 @@ watch(unsupportedReason, (reason) => {
    if (reason) editorStore.initFailureReason = reason;
 });
 
+/**
+ * 题目绑定了自定义基础镜像（serviceImage = custom:<ImageBuild.id>）时，
+ * 在 bootCommand 之前拉取镜像二进制并挂载到工作区根。
+ * 镜像通常预装了依赖与工具链，后续 bootCommand 可直接使用。
+ */
+const loadCustomImage = async (): Promise<{ compression: string } | null> => {
+   const serviceImage = problem.value?.serviceImage;
+   if (!serviceImage || !isCustomImageId(serviceImage)) return null;
+
+   const build = await $trpc.protected.imageBuild.get.query({
+      id: serviceImage,
+   });
+   if (build.status !== 'ready' || !build.fileName) {
+      throw new Error(
+         `题目绑定的基础镜像「${build.name}」尚未构建完成，请联系发布者`,
+      );
+   }
+
+   await terminal.value?.writeTerminal(
+      `[image] 正在拉取基础镜像「${build.name}」…\n`,
+   );
+   const response = await fetch(`/api/static/image-builds/${build.fileName}`);
+   if (!response.ok) {
+      throw new Error(`基础镜像下载失败（HTTP ${response.status}）`);
+   }
+   // 服务端存储的是 br/gzip 压缩产物并带 Content-Encoding 头，
+   // 浏览器网络栈透明解压，这里拿到的直接就是原始 snapshot
+   const bytes = new Uint8Array(await response.arrayBuffer());
+
+   const instance = await getInstance();
+   // mount 会转移（detach）传入的 buffer，因此这里传引用后不要再复用 bytes
+   await instance.mount(bytes);
+   // snapshot 不保留执行权限，修复 node_modules/.bin
+   const fix = await runCommand([
+      'sh',
+      '-c',
+      'chmod +x node_modules/.bin/* 2>/dev/null; true',
+   ]);
+   await fix.exit;
+   await terminal.value?.writeTerminal(
+      `[image] 基础镜像已就绪（${(bytes.byteLength / 1024 / 1024).toFixed(1)} MB）\n`,
+   );
+   return { compression: build.compression };
+};
+
 const runProject = async () => {
    // 标记启动流程已开始，便于区分"进行中"与"从未触发"
    editorStore.initStarted = true;
@@ -299,10 +345,21 @@ const runProject = async () => {
    editorStore.hasProjectInitialized = false;
    currentStep.value = 1;
 
+   // 自定义基础镜像：先拉取挂载，bootCommand 可直接使用镜像里预装的依赖
+   const customImage = await loadCustomImage();
+   const imageEnv = customImage
+      ? {
+           PATH: await (async () => {
+              const instance = await getInstance();
+              return `${instance.workdir}/node_modules/.bin:${instance.path}`;
+           })(),
+        }
+      : undefined;
+
    if (problem.value?.bootCommand) {
       const bootCommands = handleCommands(problem.value.bootCommand);
       for (const { command, title } of bootCommands) {
-         const process = await runCommand(command);
+         const process = await runCommand(command, { env: imageEnv });
          await terminal.value!.attachProcess({
             process: process,
             id: terminalId,
@@ -318,7 +375,7 @@ const runProject = async () => {
    // run shell command (init commands)
    currentStep.value = 2;
    if (problem.value?.initCommand) {
-      const shell = await runCommand('sh');
+      const shell = await runCommand('sh', { env: imageEnv });
       const initCommands = handleCommands(problem.value.initCommand).slice(
          0,
          1,
