@@ -7,6 +7,7 @@ import {
 import DataItem from './_components/DataItem.vue';
 import FixedButton from './_components/FixedButton.vue';
 import dayjs from 'dayjs';
+import { useMessage } from '~/components/st/Message/use-message';
 import { NotPassed, Published, Unpublished } from './_components/PublishStatus';
 import VersionPreviewDrawer from './_drawers/VersionPreviewDrawer.vue';
 import SidePopper from './_components/SidePopper.vue';
@@ -16,6 +17,7 @@ import {
    HamburgerButton,
    Lock,
    Return,
+   Time,
    Unlock,
 } from '@icon-park/vue-next';
 
@@ -28,6 +30,7 @@ if (!id) {
 useSeoMeta({ title: computed(() => `发布详情 #${id} - Quanta Challenge`) });
 
 const { $trpc } = useNuxtApp();
+const message = useMessage();
 type DataType = Awaited<
    ReturnType<typeof $trpc.admin.problem.getAuditDetail.query>
 >;
@@ -170,6 +173,65 @@ const showSwitchButton = computed(() => {
    return status === 'published' || status === 'ready';
 });
 
+// 定时发布：仅审核通过且未发布的当前版本可设置
+const scheduleModalOpened = ref(false);
+const scheduledPublishAtInput = ref('');
+const onSchedulePublish = ref(false);
+const showScheduleButton = computed(() => {
+   return showSwitchButton.value && detail.value?.status === 'ready';
+});
+const scheduledPublishText = computed(() => {
+   const at = detail.value?.scheduledPublishAt;
+   if (!at) return '';
+   return dayjs(at).format('YYYY-MM-DD HH:mm');
+});
+
+const openScheduleModal = () => {
+   scheduledPublishAtInput.value = detail.value?.scheduledPublishAt
+      ? dayjs(detail.value.scheduledPublishAt).format('YYYY-MM-DDTHH:mm')
+      : '';
+   scheduleModalOpened.value = true;
+};
+
+const handleSchedulePublish = async () => {
+   if (!scheduledPublishAtInput.value) return;
+   onSchedulePublish.value = true;
+   try {
+      const result = $trpc.admin.problem.schedulePublish.mutate({
+         problemId: Number(id),
+         scheduledPublishAt: new Date(scheduledPublishAtInput.value),
+      });
+      await atLeastTime(500, result);
+      scheduleModalOpened.value = false;
+      await fetchPublishDetails();
+   } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      message.error('定时发布设置失败', errorMsg);
+      console.error(e);
+   } finally {
+      onSchedulePublish.value = false;
+   }
+};
+
+const handleCancelSchedule = async () => {
+   onSchedulePublish.value = true;
+   try {
+      const result = $trpc.admin.problem.schedulePublish.mutate({
+         problemId: Number(id),
+         scheduledPublishAt: null,
+      });
+      await atLeastTime(500, result);
+      scheduleModalOpened.value = false;
+      await fetchPublishDetails();
+   } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      message.error('取消定时失败', errorMsg);
+      console.error(e);
+   } finally {
+      onSchedulePublish.value = false;
+   }
+};
+
 const handleEdit = () => {
    navigateTo(`/app/publish/problem?fromId=${id}`);
 };
@@ -202,6 +264,13 @@ const handlerViewVersion = () => {
                   @click="handleSetCurrentProblem"
                   :loading="onSetCurrentProblem"
                   :icon="Flag" />
+            </SidePopper>
+            <SidePopper
+               v-if="showScheduleButton"
+               :content="scheduledPublishText ? '定时发布（已设置）' : '定时发布'">
+               <FixedButton
+                  @click="openScheduleModal"
+                  :icon="Time" />
             </SidePopper>
             <SidePopper
                v-if="showSwitchButton"
@@ -264,6 +333,36 @@ const handlerViewVersion = () => {
                </SidePopper>
             </StSpace>
          </StSpace>
+         <StModal v-model:opened="scheduleModalOpened">
+            <StSpace
+               direction="vertical"
+               gap="1.25rem"
+               class="bg-accent-600 rounded-xl p-6 min-w-[380px] max-w-[460px] border border-accent-500 text-white">
+               <h2 class="text-xl font-semibold text-accent-50">定时发布</h2>
+               <span class="text-accent-100 text-sm">
+                  到达设定时间后题目将自动发布；立即发布会清除定时。
+               </span>
+               <input
+                  type="datetime-local"
+                  v-model="scheduledPublishAtInput"
+                  class="border !py-4 !px-4 !rounded-[0.5rem] w-full bg-transparent border-accent-300 focus-within:!border-primary outline-none" />
+               <StSpace gap="0.5rem" fill-x>
+                  <button
+                     v-if="scheduledPublishText"
+                     class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer"
+                     :disabled="onSchedulePublish"
+                     @click="handleCancelSchedule">
+                     取消定时
+                  </button>
+                  <button
+                     class="flex-1 rounded-md bg-primary text-black py-2 cursor-pointer disabled:opacity-40"
+                     :disabled="onSchedulePublish || !scheduledPublishAtInput"
+                     @click="handleSchedulePublish">
+                     确认定时
+                  </button>
+               </StSpace>
+            </StSpace>
+         </StModal>
          <StSpace
             direction="vertical"
             gap="2rem"
@@ -338,6 +437,40 @@ const handlerViewVersion = () => {
                         <StSkeletonItem class="w-32 h-6" />
                      </template>
                      <AuditStatus />
+                  </StSkeleton>
+               </DataItem>
+            </StSpace>
+            <!-- Raw 2.5 -->
+            <StSpace
+               v-if="scheduledPublishText || detail?.taskStartAt"
+               fill-x
+               justify="between">
+               <DataItem v-if="scheduledPublishText" title="定时发布">
+                  <StSkeleton :loading="!detail">
+                     <template #loading>
+                        <StSkeletonItem class="w-32 h-6" />
+                     </template>
+                     <span class="font-family-manrope text-secondary">
+                        {{ scheduledPublishText }} 自动发布
+                     </span>
+                  </StSkeleton>
+               </DataItem>
+               <DataItem v-if="detail?.taskStartAt" title="任务日期">
+                  <StSkeleton :loading="!detail">
+                     <template #loading>
+                        <StSkeletonItem class="w-32 h-6" />
+                     </template>
+                     <span class="font-family-manrope">
+                        {{
+                           dayjs(detail.taskStartAt).format('YYYY-MM-DD')
+                        }}
+                        ~
+                        {{
+                           detail.taskEndAt
+                              ? dayjs(detail.taskEndAt).format('YYYY-MM-DD')
+                              : '未设置'
+                        }}
+                     </span>
                   </StSkeleton>
                </DataItem>
             </StSpace>

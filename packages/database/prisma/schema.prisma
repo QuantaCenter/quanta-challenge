@@ -234,6 +234,9 @@ model Problems {
   servicePort     Int        @default(3000)
   // 做题页挂载的快照镜像，不参与判题
   snapshotImageId String?
+  taskStartAt        DateTime?
+  taskEndAt          DateTime?
+  scheduledPublishAt DateTime?
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]

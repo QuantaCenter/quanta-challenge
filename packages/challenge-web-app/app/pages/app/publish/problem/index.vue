@@ -14,6 +14,7 @@ import {
 import { UploadTwo } from '@icon-park/vue-next';
 import { normalizePath, joinPath } from '~/utils/path-utils';
 import { useMessage } from '~/components/st/Message/use-message';
+import dayjs from 'dayjs';
 
 useSeoMeta({ title: '发布题目 - Quanta Challenge' });
 
@@ -181,6 +182,9 @@ const auditReasons = computed<AuditReason[]>(() => {
 const needsAudit = computed(
    () => !fromId || !baseline.value || auditReasons.value.length > 0,
 );
+const isPublishedBaseline = computed(
+   () => !!fromId && baseline.value?.status === 'published',
+);
 
 const imageName = ref('');
 const imageUrl = computed(() => {
@@ -217,6 +221,15 @@ const fetchProblemDetail = async () => {
       draft.value.serviceImage = problem.serviceImage ?? '';
       draft.value.servicePort = problem.servicePort ?? 3000;
       draft.value.snapshotImageId = problem.snapshotImageId ?? '';
+      draft.value.taskStartAt = problem.taskStartAt
+         ? dayjs(problem.taskStartAt).format('YYYY-MM-DD')
+         : '';
+      draft.value.taskEndAt = problem.taskEndAt
+         ? dayjs(problem.taskEndAt).format('YYYY-MM-DD')
+         : '';
+      draft.value.scheduledPublishAt = problem.scheduledPublishAt
+         ? dayjs(problem.scheduledPublishAt).format('YYYY-MM-DDTHH:mm')
+         : '';
       applyProblemTypeConstraints(draft.value.problemType);
 
       const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
@@ -296,6 +309,9 @@ const handleSubmit = async () => {
                : undefined,
          servicePort: draft.value.servicePort,
          snapshotImageId: draft.value.snapshotImageId || null,
+         taskStartAt: draft.value.taskStartAt || undefined,
+         taskEndAt: draft.value.taskEndAt || undefined,
+         scheduledPublishAt: draft.value.scheduledPublishAt || undefined,
       });
    };
    submitLoading.value = true;
@@ -525,6 +541,35 @@ const handleSubmit = async () => {
                   <StInput
                      v-model:value="draft.judgeUploadPath"
                      placeholder="请输入打包上传路径"
+                     :outer-class />
+               </StFormItem>
+               <StFormItem name="taskStartAt" label="任务开始日期">
+                  <StDatePicker
+                     v-model:value="draft.taskStartAt"
+                     placeholder="任务日期范围起点（可选）"
+                     :outer-class />
+               </StFormItem>
+               <StFormItem
+                  name="taskEndAt"
+                  label="任务结束日期"
+                  error-message="结束日期不能早于开始日期">
+                  <StDatePicker
+                     v-model:value="draft.taskEndAt"
+                     placeholder="任务日期范围终点（可选）"
+                     :outer-class />
+               </StFormItem>
+               <StFormItem
+                  name="scheduledPublishAt"
+                  :label="
+                     isPublishedBaseline
+                        ? '定时发布时间（已发布题目不适用）'
+                        : '定时发布时间'
+                  "
+                  error-message="定时发布时间必须晚于当前时间">
+                  <StInput
+                     type="datetime-local"
+                     v-model:value="draft.scheduledPublishAt"
+                     placeholder="到点自动发布，留空则手动发布"
                      :outer-class />
                </StFormItem>
             </StSpace>
