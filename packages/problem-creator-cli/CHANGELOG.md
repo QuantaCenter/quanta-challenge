@@ -3,7 +3,7 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
-## [Unreleased]
+## [1.2.0] - 2026-10-22
 
 ### Added
 
