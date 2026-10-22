@@ -11,7 +11,6 @@ import {
    Round,
    WholeSiteAccelerator,
 } from '@icon-park/vue-next';
-import { useViewTransition } from '~/composables/use-view-transition';
 import {
    type IPreviewServer,
    resolvePreviewUrl,
@@ -74,16 +73,71 @@ const onAddressEscape = (event: KeyboardEvent) => {
 };
 
 const fullScreenMode = ref(false);
-const { startViewTransition } = useViewTransition({ delay: 150 });
+
+/** 全屏层的目标位置：四周留 2rem */
+const FULLSCREEN_TARGET = {
+   left: '2rem',
+   top: '2rem',
+   width: 'calc(100vw - 4rem)',
+   height: 'calc(100vh - 4rem)',
+};
+const FULLSCREEN_TRANSITION = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+
+/** 全屏层的定位样式：初始钉在容器内 iframe 的位置，再过渡到全屏 */
+const fullscreenStyle = ref<Record<string, string>>({});
+
+const inlineFrameRef = useTemplateRef<HTMLElement>('inline-frame');
+
+const rectToStyle = (rect: DOMRect) => ({
+   left: `${rect.left}px`,
+   top: `${rect.top}px`,
+   width: `${rect.width}px`,
+   height: `${rect.height}px`,
+});
+
+let leaveTimer: ReturnType<typeof setTimeout> | undefined;
+
 const enterFullScreenMode = () => {
-   startViewTransition(() => {
-      fullScreenMode.value = true;
+   if (fullScreenMode.value) return;
+   clearTimeout(leaveTimer);
+   const rect = inlineFrameRef.value?.getBoundingClientRect();
+   fullScreenMode.value = true;
+   fullscreenStyle.value = {
+      ...(rect ? rectToStyle(rect) : FULLSCREEN_TARGET),
+      opacity: '1',
+      pointerEvents: 'none',
+      transition: 'none',
+   };
+   nextTick(() => {
+      requestAnimationFrame(() => {
+         requestAnimationFrame(() => {
+            fullscreenStyle.value = {
+               ...FULLSCREEN_TARGET,
+               opacity: '1',
+               pointerEvents: 'auto',
+               transition: FULLSCREEN_TRANSITION,
+            };
+         });
+      });
    });
 };
+
 const leaveFullScreenMode = () => {
-   startViewTransition(() => {
+   if (!fullScreenMode.value) return;
+   const rect = inlineFrameRef.value?.getBoundingClientRect();
+   if (!rect) {
       fullScreenMode.value = false;
-   });
+      return;
+   }
+   fullscreenStyle.value = {
+      ...rectToStyle(rect),
+      opacity: '1',
+      pointerEvents: 'none',
+      transition: FULLSCREEN_TRANSITION,
+   };
+   leaveTimer = setTimeout(() => {
+      fullScreenMode.value = false;
+   }, 320);
 };
 
 const refreshKey = ref(0);
@@ -227,27 +281,26 @@ defineExpose({ refresh });
                </StSpace>
             </StSpace>
          </StSpace>
-         <Teleport v-else :disabled="!fullScreenMode" to="body">
-            <div
-               ref="previewContainer"
-               style="view-transition-name: previewContainer"
-               :class="{
-                  'size-full ': !fullScreenMode,
-                  'absolute w-[calc(100vw-4rem)] h-[calc(100vh-4rem)] left-8 top-8 rounded-xl overflow-hidden z-[10000] border border-accent-500 bg-[#1F1F1F]':
-                     fullScreenMode,
-               }">
-               <StSpace
-                  v-if="fullScreenMode"
-                  @click="leaveFullScreenMode"
-                  center
-                  no-shrink
-                  class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
-                  <OffScreen />
-               </StSpace>
-               <iframe :src="iframeSrc" class="size-full"></iframe>
-            </div>
-         </Teleport>
+         <div v-else ref="inline-frame" class="size-full">
+            <iframe :src="iframeSrc" class="size-full"></iframe>
+         </div>
       </StSpace>
+      <Teleport to="body">
+         <!-- 常驻挂载预加载：iframe 提前加载预览页，进入全屏时内容已就绪，不会黑屏 -->
+         <div
+            v-show="fullScreenMode"
+            class="fixed z-[10000] rounded-xl overflow-hidden border border-accent-500 bg-[#1F1F1F]"
+            :style="fullscreenStyle">
+            <StSpace
+               @click="leaveFullScreenMode"
+               center
+               no-shrink
+               class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
+               <OffScreen />
+            </StSpace>
+            <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full"></iframe>
+         </div>
+      </Teleport>
    </StSpace>
 </template>
 
