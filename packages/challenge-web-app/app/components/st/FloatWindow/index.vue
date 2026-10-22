@@ -52,7 +52,7 @@ const isActive = defineModel<boolean>('isActive', {
                v-show="isActive"
                direction="vertical"
                gap="0"
-               class="relative left-0 top-0 bg-[#1C1C1C] rounded-xl z-[9999] border border-accent-500 text-white shadow-lg shadow-background pointer-events-auto transition-colors overflow-hidden"
+               class="relative left-0 top-0 bg-[#1C1C1C] rounded-xl z-[9999] border border-accent-500 text-white shadow-lg shadow-background pointer-events-auto transition-colors"
                :style="{
                   transform: containerTranslate,
                   width: `${width}px`,
