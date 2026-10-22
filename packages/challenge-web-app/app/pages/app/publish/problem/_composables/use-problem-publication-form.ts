@@ -5,7 +5,6 @@ import {
    buildBackendInitCommand,
    DEFAULT_BACKEND_SERVICE_IMAGE_ID,
    getBackendServiceDefaultPort,
-   isCustomImageId,
    normalizeBackendServiceImageId,
 } from '@challenge/shared/backend-service-image';
 import type { ISelectOption } from '~/components/st/Select/type';
@@ -72,6 +71,8 @@ export const useProblemPublicationForm = (storageName: string) => {
       servicePort: getBackendServiceDefaultPort(
          DEFAULT_BACKEND_SERVICE_IMAGE_ID
       ) as number,
+      /** 快照镜像 id，空串表示不使用 */
+      snapshotImageId: '',
    });
    const draft = useDebounce(formdata, 200);
 
@@ -95,8 +96,6 @@ export const useProblemPublicationForm = (storageName: string) => {
    let lastAutoInitCommand = '';
    const syncBackendServiceCommands = () => {
       if (draft.value.problemType !== 'backend_service') return;
-      // 自定义镜像（custom:<id>）不参与命令收敛：bootCommand / initCommand 由发布者自己编写
-      if (isCustomImageId(draft.value.serviceImage)) return;
       const imageId = normalizeBackendServiceImageId(draft.value.serviceImage);
       if (draft.value.serviceImage !== imageId) {
          draft.value.serviceImage = imageId;
@@ -243,11 +242,9 @@ export const useProblemPublicationForm = (storageName: string) => {
          field: 'serviceImage',
          required: draft.value.problemType === 'backend_service',
          validator(value) {
-            if (draft.value.problemType !== 'backend_service') return true;
-            // 内置镜像取值自注册表；自定义镜像为 custom:<ImageBuild.id>
             return (
-               serviceImageOptions.some((option) => option.value === value) ||
-               isCustomImageId(value)
+               draft.value.problemType !== 'backend_service' ||
+               serviceImageOptions.some((option) => option.value === value)
             );
          },
       },

@@ -136,7 +136,7 @@ export default defineNuxtConfig({
             },
          },
       },
-      // 镜像构建页也要 boot WebContainer，同样依赖跨源隔离
+      // 快照镜像构建页同样需要跨源隔离
       '/app/publish/image': {
          security: {
             headers: {
@@ -153,10 +153,12 @@ export default defineNuxtConfig({
             },
          },
       },
-      // 基础镜像二进制上传（几十 MB），放宽 nuxt-security 的请求体限制
+      // 与 IMAGE_BUILD_MAX_COMPRESSED_BYTES 一致；octet-stream 请求体受 maxRequestSizeInBytes 限制
       '/api/image-builds/upload': {
          security: {
-            requestSizeLimit: 160 * 1024 * 1024,
+            requestSizeLimiter: {
+               maxRequestSizeInBytes: 160 * 1024 * 1024,
+            },
          },
       },
       '/_nuxt/**': {

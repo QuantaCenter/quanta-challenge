@@ -4,10 +4,7 @@ import UploadProject from './_components/UploadProject.vue';
 import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
-import {
-   isCustomImageId,
-   normalizeBackendServiceImageId,
-} from '@challenge/shared/backend-service-image';
+import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';
 import type { StForm } from '#components';
 import {
    useProblemPublicationForm,
@@ -52,34 +49,53 @@ const enableCloudFunction = computed<boolean>({
    },
 });
 
-interface ImageBuildItem {
+interface SnapshotImageItem {
    id: string;
    name: string;
+   description: string;
    status: string;
 }
-const customImageBuilds = ref<ImageBuildItem[]>([]);
-const imageListLoading = ref(false);
-const refreshCustomImages = async () => {
-   imageListLoading.value = true;
+const snapshotImages = ref<SnapshotImageItem[]>([]);
+const snapshotListLoading = ref(false);
+const refreshSnapshotImages = async () => {
+   snapshotListLoading.value = true;
    try {
-      customImageBuilds.value = await $trpc.admin.imageBuild.list.query();
+      snapshotImages.value = await $trpc.admin.imageBuild.list.query();
    } catch (error) {
-      console.error('[publish] 获取自定义镜像列表失败:', error);
+      console.error('[publish] 获取快照镜像列表失败:', error);
    } finally {
-      imageListLoading.value = false;
+      snapshotListLoading.value = false;
    }
 };
-onMounted(() => refreshCustomImages());
+onMounted(() => refreshSnapshotImages());
 
-const allServiceImageOptions = computed(() => [
-   ...serviceImageOptions,
-   ...customImageBuilds.value
+/** 已选快照镜像不可用（列表加载完成后才判断） */
+const isSelectedSnapshotUnavailable = computed(
+   () =>
+      !!draft.value.snapshotImageId &&
+      !snapshotListLoading.value &&
+      !snapshotImages.value.some(
+         (item) =>
+            item.status === 'ready' && item.id === draft.value.snapshotImageId,
+      ),
+);
+
+const snapshotImageOptions = computed(() => [
+   { label: '不使用快照镜像', value: '' },
+   ...snapshotImages.value
       .filter((item) => item.status === 'ready')
       .map((item) => ({
-         label: `${item.name}（自定义镜像）`,
-         value: `custom:${item.id}`,
+         label: item.name,
+         value: item.id,
+         description: item.description || undefined,
       })),
 ]);
+
+const selectedSnapshotName = computed(
+   () =>
+      snapshotImages.value.find((item) => item.id === draft.value.snapshotImageId)
+         ?.name ?? draft.value.snapshotImageId,
+);
 
 const problemType = computed<'frontend' | 'backend_service'>({
    get: () => draft.value.problemType ?? 'frontend',
@@ -106,6 +122,7 @@ interface IEditBaseline {
    problemType: 'frontend' | 'backend_service';
    serviceImage: string;
    servicePort: number;
+   snapshotImageId: string;
 }
 const baseline = ref<IEditBaseline>();
 
@@ -199,6 +216,7 @@ const fetchProblemDetail = async () => {
       draft.value.problemType = problem.problemType ?? 'frontend';
       draft.value.serviceImage = problem.serviceImage ?? '';
       draft.value.servicePort = problem.servicePort ?? 3000;
+      draft.value.snapshotImageId = problem.snapshotImageId ?? '';
       applyProblemTypeConstraints(draft.value.problemType);
 
       const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
@@ -225,6 +243,7 @@ const fetchProblemDetail = async () => {
          problemType: draft.value.problemType,
          serviceImage: draft.value.serviceImage,
          servicePort: draft.value.servicePort,
+         snapshotImageId: draft.value.snapshotImageId,
       };
    } finally {
       // 失败也要解锁，否则报错后字段永久置灰
@@ -273,11 +292,10 @@ const handleSubmit = async () => {
          problemType: draft.value.problemType,
          serviceImage:
             draft.value.problemType === 'backend_service'
-               ? isCustomImageId(draft.value.serviceImage)
-                  ? draft.value.serviceImage
-                  : normalizeBackendServiceImageId(draft.value.serviceImage)
+               ? normalizeBackendServiceImageId(draft.value.serviceImage)
                : undefined,
          servicePort: draft.value.servicePort,
+         snapshotImageId: draft.value.snapshotImageId || null,
       });
    };
    submitLoading.value = true;
@@ -370,26 +388,13 @@ const handleSubmit = async () => {
                      :options="difficultyOptions" />
                </StFormItem>
                <template v-if="problemType === 'backend_service'">
-                  <StFormItem name="serviceImage" label="初始镜像" required>
-                     <StSpace direction="vertical" gap="0.5rem" fill-x>
-                        <StSelect
-                           v-model:value="draft.serviceImage"
-                           placeholder="请选择初始镜像"
-                           attach-to-body
-                           :outer-class
-                           :options="allServiceImageOptions" />
-                        <StSpace gap="1rem" align="center">
-                           <StTextButton
-                              :text="imageListLoading ? '刷新中…' : '刷新镜像列表'"
-                              @click="refreshCustomImages" />
-                           <NuxtLink
-                              to="/app/publish/image"
-                              target="_blank"
-                              class="st-font-caption text-primary hover:underline">
-                              创建镜像 ↗
-                           </NuxtLink>
-                        </StSpace>
-                     </StSpace>
+                  <StFormItem name="serviceImage" label="初始镜像（判题容器）" required>
+                     <StSelect
+                        v-model:value="draft.serviceImage"
+                        placeholder="请选择初始镜像"
+                        attach-to-body
+                        :outer-class
+                        :options="serviceImageOptions" />
                   </StFormItem>
                   <StFormItem name="servicePort" label="服务端口" required>
                      <StInput
@@ -408,6 +413,38 @@ const handleSubmit = async () => {
                   <StSlideRadioGroup
                      v-model:value="enableCloudFunction"
                      :options="cloudFunctionOptions" />
+               </StFormItem>
+               <StFormItem name="snapshotImageId" label="快照镜像（做题环境，可选）">
+                  <template #header-right>
+                     <StSpace gap="1rem" align="center">
+                        <StTextButton
+                           :text="snapshotListLoading ? '刷新中…' : '刷新列表'"
+                           @click="refreshSnapshotImages" />
+                        <NuxtLink
+                           to="/app/publish/image"
+                           target="_blank"
+                           class="st-font-caption text-primary hover:underline">
+                           构建快照镜像 ↗
+                        </NuxtLink>
+                     </StSpace>
+                  </template>
+                  <StSpace direction="vertical" gap="0.5rem" fill-x>
+                     <StSelect
+                        v-model:value="draft.snapshotImageId"
+                        placeholder="不使用快照镜像"
+                        attach-to-body
+                        :outer-class
+                        :options="snapshotImageOptions">
+                        <template #selected-preview>
+                           <span class="text-white">{{ selectedSnapshotName }}</span>
+                        </template>
+                     </StSelect>
+                     <p
+                        v-if="isSelectedSnapshotUnavailable"
+                        class="st-font-caption text-error">
+                        所选快照镜像不存在或尚未上传完成，发布时会被拒绝。
+                     </p>
+                  </StSpace>
                </StFormItem>
                <StFormItem name="cover" label="封面图片" required>
                   <!-- 后端题型只支持自定义封面，不需要让出题人选 -->
@@ -511,7 +548,7 @@ const handleSubmit = async () => {
                   </div>
                </template>
                <template v-else>
-                  <div>只修改了标题、描述、标签、难度或封面，保存后直接生效，无需重新审核。</div>
+                  <div>只修改了标题、描述、标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。</div>
                   <div class="text-accent-300">
                      用户的完成状态、作答文件和提交记录都不受影响。
                   </div>

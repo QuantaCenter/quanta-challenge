@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Boxing, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import { Box, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
@@ -12,12 +12,12 @@ const options = [
       iconColor: '#C1EF3F',
    },
    {
-      title: '创建镜像',
-      description: '用构建脚本预装依赖，生成做题时可直接挂载的 WebContainer 基础镜像',
+      title: '构建快照镜像',
+      description: '用构建脚本预装依赖，生成做题页 WebContainer 启动时挂载的快照镜像（不影响判题）',
       url: '/app/publish/image',
-      icon: Boxing,
+      icon: Box,
       iconColor: '#4CA7FF',
-      // WebContainer 依赖跨源隔离响应头，必须整页加载（客户端路由不会重新收响应头）
+      // 依赖跨源隔离响应头，需整页加载
       needFullLoad: true,
    },
    {

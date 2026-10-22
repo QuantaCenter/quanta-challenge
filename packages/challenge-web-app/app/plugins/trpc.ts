@@ -356,6 +356,33 @@ export default defineNuxtPlugin(() => {
       },
    };
 
+   /**
+    * 不走 tRPC 的同源请求，复用其鉴权：附带 CSRF 头，请求前续签，401 时刷新后重试一次。
+    * body 需可重放，不支持流。
+    */
+   const authFetch = async (
+      input: string,
+      init: RequestInit = {},
+   ): Promise<Response> => {
+      const send = () => {
+         const headers = new Headers(init.headers);
+         if (authStore.csrfToken) headers.set('x-csrf-token', authStore.csrfToken);
+         headers.set('x-trace-id', genTraceId());
+         return fetch(input, { credentials: 'same-origin', ...init, headers });
+      };
+
+      await ensureFreshToken();
+      const res = await send();
+      if (isServer || res.status !== 401) return res;
+      try {
+         await refreshOnce();
+      } catch {
+         redirectToLoginClient();
+         return res;
+      }
+      return send();
+   };
+
    const trpc = createTRPCClient<AppRouter>({
       links: [
          splitLink({
@@ -373,6 +400,7 @@ export default defineNuxtPlugin(() => {
          trpc,
          // 供 auth-guard 等在发请求前确保 token 未临近过期（临近才真正发起 /api/refresh）
          ensureFreshToken,
+         authFetch,
       },
    };
 });
