@@ -152,23 +152,27 @@ model Image {
   @@map("images")
 }
 
-// WebContainer 基础镜像：发布者在浏览器里用构建脚本预装依赖，产物（二进制 snapshot）存 local_store
+// 快照镜像：做题页 WebContainer 启动时挂载，不参与判题
 model ImageBuild {
   id                  String   @id @default(cuid())
   name                String
+  // 发布备注
+  description         String   @default("")
   buildFile           String
-  // building | ready | failed
+  // building | ready，只由上传接口切换为 ready
   status              String   @default("building")
-  // local_store 里的文件 id / 文件名（由上传接口回填）
+  // local_store 文件 id / 文件名，由上传接口回填
   fileId              String?
-  fileName            String?
-  // 固定 gzip：客户端 CompressionStream 压缩，服务端校验存储
+  fileName            String?  @unique
+  // 固定为 gzip
   compression         String   @default("gzip")
   sizeBytes           Int?
   compressedSizeBytes Int?
   createdBy           String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+
+  Problems Problems[]
 
   @@map("image_builds")
 }
@@ -223,8 +227,11 @@ model Problems {
   judgeUploadPath String
   enableCloudFunction Boolean @default(false)
   problemType     ProblemType @default(frontend)
+  // 后端题判题容器的初始镜像（注册表 id）
   serviceImage    String?
   servicePort     Int        @default(3000)
+  // 做题页挂载的快照镜像，不参与判题
+  snapshotImageId String?
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
@@ -235,12 +242,14 @@ model Problems {
   JudgeRecord                 JudgeRecords[]
   TemplateJudgeRecord         TemplateJudgeRecords[]
   CoverImage                  Image?                      @relation(fields: [coverImageId], references: [id])
+  SnapshotImage               ImageBuild?                 @relation(fields: [snapshotImageId], references: [id], onDelete: SetNull)
   BaseProblem                 BaseProblems                @relation("ProblemVersions", fields: [baseId], references: [id], onDelete: Cascade)
   CurrentOfBase               BaseProblems?               @relation("CurrentProblem")
   ProblemVersionTransitions   ProblemVersionTransitions[] @relation("FromProblemVersions")
   ProblemVersionTransitionsTo ProblemVersionTransitions[] @relation("ToProblemVersions")
   JudgeStatus                 JudgeStatus?
 
+  @@index([snapshotImageId])
   @@map("problems")
 }
 
