@@ -136,6 +136,29 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 镜像构建页也要 boot WebContainer，同样依赖跨源隔离
+      '/app/publish/image': {
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
+      '/app/publish/image/**': {
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
+      // 基础镜像二进制上传（几十 MB），放宽 nuxt-security 的请求体限制
+      '/api/image-builds/upload': {
+         security: {
+            requestSizeLimit: 160 * 1024 * 1024,
+         },
+      },
       '/_nuxt/**': {
          headers: {
             'Cross-Origin-Embedder-Policy': 'require-corp',
