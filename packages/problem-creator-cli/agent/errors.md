@@ -34,5 +34,7 @@
 | --- | --- | --- |
 | `题目配置校验失败` | 字段缺失或类型不对 | 按错误里列出的字段路径修正（`qpc agent config`） |
 | `当前不是交互式终端，无法多选` | 在非 TTY 用了 `qpc tag --write` | 改用 `qpc tag --write 2,5` |
+| `当前不是交互式终端，无法选择` | 在非 TTY 用了 `qpc snapshot-image --write` | 改用 `qpc snapshot-image --write <id>` |
+| `快照镜像 … 不存在或已被删除`（上传时） | 配置里的 `snapshotImageId` 已在管理端删除 | `qpc snapshot-image --write` 重新选，或 `--write none` |
 | `找不到可用的无头浏览器` | 本机没有 Chromium / Chrome / Edge | `npx playwright@1.54.1 install chromium` |
 | `尚未登录` | 没有凭据 | `qpc login --api <url>` |

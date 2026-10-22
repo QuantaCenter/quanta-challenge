@@ -44,6 +44,7 @@ qpc upload --wait
 | `qpc agent [topic]` | 给 Agent 的使用手册：题目目录外是 CLI 手册，题目目录内是判题脚本编写手册；`--list` 列章节，`dts` 输出完整类型声明 | 否 |
 | `qpc init [dir]` | 生成题目骨架（含 `AGENTS.md`）；`--type` 选题型，不传时交互选择 | 否 |
 | `qpc tag [dir]` | 查看平台标签；`--write` 交互多选，`--write 1,2`（或 `--set`）直接写回 tagIds | 否 |
+| `qpc snapshot-image [dir]` | 查看平台快照镜像；`--write` 交互单选，`--write <id>`（或 `--set`）直接写回 snapshotImageId，`none` 表示不使用 | 是 |
 | `qpc gen-img flow\|svg\|screenshot` | 生成题面插图到 `images/`：流程图 / SVG 转 PNG / 参考解页面截图 | 否 |
 | `qpc image [files...]` | 上传图片；不给文件时上传题面里引用的全部本地图片，`--write` 回写地址 | 是 |
 | `qpc cover [dir]` | 生成封面图；`--random` 随机配色、`--upload` 上传、`--write` 写回配置 | 上传时 |
@@ -124,6 +125,7 @@ export default defineProblemConfig({
    detail: '题面（Markdown）',  // 或 detailFile: 'statement.md'
    difficulty: 'easy',         // easy | medium | hard | very_hard
    tagIds: [1],                // 必须是已有标签 id（qpc tag 查看）
+   // snapshotImageId: 'cm…',  // 启动命令用到的依赖在某个快照镜像里时必填（qpc snapshot-image 查看）
    // totalScore: 20,          // 留空取检查点之和
    cover: { mode: 'default' }, // 后端题用 { mode: 'custom', generate: {...} }
    runtime: {
@@ -168,6 +170,18 @@ qpc tag --set 1,3  # 指定 id，写回（CI / 非交互）
 ```
 
 写回为原子写盘，写完重新加载校验，失败回滚。旧配置缺 `tagIds` 也可用 `--set` / `--write` 补上。非交互环境 `--write` 报用法错误。
+
+## 快照镜像（`qpc snapshot-image`）
+
+快照镜像在做题页的 WebContainer 启动时挂载（预装依赖，不参与判题），由管理员在管理端「快照镜像」里构建。启动命令（`runtime.initCommand`）用到的工具或依赖（如 `vite`）如果已包含在某个快照镜像里，就要填上它：依赖直接挂载、不用现场下载，做题页启动更快。`qpc snapshot-image` 从平台拉取（`admin.imageBuild.list`，需登录），用法与 `qpc tag` 一致：
+
+```bash
+qpc snapshot-image              # 列出全部快照镜像（id / 名称 / 大小 / 引用数）
+qpc snapshot-image --write      # 交互单选，写回 snapshotImageId
+qpc snapshot-image --set <id>   # 指定 id，写回（CI / 非交互）；none 表示不使用
+```
+
+`snapshotImageId` 有三种状态：写了 id 就用它；写 `null` 表示明确不用（追加版本时会解绑平台上的快照镜像）；不写时新题不用，追加版本沿用平台上当前版本的值。只能选已就绪的镜像；已发布的题只改快照镜像时直接生效，不重新审核。
 
 ## 上传与版本管理（`qpc upload`）
 

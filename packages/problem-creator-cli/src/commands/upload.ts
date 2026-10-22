@@ -141,6 +141,9 @@ export const runUpload = async (
          ? { serviceImage: config.runtime.serviceImage }
          : {}),
       servicePort: config.runtime.servicePort,
+      ...(config.snapshotImageId !== undefined
+         ? { snapshotImageId: config.snapshotImageId }
+         : {}),
    };
 
    const payloadBytes =
@@ -153,6 +156,14 @@ export const runUpload = async (
       ['标题', config.title],
       ['难度 / 总分', `${config.difficulty} / ${report.totalScore}`],
       ['标签', config.tagIds.join(', ')],
+      [
+         '快照镜像',
+         config.snapshotImageId === undefined
+            ? targetProblemId === undefined
+               ? '<不使用>'
+               : '<沿用平台当前版本>'
+            : (config.snapshotImageId ?? '不使用'),
+      ],
       ['判题打包目录', config.runtime.judgeUploadPath],
       ['题型', config.type],
       ['启动命令', config.runtime.initCommand ?? '<默认>'],

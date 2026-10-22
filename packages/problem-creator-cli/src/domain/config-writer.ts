@@ -233,6 +233,78 @@ const applyTagIdsToSource = (
    return `${content.slice(0, openBrace + 1)}${insertion}${after}`;
 };
 
+// 把快照镜像写回配置：null 表示明确不用（追加版本时会解绑平台上的快照镜像），所以照样写出 null 而不是删掉字段。
+export const applySnapshotImageIdUpdate = (
+   content: string,
+   snapshotImageId: string | null,
+   file: string,
+): string => {
+   const literal = snapshotImageId === null ? 'null' : `'${snapshotImageId}'`;
+   const hint = `手动把 snapshotImageId: ${literal} 填进配置。`;
+   if (file.endsWith('.json')) {
+      let parsed: unknown;
+      try {
+         parsed = JSON.parse(content);
+      } catch (error) {
+         throw new ConfigError(
+            '题目配置不是合法 JSON，无法写回 snapshotImageId',
+            {
+               cause: error,
+               hint,
+            },
+         );
+      }
+      if (
+         typeof parsed !== 'object' ||
+         parsed === null ||
+         Array.isArray(parsed)
+      ) {
+         throw new ConfigError(
+            `${file} 的顶层不是一个对象，无法写回 snapshotImageId`,
+            { hint },
+         );
+      }
+      (parsed as Record<string, unknown>).snapshotImageId = snapshotImageId;
+      return `${JSON.stringify(parsed, null, 3)}\n`;
+   }
+
+   const existing = /\bsnapshotImageId\s*:\s*(?:(['"`])[^'"`]*\1|null)/.exec(
+      content,
+   );
+   if (existing) {
+      return content.replace(existing[0], `snapshotImageId: ${literal}`);
+   }
+
+   // 紧跟在 tagIds 后面：两者都是 `qpc` 从平台挑选后写回的字段。
+   const anchor = /\btagIds\s*:\s*\[[^\]]*\],?/.exec(content);
+   if (anchor) {
+      const lineStart = content.lastIndexOf('\n', anchor.index) + 1;
+      const prefix = content.slice(lineStart, anchor.index);
+      const hasComma = /,$/.test(anchor[0]);
+      const sep = hasComma ? '' : ',';
+      const insertAt = anchor.index + anchor[0].length;
+      const next = /^[ \t]*$/.test(prefix)
+         ? `${sep}\n${prefix}snapshotImageId: ${literal},`
+         : `${sep} snapshotImageId: ${literal}${hasComma ? ',' : ''}`;
+      return `${content.slice(0, insertAt)}${next}${content.slice(insertAt)}`;
+   }
+
+   const openBrace = findConfigObjectStart(content);
+   if (openBrace < 0) {
+      throw new ConfigError(
+         `在 ${file} 里找不到题目配置对象，无法写回 snapshotImageId`,
+         { hint },
+      );
+   }
+   const after = content.slice(openBrace + 1);
+   const firstNewline = after.indexOf('\n');
+   const sameLine = after.slice(0, firstNewline < 0 ? undefined : firstNewline);
+   const insertion = /^[ \t]*$/.test(sameLine)
+      ? `\n${/\n([ \t]+)\S/.exec(after)?.[1] ?? '   '}snapshotImageId: ${literal},`
+      : ` snapshotImageId: ${literal},`;
+   return `${content.slice(0, openBrace + 1)}${insertion}${after}`;
+};
+
 // 定位配置对象（defineProblemConfig({ ... })）的 {，兼容直接 export default { ... } 的写法。
 const findConfigObjectStart = (content: string): number => {
    const wrapper = /defineProblemConfig\s*\(\s*\{/.exec(content);

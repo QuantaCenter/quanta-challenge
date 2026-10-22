@@ -16,6 +16,7 @@ export default defineProblemConfig({ /* 字段如下 */ });
 | `detail` / `detailFile` | 二选一 | 题面 Markdown 正文 / 相对题目目录的 Markdown 文件 |
 | `difficulty` | 是 | `easy` \| `medium` \| `hard` \| `very_hard` |
 | `tagIds` | 是 | 平台标签 id 数组，至少一个（`qpc tag --write 2,5` 写入） |
+| `snapshotImageId` | 视情况 | 启动命令用到的依赖已包含在某个快照镜像里时必填（填了做题页启动更快）。做题页挂载的快照镜像 id（`qpc snapshot-image --write <id>` 写入）；`null` = 明确不用；不写 = 新题不用、追加版本沿用平台上的值 |
 | `totalScore` | 否 | 不写则取各检查点之和；写了必须相等（CFG001） |
 | `problemId` | 否 | `qpc upload --write` 写回的 pid；有它时上传会追加新版本 |
 | `cover` | 否 | `{ mode: 'default' }`（参考解首屏截图）或 `{ mode: 'custom', imageId, generate }` |

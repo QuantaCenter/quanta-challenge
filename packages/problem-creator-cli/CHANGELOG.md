@@ -3,6 +3,16 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+### Added
+
+- `qpc snapshot-image [dir]`：查看平台快照镜像（`admin.imageBuild.list`，需登录），用法同 `qpc tag`：
+  `--write` 交互单选、`--write <id>` / `--set <id>` 直接写回 `snapshotImageId`，`none` 写入 `null`（不使用）。
+  只能选已就绪的镜像；写回后重新加载校验，失败回滚。
+- 配置新增可选字段 `snapshotImageId`：`qpc upload` 随请求提交；不写时追加版本沿用平台上当前版本的值，
+  `null` 表示明确不用。上传摘要新增「快照镜像」一行。
+
 ## [1.1.1] - 2026-10-20
 
 ### Fixed

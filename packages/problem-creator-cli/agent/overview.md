@@ -34,6 +34,7 @@ AGENTS.md           给 Agent 的入口说明
 | `qpc login --api <url>` | 登录（设备码，需要人在浏览器里点确认） | — |
 | `qpc init [dir] --type <t>` | 生成题目骨架（含 AGENTS.md） | 否 |
 | `qpc tag [--write <ids>]` | 查看标签 / 写回 tagIds | 否 |
+| `qpc snapshot-image [--write <id>]` | 查看快照镜像 / 写回 snapshotImageId（启动命令的依赖在镜像里时必填） | 是 |
 | `qpc gen-img flow\|svg\|screenshot` | 生成题面插图到 images/ | 否 |
 | `qpc image [--write]` | 上传题面里的本地图片并回写地址 | 是 |
 | `qpc cover --write` | 生成封面、上传、写回 imageId（后端题必做） | 是 |
@@ -46,7 +47,7 @@ AGENTS.md           给 Agent 的入口说明
 ## 给 Agent 的约定
 
 - 加 `--json`：stdout 只有一份 JSON 结果，日志走 stderr。失败时 JSON 里有 `error.details.code`（错误码）、`retryable`、`nextAction`。
-- 加 `--yes`：跳过所有确认；非交互环境不会弹多选（`qpc tag` 请用 `--write 2,5` 直接给 id）。
+- 加 `--yes`：跳过所有确认；非交互环境不会弹多选（`qpc tag` 请用 `--write 2,5`、`qpc snapshot-image` 请用 `--write <id>` 直接给 id）。
 - 退出码：`0` 成功，`1` 未分类错误，`2` 用法/配置错误，`3` 题目不合格（要改题），`4` 网络/平台故障（可重试），`5` 未登录/无权限。
 - 每个报错下面都有提示行（hint），照做即可；对照表见 `qpc agent errors`。
 

@@ -8,6 +8,7 @@ import { registerInitCommand } from './init';
 import { registerLoginCommand } from './login';
 import { registerPublishCommand } from './publish';
 import type { CommandRegistry } from './registry';
+import { registerSnapshotImageCommand } from './snapshot-image';
 import { registerStatusCommand } from './status';
 import { registerTagCommand } from './tag';
 import { registerUploadCommand } from './upload';
@@ -19,6 +20,7 @@ export const registerCommands = (registry: CommandRegistry): void => {
    registerAgentCommand(registry);
    registerInitCommand(registry);
    registerTagCommand(registry);
+   registerSnapshotImageCommand(registry);
    registerGenImgCommand(registry);
    registerImageCommand(registry);
    registerCoverCommand(registry);

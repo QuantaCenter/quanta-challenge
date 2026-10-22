@@ -45,6 +45,13 @@ qpc tag --write 2,5     # 直接写回 tagIds（交互终端可只写 --write �
 
 验收：配置里 `tagIds` 是平台上存在的 id。
 
+快照镜像：先看启动命令（`runtime.initCommand`）用到的工具或依赖（如 `vite`）是否已包含在某个快照镜像里（`qpc snapshot-image` 看名称和备注）。有就要填：做题页的 WebContainer 会直接挂载镜像里的依赖，不用每次现场下载，启动更快。都不包含就不填。快照镜像不参与判题。
+
+```bash
+qpc snapshot-image                  # 查看平台快照镜像（需登录）
+qpc snapshot-image --write <id>     # 写回 snapshotImageId（交互终端可只写 --write 单选；none = 不使用）
+```
+
 ## 5. 题面插图
 
 ```bash

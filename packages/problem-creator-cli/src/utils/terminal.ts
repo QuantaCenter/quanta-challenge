@@ -132,11 +132,13 @@ export const select = async <T extends string>(
    message: string,
    choices: SelectChoice<T>[],
    io: PromptIO,
-   options: { initialValue?: T } = {},
+   options: { initialValue?: T; nonInteractiveHint?: string } = {},
 ): Promise<T> => {
    if (!isInteractive(io.stdin)) {
       throw new UsageError('当前不是交互式终端，无法选择', {
-         hint: '请在命令里显式指定，例如 `qpc init --type backend_service`。',
+         hint:
+            options.nonInteractiveHint ??
+            '请在命令里显式指定，例如 `qpc init --type backend_service`。',
       });
    }
 

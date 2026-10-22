@@ -28,6 +28,8 @@ export interface UploadProblemInput {
    serviceImage?: BackendServiceImageId;
    /** 后端服务：服务监听端口 */
    servicePort?: number;
+   /** 快照镜像 id；null 表示不使用，不传时追加版本沿用原值 */
+   snapshotImageId?: string | null;
 }
 
 export interface AuditCheckpointResult {
@@ -79,6 +81,19 @@ export interface Tag {
    description?: string | null;
 }
 
+export interface SnapshotImage {
+   id: string;
+   name: string;
+   description: string;
+   /** building | ready，只有 ready 能被题目引用 */
+   status: string;
+   sizeBytes: number | null;
+   compressedSizeBytes: number | null;
+   updatedAt: string;
+   /** 被多少道题目的当前版本引用 */
+   referenceCount: number;
+}
+
 export interface CurrentUser {
    id: string;
    nickname?: string;
@@ -117,6 +132,8 @@ export interface AdminApi {
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
    /** 平台全部标签（public.tag.list，无需登录） */
    listTags(): Promise<Tag[]>;
+   /** 平台全部快照镜像（admin.imageBuild.list，需管理员登录），按更新时间倒序 */
+   listSnapshotImages(): Promise<SnapshotImage[]>;
 }
 
 export const createAdminApi = (client: HttpClient): AdminApi => ({
@@ -196,6 +213,9 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
          description: tag.description ?? null,
       }));
    },
+
+   listSnapshotImages: () =>
+      client.call<SnapshotImage[]>('admin.imageBuild.list', { method: 'GET' }),
 });
 
 /** `public.tag.list` 原样返回数据库整行，这里只声明用到的字段 */

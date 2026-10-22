@@ -13,6 +13,9 @@ import { COVER_DEFAULTS } from './cover';
 export const DIFFICULTIES = ['easy', 'medium', 'hard', 'very_hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
+/** 与服务端 publish-schema 的 snapshotImageId 校验一致 */
+export const SNAPSHOT_IMAGE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 export const DEFAULT_CONFIG_FILES = [
    'problem.config.ts',
    'problem.config.mts',
@@ -75,6 +78,18 @@ export const problemConfigSchema = z.object({
    tagIds: z
       .array(z.number().int().positive())
       .min(1, 'tagIds 至少需要一个标签（用 `qpc tag` 查看可用 id）'),
+   /**
+    * 做题页 WebContainer 挂载的快照镜像 id（`qpc snapshot-image` 查看）。
+    * null = 明确不用；不写 = 新题不用，追加版本时沿用平台上当前版本的值。
+    */
+   snapshotImageId: z
+      .string()
+      .regex(
+         SNAPSHOT_IMAGE_ID_PATTERN,
+         'snapshotImageId 不合法（用 `qpc snapshot-image` 查看可用 id）',
+      )
+      .nullable()
+      .optional(),
    /** 留空表示"以判题脚本里各检查点之和为准"；填写则必须与之和相等 */
    totalScore: z.number().int().positive().optional(),
    cover: coverSchema.default({ mode: 'default' }),
