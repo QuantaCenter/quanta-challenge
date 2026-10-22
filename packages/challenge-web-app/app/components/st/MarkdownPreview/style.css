@@ -17,7 +17,6 @@
    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
    line-height: 1.75;
    margin: 0 auto;
-   /* 长单词、URL、行内代码等超窄容器时可断行，避免内容撑出最小宽度导致裁切 */
    overflow-wrap: anywhere;
 }
 
