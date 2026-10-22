@@ -200,6 +200,7 @@ watch(
          :data-board="id"
          :style="boardStyle(id)"
          class="group/board relative h-full min-w-0 flex-shrink-0 rounded-xl"
+         :class="{ 'pointer-events-none': draggingDivider !== null }"
          @dragover.prevent="handleDragOver(id)"
          @dragleave="handleDragLeave(id)"
          @drop.prevent="handleDrop(id)">

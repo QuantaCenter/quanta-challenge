@@ -98,8 +98,11 @@ const handleResize = (event: MouseEvent) => {
 
    // 根据方向获取相应的尺寸（拖拽过程中保持不变，用于把鼠标位移换算成比例）
    const startSize = isHorizontal ? startEl.offsetWidth : startEl.offsetHeight;
-   const endSize = isHorizontal ? endEl.offsetWidth : endEl.offsetHeight;
    const origin = isHorizontal ? event.clientX : event.clientY;
+
+   const containerRect = container.value.getBoundingClientRect();
+   const containerSize = isHorizontal ? containerRect.width : containerRect.height;
+   const endSize = Math.max(containerSize - startSize, 0);
 
    const onMouseMove = (moveEvent: MouseEvent) => {
       const current = isHorizontal ? moveEvent.clientX : moveEvent.clientY;
