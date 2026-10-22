@@ -49,6 +49,11 @@ const uploadShape = {
    serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
    /** 后端服务：服务监听端口 */
    servicePort: z.number().int().positive().max(65535).optional(),
+   /** 任务日期范围（本周任务筛选与展示用） */
+   taskStartAt: z.coerce.date().optional(),
+   taskEndAt: z.coerce.date().optional(),
+   /** 定时发布时间（晚于当前时间时题目保持 ready，到点由后台任务自动发布） */
+   scheduledPublishAt: z.coerce.date().optional(),
 };
 
 const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>
@@ -80,6 +85,14 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
+      )
+      .refine(
+         (data: any) => {
+            return !data.taskStartAt ||
+               !data.taskEndAt ||
+               data.taskEndAt >= data.taskStartAt;
+         },
+         { error: '任务结束日期不能早于开始日期' }
       );
 
 export const resolveBackendServiceRuntime = (input: {

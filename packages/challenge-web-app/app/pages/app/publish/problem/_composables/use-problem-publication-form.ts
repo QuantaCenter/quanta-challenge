@@ -71,6 +71,9 @@ export const useProblemPublicationForm = (storageName: string) => {
       servicePort: getBackendServiceDefaultPort(
          DEFAULT_BACKEND_SERVICE_IMAGE_ID
       ) as number,
+      taskStartAt: '' as string,
+      taskEndAt: '' as string,
+      scheduledPublishAt: '' as string,
    });
    const draft = useDebounce(formdata, 200);
 
@@ -254,6 +257,22 @@ export const useProblemPublicationForm = (storageName: string) => {
                draft.value.problemType !== 'backend_service' ||
                (typeof value === 'number' && value > 0 && value <= 65535)
             );
+         },
+      },
+      {
+         field: 'taskEndAt',
+         validator(value) {
+            return (
+               !draft.value.taskStartAt ||
+               !value ||
+               new Date(value) >= new Date(draft.value.taskStartAt)
+            );
+         },
+      },
+      {
+         field: 'scheduledPublishAt',
+         validator(value) {
+            return !value || new Date(value).getTime() > Date.now();
          },
       },
    ]);

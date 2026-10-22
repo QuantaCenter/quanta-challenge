@@ -204,6 +204,9 @@ model Problems {
   problemType     ProblemType @default(frontend)
   serviceImage    String?
   servicePort     Int        @default(3000)
+  taskStartAt        DateTime?
+  taskEndAt          DateTime?
+  scheduledPublishAt DateTime?
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
