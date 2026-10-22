@@ -699,7 +699,7 @@ const handleAddFolder = async () => {
 };
 
 // prevent leave
-usePreventLeave({
+const { enable: preventLeaveEnabled } = usePreventLeave({
    onPrevent: () => {
       // 离开页面前强制同步
       fileChangeSync.forceSync();
@@ -713,6 +713,7 @@ const { event: resetProjectEvent } = useEventEmitter<{ at: number }>(
 );
 watch(resetProjectEvent, async (val) => {
    if (!val) return;
+   preventLeaveEnabled.value = false;
    try {
       await fileChangeSync.forceSync();
       // forceSync 只处理排队中的变更，还需等待在途请求写完，避免旧内容覆盖重置结果
