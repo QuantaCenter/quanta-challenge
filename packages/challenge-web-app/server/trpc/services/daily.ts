@@ -151,7 +151,7 @@ const countContinuesCheckin = async (userId: string) => {
          } else {
             break;
          }
-      } else if (checkinKeys[i] === previousDateKey(checkinKeys[i - 1])) {
+      } else if (checkinKeys[i] === previousDateKey(checkinKeys[i - 1]!)) {
          count++;
       } else {
          break;

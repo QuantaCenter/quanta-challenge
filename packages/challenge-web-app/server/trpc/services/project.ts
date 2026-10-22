@@ -146,7 +146,7 @@ const fork = async (options: IForkProjectOptions) => {
          });
       }
 
-      const newProjectId = newProjectResult[0].pid;
+      const newProjectId = newProjectResult[0]!.pid;
       result.projectId = newProjectId;
 
       // 创建新文件系统

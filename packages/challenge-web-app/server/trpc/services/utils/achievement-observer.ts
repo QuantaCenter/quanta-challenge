@@ -129,7 +129,7 @@ export class AchievementObserver {
       return target.subscribe(async (paths) => {
          for (const { path, method } of paths) {
             const pathToCheck = /^(create|delete).*/.test(method)
-               ? path.split('.')[0]
+               ? (path.split('.')[0] ?? path)
                : path;
 
             const loaderMap = this._depTree.get(pathToCheck);
@@ -219,7 +219,7 @@ export class AchievementObserver {
 
       if (injectVars) {
          const matchedVars = this._matchedUsedContextVars(sql).filter(
-            (v) => v in injectVars!,
+            (v): v is string => v !== undefined && v in injectVars!,
          );
          if (matchedVars.length > 0) {
             queryId = null;
@@ -254,6 +254,9 @@ export class AchievementObserver {
 
       if (queryId) {
          columnListSegments.forEach(([, table, field]) => {
+            if (table === undefined) {
+               return;
+            }
             const tableSet =
                this._pathToQueries.get(table) ??
                this._pathToQueries.set(table, new Set()).get(table)!;
@@ -325,6 +328,9 @@ export class AchievementObserver {
             }
 
             columnListSegments.forEach(([, table, field]) => {
+               if (table === undefined) {
+                  return;
+               }
                const path = `${table}.${field}`;
 
                // Add to full path (table.field)

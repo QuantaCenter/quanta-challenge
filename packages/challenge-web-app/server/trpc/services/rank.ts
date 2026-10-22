@@ -96,12 +96,12 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    if (maxScore.length < 2) {
       return [];
    }
-   const max = parseInt(maxScore[1]) + 1;
+   const max = parseInt(maxScore[1]!) + 1;
 
    if (minScore.length < 2) {
       return [];
    }
-   const min = parseInt(minScore[1]);
+   const min = parseInt(minScore[1]!);
 
    const intervalSize = (max - min - 1) / n;
    const intervals: { from: number; to: number; count: number }[] = [];
@@ -119,17 +119,24 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    const results = (await pipeline.exec()) as [Error | null, number | null][];
 
    results.forEach((res, idx) => {
+      const interval = intervals[idx];
+      if (!interval) {
+         return;
+      }
       const [err, count] = res;
       if (err) {
          logger.error(err, 'Error fetching rank interval count');
-         intervals[idx].count = 0;
+         interval.count = 0;
       } else {
-         intervals[idx].count = count as number;
+         interval.count = count as number;
       }
    });
 
    // 修正最后一个区间的上限
-   intervals[intervals.length - 1].to = max - 1;
+   const lastInterval = intervals[intervals.length - 1];
+   if (lastInterval) {
+      lastInterval.to = max - 1;
+   }
    return intervals;
 };
 
@@ -197,10 +204,12 @@ const getGlobalRankings = async (limit: number = 100) => {
    );
    const rankings: IGlobalRanking[] = [];
    for (let i = 0; i < userIdWithScore.length; i += 2) {
-      rankings.push({
-         userId: userIdWithScore[i],
-         score: parseFloat(userIdWithScore[i + 1]),
-      });
+      const userId = userIdWithScore[i];
+      const score = userIdWithScore[i + 1];
+      if (userId === undefined || score === undefined) {
+         continue;
+      }
+      rankings.push({ userId, score: parseFloat(score) });
    }
    await redis.set(resultKey, JSON.stringify(rankings), 'EX', 5 * 60);
 
@@ -480,7 +489,7 @@ const getGlobalRankingIntervals = async (
       return Array(n).fill({ from: 0, to: 0, count: 0 });
    }
 
-   const max = parseInt(maxScore[1]) + 1;
+   const max = parseInt(maxScore[1]!) + 1;
    const min = 0;
 
    const intervalSize = (max - min - 1) / n;
@@ -499,17 +508,24 @@ const getGlobalRankingIntervals = async (
    const results = (await pipeline.exec()) as [Error | null, number | null][];
 
    results.forEach((res, idx) => {
+      const interval = intervals[idx];
+      if (!interval) {
+         return;
+      }
       const [err, count] = res;
       if (err) {
          logger.error(err, 'Error fetching rank interval count:');
-         intervals[idx].count = 0;
+         interval.count = 0;
       } else {
-         intervals[idx].count = count as number;
+         interval.count = count as number;
       }
    });
 
    // 修正最后一个区间的上限
-   intervals[intervals.length - 1].to = max - 1;
+   const lastInterval = intervals[intervals.length - 1];
+   if (lastInterval) {
+      lastInterval.to = max - 1;
+   }
    return intervals;
 };
 

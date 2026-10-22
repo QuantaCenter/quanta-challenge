@@ -81,6 +81,9 @@ const requestDepDataLoaderProcedure = protectedAdminProcedure
          const contextSet = new Set(contextVariables);
          const invalidFields = columnListSegments
             .filter(([, table, field]) => {
+               if (table === undefined || field === undefined) {
+                  return true;
+               }
                const notExist =
                   table === '__ctx'
                      ? !contextSet.has(field)

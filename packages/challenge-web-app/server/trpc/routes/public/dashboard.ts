@@ -47,7 +47,7 @@ const getSubmissionStatus = publicProcedure
 
       const statusCount: Record<string, number> = {};
       submissions.forEach((submission) => {
-         const date = submission.createdAt.toISOString().split('T')[0];
+         const date = submission.createdAt.toISOString().slice(0, 10);
          if (!statusCount[date]) {
             statusCount[date] = 0;
          }

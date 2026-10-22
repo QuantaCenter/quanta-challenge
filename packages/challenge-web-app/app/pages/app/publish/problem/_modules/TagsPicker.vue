@@ -5,7 +5,7 @@ import { Plus, RobotOne } from '@icon-park/vue-next';
 
 const { $trpc } = useNuxtApp();
 
-const tags = defineModel<number[]>('tags', { default: [] });
+const tags = defineModel<number[]>('tags', { default: () => [] });
 
 const props = defineProps<{
    outerClass?: string;

@@ -80,9 +80,12 @@ export class TrackWrapper {
          return path;
       }
 
-      const targetModal: string = (nestedModelMapping as any)[segments[0]]?.[
-         segments[1]
-      ];
+      const [table, field] = segments;
+      if (!table || !field) {
+         return path;
+      }
+
+      const targetModal: string = (nestedModelMapping as any)[table]?.[field];
       if (!targetModal) {
          return path;
       }
@@ -120,7 +123,10 @@ export class TrackWrapper {
 
       const formattedPaths = affectedPaths.map((item) => {
          const segments = item.path.split('.');
-         segments[0] = (schemaToRealMap as any)[segments[0]] || segments[0];
+         const head = segments[0];
+         if (head !== undefined) {
+            segments[0] = (schemaToRealMap as any)[head] || head;
+         }
          return {
             path: segments.join('.') as ValidPath,
             method: item.method,

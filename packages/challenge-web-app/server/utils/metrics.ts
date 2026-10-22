@@ -38,7 +38,7 @@ export function getServerMetrics(): ServerMetrics {
 
 /** 归一化路由标签避免高基数：数字/长 hex/UUID 段折叠成 :id，有界枚举保留原文。 */
 export function normalizeRouteLabel(path: string): string {
-   const clean = (path || '/').split('?')[0];
+   const clean = (path || '/').split('?')[0] ?? '/';
    const normalized = clean
       .split('/')
       .map((seg) => {

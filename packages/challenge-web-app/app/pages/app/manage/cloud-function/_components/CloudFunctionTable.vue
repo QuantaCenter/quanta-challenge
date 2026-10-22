@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Code, Delete, Write } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
+import { navigateTo } from '#imports';
 import type { ITableColumn } from '~/components/st/Table/type';
 import type { CloudFunctionRow } from '~/types/cloud-function';
 

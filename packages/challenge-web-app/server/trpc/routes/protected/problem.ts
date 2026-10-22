@@ -192,7 +192,7 @@ const commitAnswerProcedure = protectedProcedure
                });
             }
 
-            return { judgeRecordId, judgeScript: JudgeFile[0].judgeScript };
+            return { judgeRecordId, judgeScript: JudgeFile[0]!.judgeScript };
          },
       );
 

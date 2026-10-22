@@ -219,7 +219,7 @@ const {
                      :cover-image-thumbhash-url="problem.imageThumbhashUrl">
                      <StProblemCardTitle
                         :title="problem.title ?? '匿名题目'"
-                        :completed="completedProblemIdSet.has(problem.pid)" />
+                        :completed="problem.pid != null && completedProblemIdSet.has(problem.pid)" />
                      <StProblemCardTags :tags="problem.tags ?? []" />
                      <StProblemCardDivider />
                      <StProblemCardInfo

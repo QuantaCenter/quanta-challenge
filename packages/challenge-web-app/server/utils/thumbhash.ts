@@ -96,5 +96,5 @@ export const renderThumbhashDataUrl = async (
    hash: string | null | undefined
 ): Promise<string | null> => {
    const [dataUrl] = await renderThumbhashDataUrls([hash]);
-   return dataUrl;
+   return dataUrl ?? null;
 };

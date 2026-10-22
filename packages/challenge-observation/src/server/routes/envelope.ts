@@ -1,4 +1,5 @@
 import { Hono } from 'hono'
+import type { Context } from 'hono'
 import { config } from '../config.ts'
 import { pushFrontendLog } from '../loki.ts'
 import { frontendErrorsTotal } from '../metrics.ts'
@@ -92,7 +93,7 @@ envelopeRoutes.use('*', async (c, next) => {
    await next()
 })
 
-async function handleEnvelope(c: Parameters<Parameters<Hono['post']>[1]>[0]) {
+async function handleEnvelope(c: Context) {
    const raw = Buffer.from(await c.req.arrayBuffer())
    if (raw.length === 0)
       return c.text('empty envelope', 400)
