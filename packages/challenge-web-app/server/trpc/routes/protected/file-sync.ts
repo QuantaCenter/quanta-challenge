@@ -32,6 +32,8 @@ const ChangeSchema = z.discriminatedUnion('type', [
 const SyncFileChangesSchema = z.object({
    problemId: z.number(),
    changes: z.array(ChangeSchema),
+   // 客户端加载项目时的版本号；重置会递增该值，不匹配的旧请求将被拒绝。可选以兼容未升级的调用方
+   revision: z.number().int().optional(),
 });
 
 const PROJECT_ROOT_PATH = '/project';
@@ -53,7 +55,7 @@ const syncFileChangesProcedure = protectedProcedure
    .input(SyncFileChangesSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
-      const { problemId, changes } = input;
+      const { problemId, changes, revision } = input;
 
       if (changes.length === 0) {
          return { success: true, processedCount: 0 };
@@ -76,6 +78,30 @@ const syncFileChangesProcedure = protectedProcedure
 
       try {
          await prisma.$transaction(async (tx) => {
+            // 锁定项目行：与重置事务（同样先锁项目行）互斥，保证 revision 校验和后续写入不会被并发重置穿插
+            const [lockedProject] = await tx.$queryRaw<
+               { pid: string; revision: number }[]
+            >`
+               SELECT pid, revision FROM projects
+               WHERE "ownerId" = ${userId} AND "problemId" = ${problemId} AND "isTemplate" = false
+               FOR UPDATE
+            `;
+
+            if (!lockedProject) {
+               throw new TRPCError({
+                  code: 'NOT_FOUND',
+                  message: 'Project or file system not found',
+               });
+            }
+
+            // 重置会递增 revision；携带旧版本号的请求是重置前发出的，写入会恢复被清空的修改，直接拒绝
+            if (revision !== undefined && lockedProject.revision !== revision) {
+               throw new TRPCError({
+                  code: 'CONFLICT',
+                  message: 'Project has been reset, please reload the page',
+               });
+            }
+
             const project = await tx.projects.findFirst({
                where: {
                   ownerId: userId,
@@ -279,6 +305,10 @@ const syncFileChangesProcedure = protectedProcedure
             processedCount: changes.length,
          };
       } catch (error) {
+         // NOT_FOUND / CONFLICT 等业务错误码原样抛出，不能被包装成 500
+         if (error instanceof TRPCError) {
+            throw error;
+         }
          logger.error(
             { error },
             'Failed to sync file changes',

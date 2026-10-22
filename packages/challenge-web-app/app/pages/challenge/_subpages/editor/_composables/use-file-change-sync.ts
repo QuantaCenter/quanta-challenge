@@ -7,6 +7,8 @@ export interface IUseFileChangeSyncOptions {
    problemId: number;
    ignorePatterns?: string[];
    syncInterval?: number;
+   /** 返回加载项目时的版本号，随同步请求携带，供服务端拒绝重置前发出的旧请求 */
+   getRevision?: () => number | undefined;
 }
 
 type Change =
@@ -23,6 +25,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       problemId,
       ignorePatterns = [],
       syncInterval = DEFAULT_FILE_SYSTEM_SYNC_INTERVAL,
+      getRevision,
    } = options;
    const changeList: Change[] = [];
 
@@ -121,6 +124,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
             $trpc.protected.fileSync.syncFileChanges.mutate({
                problemId,
                changes,
+               revision: getRevision?.(),
             })
          );
          console.info(
@@ -137,6 +141,23 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
             }
          }, 3000);
       } catch (error) {
+         // 项目已被重置（revision 不匹配）：变更基于旧版本，重新入队只会无限失败，丢弃并停止自动同步
+         const code = (error as { data?: { code?: string } })?.data?.code;
+         if (code === 'CONFLICT') {
+            console.warn('[SYNC] Project revision mismatch, discarding stale changes');
+            message.error('题目已被重置，本地未同步的修改已丢弃，请刷新页面');
+            syncStatus.value = 'error';
+            failedTime = maxFailedTime;
+
+            // 错误状态保持 5 秒
+            statusTimer = setTimeout(() => {
+               if (syncStatus.value === 'error') {
+                  syncStatus.value = 'idle';
+               }
+            }, 5000);
+            return;
+         }
+
          failedTime++;
          changeList.unshift(...changes);
          console.error('[SYNC ERROR]', error);

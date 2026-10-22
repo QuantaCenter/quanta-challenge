@@ -400,6 +400,8 @@ const resetProjectProcedure = protectedProcedure
          if (!userProject) {
             return;
          }
+         // 锁定项目行：串行化同一项目的并发重置，并保证后到的事务能看到前一个事务提交的插入，避免复制出同路径的重复文件
+         await tx.$queryRaw`SELECT pid FROM projects WHERE pid = ${userProject.pid} FOR UPDATE`;
          const templateProject = await tx.projects.findFirstOrThrow({
             where: {
                problemId: input.problemId,
@@ -429,6 +431,10 @@ const resetProjectProcedure = protectedProcedure
             WHERE "fileSystemFsid" = (
                SELECT fsid FROM "file_systems" WHERE "projectId" = ${templateProject.pid}
             )
+         `;
+         // 递增版本号，使携带旧版本号的文件同步请求（重置前发出）被服务端拒绝
+         await tx.$executeRaw`
+            UPDATE projects SET revision = revision + 1, "updatedAt" = NOW() WHERE pid = ${userProject.pid}
          `;
       });
       observer.manualMarkDirty(['projects', 'file_systems', 'virtual_files']);

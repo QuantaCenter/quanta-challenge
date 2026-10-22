@@ -35,9 +35,12 @@ const props = defineProps<{ id: number }>();
 const { $trpc, $authFetch } = useNuxtApp();
 
 // file change sync
+// 加载项目时的版本号；重置会递增服务端 revision，旧版本同步请求会被拒绝
+const projectRevision = ref<number>();
 const fileChangeSync = useFileChangeSync({
    problemId: props.id,
    ignorePatterns: IGNORE_FILE_PATTERNS,
+   getRevision: () => projectRevision.value,
 });
 
 // 监听文件移动/重命名事件
@@ -84,6 +87,7 @@ const getProject = async () => {
    const result = await $trpc.protected.problem.getOrForkProject.query({
       problemId: props.id,
    });
+   projectRevision.value = result.revision;
    pathContentMap.value = {};
    result.FileSystem[0]!.files.forEach((file) => {
       // 历史数据里 file.path 可能是相对路径，也可能已经带 /project 前缀。
