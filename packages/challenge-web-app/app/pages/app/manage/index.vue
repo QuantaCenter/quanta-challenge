@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Code, GoldMedalTwo, History, Peoples, TableReport, Tag } from '@icon-park/vue-next';
+import { Box, Code, GoldMedalTwo, History, Peoples, TableReport, Tag } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -47,6 +47,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/cloud-function',
       icon: Code,
       iconColor: '#C267FF',
+   },
+   {
+      title: '快照镜像管理',
+      description: '查看做题环境快照镜像的构建文件、使用情况，编辑重新发布或删除',
+      url: '/app/manage/image',
+      icon: Box,
+      iconColor: '#4CA7FF',
    },
    {
       title: '提交记录',

@@ -199,7 +199,10 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       }
    };
 
-   const runCommand = async (commandLine: string | string[]) => {
+   const runCommand = async (
+      commandLine: string | string[],
+      options?: { env?: Record<string, string> }
+   ) => {
       let command: string;
       let args: string[];
       if (typeof commandLine === 'string') {
@@ -218,7 +221,12 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       }
 
       const instance = await getInstance();
-      return await instance.spawn(command, args);
+      // args 须作为第二个参数传入，放进 options 会被忽略
+      return await instance.spawn(
+         command,
+         args,
+         options?.env ? { env: options.env } : undefined
+      );
    };
 
    /** 当前所有已就绪的服务（按就绪顺序） */

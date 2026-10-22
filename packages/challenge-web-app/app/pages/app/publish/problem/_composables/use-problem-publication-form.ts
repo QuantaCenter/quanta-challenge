@@ -71,6 +71,8 @@ export const useProblemPublicationForm = (storageName: string) => {
       servicePort: getBackendServiceDefaultPort(
          DEFAULT_BACKEND_SERVICE_IMAGE_ID
       ) as number,
+      /** 快照镜像 id，空串表示不使用 */
+      snapshotImageId: '',
    });
    const draft = useDebounce(formdata, 200);
 

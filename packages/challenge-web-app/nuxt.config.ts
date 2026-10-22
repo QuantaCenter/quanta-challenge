@@ -136,6 +136,31 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 快照镜像构建页同样需要跨源隔离
+      '/app/publish/image': {
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
+      '/app/publish/image/**': {
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
+      // 与 IMAGE_BUILD_MAX_COMPRESSED_BYTES 一致；octet-stream 请求体受 maxRequestSizeInBytes 限制
+      '/api/image-builds/upload': {
+         security: {
+            requestSizeLimiter: {
+               maxRequestSizeInBytes: 160 * 1024 * 1024,
+            },
+         },
+      },
       '/_nuxt/**': {
          headers: {
             'Cross-Origin-Embedder-Policy': 'require-corp',

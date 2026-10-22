@@ -49,6 +49,12 @@ const uploadShape = {
    serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
    /** 后端服务：服务监听端口 */
    servicePort: z.number().int().positive().max(65535).optional(),
+   /** 快照镜像 id；null 表示不使用，编辑时未传入则沿用原值 */
+   snapshotImageId: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/, '快照镜像 id 不合法')
+      .nullable()
+      .optional(),
 };
 
 const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>

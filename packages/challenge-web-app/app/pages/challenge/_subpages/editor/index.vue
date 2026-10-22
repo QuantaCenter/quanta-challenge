@@ -23,11 +23,16 @@ import { useManifestSync } from './_composables/use-manifest-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
 import { useEditorShortcuts } from './_composables/use-editor-shortcuts';
+import {
+   deleteCachedSnapshotImage,
+   readCachedSnapshotImage,
+   writeCachedSnapshotImage,
+} from './_utils/snapshot-image-cache';
 import { useMessage } from '~/components/st/Message/use-message';
 
 const props = defineProps<{ id: number }>();
 
-const { $trpc } = useNuxtApp();
+const { $trpc, $authFetch } = useNuxtApp();
 
 // file change sync
 const fileChangeSync = useFileChangeSync({
@@ -220,7 +225,9 @@ onWebContainerFailed((err: any) => {
 
 // run project
 const editorStore = useEditorStore();
-const currentStep = ref(0);
+type BootStep = 'container' | 'snapshot' | 'install' | 'start';
+const bootStep = ref<BootStep>('container');
+const snapshotStepText = ref('正在拉取快照镜像...');
 
 /**
  * WebContainer 依赖跨源隔离（SharedArrayBuffer）。若 COOP/COEP 响应头被反向代理或
@@ -265,6 +272,119 @@ watch(unsupportedReason, (reason) => {
    if (reason) editorStore.initFailureReason = reason;
 });
 
+const downloadSnapshotImage = async (
+   fileName: string,
+   expectedSize: number | null,
+) => {
+   const response = await $authFetch(
+      `/api/static/image-builds/${encodeURIComponent(fileName)}`,
+   );
+   if (!response.ok) {
+      throw new Error(`快照镜像下载失败（HTTP ${response.status}）`);
+   }
+   // 响应带 Content-Encoding，读到的是解压后的字节，进度按原始大小计算
+   if (!response.body || !expectedSize) {
+      return new Uint8Array(await response.arrayBuffer());
+   }
+   const reader = response.body.getReader();
+   const chunks: Uint8Array[] = [];
+   let received = 0;
+   for (; ;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      const percent = Math.min(99, Math.floor((received / expectedSize) * 100));
+      snapshotStepText.value = `正在拉取快照镜像... ${percent}%`;
+   }
+   const bytes = new Uint8Array(received);
+   let offset = 0;
+   for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+   }
+   return bytes;
+};
+
+/** 题目绑定快照镜像时，在 bootCommand 之前挂载到工作区根；优先使用本地缓存 */
+const loadSnapshotImage = async (): Promise<boolean> => {
+   if (!problem.value?.snapshotImageId) return false;
+   const build = problem.value.SnapshotImage;
+   if (!build) {
+      throw new Error('题目绑定的快照镜像不存在或已被删除，请联系发布者');
+   }
+   if (build.status !== 'ready' || !build.fileName) {
+      throw new Error(
+         `题目绑定的快照镜像「${build.name}」尚未构建完成，请联系发布者`,
+      );
+   }
+   const { id, name, fileName, sizeBytes } = build;
+   const instance = await getInstance();
+
+   const mountSnapshot = async (fromCache: boolean): Promise<number> => {
+      let bytes: Uint8Array<ArrayBuffer> | null = null;
+      if (fromCache) {
+         bytes = await readCachedSnapshotImage(fileName);
+         if (bytes && sizeBytes && bytes.byteLength !== sizeBytes) {
+            await deleteCachedSnapshotImage(fileName);
+            bytes = null;
+         }
+         if (!bytes) return -1;
+         snapshotStepText.value = '正在读取缓存...';
+         await terminal.value?.writeTerminal(
+            `[image] 命中本地缓存「${name}」\n`,
+         );
+      } else {
+         snapshotStepText.value = '正在拉取快照镜像...';
+         await terminal.value?.writeTerminal(
+            `[image] 正在拉取快照镜像「${name}」…\n`,
+         );
+         bytes = await downloadSnapshotImage(fileName, sizeBytes);
+         if (bytes.byteLength === 0) {
+            throw new Error(`快照镜像「${name}」内容为空，请联系发布者重新上传`);
+         }
+      }
+      const size = bytes.byteLength;
+      // mount 会转移 buffer，需在此之前复制出要缓存的内容
+      const cacheBlob = fromCache ? null : new Blob([bytes]);
+      await instance.mount(bytes);
+      if (cacheBlob) void writeCachedSnapshotImage(id, fileName, cacheBlob);
+      return size;
+   };
+
+   let size = -1;
+   try {
+      size = await mountSnapshot(true);
+   } catch (error) {
+      console.warn('[challenge] 缓存的快照镜像挂载失败，改为重新下载:', error);
+      await deleteCachedSnapshotImage(fileName);
+   }
+   if (size < 0) {
+      try {
+         size = await mountSnapshot(false);
+      } catch (error: any) {
+         throw new Error(
+            `快照镜像「${name}」加载失败：${error?.message ?? error}`,
+         );
+      }
+   }
+
+   // snapshot 不保留执行权限
+   const fix = await runCommand([
+      'sh',
+      '-c',
+      'chmod +x node_modules/.bin/* 2>/dev/null; true',
+   ]);
+   await fix.exit;
+   await terminal.value?.writeTerminal(
+      `[image] 快照镜像已就绪（${(size / 1024 / 1024).toFixed(1)} MB）\n`,
+   );
+   return true;
+};
+
+/** 挂载快照镜像后，所有 shell 的 PATH 需包含 node_modules/.bin */
+let imageEnv: Record<string, string> | undefined;
+
 const runProject = async () => {
    // 标记启动流程已开始，便于区分"进行中"与"从未触发"
    editorStore.initStarted = true;
@@ -297,12 +417,20 @@ const runProject = async () => {
 
    // run boot commands
    editorStore.hasProjectInitialized = false;
-   currentStep.value = 1;
 
+   bootStep.value = 'snapshot';
+   if (await loadSnapshotImage()) {
+      const instance = await getInstance();
+      imageEnv = {
+         PATH: `${instance.workdir}/node_modules/.bin:${instance.path}`,
+      };
+   }
+
+   bootStep.value = 'install';
    if (problem.value?.bootCommand) {
       const bootCommands = handleCommands(problem.value.bootCommand);
       for (const { command, title } of bootCommands) {
-         const process = await runCommand(command);
+         const process = await runCommand(command, { env: imageEnv });
          await terminal.value!.attachProcess({
             process: process,
             id: terminalId,
@@ -316,9 +444,9 @@ const runProject = async () => {
    await terminal.value?.writeTerminal('\n');
 
    // run shell command (init commands)
-   currentStep.value = 2;
+   bootStep.value = 'start';
    if (problem.value?.initCommand) {
-      const shell = await runCommand('sh');
+      const shell = await runCommand('sh', { env: imageEnv });
       const initCommands = handleCommands(problem.value.initCommand).slice(
          0,
          1,
@@ -345,7 +473,7 @@ onMounted(() => {
 
 // handle add terminal
 const addTerminal = async () => {
-   const process = await runCommand('sh');
+   const process = await runCommand('sh', { env: imageEnv });
    await terminal.value?.createTerminal({ process, name: 'jsh' });
 };
 
@@ -561,11 +689,26 @@ usePreventLeave({
 });
 
 // steps
-const steps = [
-   { idle: '启动开发容器', running: '正在启动开发容器...' },
-   { idle: '安装项目依赖', running: '正在安装项目依赖...' },
-   { idle: '启动项目', running: '正在启动项目...' },
-];
+const steps = computed(() =>
+   [
+      { key: 'container', idle: '启动开发容器', running: '正在启动开发容器...' },
+      problem.value?.snapshotImageId && {
+         key: 'snapshot',
+         idle: '拉取快照镜像',
+         running: snapshotStepText.value,
+      },
+      { key: 'install', idle: '安装项目依赖', running: '正在安装项目依赖...' },
+      { key: 'start', idle: '启动项目', running: '正在启动项目...' },
+   ].filter((step): step is { key: BootStep; idle: string; running: string } =>
+      Boolean(step),
+   ),
+);
+const currentStep = computed(() =>
+   Math.max(
+      0,
+      steps.value.findIndex((step) => step.key === bootStep.value),
+   ),
+);
 
 // seo enhancement 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。 unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段 HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
 const seoDescription = computed(() =>
@@ -588,69 +731,38 @@ useSeoMeta({
 <template>
    <StSpace fill>
       <DetailWindow :markdown="problem?.detail" />
-      <CommitModal
-         :run-commands="runCommand"
-         :get-wc-instance="getInstance"
-         :build-command="problem?.buildCommand ?? void 0"
-         :upload-dir="problem?.judgeUploadPath ?? void 0"
+      <CommitModal :run-commands="runCommand" :get-wc-instance="getInstance"
+         :build-command="problem?.buildCommand ?? void 0" :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
          <EditorBoardLayout :preview-label="previewBoardLabel">
             <template #board-files>
-               <FileManagerPanel
-                  :dir-loader="dirLoader"
-                  :file-loader="fileLoader"
-                  :fs-tree="fsTree"
-                  :last-sync-time="fileChangeSync.lastSyncTime.value"
-                  :is-syncing="fileChangeSync.isSyncing.value"
-                  :sync-status="fileChangeSync.syncStatus.value"
-                  v-model:selected-path="selectedPath"
-                  @move-item="handleMoveItem"
-                  @file-click="handleFileClick"
-                  @add-file="handleAddFile"
+               <FileManagerPanel :dir-loader="dirLoader" :file-loader="fileLoader" :fs-tree="fsTree"
+                  :last-sync-time="fileChangeSync.lastSyncTime.value" :is-syncing="fileChangeSync.isSyncing.value"
+                  :sync-status="fileChangeSync.syncStatus.value" v-model:selected-path="selectedPath"
+                  @move-item="handleMoveItem" @file-click="handleFileClick" @add-file="handleAddFile"
                   @add-folder="handleAddFolder" />
             </template>
 
             <template #board-code>
-               <StSplitPanel
-                  direction="vertical"
-                  class="size-full"
-                  storage-key="editor.code-terminal"
+               <StSplitPanel direction="vertical" class="size-full" storage-key="editor.code-terminal"
                   :start-percent="65">
                   <template #start>
-                     <CodeEditorPanel
-                        ref="code-editor"
-                        v-model:current-file-path="selectedFilePath"
-                        :get-wc-instance="getInstance"
-                        :default-fs="pathContentMap" />
+                     <CodeEditorPanel ref="code-editor" v-model:current-file-path="selectedFilePath"
+                        :get-wc-instance="getInstance" :default-fs="pathContentMap" />
                   </template>
                   <template #end="panelMethods">
-                     <TerminalPanel
-                        ref="terminal"
-                        v-bind="panelMethods"
-                        @add-terminal="addTerminal" />
+                     <TerminalPanel ref="terminal" v-bind="panelMethods" @add-terminal="addTerminal" />
                   </template>
                </StSplitPanel>
             </template>
 
             <template #board-preview>
-               <RequestPanel
-                  v-if="isBackendService"
-                  :port="backendServicePort"
-                  :server-ready="!!exposeServer"
-                  :steps="steps"
-                  :current-step="currentStep"
-                  :unsupported-reason="unsupportedReason"
-                  :get-wc-instance="getInstance"
-                  :write-file="writeFile" />
-               <PreviewPanel
-                  v-else
-                  ref="preview"
-                  :steps="steps"
-                  :current-step="currentStep"
-                  :preview-url="previewUrl"
-                  :servers="servers"
-                  :unsupported-reason="unsupportedReason" />
+               <RequestPanel v-if="isBackendService" :port="backendServicePort" :server-ready="!!exposeServer"
+                  :steps="steps" :current-step="currentStep" :unsupported-reason="unsupportedReason"
+                  :get-wc-instance="getInstance" :write-file="writeFile" />
+               <PreviewPanel v-else ref="preview" :steps="steps" :current-step="currentStep" :preview-url="previewUrl"
+                  :servers="servers" :unsupported-reason="unsupportedReason" />
             </template>
          </EditorBoardLayout>
       </StSpace>

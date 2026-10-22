@@ -1,5 +1,6 @@
 import type { WebContainerProcess } from '@webcontainer/api';
 import type { Terminal } from 'xterm';
+import type { ITheme } from 'xterm';
 import type { FitAddon } from 'xterm-addon-fit';
 
 type TerminalReadyCallback = (terminal: Terminal, fitAddon: FitAddon) => void;
@@ -7,6 +8,7 @@ type TerminalReadyCallback = (terminal: Terminal, fitAddon: FitAddon) => void;
 export interface IUseTerminalOptions {
    containerKey?: string;
    containerElement?: HTMLElement;
+   theme?: ITheme;
 }
 
 export const useTerminal = (options?: IUseTerminalOptions) => {
@@ -56,6 +58,7 @@ export const useTerminal = (options?: IUseTerminalOptions) => {
          convertEol: true,
          fontSize: 12,
          fontFamily: 'monospace',
+         ...(options?.theme ? { theme: options.theme } : {}),
       });
       fitAddonInstance = new FitAddon();
 

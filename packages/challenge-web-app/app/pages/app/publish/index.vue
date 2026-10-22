@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import { Box, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
@@ -10,6 +10,15 @@ const options = [
       url: '/app/publish/problem',
       icon: TableReport,
       iconColor: '#C1EF3F',
+   },
+   {
+      title: '构建快照镜像',
+      description: '用构建脚本预装依赖，生成做题页 WebContainer 启动时挂载的快照镜像（不影响判题）',
+      url: '/app/publish/image',
+      icon: Box,
+      iconColor: '#4CA7FF',
+      // 依赖跨源隔离响应头，需整页加载
+      needFullLoad: true,
    },
    {
       title: '创建成就',
@@ -48,6 +57,7 @@ const options = [
                v-for="option in options"
                :key="option.title"
                :to="option.url"
+               :external="option.needFullLoad === true"
                class="w-full">
                <StSpace
                   fill-x
