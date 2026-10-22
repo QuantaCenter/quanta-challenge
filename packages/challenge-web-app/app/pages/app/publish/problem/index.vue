@@ -543,19 +543,12 @@ const handleSubmit = async () => {
                      placeholder="请输入打包上传路径"
                      :outer-class />
                </StFormItem>
-               <StFormItem name="taskStartAt" label="任务开始日期">
+               <StFormItem name="taskRange" label="任务日期范围">
                   <StDatePicker
-                     v-model:value="draft.taskStartAt"
-                     placeholder="任务日期范围起点（可选）"
-                     :outer-class />
-               </StFormItem>
-               <StFormItem
-                  name="taskEndAt"
-                  label="任务结束日期"
-                  error-message="结束日期不能早于开始日期">
-                  <StDatePicker
-                     v-model:value="draft.taskEndAt"
-                     placeholder="任务日期范围终点（可选）"
+                     range
+                     v-model:start-value="draft.taskStartAt"
+                     v-model:end-value="draft.taskEndAt"
+                     placeholder="选择任务生效的日期区间（可选）"
                      :outer-class />
                </StFormItem>
                <StFormItem
