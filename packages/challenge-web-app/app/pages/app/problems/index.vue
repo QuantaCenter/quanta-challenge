@@ -10,6 +10,10 @@ import {
    Right,
    LoadingFour,
    Ghost,
+   Round,
+   Calendar,
+   Filter,
+   Clear,
 } from '@icon-park/vue-next';
 import { useScroll, useResizeObserver, watchDebounced } from '@vueuse/core';
 import { PassRate, Score, Difficulty } from './_components/CardInfo';
@@ -91,8 +95,26 @@ const selectAll = () => {
 
 const selectedDifficulty = ref<$Enums.Difficulty | ''>('');
 const searchKeyword = ref('');
+const onlyUncompleted = ref(false);
+const onlyCurrentWeek = ref(false);
+const advancedOpen = ref(false);
+const hasActiveAdvanced = computed(
+   () =>
+      selectedDifficulty.value !== '' ||
+      onlyUncompleted.value ||
+      onlyCurrentWeek.value
+);
+const resetAdvanced = () => {
+   selectedDifficulty.value = '';
+   onlyUncompleted.value = false;
+   onlyCurrentWeek.value = false;
+};
 
 watch(selectedDifficulty, () => {
+   startViewTransition(refresh);
+});
+
+watch([onlyUncompleted, onlyCurrentWeek], () => {
    startViewTransition(refresh);
 });
 
@@ -109,6 +131,8 @@ const currentFilters = () => ({
    tids: selectedTags.value,
    difficulty: selectedDifficulty.value || undefined,
    keyword: searchKeyword.value || undefined,
+   excludePids: onlyUncompleted.value ? completedProblemIds.value : undefined,
+   currentWeekOnly: onlyCurrentWeek.value || undefined,
 });
 
 // 游标分页 + 触底加载，见 ~/composables/use-infinite-list.ts
@@ -218,11 +242,81 @@ const {
                <StSpace
                   gap="1rem"
                   class="contents max-md:flex max-md:w-full max-md:min-w-0">
-                  <DifficultyFilter v-model:value="selectedDifficulty" />
                   <ProblemSearchInput v-model:value="searchKeyword" />
+                  <button
+                     @click="advancedOpen = !advancedOpen"
+                     class="w-[3.5rem] h-[3.5rem] rounded-xl shrink-0 flex items-center justify-center cursor-pointer transition-colors focus-within:ring-1 focus-within:ring-primary/50"
+                     :class="
+                        advancedOpen || hasActiveAdvanced
+                           ? 'bg-accent-100 text-accent-600'
+                           : 'bg-accent-600 text-accent-100 hover:bg-accent-500'
+                     "
+                     title="高级筛选">
+                     <Filter
+                        theme="outline"
+                        size="1.25rem"
+                        fill="currentColor" />
+                  </button>
                </StSpace>
             </StSpace>
          </StSkeleton>
+         <!-- grid-rows 0fr/1fr 过渡实现面板高度平滑展开收起 -->
+         <div
+            class="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
+            :class="
+               advancedOpen
+                  ? 'grid-rows-[1fr] opacity-100'
+                  : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+            ">
+            <div class="overflow-hidden min-h-0">
+               <StSpace
+                  fill-x
+                  align="center"
+                  gap="1rem"
+                  class="mt-1 flex-wrap rounded-2xl border border-accent-500/20">
+               <StSpace align="center" gap="0.75rem" class="shrink-0">
+                  <DifficultyFilter v-model:value="selectedDifficulty" />
+               </StSpace>
+               <StSpace
+                  gap="0.5rem"
+                  align="center"
+                  @click="onlyCurrentWeek = !onlyCurrentWeek"
+                  class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
+                  :class="{
+                     'bg-accent-100 text-accent-600 border-transparent':
+                        onlyCurrentWeek,
+                     'bg-accent-600 text-accent-100 border-accent-500/40':
+                        !onlyCurrentWeek,
+                  }">
+                  <Calendar class="text-[1.25rem]" />
+                  <span class="font-family-manrope font-bold">只显示本周任务</span>
+               </StSpace>
+               <StSpace
+                  gap="0.5rem"
+                  align="center"
+                  @click="onlyUncompleted = !onlyUncompleted"
+                  class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
+                  :class="{
+                     'bg-accent-100 text-accent-600 border-transparent':
+                        onlyUncompleted,
+                     'bg-accent-600 text-accent-100 border-accent-500/40':
+                        !onlyUncompleted,
+                  }">
+                  <Round class="text-[1.25rem]" />
+                  <span class="font-family-manrope font-bold">只显示未完成</span>
+               </StSpace>
+               <StSpace
+                  v-if="hasActiveAdvanced"
+                  gap="0.5rem"
+                  align="center"
+                  @click="resetAdvanced"
+                  class="ml-auto h-[3rem] px-5 rounded-full cursor-pointer shrink-0 text-nowrap whitespace-nowrap text-accent-300 hover:text-white hover:bg-accent-600 transition-colors">
+                  <Clear class="text-[1.25rem]" />
+                  <span class="font-family-manrope font-bold">清除筛选</span>
+               </StSpace>
+               </StSpace>
+            </div>
+         </div>
          <Divider />
          <StSkeleton
             :loading="problemsStatus === 'pending' && problems.length === 0"
@@ -305,3 +399,4 @@ const {
 </template>
 
 <style scoped src="@/assets/css/utils.css" />
+
