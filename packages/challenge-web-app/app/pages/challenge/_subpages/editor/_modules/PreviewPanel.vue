@@ -4,8 +4,6 @@ import {
    CheckOne,
    FullScreenTwo,
    LoadingFour,
-   // 注意：@icon-park/vue-next 导出的名字是 OffScreen，没有 OffScreenTwo。
-   // 原先这里写的是 OffScreenTwo（且并未 import），全屏退出按钮会渲染成 undefined 组件。
    OffScreen,
    Refresh,
    Round,
@@ -74,12 +72,12 @@ const onAddressEscape = (event: KeyboardEvent) => {
 
 const fullScreenMode = ref(false);
 
-/** 全屏层的目标位置：四周留 2rem */
 const FULLSCREEN_TARGET = {
    left: '2rem',
    top: '2rem',
    width: 'calc(100vw - 4rem)',
    height: 'calc(100vh - 4rem)',
+   borderRadius: '0.75rem',
 };
 const FULLSCREEN_TRANSITION = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
 
@@ -104,6 +102,7 @@ const enterFullScreenMode = () => {
    fullScreenMode.value = true;
    fullscreenStyle.value = {
       ...(rect ? rectToStyle(rect) : FULLSCREEN_TARGET),
+      borderRadius: '0px',
       opacity: '1',
       pointerEvents: 'none',
       transition: 'none',
@@ -131,6 +130,7 @@ const leaveFullScreenMode = () => {
    }
    fullscreenStyle.value = {
       ...rectToStyle(rect),
+      borderRadius: '0px',
       opacity: '1',
       pointerEvents: 'none',
       transition: FULLSCREEN_TRANSITION,
@@ -281,7 +281,11 @@ defineExpose({ refresh });
                </StSpace>
             </StSpace>
          </StSpace>
-         <div v-else ref="inline-frame" class="size-full">
+         <div
+            v-else
+            ref="inline-frame"
+            class="size-full"
+            :style="{ opacity: fullScreenMode ? 0 : 1 }">
             <iframe :src="iframeSrc" class="size-full"></iframe>
          </div>
       </StSpace>
@@ -289,7 +293,7 @@ defineExpose({ refresh });
          <!-- 常驻挂载预加载：iframe 提前加载预览页，进入全屏时内容已就绪，不会黑屏 -->
          <div
             v-show="fullScreenMode"
-            class="fixed z-[10000] rounded-xl overflow-hidden border border-accent-500 bg-[#1F1F1F]"
+            class="fixed z-[10000] overflow-hidden border border-accent-500 bg-[#1F1F1F]"
             :style="fullscreenStyle">
             <StSpace
                @click="leaveFullScreenMode"
