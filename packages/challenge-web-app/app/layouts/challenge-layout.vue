@@ -20,6 +20,9 @@ const toggleDetailWindow = () => {
 /** 侧边栏「布局」菜单的开关 */
 const layoutMenuOpened = ref(false);
 
+/** 侧边栏「设置」菜单的开关 */
+const settingsMenuOpened = ref(false);
+
 /**
  * 提交事件。
  *
@@ -173,10 +176,10 @@ const avatarUrl = computed(() => {
                align="center"
                gap="0.5rem"
                class="mb-1">
-               <!-- 设置按钮暂无实际功能，先隐藏 -->
-               <StSidebarSidePopper v-if="false" content="设置">
+               <StSidebarSidePopper content="设置">
                   <StRippleEffect>
                      <button
+                        @click="settingsMenuOpened = true"
                         class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
                         <SettingOne class="text-[1.1rem]" />
                      </button>
@@ -197,6 +200,11 @@ const avatarUrl = computed(() => {
 
          <!-- 布局设置（面板比例 / 锁定 / 恢复默认） -->
          <ChallengeLayoutMenu v-model:opened="layoutMenuOpened" />
+
+         <!-- 设置（做题页内置重置题目） -->
+         <ChallengeSettingsMenu
+            v-model:opened="settingsMenuOpened"
+            :problem-id="mode === 'problem' ? id : undefined" />
       </div>
    </StMessageProvider>
 </template>
