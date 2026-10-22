@@ -79,7 +79,7 @@ const zoomOut = () => {
          :style="{
             fontSize: `${fontSize}px`,
          }">
-         <LazyStMarkdownPreview :html="html" />
+         <LazyStMarkdownPreview :html="html" class="w-full" />
       </StSpace>
    </StFloatWindow>
 </template>
