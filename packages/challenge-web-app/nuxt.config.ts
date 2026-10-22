@@ -193,6 +193,15 @@ export default defineNuxtConfig({
       },
    },
 
+   hooks: {
+      // 不输出 <link rel="prefetch">：HTTP/2 下浏览器会把几十个其他页面的 chunk 与首屏 modulepreload 同时发出，在出口带宽受限时直接挤占关键 JS 的带宽。路由跳转时 Vite 的 __vitePreload 仍会并行预加载目标页依赖。
+      'build:manifest': (manifest) => {
+         for (const key in manifest) {
+            manifest[key].prefetch = false;
+         }
+      },
+   },
+
    modules: [
       '@pinia/nuxt',
       '@vueuse/nuxt',
@@ -215,6 +224,8 @@ export default defineNuxtConfig({
       },
       devProxy: { host: '127.0.0.1' },
       preset: 'node-server',
+      // 构建期生成 .br/.gz，静态处理器按 Accept-Encoding 直接返回，不再依赖反向代理逐请求实时压缩
+      compressPublicAssets: { gzip: true, brotli: true },
       storage: {
          local: {
             driver: 'fs',
