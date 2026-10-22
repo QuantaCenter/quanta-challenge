@@ -34,7 +34,7 @@ challenge-web-app/
 ├── scripts/
 │   ├── docker-entrypoint.sh  # 容器入口：先 prisma migrate deploy 再启动
 │   ├── pre-build.ts / post-build.ts
-│   ├── prisma-seed.ts / achievement-seed-data.ts  # 种子数据
+│   ├── prisma-seed.ts  # 种子数据（仅超级管理员账号）
 │   ├── dev-watchdog.mjs / replay-webhook.mjs
 ├── Dockerfile
 └── nuxt.config.ts
