@@ -330,34 +330,46 @@ const getCurrentProblemPidProcedure = protectedProcedure
       return { pid: problem.BaseProblem?.currentPid ?? problem.pid };
    });
 
-// 获取当前用户已完成（judge 通过）的题目 pid 列表：完成按基础题计算，做过任一版本即视为完成，
-// 因此除了做过的版本 pid，还会带上对应基础题的当前版本 pid
-const listCompletedProblemIdsProcedure = protectedProcedure.query(
+// 获取当前用户的做题状态：completed 为已通过的题目 pid，attempted 为提交过但未通过的题目 pid，
+// 均按基础题归并到当前版本 pid
+const listProblemStatusesProcedure = protectedProcedure.query(
    async ({ ctx }) => {
       const { userId } = ctx.user;
 
       const records = await prisma.judgeRecords.findMany({
          where: {
             userId,
-            result: 'success',
             type: 'judge',
          },
          select: {
-            problemId: true,
+            result: true,
             problem: {
-               select: { BaseProblem: { select: { currentPid: true } } },
+               select: {
+                  pid: true,
+                  BaseProblem: { select: { currentPid: true } },
+               },
             },
          },
          distinct: ['problemId'],
       });
 
-      const pids = new Set<number>();
+      // pid -> 是否通过过判题
+      const statuses = new Map<number, boolean>();
       for (const record of records) {
-         pids.add(record.problemId);
-         const currentPid = record.problem.BaseProblem.currentPid;
-         if (currentPid !== null) pids.add(currentPid);
+         const success = record.result === 'success';
+         const mark = (pid: number) =>
+            statuses.set(pid, (statuses.get(pid) ?? false) || success);
+         mark(record.problem.pid);
+         const currentPid = record.problem.BaseProblem?.currentPid;
+         if (currentPid !== null && currentPid !== undefined) mark(currentPid);
       }
-      return [...pids];
+
+      const completed: number[] = [];
+      const attempted: number[] = [];
+      for (const [pid, success] of statuses) {
+         (success ? completed : attempted).push(pid);
+      }
+      return { completed, attempted };
    },
 );
 
@@ -450,6 +462,6 @@ export const problemRouter = router({
    getAllCommitRecords: getAllCommitRecordsProcedure,
    getCommitRecordDetail: getCommitRecordDetailProcedure,
    getCommitStatistic: getCommitStatisticProcedure,
-   listCompletedProblemIds: listCompletedProblemIdsProcedure,
+   listProblemStatuses: listProblemStatusesProcedure,
    resetProject: resetProjectProcedure,
 });
