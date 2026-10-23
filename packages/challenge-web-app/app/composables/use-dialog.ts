@@ -25,6 +25,9 @@ export interface PromptDialogOptions extends BaseDialogOptions {
    placeholder?: string;
    defaultValue?: string;
    inputType?: 'text' | 'password';
+   /** 多行 textarea */
+   multiline?: boolean;
+   maxLength?: number;
    validator?: (value: string) => boolean | string;
    confirmText?: string;
    cancelText?: string;

@@ -85,14 +85,18 @@ const cleanup = () => {
          'transition-colors',
          'flex items-center justify-center',
       ]">
+      <StSpace v-if="uploading" fill center direction="vertical" gap="0.5rem">
+         <LoadingFour class="animate-spin text-primary" />
+         <span class="st-font-caption text-accent-300">上传中…</span>
+      </StSpace>
       <StDropUploader
-         v-if="!imageUrl"
+         v-else-if="!imageUrl"
          :placeholder="props.placeholder"
          :icon="icon ?? ImageFiles"
          type="file"
          accept="image/*"
          @update:files="imageFile = $event?.[0] || null" />
-      <StSpace v-else-if="!uploading" direction="vertical" center gap="0.75rem">
+      <StSpace v-else direction="vertical" center gap="0.75rem">
          <img
             :src="imageUrl"
             :style="{ maxHeight: props.imageMaxHeight || '14rem' }"
@@ -109,9 +113,6 @@ const cleanup = () => {
                <DeleteFour size="0.75rem" />
             </StSpace>
          </div>
-      </StSpace>
-      <StSpace v-else-if="uploading" fill center>
-         <LoadingFour class="animate-spin text-primary" />
       </StSpace>
    </div>
 </template>
