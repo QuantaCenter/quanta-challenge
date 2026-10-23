@@ -1,5 +1,8 @@
 <script setup lang="ts">
-import { Close, Left, Right, Calendar } from '@icon-park/vue-next';
+import { Close, Left, Right, Calendar, Help } from '@icon-park/vue-next';
+import dayjs from 'dayjs';
+import { dialog, useDialogManager } from '~/composables/use-dialog';
+import { useMessage } from '~/components/st/Message/use-message';
 
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '~~/server/trpc/routes';
@@ -13,7 +16,11 @@ const props = defineProps<{
    hasNext?: boolean;
 }>();
 
-const emit = defineEmits(['prev', 'next']);
+const emit = defineEmits<{
+   prev: [];
+   next: [];
+   appealed: [id: string, appeal: NonNullable<Notification['appeal']>];
+}>();
 const opened = defineModel<boolean>('opened');
 
 const cardRef = ref<HTMLElement | null>(null);
@@ -22,9 +29,51 @@ const close = () => {
    opened.value = false;
 };
 
+const { $trpc } = useNuxtApp();
+const message = useMessage();
+const { dialogs } = useDialogManager();
+// 存在上层对话框时不处理遮罩与快捷键
+const hasDialog = computed(() => dialogs.value.length > 0);
+
+const APPEAL_STATUS_LABEL = {
+   PENDING: '审核中',
+   APPROVED: '申诉成功',
+   REJECTED: '已驳回',
+} as const;
+
+const appealHint = computed(() => {
+   const appeal = props.notification?.appeal;
+   if (!appeal) return '如对该警告有异议，可提交申诉';
+   const time = dayjs(appeal.createdAt).format('YYYY-MM-DD HH:mm');
+   return `已于 ${time} 提交申诉 · ${APPEAL_STATUS_LABEL[appeal.status]}`;
+});
+
+const handleAppeal = async () => {
+   const notification = props.notification;
+   if (!notification) return;
+
+   await dialog.prompt({
+      title: '提交申诉',
+      description: `针对警告「${notification.title}」，请说明你的申诉理由。每条警告只能申诉一次。`,
+      placeholder: '请输入申诉内容（Ctrl / ⌘ + Enter 提交）',
+      multiline: true,
+      maxLength: 1000,
+      confirmText: '提交申诉',
+      validator: (value) => !!value.trim() || '申诉内容不能为空',
+      onConfirm: async (value) => {
+         const appeal = await $trpc.protected.notification.appeal.mutate({
+            notificationId: notification.id,
+            content: value,
+         });
+         emit('appealed', notification.id, appeal);
+         message.success('申诉已提交', '管理员会尽快处理');
+      },
+   });
+};
+
 // 点击卡片（含悬浮按钮）以外的区域关闭
 const handleOutsidePointerDown = (e: PointerEvent) => {
-   if (!opened.value) return;
+   if (!opened.value || hasDialog.value) return;
    const target = e.target as Node | null;
    if (!target) return;
    if (cardRef.value?.contains(target)) return;
@@ -37,7 +86,7 @@ const formattedTime = computed(() => {
 });
 
 const handleKeydown = (e: KeyboardEvent) => {
-   if (!opened.value) return;
+   if (!opened.value || hasDialog.value) return;
    if (e.key === 'ArrowLeft' && props.hasPrevious) {
       emit('prev');
    } else if (e.key === 'ArrowRight' && props.hasNext) {
@@ -69,7 +118,12 @@ onUnmounted(() => {
                <div class="flex justify-between items-start mb-4">
                   <div class="flex items-center gap-3">
                      <span
-                        class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider bg-accent-500 text-accent-200 border border-accent-500">
+                        class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border"
+                        :class="
+                           notification.type === 'WARNING'
+                              ? 'bg-error/20 text-error border-error/60'
+                              : 'bg-accent-500 text-accent-200 border-accent-500'
+                        ">
                         {{ notification.type }}
                      </span>
                      <div
@@ -98,6 +152,45 @@ onUnmounted(() => {
                      {{ notification.content }}
                   </p>
                </div>
+            </div>
+
+            <div
+               v-if="notification.type === 'WARNING'"
+               class="relative z-10 shrink-0 px-10 py-5 border-t border-accent-500 flex items-center justify-between gap-4">
+               <div class="flex flex-col gap-1">
+                  <span
+                     v-if="notification.scorePenalty"
+                     class="st-font-body-bold"
+                     :class="
+                        notification.scorePenalty.revokedAt
+                           ? 'text-success'
+                           : 'text-error'
+                     ">
+                     {{
+                        notification.scorePenalty.revokedAt
+                           ? `扣除的 ${notification.scorePenalty.score} 分已恢复`
+                           : `本次警告扣除 ${notification.scorePenalty.score} 分`
+                     }}
+                  </span>
+                  <span class="st-font-caption text-accent-300">
+                     {{ appealHint }}
+                  </span>
+               </div>
+               <StButton
+                  size="sm"
+                  theme="danger"
+                  bordered
+                  :disabled="!!notification.appeal"
+                  @click="handleAppeal">
+                  <span class="flex items-center gap-1">
+                     <Help />
+                     {{
+                        notification.appeal
+                           ? APPEAL_STATUS_LABEL[notification.appeal.status]
+                           : '申诉'
+                     }}
+                  </span>
+               </StButton>
             </div>
 
             <div class="absolute right-24 bottom-12 z-0 opacity-20">

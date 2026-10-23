@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { Box, Code, GoldMedalTwo, History, Peoples, TableReport, Tag } from '@icon-park/vue-next';
+import {
+   Box,
+   Code,
+   GoldMedalTwo,
+   Help,
+   History,
+   Peoples,
+   TableReport,
+   Tag,
+   VolumeNotice,
+} from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
 useSeoMeta({ title: '管理流程 - Quanta Challenge' });
@@ -61,6 +71,20 @@ const options: ProcessOption[] = [
       url: '/app/manage/submission',
       icon: History,
       iconColor: '#F97316',
+   },
+   {
+      title: '发送通知',
+      description: '向全体或指定用户发送日常公告与严重警告',
+      url: '/app/manage/notification',
+      icon: VolumeNotice,
+      iconColor: '#8B5CF6',
+   },
+   {
+      title: '全部申诉',
+      description: '查看用户针对严重警告提交的申诉内容',
+      url: '/app/manage/appeal',
+      icon: Help,
+      iconColor: '#EF4444',
    },
 ];
 </script>

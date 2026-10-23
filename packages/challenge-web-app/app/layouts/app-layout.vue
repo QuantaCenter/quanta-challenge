@@ -5,6 +5,7 @@ import {
    useMessageOutsideVue,
 } from '~/components/st/Message/use-message';
 import useAuthStore from '~/stores/auth-store';
+import UnreadWarningNotice from '~/components/notification/UnreadWarningNotice.vue';
 
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.user?.role !== 'USER');
@@ -43,24 +44,13 @@ const handleNotificationClick = () => {
    navigateTo('/app/notifications');
 };
 
-const { $trpc } = useNuxtApp();
-const unreadCount = ref(0);
-
-const fetchUnreadCount = async () => {
-   if (authStore.user) {
-      try {
-         unreadCount.value =
-            await $trpc.protected.notification.unreadCount.query();
-      } catch {}
-   } else {
-      unreadCount.value = 0;
-   }
-};
+const {
+   unreadCount,
+   unreadWarningCount,
+   refresh: fetchUnreadCount,
+} = useUnreadNotifications();
 
 watch(() => authStore.user, fetchUnreadCount);
-
-const refreshUnreadCountEmitter = useEventBus('refresh-unread-count');
-refreshUnreadCountEmitter.on(fetchUnreadCount);
 
 // 全局快捷键 Cmd/Ctrl + K
 const handleKeydown = (e: KeyboardEvent) => {
@@ -145,6 +135,8 @@ onMounted(() => {
 
       <!-- 对话框覆盖层 -->
       <DialogOverlay />
+
+      <UnreadWarningNotice :count="unreadWarningCount" />
    </div>
 </template>
 

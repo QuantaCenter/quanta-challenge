@@ -5,6 +5,7 @@ import NotificationDetailModal from './_components/NotificationDetailModal.vue';
 import NotificationItemSkeleton from './_components/NotificationItemSkeleton.vue';
 import { DoneAll, Inbox, LoadingFour, Ghost } from '@icon-park/vue-next';
 import { useNuxtApp } from '#app';
+import { useMessage } from '~/components/st/Message/use-message';
 import type { inferRouterOutputs } from '@trpc/server';
 import type { AppRouter } from '~~/server/trpc/routes';
 
@@ -16,9 +17,40 @@ type Notification =
 
 const { $trpc } = useNuxtApp();
 
-const filterType = ref<
-   'ALL' | 'UNREAD' | 'SYSTEM' | 'JUDGE' | 'COMMENT' | 'LIKE' | 'ACHIEVEMENT'
->('ALL');
+type FilterType =
+   | 'ALL'
+   | 'UNREAD'
+   | 'SYSTEM'
+   | 'JUDGE'
+   | 'COMMENT'
+   | 'LIKE'
+   | 'ACHIEVEMENT'
+   | 'ANNOUNCEMENT'
+   | 'WARNING';
+
+const filterOptions: { label: string; value: FilterType; color: string }[] = [
+   { label: '全部', value: 'ALL', color: '#FA7C0E' },
+   { label: '未读', value: 'UNREAD', color: '#F59E0B' },
+   { label: '系统', value: 'SYSTEM', color: '#3B82F6' },
+   { label: '判题', value: 'JUDGE', color: '#10B981' },
+   { label: '公告', value: 'ANNOUNCEMENT', color: '#8B5CF6' },
+   { label: '警告', value: 'WARNING', color: '#EF4444' },
+];
+
+const route = useRoute();
+const queryFilter = () =>
+   filterOptions.find((option) => option.value === route.query.type)?.value;
+
+const filterType = ref<FilterType>(queryFilter() ?? 'ALL');
+
+// 路由 query 变化时同步筛选
+watch(
+   () => route.query.type,
+   () => {
+      const next = queryFilter();
+      if (next) filterType.value = next;
+   },
+);
 
 // 游标分页 + 触底加载，见 ~/composables/use-infinite-list.ts
 const {
@@ -44,41 +76,58 @@ watch(filterType, () => {
    refreshNotifications();
 });
 
-const filterOptions = [
-   { label: '全部', value: 'ALL', color: '#FA7C0E' },
-   { label: '未读', value: 'UNREAD', color: '#F59E0B' },
-   { label: '系统', value: 'SYSTEM', color: '#3B82F6' },
-   { label: '判题', value: 'JUDGE', color: '#10B981' },
-];
+const unread = useUnreadNotifications();
+const message = useMessage();
 
+const markingAll = ref(false);
 const markAllAsRead = async () => {
+   if (markingAll.value) return;
+   const unreadItems = notifications.value.filter((n) => !n.read);
+
+   markingAll.value = true;
+   unreadItems.forEach((n) => (n.read = true));
+   unread.markAllRead();
    try {
       await $trpc.protected.notification.markAllAsRead.mutate();
-      notifications.value.forEach((n: Notification) => (n.read = true));
    } catch (error) {
       console.error('Failed to mark all as read:', error);
+      unreadItems.forEach((n) => (n.read = false));
+      message.error('操作失败', '标记全部已读失败，请稍后重试');
+   } finally {
+      markingAll.value = false;
+      await unread.refresh();
    }
 };
 
 const selectedNotification = ref<Notification | null>(null);
 const isModalOpened = ref(false);
 
-const refreshUnreadCountEmitter = useEventBus('refresh-unread-count');
 const openNotification = async (notification: Notification) => {
    selectedNotification.value = notification;
    isModalOpened.value = true;
 
-   if (!notification.read) {
-      try {
-         await $trpc.protected.notification.markAsRead.mutate({
-            id: notification.id,
-         });
-         notification.read = true;
-         refreshUnreadCountEmitter.emit();
-      } catch (error) {
-         console.error('Failed to mark as read:', error);
-      }
+   if (notification.read) return;
+
+   notification.read = true;
+   unread.markOneRead(notification.type === 'WARNING');
+   try {
+      await $trpc.protected.notification.markAsRead.mutate({
+         id: notification.id,
+      });
+   } catch (error) {
+      console.error('Failed to mark as read:', error);
+      notification.read = false;
+   } finally {
+      await unread.refresh();
    }
+};
+
+const handleAppealed = (
+   id: string,
+   appeal: NonNullable<Notification['appeal']>,
+) => {
+   const target = notifications.value.find((n: Notification) => n.id === id);
+   if (target) target.appeal = appeal;
 };
 
 const currentIndex = computed(() => {
@@ -124,6 +173,7 @@ const handleNext = () => {
          <div class="flex justify-between items-end w-full">
             <h1 class="st-font-hero-bold">通知中心</h1>
             <div
+               v-if="unread.unreadCount.value > 0"
                @click="markAllAsRead"
                class="flex items-center gap-1.5 text-accent-400 hover:text-accent-100 cursor-pointer transition-colors select-none">
                <DoneAll size="1.125rem" />
@@ -193,6 +243,7 @@ const handleNext = () => {
          :has-previous="hasPrevious"
          :has-next="hasNext"
          @prev="handlePrev"
-         @next="handleNext" />
+         @next="handleNext"
+         @appealed="handleAppealed" />
    </StSpace>
 </template>
