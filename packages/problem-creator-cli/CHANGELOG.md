@@ -5,6 +5,8 @@
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-10-23
+
 ### Fixed
 
 - `qpc image` / `qpc cover --upload` 改为 multipart 二进制上传（原为 base64 JSON）。原先超过约 1.5MB 的图片
