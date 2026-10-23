@@ -141,13 +141,27 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
             }
          }, 3000);
       } catch (error) {
-         // 项目已被重置（revision 不匹配）：变更基于旧版本，重新入队只会无限失败，丢弃并停止自动同步
          const code = (error as { data?: { code?: string } })?.data?.code;
          if (code === 'CONFLICT') {
+            // 变更基于旧版本，重新入队只会无限失败，丢弃并停止自动同步
             console.warn('[SYNC] Project revision mismatch, discarding stale changes');
             message.error('题目已被重置，本地未同步的修改已丢弃，请刷新页面');
             syncStatus.value = 'error';
             failedTime = maxFailedTime;
+
+            // 错误状态保持 5 秒
+            statusTimer = setTimeout(() => {
+               if (syncStatus.value === 'error') {
+                  syncStatus.value = 'idle';
+               }
+            }, 5000);
+            return;
+         }
+         if (code === 'BAD_REQUEST') {
+            // 服务端拒绝的变更重试也不会通过，直接丢弃
+            console.warn('[SYNC] Changes rejected by server, discarding');
+            message.error('部分文件变更被拒绝，已跳过');
+            syncStatus.value = 'error';
 
             // 错误状态保持 5 秒
             statusTimer = setTimeout(() => {

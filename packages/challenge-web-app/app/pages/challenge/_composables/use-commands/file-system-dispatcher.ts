@@ -1,5 +1,6 @@
 import type { WebContainer } from '@webcontainer/api';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
+import { hasBinarySnapshotExtension } from '@challenge/shared/snapshot-content';
 
 type ChangeTreeItem = { path: string; children?: ChangeTreeItem[] };
 
@@ -191,6 +192,10 @@ export class FileSystemDispatcher {
             // 悬空文件夹，终止该分支的遍历
             continue;
          } else if (existsInWc && fsNode && fsNode.type === 'file') {
+            // 二进制文件按 base64 入库，文本 diff 不适用，跳过
+            if (hasBinarySnapshotExtension(normalizedPath)) {
+               continue;
+            }
             // wc 与树中都存在：对比内容，捕获终端造成的内容修改（如 echo > file）
             try {
                const content = await wc.fs.readFile(pathForWC, 'utf-8');
@@ -243,6 +248,10 @@ export class FileSystemDispatcher {
             addedItems.push({ path, kind: 'folder' });
          } catch {
             try {
+               // 二进制文件不入库
+               if (hasBinarySnapshotExtension(path)) {
+                  continue;
+               }
                const content = await wc.fs.readFile(pathForWC, 'utf-8');
                addedItems.push({ path, kind: 'file', content });
             } catch {
@@ -332,6 +341,10 @@ export class FileSystemDispatcher {
          if (entry.isDirectory()) {
             await this._collectFolderFiles(wc, childPath, changes);
          } else {
+            // 二进制文件不入库
+            if (hasBinarySnapshotExtension(childPath)) {
+               continue;
+            }
             try {
                const content = await wc.fs.readFile(
                   childPath.slice(1),

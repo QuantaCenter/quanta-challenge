@@ -6,6 +6,13 @@ import { TRPCError } from '@trpc/server';
 import { observer } from '../../services/achievement';
 import { logger } from '~~/server/utils/logger';
 
+// 文本列不能存储 NUL 字节，含 \u0000 的内容直接拒绝
+const SyncContentSchema = z
+   .string()
+   .refine((content) => !content.includes('\u0000'), {
+      error: '内容包含非法字符',
+   });
+
 // 定义变更类型的 schema
 const ChangeSchema = z.discriminatedUnion('type', [
    z.object({
@@ -20,12 +27,12 @@ const ChangeSchema = z.discriminatedUnion('type', [
    z.object({
       type: z.literal('change'),
       path: z.string(),
-      content: z.string(),
+      content: SyncContentSchema,
    }),
    z.object({
       type: z.literal('create'),
       path: z.string(),
-      content: z.string(),
+      content: SyncContentSchema,
    }),
 ]);
 
