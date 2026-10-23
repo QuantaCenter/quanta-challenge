@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { Pic, SaveOne } from '@icon-park/vue-next';
 import type monaco from 'monaco-editor';
-import { arrayBufferToBase64 } from '~/components/st/DropUploader/walk-file-list';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useMarkdown } from '~/composables/use-markdown';
 import { useSimpleEditor } from '~/composables/use-simple-editor';
@@ -104,11 +103,9 @@ const uploadAndInsertImage = async (file: File) => {
    }
    uploadingImage.value = true;
    try {
-      const fileBase64 = arrayBufferToBase64(await file.arrayBuffer());
-      const res = await $trpc.admin.image.upload.mutate({
-         fileBase64,
-         fileName: file.name,
-      });
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await $trpc.admin.image.upload.mutate(formData);
       const alt =
          file.name
             .replace(/\.[^.]+$/, '')

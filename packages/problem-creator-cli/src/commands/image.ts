@@ -100,7 +100,7 @@ export const runImage = async (
          continue;
       }
       const image = await api.uploadImage({
-         fileBase64: content.toString('base64'),
+         content,
          fileName: basename(file),
       });
       const entry = {

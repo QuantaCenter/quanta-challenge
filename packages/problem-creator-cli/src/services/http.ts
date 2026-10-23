@@ -188,12 +188,18 @@ export class HttpClient {
                     `${endpoint}?input=${encodeURIComponent(JSON.stringify(options.input ?? null))}`,
                     { method: 'GET', signal: options.signal },
                  )
-               : await this.request(endpoint, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify(options.input ?? null),
-                    signal: options.signal,
-                 });
+               : options.input instanceof FormData
+                 ? await this.request(endpoint, {
+                      method: 'POST',
+                      body: options.input,
+                      signal: options.signal,
+                   })
+                 : await this.request(endpoint, {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify(options.input ?? null),
+                      signal: options.signal,
+                   });
 
          const text = await response.text();
          const payload = parseJson(text);

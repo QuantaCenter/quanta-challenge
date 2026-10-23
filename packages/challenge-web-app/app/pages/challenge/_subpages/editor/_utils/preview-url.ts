@@ -42,6 +42,13 @@ export const toDisplayUrl = (previewUrl: string) => {
    }
 };
 
+const PREVIEW_ORIGIN_IN_TEXT =
+   /https?:\/\/[\w-]+--(\d+)--[\w-]+(?:\.[\w-]+)*\.webcontainer-api\.io/g;
+
+/** 将文本中的预览域名替换为 localhost:port */
+export const toDisplayText = (text: string) =>
+   text.replace(PREVIEW_ORIGIN_IN_TEXT, (_, port) => `http://localhost:${port}`);
+
 /**
  * 地址栏输入 → iframe 实际地址。
  * localhost / 127.0.0.1 等本地地址映射到对应端口的预览域名；

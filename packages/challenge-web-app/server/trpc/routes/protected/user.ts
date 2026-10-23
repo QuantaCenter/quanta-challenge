@@ -8,6 +8,7 @@ import { TRPCError } from '@trpc/server';
 import { logger } from '~~/server/utils/logger';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { problemStatService } from '../../services/problem-stat';
+import { imageFormDataSchema } from '../../schemas/image-upload';
 
 // 获取用户信息
 const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -127,21 +128,10 @@ const updateUserInfoProcedure = protectedProcedure
    });
 
 // 上传图片
-const UploadImageSchema = z.object({
-   fileBase64: z.base64().refine(
-      (fileb64) => {
-         const size = Buffer.byteLength(fileb64, 'base64');
-         return size <= 5 * 1024 * 1024; // 5MB limit
-      },
-      { message: '文件大小不能超过 5MB' },
-   ),
-   fileName: z.string(),
-});
-
 const uploadImageProcedure = protectedProcedure
-   .input(UploadImageSchema)
+   .input(imageFormDataSchema)
    .mutation(async ({ ctx, input }) => {
-      const { fileBase64, fileName } = input;
+      const { buffer: fileBuffer, fileName } = input;
       const { userId } = ctx.user;
 
       // 验证文件类型
@@ -154,7 +144,6 @@ const uploadImageProcedure = protectedProcedure
          });
       }
 
-      const fileBuffer = Buffer.from(fileBase64, 'base64');
       const store = useStore();
       const fileId = await store.save(fileBuffer, fileName);
 

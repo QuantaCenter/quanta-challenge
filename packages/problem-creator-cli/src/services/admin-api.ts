@@ -108,9 +108,8 @@ export interface AdminApi {
       csrfToken: string;
    }>;
    getCurrentUser(): Promise<CurrentUser>;
-   /** 上传图片（`qpc cover --upload` 用它把生成的封面变成 imageId） */
    uploadImage(input: {
-      fileBase64: string;
+      content: Uint8Array;
       fileName: string;
    }): Promise<UploadedImage>;
    uploadProblem(input: UploadProblemInput): Promise<{
@@ -176,11 +175,14 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
          method: 'POST',
       }),
 
-   uploadImage: (input) =>
-      client.call<UploadedImage>('admin.image.upload', {
-         input,
+   uploadImage: ({ content, fileName }) => {
+      const form = new FormData();
+      form.append('file', new Blob([new Uint8Array(content)]), fileName);
+      return client.call<UploadedImage>('admin.image.upload', {
+         input: form,
          method: 'POST',
-      }),
+      });
+   },
 
    getAuditDetail: (problemId) =>
       client.call<AuditDetail>('admin.problem.getAuditDetail', {

@@ -1,6 +1,7 @@
 import type { WebContainer } from '@webcontainer/api';
 import { convertToFsTree } from './convert-to-fs-tree';
 import { convertToPathContentMap } from './convert-to-path-content-map';
+import { buildPreviewConsoleScript } from './preview-console';
 
 type WebContainerApi = typeof import('@webcontainer/api').WebContainer;
 let instance: WebContainer | null = null;
@@ -56,6 +57,11 @@ const initWebContainer = async (
       ]);
       released = false;
       watchTeardown(instance);
+      await instance
+         .setPreviewScript(buildPreviewConsoleScript(window.location.origin))
+         .catch((err) => {
+            console.warn('[webcontainer] 注入预览控制台脚本失败:', err);
+         });
    } finally {
       if (timer) clearTimeout(timer);
    }

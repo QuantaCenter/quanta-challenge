@@ -166,7 +166,7 @@ export const runCover = async (
    const api = createAdminApi(ctx.client);
    ctx.logger.step('上传封面（admin.image.upload）');
    const image = await api.uploadImage({
-      fileBase64: png.toString('base64'),
+      content: png,
       fileName: basename(outFile),
    });
    ctx.logger.success(`封面已上传：${image.id}`);

@@ -3,6 +3,13 @@
 本文件按时间倒序记录 `qpc` 的行为变化。格式参考
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，版本号沿用语义化版本。
 
+## [Unreleased]
+
+### Fixed
+
+- `qpc image` / `qpc cover --upload` 改为 multipart 二进制上传（原为 base64 JSON）。原先超过约 1.5MB 的图片
+  会被服务端 2MB 的 JSON 请求体上限拦截（413），现在 5MB 以内都能上传。需要服务端已部署 multipart 上传支持。
+
 ## [1.2.0] - 2026-10-22
 
 ### Added

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { DeleteFour, ImageFiles, LoadingFour } from '@icon-park/vue-next';
 import { ref, type DefineComponent } from 'vue';
-import { arrayBufferToBase64 } from '~/components/st/DropUploader/walk-file-list';
+import { useMessage } from '~/components/st/Message/use-message';
 import type { FormItemStatus } from '~/components/st/Form/type';
 
 const props = withDefaults(
@@ -30,37 +30,37 @@ const borderClass = computed(() => {
 });
 
 const { $trpc } = useNuxtApp();
-const uploadImage = async () => {
-   if (!(imageFile.value instanceof File)) return;
-   const fileBase64 = arrayBufferToBase64(await imageFile.value.arrayBuffer());
+const message = useMessage();
+const uploadImage = async (file: File) => {
+   const formData = new FormData();
+   formData.append('file', file);
 
-   const uploadData = {
-      fileBase64: fileBase64,
-      fileName: imageFile.value.name,
-   };
-
-   try {
-      let res;
-      if (props.uploadLevel === 'USER') {
-         // 使用普通用户接口
-         res = await $trpc.protected.user.uploadImage.mutate(uploadData);
-      } else {
-         // 使用管理员接口（默认）
-         res = await $trpc.admin.image.upload.mutate(uploadData);
-      }
-      imageUrl.value = '/api/static/' + res.name;
-      imageId.value = res.id;
-   } catch (error) {
-      console.error('Image upload failed:', error);
-      throw error;
-   }
+   const res =
+      props.uploadLevel === 'USER'
+         ? await $trpc.protected.user.uploadImage.mutate(formData)
+         : await $trpc.admin.image.upload.mutate(formData);
+   imageUrl.value = '/api/static/' + res.name;
+   imageId.value = res.id;
 };
 
 const uploading = ref(false);
 watch(imageFile, async (newFile) => {
-   if (newFile) {
-      uploading.value = true;
-      await atLeastTime(500, uploadImage());
+   if (!newFile) return;
+   if (newFile.size > 5 * 1024 * 1024) {
+      message.error('图片上传失败', '图片大小不能超过 5MB');
+      imageFile.value = null;
+      return;
+   }
+   uploading.value = true;
+   try {
+      await atLeastTime(500, uploadImage(newFile));
+   } catch (error) {
+      imageFile.value = null;
+      message.error(
+         '图片上传失败',
+         error instanceof Error ? error.message : String(error),
+      );
+   } finally {
       uploading.value = false;
    }
 });

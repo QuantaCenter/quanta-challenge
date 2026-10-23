@@ -3,6 +3,7 @@ import {
    createTRPCClient,
    httpBatchLink,
    httpLink,
+   isNonJsonSerializable,
    splitLink,
 } from '@trpc/client';
 import { TRPCError } from '@trpc/server';
@@ -386,9 +387,12 @@ export default defineNuxtPlugin(() => {
    const trpc = createTRPCClient<AppRouter>({
       links: [
          splitLink({
-            condition: (operation) => isQuantaProcedure(operation.path),
+            condition: (operation) =>
+               isQuantaProcedure(operation.path) ||
+               isNonJsonSerializable(operation.input),
             // Cookie-changing and one-time OAuth actions must not share batches
             // or be replayed by the regular authentication refresh transport.
+            // Non-JSON-serializable inputs (e.g. FormData) use httpLink.
             true: httpLink(linkOptions),
             false: httpBatchLink(linkOptions),
          }),

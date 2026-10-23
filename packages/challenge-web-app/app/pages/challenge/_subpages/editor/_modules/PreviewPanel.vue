@@ -7,9 +7,14 @@ import {
    OffScreen,
    Refresh,
    Round,
+   Terminal,
    WholeSiteAccelerator,
 } from '@icon-park/vue-next';
 import EditorEnvError from '../_components/EditorEnvError.vue';
+import ConsolePanel from './ConsolePanel.vue';
+import { usePreviewConsole } from '../_composables/use-preview-console';
+import { MIN_PANEL_PERCENT, clampPercent } from '~/components/st/SplitPanel/layout-math';
+import { useLayoutStore } from '~/stores/layout-store';
 import {
    type IPreviewServer,
    resolvePreviewUrl,
@@ -152,6 +157,61 @@ const refresh = () => {
    refreshKey.value++;
 };
 
+const inlineIframeRef = useTemplateRef<HTMLIFrameElement>('inline-iframe');
+const previewConsole = usePreviewConsole({
+   getTarget: () => inlineIframeRef.value?.contentWindow,
+});
+watch(iframeSrc, previewConsole.reset);
+
+const consoleOpen = ref(false);
+const toggleConsole = () => {
+   consoleOpen.value = !consoleOpen.value;
+};
+
+const CONSOLE_STORAGE_KEY = 'editor.preview-console';
+const CONSOLE_DEFAULT_PERCENT = 35;
+const layoutStore = useLayoutStore();
+const consoleDragPercent = ref<number | null>(null);
+const consolePercent = computed(
+   () =>
+      consoleDragPercent.value ??
+      layoutStore.getPanelSize(CONSOLE_STORAGE_KEY, CONSOLE_DEFAULT_PERCENT),
+);
+const consoleDragging = computed(() => consoleDragPercent.value !== null);
+const splitRef = useTemplateRef<HTMLElement>('split');
+
+const startConsoleResize = (event: MouseEvent) => {
+   const container = splitRef.value;
+   if (!container) return;
+   event.preventDefault();
+   const rect = container.getBoundingClientRect();
+   consoleDragPercent.value = consolePercent.value;
+
+   const onMouseMove = (moveEvent: MouseEvent) => {
+      const percent = ((rect.bottom - moveEvent.clientY) / rect.height) * 100;
+      consoleDragPercent.value = clampPercent(
+         percent,
+         MIN_PANEL_PERCENT,
+         100 - MIN_PANEL_PERCENT,
+      );
+   };
+   const onMouseUp = () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseup', onMouseUp);
+      document.documentElement.style.cursor = '';
+      if (consoleDragPercent.value !== null) {
+         layoutStore.setPanelSize(CONSOLE_STORAGE_KEY, consoleDragPercent.value);
+      }
+      consoleDragPercent.value = null;
+   };
+   document.documentElement.style.cursor = 'row-resize';
+   document.addEventListener('mousemove', onMouseMove);
+   document.addEventListener('mouseup', onMouseUp);
+};
+const resetConsoleSize = () => {
+   layoutStore.setPanelSize(CONSOLE_STORAGE_KEY, CONSOLE_DEFAULT_PERCENT);
+};
+
 /** 服务就绪过一次后又停掉（例如终端里 Ctrl+C），不再回到启动步骤列表 */
 const serverStopped = ref(false);
 const stoppedPort = ref<string>();
@@ -172,11 +232,11 @@ watch(
    },
 );
 
-defineExpose({ refresh });
+defineExpose({ refresh, toggleConsole });
 </script>
 
 <template>
-   <StSpace fill direction="vertical" gap="0" class="bg-[#1F1F1F] rounded-xl">
+   <StSpace fill direction="vertical" gap="0" class="rounded-xl">
       <StSpace
          fill-x
          class="p-1 rounded-t-xl bg-accent-600"
@@ -202,6 +262,24 @@ defineExpose({ refresh });
          </StSpace>
          <StRippleEffect>
             <StSpace
+               @click="toggleConsole"
+               center
+               no-shrink
+               :title="consoleOpen ? '隐藏控制台' : '打开控制台'"
+               class="relative size-[2rem] rounded-[0.5rem] m-0.5 cursor-pointer transition-colors"
+               :class="
+                  consoleOpen
+                     ? 'bg-secondary text-accent-500'
+                     : 'bg-accent-500 text-accent-200'
+               ">
+               <Terminal />
+               <span
+                  v-if="!consoleOpen && previewConsole.counts.value.errors"
+                  class="absolute top-1 right-1 size-1.5 rounded-full bg-red-400"></span>
+            </StSpace>
+         </StRippleEffect>
+         <StRippleEffect>
+            <StSpace
                @click="enterFullScreenMode"
                center
                no-shrink
@@ -219,58 +297,88 @@ defineExpose({ refresh });
             </StSpace>
          </StRippleEffect>
       </StSpace>
-      <StSpace
-         fill
-         class="rounded-b-xl overflow-hidden border border-t-0 border-accent-600">
+      <div ref="split" class="flex flex-col flex-1 min-h-0 w-full">
          <StSpace
-            v-if="!props.previewUrl"
-            direction="vertical"
             fill
-            center
-            :class="props.unsupportedReason ? '' : 'grayscale-100'">
-            <!-- 出错时不要保留 grayscale：会把红色错误文字一并去色，导致提示看起来像灰色占位而没人注意 -->
-            <IconLogo
-               v-if="!props.unsupportedReason"
-               class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
-            <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
-            <span v-else-if="serverStopped" class="text-sm text-accent-100">
-               当前端口{{ stoppedPort ? ` ${stoppedPort} ` : '' }}暂无服务运行
-            </span>
-            <StSpace v-else direction="vertical" gap="0.5rem">
-               <StSpace
-                  v-if="!iframeSrc"
-                  v-for="(step, idx) in steps ?? []"
-                  :key="idx"
-                  align="center"
-                  gap="0.5rem"
-                  class="text-sm"
-                  :class="
-                     idx <= currentStep! ? 'text-accent-100' : 'text-accent-400'
-                  ">
-                  <CheckOne v-if="currentStep && currentStep > idx" />
-                  <LoadingFour
-                     v-else-if="currentStep === idx"
-                     class="animate-spin" />
-                  <Round v-else />
-                  <div class="relative">
-                     <div class="opacity-0 left-0 top-0">
-                        {{ step.running }}
+            class="min-h-0 bg-[#1F1F1F] rounded-b-xl overflow-hidden border border-t-0 border-accent-600"
+            :style="consoleOpen ? { flex: `0 0 calc(${100 - consolePercent}% - 0.75rem)` } : undefined">
+            <StSpace
+               v-if="!props.previewUrl"
+               direction="vertical"
+               fill
+               center
+               :class="props.unsupportedReason ? '' : 'grayscale-100'">
+               <IconLogo
+                  v-if="!props.unsupportedReason"
+                  class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
+               <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
+               <span v-else-if="serverStopped" class="text-sm text-accent-100">
+                  当前端口{{ stoppedPort ? ` ${stoppedPort} ` : '' }}暂无服务运行
+               </span>
+               <StSpace v-else direction="vertical" gap="0.5rem">
+                  <StSpace
+                     v-if="!iframeSrc"
+                     v-for="(step, idx) in steps ?? []"
+                     :key="idx"
+                     align="center"
+                     gap="0.5rem"
+                     class="text-sm"
+                     :class="
+                        idx <= currentStep! ? 'text-accent-100' : 'text-accent-400'
+                     ">
+                     <CheckOne v-if="currentStep && currentStep > idx" />
+                     <LoadingFour
+                        v-else-if="currentStep === idx"
+                        class="animate-spin" />
+                     <Round v-else />
+                     <div class="relative">
+                        <div class="opacity-0 left-0 top-0">
+                           {{ step.running }}
+                        </div>
+                        <div class="absolute left-0 top-0">
+                           {{ currentStep === idx ? step.running : step.idle }}
+                        </div>
                      </div>
-                     <div class="absolute left-0 top-0">
-                        {{ currentStep === idx ? step.running : step.idle }}
-                     </div>
-                  </div>
+                  </StSpace>
                </StSpace>
             </StSpace>
+            <div
+               v-else
+               ref="inline-frame"
+               class="size-full"
+               :style="{ opacity: fullScreenMode ? 0 : 1 }">
+               <iframe
+                  ref="inline-iframe"
+                  :src="iframeSrc"
+                  class="size-full"
+                  :style="{ pointerEvents: consoleDragging ? 'none' : undefined }"></iframe>
+            </div>
          </StSpace>
-         <div
-            v-else
-            ref="inline-frame"
-            class="size-full"
-            :style="{ opacity: fullScreenMode ? 0 : 1 }">
-            <iframe :src="iframeSrc" class="size-full"></iframe>
-         </div>
-      </StSpace>
+         <template v-if="consoleOpen">
+            <div
+               role="separator"
+               aria-orientation="horizontal"
+               aria-label="预览与控制台分隔条"
+               title="拖动调整控制台高度；双击恢复默认"
+               class="flex items-center justify-center w-full h-1 my-1 shrink-0 rounded-full hover:bg-secondary group transition-colors cursor-row-resize"
+               :class="{ '!bg-secondary': consoleDragging }"
+               @mousedown.left="startConsoleResize"
+               @dblclick="resetConsoleSize">
+               <div
+                  class="w-8 h-1 rounded-xl bg-accent-600 group-hover:bg-primary transition-colors"
+                  :class="{ '!bg-primary': consoleDragging }"></div>
+            </div>
+            <div class="min-h-0" :style="{ flex: `0 0 ${consolePercent}%` }">
+               <ConsolePanel
+                  :entries="previewConsole.entries.value"
+                  :ready="previewConsole.ready.value"
+                  :counts="previewConsole.counts.value"
+                  @execute="previewConsole.execute"
+                  @clear="previewConsole.clear"
+                  @close="consoleOpen = false" />
+            </div>
+         </template>
+      </div>
       <Teleport to="body">
          <!-- 常驻挂载预加载：iframe 提前加载预览页，进入全屏时内容已就绪，不会黑屏 -->
          <div
