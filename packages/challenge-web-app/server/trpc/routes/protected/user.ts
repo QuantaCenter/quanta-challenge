@@ -1,7 +1,6 @@
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import { useStore } from '../../store';
 import z from 'zod';
 import path from 'path';
 import { TRPCError } from '@trpc/server';
@@ -9,6 +8,7 @@ import { logger } from '~~/server/utils/logger';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { problemStatService } from '../../services/problem-stat';
 import { imageFormDataSchema } from '../../schemas/image-upload';
+import { saveUploadedImage } from '~~/server/utils/save-uploaded-image';
 
 // 获取用户信息
 const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -144,27 +144,58 @@ const uploadImageProcedure = protectedProcedure
          });
       }
 
-      const store = useStore();
-      const fileId = await store.save(fileBuffer, fileName);
-
-      return await prisma.image.create({
-         data: {
-            id: fileId,
-            name: `${fileId}${ext}`,
-            UserImage: {
-               create: {
-                  userId,
-               },
-            },
-         },
-         select: {
-            id: true,
-            name: true,
-         },
-      });
+      return saveUploadedImage({ fileBuffer, fileName, userId });
    });
 
-// 获取指定用户的公开信息（用于个人空间展示）
+const userSearchSelect = {
+   id: true,
+   name: true,
+   displayName: true,
+   avatar: { select: { name: true } },
+} as const;
+
+/** 按用户名或昵称搜索用户 */
+const searchUsersProcedure = protectedProcedure
+   .input(
+      z.object({
+         keyword: z.string().trim().min(1).max(50),
+         limit: z.number().int().min(1).max(20).default(8),
+      }),
+   )
+   .query(async ({ input }) => {
+      const { keyword, limit } = input;
+
+      const [exact, fuzzy] = await Promise.all([
+         prisma.user.findUnique({
+            where: { name: keyword },
+            select: userSearchSelect,
+         }),
+         prisma.user.findMany({
+            where: {
+               OR: [
+                  { name: { contains: keyword, mode: 'insensitive' } },
+                  { displayName: { contains: keyword, mode: 'insensitive' } },
+               ],
+            },
+            orderBy: [{ name: 'asc' }],
+            take: limit,
+            select: userSearchSelect,
+         }),
+      ]);
+
+      const users = exact
+         ? [exact, ...fuzzy.filter((user) => user.id !== exact.id)]
+         : fuzzy;
+
+      return users.slice(0, limit).map((user) => ({
+         id: user.id,
+         name: user.name,
+         displayName: user.displayName,
+         avatarUrl: user.avatar?.name ? `/api/static/${user.avatar.name}` : null,
+      }));
+   });
+
+// 用户公开信息
 const getUserByNameProcedure = protectedProcedure
    .input(z.object({ name: z.string() }))
    .query(async ({ input }) => {
@@ -510,6 +541,7 @@ export const userRouter = router({
    updateUserInfo: updateUserInfoProcedure,
    uploadImage: uploadImageProcedure,
    getUserByName: getUserByNameProcedure,
+   search: searchUsersProcedure,
    getUserSpaceConfig: getUserSpaceConfigProcedure,
    updateUserSpaceConfig: updateUserSpaceConfigProcedure,
    getCommitStatistic: getCommitStatisticProcedure,

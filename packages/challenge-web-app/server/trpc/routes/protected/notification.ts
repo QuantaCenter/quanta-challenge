@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
+import { TRPCError } from '@trpc/server';
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
@@ -10,6 +12,8 @@ const NotificationTypeSchema = z.enum([
    'LIKE',
    'JUDGE',
    'ACHIEVEMENT',
+   'ANNOUNCEMENT',
+   'WARNING',
 ]);
 
 const ListNotificationsSchema = z.object({
@@ -48,6 +52,10 @@ const listNotificationsProcedure = protectedProcedure
          orderBy: {
             createdAt: 'desc',
          },
+         include: {
+            appeal: { select: { status: true, createdAt: true } },
+            scorePenalty: { select: { score: true, revokedAt: true } },
+         },
       });
 
       let nextCursor: string | null = null;
@@ -71,6 +79,18 @@ const unreadCountProcedure = protectedProcedure.query(async ({ ctx }) => {
       },
    });
 });
+
+const unreadWarningCountProcedure = protectedProcedure.query(
+   async ({ ctx }) => {
+      return await prisma.notification.count({
+         where: {
+            userId: ctx.user.userId,
+            type: 'WARNING',
+            read: false,
+         },
+      });
+   },
+);
 
 const markAsReadProcedure = protectedProcedure
    .input(MarkAsReadSchema)
@@ -102,10 +122,58 @@ const markAllAsReadProcedure = protectedProcedure.mutation(async ({ ctx }) => {
    return true;
 });
 
+const AppealSchema = z.object({
+   notificationId: z.string(),
+   content: z
+      .string()
+      .trim()
+      .min(1, '申诉内容不能为空')
+      .max(1000, '申诉内容最长 1000 字'),
+});
+
+/** 提交警告申诉 */
+const appealProcedure = protectedProcedure
+   .input(AppealSchema)
+   .mutation(async ({ ctx, input }) => {
+      const { userId } = ctx.user;
+
+      const notification = await prisma.notification.findFirst({
+         where: { id: input.notificationId, userId, type: 'WARNING' },
+         select: { id: true },
+      });
+      if (!notification) {
+         throw new TRPCError({ code: 'NOT_FOUND', message: '警告不存在' });
+      }
+
+      try {
+         return await prisma.appeal.create({
+            data: {
+               userId,
+               notificationId: notification.id,
+               content: input.content,
+            },
+            select: { status: true, createdAt: true },
+         });
+      } catch (error) {
+         if (
+            error instanceof Prisma.PrismaClientKnownRequestError &&
+            error.code === 'P2002'
+         ) {
+            throw new TRPCError({
+               code: 'CONFLICT',
+               message: '该警告已提交过申诉',
+            });
+         }
+         throw error;
+      }
+   });
+
 // Router
 export const notificationRouter = router({
    list: listNotificationsProcedure,
    unreadCount: unreadCountProcedure,
+   unreadWarningCount: unreadWarningCountProcedure,
    markAsRead: markAsReadProcedure,
    markAllAsRead: markAllAsReadProcedure,
+   appeal: appealProcedure,
 });
