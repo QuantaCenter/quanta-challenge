@@ -6,12 +6,17 @@ import { LRUMap } from './lru-map';
 
 // Redis 键前缀
 const CACHE_KEY_PREFIX = 'thumbhash:dataurl:';
-// 30 天。thumbhash 结果不可变，过期仅用于回收长期不再出现的旧封面。
-const CACHE_TTL_SECONDS = 60 * 60 * 24 * 30;
-// L1 容量。单张 data URL 约 1~3KB，1000 条约占用数 MB，足够覆盖热门封面。
-const MEMORY_CACHE_SIZE = 1000;
 
-const memoryCache = new LRUMap<string, string>(MEMORY_CACHE_SIZE);
+// L1 进程内 LRU，懒初始化。单张 data URL 约 1~3KB，容量足够覆盖热门封面。
+let memoryCache: LRUMap<string, string> | null = null;
+const getMemoryCache = () => {
+   if (!memoryCache) {
+      memoryCache = new LRUMap<string, string>(
+         useRuntimeConfig().thumbhash.memoryCacheSize,
+      );
+   }
+   return memoryCache;
+};
 
 /** 批量把 thumbhash 渲染为 PNG data URL，命中缓存直接返回；用 mget/pipeline 压缩往返，Redis 不可用时降级为实时解码。 */
 export const renderThumbhashDataUrls = async (
@@ -25,7 +30,7 @@ export const renderThumbhashDataUrls = async (
    hashes.forEach((hash, index) => {
       if (!hash) return;
 
-      const cached = memoryCache.get(hash);
+      const cached = getMemoryCache().get(hash);
       if (cached !== undefined) {
          result[index] = cached;
          return;
@@ -66,7 +71,7 @@ export const renderThumbhashDataUrls = async (
          toWrite.push([`${CACHE_KEY_PREFIX}${hash}`, dataUrl]);
       }
 
-      memoryCache.set(hash, dataUrl);
+      getMemoryCache().set(hash, dataUrl);
       for (const index of pending.get(hash)!) {
          result[index] = dataUrl;
       }
@@ -77,7 +82,12 @@ export const renderThumbhashDataUrls = async (
       try {
          const pipeline = useRedis().pipeline();
          for (const [key, value] of toWrite) {
-            pipeline.set(key, value, 'EX', CACHE_TTL_SECONDS);
+            pipeline.set(
+               key,
+               value,
+               'EX',
+               useRuntimeConfig().thumbhash.redisCacheTTLSeconds,
+            );
          }
          await pipeline.exec();
       } catch (error) {

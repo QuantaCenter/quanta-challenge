@@ -43,7 +43,8 @@ const resolveWebAuthnContext = (event: H3Event) => {
 };
 
 /** 把 options 与本次校验上下文一起放进 Redis，验证时复用同一份 rpID/origin。 */
-const WEB_AUTHN_OPTIONS_TTL_SECONDS = 300;
+const webAuthnOptionsTTLSeconds = () =>
+   useRuntimeConfig().webauthn.optionsTTLSeconds;
 
 // 注册 WebAuthn 验证器
 const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
@@ -74,7 +75,7 @@ const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
       'webauthn:register:' + userId,
       JSON.stringify({ options, rpID, origin }),
       'EX',
-      WEB_AUTHN_OPTIONS_TTL_SECONDS,
+      webAuthnOptionsTTLSeconds(),
    );
 
    return options;
@@ -210,7 +211,7 @@ const authenticateAuthnProcedure = publicProcedure
          'webauthn:authenticate:' + email,
          JSON.stringify({ options, rpID, origin }),
          'EX',
-         WEB_AUTHN_OPTIONS_TTL_SECONDS,
+         webAuthnOptionsTTLSeconds(),
       );
 
       return options;

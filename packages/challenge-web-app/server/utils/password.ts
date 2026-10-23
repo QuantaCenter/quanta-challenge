@@ -1,10 +1,9 @@
 import bcrypt from 'bcrypt';
 
-const SALT_ROUNDS = 10;
-
-/** 用 bcrypt 加密密码（默认盐轮数 10）。 */
+/** 用 bcrypt 加密密码。 */
 export const hashPassword = async (password: string) => {
-   const hash = await bcrypt.hash(password, SALT_ROUNDS);
+   const { saltRounds } = useRuntimeConfig().password;
+   const hash = await bcrypt.hash(password, saltRounds);
    return hash;
 };
 

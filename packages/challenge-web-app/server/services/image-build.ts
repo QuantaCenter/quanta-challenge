@@ -5,11 +5,6 @@ import { TRPCError } from '@trpc/server';
 import { verifyToken, type ITokenPayload } from '../utils/jwt';
 import prisma from '~~/lib/prisma';
 
-/** 上传体上限，与 nuxt.config 的 requestSizeLimiter 一致 */
-export const IMAGE_BUILD_MAX_COMPRESSED_BYTES = 160 * 1024 * 1024;
-/** 解压后上限，防 gzip 炸弹 */
-export const IMAGE_BUILD_MAX_RAW_BYTES = 1024 * 1024 * 1024;
-
 /** 非 tRPC 路由的鉴权，规则同 trpc/context.ts */
 export const requireImageBuildUser = (
    event: H3Event,

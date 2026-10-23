@@ -6,12 +6,7 @@ import {
    setResponseStatus,
 } from 'h3';
 import { useStore } from '../../trpc/store';
-import {
-   IMAGE_BUILD_MAX_COMPRESSED_BYTES,
-   IMAGE_BUILD_MAX_RAW_BYTES,
-   measureGunzipSize,
-   requireImageBuildUser,
-} from '../../services/image-build';
+import { measureGunzipSize, requireImageBuildUser } from '../../services/image-build';
 import prisma from '~~/lib/prisma';
 
 /**
@@ -23,13 +18,17 @@ import prisma from '~~/lib/prisma';
 export default defineEventHandler(async (event) => {
    requireImageBuildUser(event, { csrf: true, admin: true });
 
+   // 请求体压缩后与解压后的体积上限
+   const { maxCompressedBytes, maxRawBytes } =
+      useRuntimeConfig().public.imageBuild;
+
    const { id } = getQuery(event);
    if (typeof id !== 'string' || !id) {
       throw createError({ statusCode: 400, statusMessage: 'Missing id' });
    }
 
    const declaredLength = Number(getHeader(event, 'content-length'));
-   if (declaredLength > IMAGE_BUILD_MAX_COMPRESSED_BYTES) {
+   if (declaredLength > maxCompressedBytes) {
       throw createError({ statusCode: 413, statusMessage: 'Image too large' });
    }
 
@@ -45,7 +44,7 @@ export default defineEventHandler(async (event) => {
    if (!body || body.length === 0) {
       throw createError({ statusCode: 400, statusMessage: 'Empty body' });
    }
-   if (body.length > IMAGE_BUILD_MAX_COMPRESSED_BYTES) {
+   if (body.length > maxCompressedBytes) {
       throw createError({ statusCode: 413, statusMessage: 'Image too large' });
    }
    if (body[0] !== 0x1f || body[1] !== 0x8b) {
@@ -54,7 +53,7 @@ export default defineEventHandler(async (event) => {
 
    let sizeBytes: number;
    try {
-      sizeBytes = await measureGunzipSize(body, IMAGE_BUILD_MAX_RAW_BYTES);
+      sizeBytes = await measureGunzipSize(body, maxRawBytes);
    } catch (error) {
       if (error instanceof RangeError) {
          throw createError({
