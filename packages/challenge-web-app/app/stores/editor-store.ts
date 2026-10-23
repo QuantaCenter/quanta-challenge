@@ -29,7 +29,7 @@ export const useEditorStore = defineStore('editor', () => {
       if (initStarted.value) {
          return '在线开发容器仍在启动中，请等启动完成后再提交。';
       }
-      return '在线开发容器尚未启动，请刷新页面，并查看浏览器控制台的 [webcontainer] 日志。';
+      return '在线开发容器尚未启动，请刷新页面后重试。';
    });
 
    return {

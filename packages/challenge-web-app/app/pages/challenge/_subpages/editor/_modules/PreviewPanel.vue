@@ -9,6 +9,7 @@ import {
    Round,
    WholeSiteAccelerator,
 } from '@icon-park/vue-next';
+import EditorEnvError from '../_components/EditorEnvError.vue';
 import {
    type IPreviewServer,
    resolvePreviewUrl,
@@ -231,26 +232,7 @@ defineExpose({ refresh });
             <IconLogo
                v-if="!props.unsupportedReason"
                class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
-            <!-- 环境不满足 WebContainer 要求时，明确告诉用户原因，
-                 否则页面只会一直停留在"正在启动开发容器…"，无法自行排查 -->
-            <StSpace
-               v-if="props.unsupportedReason"
-               direction="vertical"
-               gap="0.5rem"
-               align="center"
-               class="max-w-[34rem] px-6 text-center">
-               <span class="st-font-body-bold text-error">
-                  无法启动在线开发容器
-               </span>
-               <span class="st-font-caption text-accent-100 break-all">
-                  {{ props.unsupportedReason }}
-               </span>
-               <span class="st-font-caption text-accent-300">
-                  在浏览器按 F12 打开控制台可看到 [webcontainer] 开头的诊断日志。
-                  在线运行需要：访问地址为 localhost 或 HTTPS、浏览器支持跨源隔离，
-                  且能正常访问 stackblitz.com。
-               </span>
-            </StSpace>
+            <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
             <span v-else-if="serverStopped" class="text-sm text-accent-100">
                当前端口{{ stoppedPort ? ` ${stoppedPort} ` : '' }}暂无服务运行
             </span>

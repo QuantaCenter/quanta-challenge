@@ -18,6 +18,7 @@ import {
 import type { WebContainer } from '@webcontainer/api';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useViewTransition } from '~/composables/use-view-transition';
+import EditorEnvError from '../_components/EditorEnvError.vue';
 import {
    CELL_INPUT_CLASS,
    filledKvRows,
@@ -277,22 +278,7 @@ const leaveFullScreenMode = () => {
             <IconLogo
                v-if="!props.unsupportedReason"
                class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
-            <StSpace
-               v-if="props.unsupportedReason"
-               direction="vertical"
-               gap="0.5rem"
-               align="center"
-               class="max-w-[34rem] px-6 text-center">
-               <span class="st-font-body-bold text-error">
-                  无法启动在线开发容器
-               </span>
-               <span class="st-font-caption text-accent-100 break-all">
-                  {{ props.unsupportedReason }}
-               </span>
-               <span class="st-font-caption text-accent-300">
-                  在浏览器按 F12 打开控制台可看到 [webcontainer] 开头的诊断日志。
-               </span>
-            </StSpace>
+            <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
             <StSpace v-else direction="vertical" gap="0.5rem">
                <StSpace
                   v-for="(step, idx) in props.steps ?? []"

@@ -29,6 +29,7 @@ import {
    writeCachedSnapshotImage,
 } from './_utils/snapshot-image-cache';
 import { useMessage } from '~/components/st/Message/use-message';
+import * as Sentry from '@sentry/nuxt';
 
 const props = defineProps<{ id: number }>();
 
@@ -270,10 +271,11 @@ const checkRuntimeSupport = (): string | null => {
    return null;
 };
 
-// 把失败原因同步到 store：提交按钮原先只会"变灰且不解释"，
-// 用户会以为没有提交按钮。写入后按钮点击时会给出具体原因。
 watch(unsupportedReason, (reason) => {
-   if (reason) editorStore.initFailureReason = reason;
+   if (reason) {
+      editorStore.initFailureReason = reason;
+      Sentry.captureMessage(`在线开发环境启动失败: ${reason}`, 'error');
+   }
 });
 
 const downloadSnapshotImage = async (
@@ -704,6 +706,11 @@ const { enable: preventLeaveEnabled } = usePreventLeave({
       // 离开页面前强制同步
       fileChangeSync.forceSync();
    },
+});
+
+// 错误提示组件的「重试」会整页 reload：先关掉离开拦截，避免浏览器弹"确认离开"框
+useEventBus('editor-env-retry').on(() => {
+   preventLeaveEnabled.value = false;
 });
 
 // 设置菜单的「重置题目」：冲刷挂起的文件同步后重置服务端项目，再整页重载重建容器

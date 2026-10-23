@@ -15,7 +15,6 @@ let bootingPromise: Promise<WebContainer> | null = null;
 const watchTeardown = (wc: WebContainer) => {
    const teardown = wc.teardown.bind(wc);
    wc.teardown = () => {
-      console.warn('[webcontainer] 实例已被 teardown，之后需要重新 boot');
       released = true;
       instance = null;
       teardown();
@@ -29,7 +28,6 @@ const resetInstance = () => {
    instance = null;
 };
 
-/** WebContainer.boot() 的硬超时：boot() 自身无超时机制，握手失败会永远挂起，这里把"无限等待"变成可诊断的明确错误（真实失败点以浏览器控制台为准）。 */
 const BOOT_TIMEOUT_MS = 45_000;
 
 const initWebContainer = async (
@@ -42,9 +40,9 @@ const initWebContainer = async (
          () =>
             reject(
                new Error(
-                  `WebContainer 启动超时（${BOOT_TIMEOUT_MS / 1000} 秒内未就绪）。` +
-                     'boot() 需通过 iframe 访问 https://stackblitz.com/headless 并下载运行时。' +
-                     '请查看浏览器控制台的 [webcontainer] 日志与红色网络错误以进一步定位。',
+                  `在线运行环境启动超时（${BOOT_TIMEOUT_MS / 1000} 秒内未就绪）。` +
+                     'boot() 需通过 iframe 访问 https://stackblitz.com/headless 下载运行时，' +
+                     '请检查网络后刷新重试。',
                ),
             ),
          BOOT_TIMEOUT_MS,
@@ -72,12 +70,8 @@ const startBoot = async (
    if (bootingPromise) return bootingPromise;
 
    bootingPromise = (async () => {
-      console.log(
-         '[webcontainer] 2/2 正在 boot（会访问 stackblitz.com，首次可能需要几秒）…',
-      );
       await initWebContainer(WebContainer, options);
       if (!instance) throw new Error('WebContainer 初始化失败');
-      console.log('[webcontainer] boot 成功');
       return instance;
    })();
 
@@ -112,12 +106,8 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       webContainerFailedCallbacks.add(callback);
    };
 
-   /** 等待 WebContainer 就绪：必须同时处理失败分支（boot 抛出时 Promise 永不 settle，界面会永久挂起），就绪/失败二选一。 */
    const getInstance = async () => {
-      // 实例已被销毁：清空引用并重新 boot，避免所有调用都撞在
-      // "Proxy has been released and is not useable" 上。
       if (!instance && released) {
-         console.warn('[webcontainer] 检测到实例已失效，重新初始化…');
          resetInstance();
          const { WebContainer } = await import('@webcontainer/api');
          await startBoot(WebContainer, options);
@@ -239,7 +229,6 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
 
    onMounted(async () => {
       try {
-         console.log('[webcontainer] 1/2 正在加载 @webcontainer/api 模块…');
          const { WebContainer } = await import('@webcontainer/api');
 
          if (!instance || released) {
@@ -273,7 +262,6 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
             }
          });
       } catch (err: any) {
-         // 把失败原因广播出去，避免所有等待者永久挂起
          console.error('[webcontainer] 启动失败:', err);
          error.value = { message: err?.message ?? String(err) };
          webContainerFailedCallbacks.forEach((callback) => callback(err));
