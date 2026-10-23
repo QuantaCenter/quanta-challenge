@@ -10,6 +10,9 @@
       "./thumbhash/server": {
          "import": "./service/thumbhash/server.ts"
       },
+      "./image/compress-upload": {
+         "import": "./service/image/compress-upload.ts"
+      },
       "./thumbhash/client": {
          "import": "./service/thumbhash/client.ts"
       },
