@@ -1,7 +1,7 @@
 /** 服务端要求的最低 CLI 版本，可用 NUXT_QUANTA_MIN_CLI_VERSION 覆盖 */
-export const MIN_CLI_VERSION = '1.0.2';
+export const MIN_CLI_VERSION = '1.2.0';
 
-/** 从 user-agent 取 CLI 版本号（形如 qpc/1.0.2），取不到返回 undefined */
+/** 从 user-agent 取 CLI 版本号（形如 qpc/1.2.0），取不到返回 undefined */
 export const parseCliVersionFromUserAgent = (
    userAgent: string | undefined
 ): string | undefined => /qpc\/(\d+\.\d+\.\d+[0-9A-Za-z.+-]*)/i.exec(userAgent ?? '')?.[1];
