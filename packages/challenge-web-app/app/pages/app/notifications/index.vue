@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
 import NotificationItem from './_components/NotificationItem.vue';
-import NotificationDetailModal from './_components/NotificationDetailModal.vue';
+import NotificationDetailDrawer from './_components/NotificationDetailDrawer.vue';
 import NotificationItemSkeleton from './_components/NotificationItemSkeleton.vue';
 import { DoneAll, Inbox, LoadingFour, Ghost } from '@icon-park/vue-next';
 import { useNuxtApp } from '#app';
@@ -255,7 +255,7 @@ const handleNext = () => {
          </StSpace>
       </StSpace>
 
-      <NotificationDetailModal
+      <NotificationDetailDrawer
          v-model:opened="isModalOpened"
          :notification="selectedNotification"
          :has-previous="hasPrevious"

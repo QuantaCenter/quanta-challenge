@@ -72,7 +72,7 @@ const handleAppeal = async () => {
    });
 };
 
-// 点击卡片（含悬浮按钮）以外的区域关闭
+// 点击卡片以外的区域关闭
 const handleOutsidePointerDown = (e: PointerEvent) => {
    if (!opened.value || hasDialog.value) return;
    const target = e.target as Node | null;
@@ -117,14 +117,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <StModal v-model:opened="opened">
-      <div v-if="notification" ref="cardRef" class="relative">
-         <!-- Card -->
-         <div
-            class="relative w-[50rem] max-w-[95vw] h-[36rem] max-h-[85vh] bg-accent-600 rounded-xl flex flex-col shadow-2xl border border-accent-500 overflow-hidden">
-            <!-- Header Area -->
-            <div class="px-10 pt-10 pb-6 shrink-0 bg-accent-600 z-10">
-               <div class="flex justify-between items-start mb-4">
+   <StDrawer global v-model:opened="opened" width="min(50rem, 90vw)">
+      <div
+         v-if="notification"
+         ref="cardRef"
+         class="relative h-screen bg-accent-600 flex flex-col overflow-hidden">
+            <!-- Header Area（标题容器：底部留白已减小） -->
+            <div class="px-10 pt-10 pb-2 shrink-0 bg-accent-600 z-10">
+               <div class="flex justify-between items-start mb-2">
                   <div class="flex items-center gap-3">
                      <span
                         class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border"
@@ -154,8 +154,14 @@ onUnmounted(() => {
             </div>
 
             <!-- Content Area -->
-            <div class="flex-1 overflow-y-auto px-10 pb-10 custom-scrollbar">
-               <LearningArticleBody :html="html" dense />
+            <div class="relative flex-1 min-h-0">
+               <!-- 顶部渐隐 mask：滚动内容在标题容器下缘平滑淡出 -->
+               <div
+                  class="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-accent-600 to-transparent pointer-events-none z-10">
+               </div>
+               <div class="h-full overflow-y-auto px-10 pt-2 pb-10 custom-scrollbar">
+                  <LearningArticleBody :html="html" dense />
+               </div>
             </div>
 
             <div
@@ -197,35 +203,35 @@ onUnmounted(() => {
                </StButton>
             </div>
 
-            <div class="absolute right-24 bottom-12 z-0 opacity-20">
+            <!-- Logo：抽屉右下角水印 -->
+            <div class="absolute right-8 bottom-8 z-0 opacity-20 pointer-events-none">
                <IconLogo class="scale-[500%] -rotate-[10deg]" />
             </div>
+
+            <!-- 底部导航：左侧“上一条”，右侧“下一条” -->
+            <div class="relative z-10 shrink-0 px-10 py-4 border-t border-accent-500 flex items-center justify-between">
+               <button
+                  :disabled="!hasPrevious"
+                  @click="$emit('prev')"
+                  aria-label="上一条"
+                  title="上一条"
+                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm font-medium backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                  <Left size="1.125rem" />
+                  <span>上一条</span>
+               </button>
+
+               <button
+                  :disabled="!hasNext"
+                  @click="$emit('next')"
+                  aria-label="下一条"
+                  title="下一条"
+                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm font-medium backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                  <span>下一条</span>
+                  <Right size="1.125rem" />
+               </button>
+            </div>
          </div>
-
-         <!-- Floating Navigation (outside the card, only when available) -->
-         <Transition name="nav-fade">
-            <button
-               v-if="hasPrevious"
-               @click="$emit('prev')"
-               aria-label="上一条"
-               title="上一条"
-               class="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center rounded-full border bg-accent-500/80 border-accent-400/40 text-accent-100 backdrop-blur-sm shadow-lg transition-all left-1 size-9 min-[960px]:-left-14 min-[960px]:size-[2.5rem] hover:bg-primary hover:text-white hover:border-primary hover:scale-110 active:scale-95 cursor-pointer">
-               <Left size="1.25rem" />
-            </button>
-         </Transition>
-
-         <Transition name="nav-fade">
-            <button
-               v-if="hasNext"
-               @click="$emit('next')"
-               aria-label="下一条"
-               title="下一条"
-               class="absolute top-1/2 -translate-y-1/2 z-20 flex items-center justify-center rounded-full border bg-accent-500/80 border-accent-400/40 text-accent-100 backdrop-blur-sm shadow-lg transition-all right-1 size-9 min-[960px]:-right-14 min-[960px]:size-[2.5rem] hover:bg-primary hover:text-white hover:border-primary hover:scale-110 active:scale-95 cursor-pointer">
-               <Right size="1.25rem" />
-            </button>
-         </Transition>
-      </div>
-   </StModal>
+   </StDrawer>
 </template>
 
 <style scoped>
@@ -241,15 +247,5 @@ onUnmounted(() => {
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
    background-color: #6b7280;
-}
-
-.nav-fade-enter-active,
-.nav-fade-leave-active {
-   transition: opacity 0.2s ease;
-}
-
-.nav-fade-enter-from,
-.nav-fade-leave-to {
-   opacity: 0;
 }
 </style>
