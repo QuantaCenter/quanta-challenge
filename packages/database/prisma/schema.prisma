@@ -40,7 +40,7 @@ model User {
   Achievement               Achievement[]
   UserStatistic             UserStatistic?
   RankingHistory            RankingHistory[]
-  UserSettings              UserSetting?
+  UserSettings              UserSetting[]
   UserInfo                  UserInfo?
   UserSpaceConfig           UserSpaceConfig?
   notifications             Notification[]
@@ -678,7 +678,7 @@ model RankingHistory {
 
 model UserSetting {
   id        Int      @id @default(autoincrement())
-  userId    String   @unique
+  userId    String
   key       String
   value     String
   createdAt DateTime @default(now())
