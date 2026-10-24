@@ -60,6 +60,25 @@ const scrollRight = () => {
 
 const { startViewTransition } = useViewTransition();
 const selectedTags = ref<number[]>([]);
+
+// 支持从全局搜索等入口通过 /app/problems?tag={tid} 直接定位标签
+const route = useRoute();
+const initialTag = Number(route.query.tag);
+if (route.query.tag !== undefined && !Number.isNaN(initialTag)) {
+   selectedTags.value = [initialTag];
+}
+watch(
+   () => route.query.tag,
+   (value) => {
+      const tid = Number(value);
+      if (value === undefined || Number.isNaN(tid)) return;
+      if (selectedTags.value[0] !== tid) {
+         selectedTags.value = [tid];
+         startViewTransition(refresh);
+      }
+   }
+);
+
 const toggleTag = (id: number) => {
    const idx = selectedTags.value.indexOf(id);
    idx === -1 ? selectedTags.value.push(id) : selectedTags.value.splice(idx, 1);

@@ -5,7 +5,19 @@ export type SearchType =
    | 'user'
    | 'tag'
    | 'page-section'
-   | 'daily-problem';
+   | 'daily-problem'
+   | 'achievement'
+   | 'notification'
+   | 'submission'
+   | 'appeal'
+   | 'cloud-function';
+
+/** 仅管理员角色可用的搜索类型（服务端按角色过滤，前端隐藏筛选入口） */
+export const ADMIN_ONLY_SEARCH_TYPES: SearchType[] = [
+   'submission',
+   'appeal',
+   'cloud-function',
+];
 
 /** 搜索类型配置 */
 export interface SearchTypeConfig {
@@ -35,6 +47,41 @@ export const SEARCH_TYPE_CONFIGS: Record<
       order: 2,
       description: '搜索每日推荐题目',
    },
+   achievement: {
+      value: 'achievement',
+      label: '成就',
+      icon: 'GoldMedalTwo',
+      order: 5,
+      description: '搜索平台成就',
+   },
+   notification: {
+      value: 'notification',
+      label: '通知',
+      icon: 'VolumeNotice',
+      order: 6,
+      description: '搜索我的通知与公告',
+   },
+   submission: {
+      value: 'submission',
+      label: '提交',
+      icon: 'History',
+      order: 7,
+      description: '搜索提交记录（管理员）',
+   },
+   appeal: {
+      value: 'appeal',
+      label: '申诉',
+      icon: 'Help',
+      order: 8,
+      description: '搜索用户申诉（管理员）',
+   },
+   'cloud-function': {
+      value: 'cloud-function',
+      label: '云函数',
+      icon: 'Code',
+      order: 9,
+      description: '搜索云函数（管理员）',
+   },
    user: {
       value: 'user',
       label: '用户',
@@ -53,7 +100,7 @@ export const SEARCH_TYPE_CONFIGS: Record<
       value: 'page-section',
       label: '页面',
       icon: 'WebPage',
-      order: 5,
+      order: 10,
       description: '搜索页面和功能板块',
    },
 };
