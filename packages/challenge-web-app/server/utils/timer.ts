@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import dayjs from 'dayjs';
 import prisma from '~~/lib/prisma';
 import { logger } from './logger';
 
@@ -58,8 +59,8 @@ export async function dispatchTimerTask<P = unknown>(
   const runAt =
     options.runAt ??
     (options.delayMs !== undefined
-      ? new Date(Date.now() + options.delayMs)
-      : new Date());
+      ? dayjs().add(options.delayMs, 'millisecond').toDate()
+      : dayjs().toDate());
 
   const task = await prisma.timerTask.create({
     data: {
@@ -77,48 +78,52 @@ export async function dispatchTimerTask<P = unknown>(
 
 type ClaimedRow = {
   id: string;
-  handler_id: string;
+  handlerId: string;
   payload: unknown;
   attempts: number;
-  max_attempts: number;
+  maxAttempts: number;
 };
 
 /**
  * 领取到期任务：单条 UPDATE ... RETURNING 原子领取，
  * 多实例部署时 FOR UPDATE SKIP LOCKED 保证同一任务只被一个实例消费。
+ * 注意：TimerTask 模型的列未做 @map 映射，数据库列名即驼峰（handlerId / runAt 等）。
+ * 列类型是 TIMESTAMP（无时区），Prisma 写入的是 UTC 挂钟时间；
+ * 与 now()（timestamptz）直接比较会被按会话时区（如 Asia/Shanghai）转换，
+ * 导致任务提前最多 8 小时被执行，故必须用 now() AT TIME ZONE 'UTC' 对齐到 UTC 挂钟时间。
  */
 async function claimDueTasks(batchSize: number): Promise<ClaimedRow[]> {
   return prisma.$queryRaw<ClaimedRow[]>`
-    UPDATE "timer_tasks" SET "status" = 'running', "updated_at" = now()
+    UPDATE "timer_tasks" SET "status" = 'running', "updatedAt" = now()
     WHERE "id" IN (
       SELECT "id" FROM "timer_tasks"
-      WHERE "status" = 'pending' AND "run_at" <= now()
-      ORDER BY "run_at"
+      WHERE "status" = 'pending' AND "runAt" <= now() AT TIME ZONE 'utc'
+      ORDER BY "runAt"
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING "id", "handler_id", "payload", "attempts", "max_attempts"
+    RETURNING "id", "handlerId", "payload", "attempts", "maxAttempts"
   `;
 }
 
 async function executeTask(row: ClaimedRow): Promise<void> {
-  const handler = handlers.get(row.handler_id) as
+  const handler = handlers.get(row.handlerId) as
     | TimerHandler<unknown>
     | undefined;
   if (!handler) {
-    await failTask(row, new Error(`未注册的定时任务处理器: ${row.handler_id}`));
+    await failTask(row, new Error(`未注册的定时任务处理器: ${row.handlerId}`));
     return;
   }
 
   try {
     await handler(row.payload, {
       taskId: row.id,
-      handlerId: row.handler_id,
+      handlerId: row.handlerId,
       attempts: row.attempts + 1,
     });
     await prisma.timerTask.update({
       where: { id: row.id },
-      data: { status: 'done', executedAt: new Date(), error: null },
+      data: { status: 'done', executedAt: dayjs().toDate(), error: null },
     });
   } catch (err) {
     await failTask(row, err);
@@ -129,13 +134,13 @@ async function failTask(row: ClaimedRow, err: unknown): Promise<void> {
   const message = err instanceof Error ? err.message : String(err);
   const attempts = row.attempts + 1;
 
-  if (attempts >= row.max_attempts) {
+  if (attempts >= row.maxAttempts) {
     await prisma.timerTask.update({
       where: { id: row.id },
       data: { status: 'failed', attempts, error: message },
     });
     logger.error(
-      `[timer] 任务 ${row.id}（${row.handler_id}）执行失败，已达最大尝试次数 ${row.max_attempts}: ${message}`
+      `[timer] 任务 ${row.id}（${row.handlerId}）执行失败，已达最大尝试次数 ${row.maxAttempts}: ${message}`
     );
     return;
   }
@@ -150,11 +155,11 @@ async function failTask(row: ClaimedRow, err: unknown): Promise<void> {
       status: 'pending',
       attempts,
       error: message,
-      runAt: new Date(Date.now() + backoff),
+      runAt: dayjs().add(backoff, 'millisecond').toDate(),
     },
   });
   logger.warn(
-    `[timer] 任务 ${row.id}（${row.handler_id}）执行失败，${Math.round(backoff / 1000)}s 后第 ${attempts + 1} 次重试: ${message}`
+    `[timer] 任务 ${row.id}（${row.handlerId}）执行失败，${Math.round(backoff / 1000)}s 后第 ${attempts + 1} 次重试: ${message}`
   );
 }
 
