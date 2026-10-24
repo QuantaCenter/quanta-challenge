@@ -8,15 +8,6 @@ import {
 // 导出 SearchType 供其他模块使用
 export type { SearchType };
 
-// 构造逗号分隔的搜索类型组合,确保每个部分都是有效的 SearchType
-type SearchTypeString =
-   | SearchType
-   | `${SearchType},${SearchType}`
-   | `${SearchType},${SearchType},${SearchType}`
-   | `${SearchType},${SearchType},${SearchType},${SearchType}`
-   | `${SearchType},${SearchType},${SearchType},${SearchType},${SearchType}`
-   | `${SearchType},${SearchType},${SearchType},${SearchType},${SearchType},${SearchType}`;
-
 /** 搜索请求 Schema */
 export const searchQuerySchema = z.object({
    q: z
@@ -24,11 +15,11 @@ export const searchQuerySchema = z.object({
       .min(SEARCH_LIMITS.MIN_QUERY_LENGTH, '搜索关键词不能为空')
       .max(SEARCH_LIMITS.MAX_QUERY_LENGTH, '搜索关键词过长'),
    type: z
-      .custom<SearchTypeString>()
+      .string()
       .optional()
       .default('all')
       .refine((val) => {
-         return validateSearchTypes((val as string).split(','));
+         return validateSearchTypes(val.split(','));
       }, '搜索类型无效'),
    limit: z
       .number()
@@ -37,4 +28,5 @@ export const searchQuerySchema = z.object({
       .max(SEARCH_LIMITS.MAX_LIMIT)
       .optional()
       .default(SEARCH_LIMITS.DEFAULT_LIMIT),
+   offset: z.number().int().min(0).optional().default(0),
 });
