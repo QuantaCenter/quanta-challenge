@@ -102,8 +102,6 @@ const searchProcedure = protectedProcedure
       const searchTags = async (): Promise<TypePage> => {
          if (!wants('tag')) return EMPTY_PAGE;
 
-         // 统计每个标签下"当前版本已发布"的题目数（与题库页过滤口径一致），
-         // 避免搜出没有可做题目的标签，跳转到题库后出现空结果
          const liveRows = await prisma.$queryRaw<{ tid: number; live: number }[]>`
             SELECT rel."B" AS tid, COUNT(DISTINCT b.id) AS live
             FROM "_ProblemsToTags" rel
