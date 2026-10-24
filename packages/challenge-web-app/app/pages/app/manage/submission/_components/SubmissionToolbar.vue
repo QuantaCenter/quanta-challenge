@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CloseSmall, Search } from '@icon-park/vue-next';
+import { CloseSmall, Refresh, Search } from '@icon-park/vue-next';
 import type { ISelectOption } from '~/components/st/Select/type';
 import type { ResultFilter } from '../_composables/use-submission-management';
 
@@ -20,6 +20,8 @@ const props = defineProps<{
   resultOptions: ISelectOption[];
   refreshing: boolean;
 }>();
+
+const emit = defineEmits<{ refresh: [] }>();
 
 /** 清空用户搜索框（交给防抖 watch 生效） */
 const clearUserKeyword = () => {
@@ -85,14 +87,23 @@ const resultLabel = (value: ResultFilter) =>
 
       <StDatePicker
         range
+        show-time
         v-model:start-value="startTimeInput"
         v-model:end-value="endTimeInput"
         placeholder="选择提交日期范围"
         outer-class="bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[18rem] shrink-0 gap-2 focus-within:ring-1 focus-within:ring-primary/50" />
     </StSpace>
 
-    <span v-if="refreshing" class="st-font-caption text-accent-300 shrink-0">
-      加载中…
-    </span>
+    <StButton
+      theme="secondary"
+      :loading="refreshing"
+      class="h-[3.5rem] w-[3.5rem] flex-none shrink-0 !py-0 !px-0 !rounded-[0.375rem]"
+      @click="emit('refresh')">
+      <template #icon="{ loading: isRefreshing }">
+        <Refresh
+          class="text-[1.25rem] text-black"
+          :class="{ 'animate-spin': isRefreshing }" />
+      </template>
+    </StButton>
   </StSpace>
 </template>
