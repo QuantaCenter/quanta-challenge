@@ -8,6 +8,14 @@ import { useSimpleEditor } from '~/composables/use-simple-editor';
 const script = defineModel<string>('markdown');
 const opened = defineModel<boolean>('opened', { default: false });
 
+const props = withDefaults(
+   defineProps<{
+      /** 抽屉标题 */
+      drawerTitle?: string;
+   }>(),
+   { drawerTitle: '编辑题目详情' },
+);
+
 const { containerKey, onEditorContentChanged, setEditorContent, onEditorReady } =
    useSimpleEditor({
       script: script.value ?? '',
@@ -136,7 +144,7 @@ const onImageFileChosen = (event: Event) => {
          <StSpace direction="vertical" gap="1.5rem" class="p-6 w-full h-full">
             <!-- Header -->
             <StSpace justify="between" align="center" class="w-full">
-               <h1 class="st-font-secondary-bold">编辑题目详情</h1>
+               <h1 class="st-font-secondary-bold">{{ props.drawerTitle }}</h1>
                <StButton
                   :loading="uploadingImage"
                   :disabled="uploadingImage"

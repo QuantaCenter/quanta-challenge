@@ -5,12 +5,12 @@ import timezone from 'dayjs/plugin/timezone';
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-/** 每日一题 / 签到的业务时区：显式钉死、不再依赖容器 TZ，可用 DAILY_TIMEZONE 覆盖（默认 Asia/Shanghai）。 */
-export const DAILY_TIMEZONE = process.env.DAILY_TIMEZONE || 'Asia/Shanghai';
+/** 每日一题 / 签到的业务时区：显式钉死、不再依赖容器 TZ。 */
+const getDailyTimezone = () => useRuntimeConfig().daily.timezone;
 
 /** 按业务时区取某时刻所属的「业务日期」（YYYY-MM-DD），不传即今天；只接受 Date/Dayjs 时刻，不接受裸字符串（会被按本地时区解析而偏移）。 */
 export const getDailyDateKey = (date: Date | dayjs.Dayjs = dayjs()) =>
-   dayjs(date).tz(DAILY_TIMEZONE).format('YYYY-MM-DD');
+   dayjs(date).tz(getDailyTimezone()).format('YYYY-MM-DD');
 
 /** 校验字符串是否是真实存在的 YYYY-MM-DD（dayjs 宽松解析，须回写比对）。 */
 export const isValidDateKey = (dateKey: string) =>
@@ -30,7 +30,7 @@ export const secondsUntilNextDailyDay = (dateKey = getDailyDateKey()) =>
    Math.max(
       1,
       dayjs
-         .tz(dateKey, DAILY_TIMEZONE)
+         .tz(dateKey, getDailyTimezone())
          .add(1, 'day')
          .startOf('day')
          .diff(dayjs(), 'second'),

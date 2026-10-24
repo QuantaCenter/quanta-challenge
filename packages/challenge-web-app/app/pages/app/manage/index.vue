@@ -8,7 +8,7 @@ import {
    Peoples,
    TableReport,
    Tag,
-   VolumeNotice,
+   Timer,
 } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
@@ -73,18 +73,18 @@ const options: ProcessOption[] = [
       iconColor: '#F97316',
    },
    {
-      title: '发送通知',
-      description: '向全体或指定用户发送日常公告与严重警告',
-      url: '/app/manage/notification',
-      icon: VolumeNotice,
-      iconColor: '#8B5CF6',
-   },
-   {
       title: '全部申诉',
       description: '查看用户针对严重警告提交的申诉内容',
       url: '/app/manage/appeal',
       icon: Help,
       iconColor: '#EF4444',
+   },
+   {
+      title: '定时任务管理',
+      description: '查看定时任务的执行状态，取消待执行或重试失败的任务',
+      url: '/app/manage/scheduled-task',
+      icon: Timer,
+      iconColor: '#F97316',
    },
 ];
 </script>

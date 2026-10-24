@@ -9,15 +9,17 @@ import { dialog } from '~/composables/use-dialog';
 import KvTextEditor from '~/pages/challenge/_subpages/editor/_modules/KvTextEditor.vue';
 
 const WORKDIR_NAME = 'image-build';
-/** 与服务端 IMAGE_BUILD_MAX_COMPRESSED_BYTES 一致 */
-const MAX_COMPRESSED_BYTES = 160 * 1024 * 1024;
+// 压缩后体积上限，超过则中止上传
+const MAX_COMPRESSED_BYTES = useRuntimeConfig().public.imageBuild.maxCompressedBytes;
 
-const DEFAULT_BUILD_FILE = `# 每行一条 shell 命令，在容器工作区内依次执行；工作区的最终内容就是快照镜像。
-# 以 # 开头的行为注释；行首的 [标题] 前缀可选，只用于日志展示。
-[npm-init] npm init -y >/dev/null
-[install] npm i vite pnpm@9.15.9 --no-audit --no-fund
-[rolldown] npm i @rolldown/binding-wasm32-wasi@1.2.15 --no-save --no-audit --no-fund
-[verify] ./node_modules/.bin/vite --version`;
+const DEFAULT_BUILD_FILE = [
+   '# 每行一条 shell 命令，在容器工作区内依次执行；工作区的最终内容就是快照镜像。',
+   '# 以 # 开头的行为注释；行首的 [标题] 前缀可选，只用于日志展示。',
+   '[npm-init] npm init -y >/dev/null',
+   '[install] npm i vite pnpm@9.15.9 --no-audit --no-fund',
+   '[rolldown] npm i @rolldown/binding-wasm32-wasi@1.2.15 --no-save --no-audit --no-fund',
+   '[verify] ./node_modules/.bin/vite --version',
+].join('\n');
 
 const { $trpc, $authFetch } = useNuxtApp();
 const message = useMessage();
@@ -389,7 +391,10 @@ const gzipCompress = async (
    onProgress: (ratio: number) => void,
 ) => {
    let consumed = 0;
-   const counter = new TransformStream<Uint8Array, Uint8Array>({
+   const counter = new TransformStream<
+      Uint8Array<ArrayBuffer>,
+      Uint8Array<ArrayBuffer>
+   >({
       transform(chunk, controller) {
          consumed += chunk.byteLength;
          onProgress(consumed / bytes.byteLength);

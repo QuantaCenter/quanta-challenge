@@ -25,6 +25,7 @@ const {
   isRefreshing,
   submissionList,
   resultOptions,
+  refresh,
 } = useSubmissionManagement();
 
 const drawerOpened = ref(false);
@@ -57,7 +58,8 @@ const openDetail = (row: SubmissionRow) => {
         v-model:start-time-input="startTimeInput"
         v-model:end-time-input="endTimeInput"
         :result-options="resultOptions"
-        :refreshing="isRefreshing" />
+        :refreshing="isRefreshing"
+        @refresh="refresh()" />
 
       <SubmissionTable
         :submissions="submissionList"

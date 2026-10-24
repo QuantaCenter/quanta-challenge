@@ -33,16 +33,15 @@ export interface SubmissionRow {
   submittedAt: string;
 }
 
-/**
- * StDatePicker 的日期值（YYYY-MM-DD）转查询边界：
- * 开始时间取当天零点，截止时间取当天末尾，保证所选整天完整覆盖。
- */
+/** 日期值（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）转查询边界，整天 / 整分钟覆盖。 */
 const toRangeBoundary = (value: string, endOfDay = false) => {
   if (!value) return undefined;
   const date = dayjs(value);
-  return date.isValid()
-    ? (endOfDay ? date.endOf('day') : date.startOf('day')).toISOString()
-    : undefined;
+  if (!date.isValid()) return undefined;
+  if (value.includes(' ')) {
+    return (endOfDay ? date.endOf('minute') : date.startOf('minute')).toISOString();
+  }
+  return (endOfDay ? date.endOf('day') : date.startOf('day')).toISOString();
 };
 
 /**
@@ -67,15 +66,18 @@ export const useSubmissionManagement = () => {
   const { data, pending, error, refresh } = useAsyncData(
     'manage-submissions',
     () => {
-      return $trpc.admin.submission.getAllSubmissions.query({
-        userKeyword: userKeyword.value || undefined,
-        problemKeyword: problemKeyword.value || undefined,
-        result: result.value === 'ALL' ? undefined : result.value,
-        startTime: toRangeBoundary(startTimeInput.value),
-        endTime: toRangeBoundary(endTimeInput.value, true),
-        page: page.value,
-        pageSize: PAGE_SIZE,
-      });
+      return atLeastTime(
+        500,
+        $trpc.admin.submission.getAllSubmissions.query({
+          userKeyword: userKeyword.value || undefined,
+          problemKeyword: problemKeyword.value || undefined,
+          result: result.value === 'ALL' ? undefined : result.value,
+          startTime: toRangeBoundary(startTimeInput.value),
+          endTime: toRangeBoundary(endTimeInput.value, true),
+          page: page.value,
+          pageSize: PAGE_SIZE,
+        }),
+      );
     },
   );
 
@@ -191,5 +193,6 @@ export const useSubmissionManagement = () => {
     resultOptions: RESULT_OPTIONS,
     // 操作
     clearFilters,
+    refresh,
   };
 };

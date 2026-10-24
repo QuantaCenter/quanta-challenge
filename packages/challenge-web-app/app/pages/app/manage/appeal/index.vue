@@ -38,11 +38,14 @@ watch(status, () => {
 const { data, pending, error, refresh } = useAsyncData(
    'manage-appeals',
    () =>
-      $trpc.admin.appeal.list.query({
-         status: status.value === 'ALL' ? undefined : status.value,
-         page: page.value,
-         pageSize: PAGE_SIZE,
-      }),
+      atLeastTime(
+         500,
+         $trpc.admin.appeal.list.query({
+            status: status.value === 'ALL' ? undefined : status.value,
+            page: page.value,
+            pageSize: PAGE_SIZE,
+         }),
+      ),
    { watch: [page, status] },
 );
 

@@ -897,6 +897,26 @@ const setCurrentProblemProcedure = protectedAdminProcedure
       return { message: 'ok' };
    });
 
+/** 按标题关键字搜索已发布题目，供题目选择器等场景使用 */
+const searchProcedure = protectedAdminProcedure
+   .input(
+      z.object({
+         keyword: z.string().trim().max(100).default(''),
+         limit: z.number().int().min(1).max(50).default(8),
+      }),
+   )
+   .query(async ({ input }) => {
+      return prisma.problems.findMany({
+         where: {
+            status: 'published',
+            ...(input.keyword ? { title: { contains: input.keyword } } : {}),
+         },
+         select: { pid: true, title: true, difficulty: true },
+         orderBy: { pid: 'desc' },
+         take: input.limit,
+      });
+   });
+
 export const problemRouter = router({
    upload: uploadProcedure,
    reupload: reuploadProcedure,
@@ -906,4 +926,5 @@ export const problemRouter = router({
    setStatus: setStatusProcedure,
    setCurrentProblem: setCurrentProblemProcedure,
    list: listProcedure,
+   search: searchProcedure,
 });

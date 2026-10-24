@@ -40,7 +40,7 @@ model User {
   Achievement               Achievement[]
   UserStatistic             UserStatistic?
   RankingHistory            RankingHistory[]
-  UserSettings              UserSetting?
+  UserSettings              UserSetting[]
   UserInfo                  UserInfo?
   UserSpaceConfig           UserSpaceConfig?
   notifications             Notification[]
@@ -678,7 +678,7 @@ model RankingHistory {
 
 model UserSetting {
   id        Int      @id @default(autoincrement())
-  userId    String   @unique
+  userId    String
   key       String
   value     String
   createdAt DateTime @default(now())
@@ -775,6 +775,33 @@ model ScorePenalty {
 
   @@index([userId])
   @@map("score_penalties")
+}
+
+enum TimerTaskStatus {
+  pending
+  running
+  done
+  failed
+}
+
+/// 定时任务表：由 web-app 内置的定时器 Worker 每 5s 轮询，到期后执行对应处理器
+model TimerTask {
+  id          String          @id @default(cuid())
+  /// 已注册的处理器 ID
+  handlerId   String
+  payload     Json?
+  status      TimerTaskStatus @default(pending)
+  /// 预定执行时间
+  runAt       DateTime
+  attempts    Int             @default(0)
+  maxAttempts Int             @default(3)
+  error       String?
+  executedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status, runAt])
+  @@map("timer_tasks")
 }
 
 model CloudFunction {

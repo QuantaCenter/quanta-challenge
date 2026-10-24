@@ -71,9 +71,27 @@ const {
       }),
 });
 
+// 刷新列表：强制进入骨架屏并至少展示 500ms，避免切换筛选时闪屏
+// （refresh 期间旧列表仍挂在 items 上，骨架屏条件 pending && 空列表不会命中，需本地状态兜底）
+const refreshing = ref(false);
+const reloadNotifications = async () => {
+   refreshing.value = true;
+   try {
+      await atLeastTime(500, refreshNotifications());
+   } finally {
+      refreshing.value = false;
+   }
+};
+
 // 筛选条件变化时从第一页重新加载（fetchPage 内部实时读取 filterType）
 watch(filterType, () => {
-   refreshNotifications();
+   void reloadNotifications();
+});
+
+// 收到新通知推送（SSE）时自动刷新列表
+const notificationNewSignal = useState('notification-new-signal', () => 0);
+watch(notificationNewSignal, () => {
+   void reloadNotifications();
 });
 
 const unread = useUnreadNotifications();
@@ -189,7 +207,7 @@ const handleNext = () => {
 
          <StSpace direction="vertical" gap="1rem" fill class="w-full">
             <NotificationItemSkeleton
-               v-if="notificationsStatus === 'pending' && notifications.length === 0"
+               v-if="refreshing || (notificationsStatus === 'pending' && notifications.length === 0)"
                v-for="i in 5"
                :key="i" />
 

@@ -9,6 +9,7 @@ import { userRouter } from './user';
 import { searchRouter } from './search';
 import { fileSyncRouter } from './file-sync';
 import { notificationRouter } from './notification';
+import { settingRouter } from './setting';
 import { verifyRoute } from './verify';
 
 export const protectedRouter = router({
@@ -21,6 +22,7 @@ export const protectedRouter = router({
    search: searchRouter,
    fileSync: fileSyncRouter,
    notification: notificationRouter,
+   setting: settingRouter,
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
 });

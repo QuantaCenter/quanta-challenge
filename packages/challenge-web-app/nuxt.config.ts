@@ -5,6 +5,12 @@ const env = (key: string, fallback: string) => process.env[key] || fallback;
 const envInt = (key: string, fallback: number) =>
    process.env[key] ? parseInt(process.env[key] as string) : fallback;
 
+/** 快照镜像压缩体上限：routeRules 的 requestSizeLimiter 与 runtimeConfig.public.imageBuild 共用同一值，避免两处手工对齐。 */
+const imageBuildMaxCompressedBytes = envInt(
+   'IMAGE_BUILD_MAX_COMPRESSED_BYTES',
+   160 * 1024 * 1024,
+);
+
 /** 读取必须显式提供的密钥：生产期一律返回空串、不静默降级，校验挪到启动时（validate-secrets.ts）——构建期抛错会拦死所有镜像构建且密钥不该进镜像；开发保留兜底值。 */
 const envSecret = (key: string) => {
    const value = process.env[key];
@@ -148,11 +154,11 @@ export default defineNuxtConfig({
             },
          },
       },
-      // 与 IMAGE_BUILD_MAX_COMPRESSED_BYTES 一致；octet-stream 请求体受 maxRequestSizeInBytes 限制
+      // octet-stream 请求体受 maxRequestSizeInBytes 限制；上限值与 runtimeConfig.public.imageBuild.maxCompressedBytes 同源
       '/api/image-builds/upload': {
          security: {
             requestSizeLimiter: {
-               maxRequestSizeInBytes: 160 * 1024 * 1024,
+               maxRequestSizeInBytes: imageBuildMaxCompressedBytes,
             },
          },
       },
@@ -257,6 +263,21 @@ export default defineNuxtConfig({
             sampleRate: envInt('SENTRY_SAMPLE_RATE', 1),
             tracesSampleRate: Number(env('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
          },
+         // 快照镜像体积上限（前后端共用：前端上传前预检、服务端与 routeRules 校验）
+         imageBuild: {
+            maxCompressedBytes: imageBuildMaxCompressedBytes,
+            maxRawBytes: envInt(
+               'IMAGE_BUILD_MAX_RAW_BYTES',
+               1024 * 1024 * 1024,
+            ),
+         },
+         // 云函数调用令牌 TTL（前后端共用：服务端写 Redis EX，前端算本地过期时间）
+         cloudFunction: {
+            tokenTTLSeconds: envInt(
+               'CLOUD_FUNCTION_TOKEN_TTL_SECONDS',
+               2 * 60 * 60,
+            ),
+         },
       },
       observation: {
          // observation 服务地址
@@ -304,6 +325,38 @@ export default defineNuxtConfig({
       email: {
          account: env('EMAIL_ACCOUNT', ''),
          smtpPassword: env('EMAIL_SMTP_PASSWORD', ''),
+      },
+      timer: {
+         // 定时器 Worker 轮询间隔与单次领取批量
+         pollIntervalMs: envInt('TIMER_POLL_INTERVAL_MS', 5000),
+         batchSize: envInt('TIMER_BATCH_SIZE', 20),
+         // 失败重试退避基数与上限：第 n 次失败后延迟 min(n * retryBackoffMs, maxRetryBackoffMs) 重试
+         retryBackoffMs: envInt('TIMER_RETRY_BACKOFF_MS', 30_000),
+         maxRetryBackoffMs: envInt('TIMER_MAX_RETRY_BACKOFF_MS', 300_000),
+      },
+      password: {
+         // bcrypt 盐轮数，影响登录/注册 CPU 成本
+         saltRounds: envInt('PASSWORD_SALT_ROUNDS', 10),
+      },
+      thumbhash: {
+         // thumbhash → data URL 的 L2 Redis 缓存时长（结果不可变，过期仅用于回收旧封面）与 L1 进程内 LRU 容量
+         redisCacheTTLSeconds: envInt(
+            'THUMBHASH_REDIS_CACHE_TTL_SECONDS',
+            60 * 60 * 24 * 30,
+         ),
+         memoryCacheSize: envInt('THUMBHASH_MEMORY_CACHE_SIZE', 1000),
+      },
+      trackActive: {
+         // 用户最近活跃时间写库节流间隔
+         writeIntervalMs: envInt('TRACK_ACTIVE_WRITE_INTERVAL_MS', 5 * 60 * 1000),
+      },
+      webauthn: {
+         // WebAuthn options 在 Redis 的有效期
+         optionsTTLSeconds: envInt('WEB_AUTHN_OPTIONS_TTL_SECONDS', 300),
+      },
+      daily: {
+         // 每日一题 / 签到的业务时区：显式钉死、不依赖容器 TZ
+         timezone: env('DAILY_TIMEZONE', 'Asia/Shanghai'),
       },
    },
 });

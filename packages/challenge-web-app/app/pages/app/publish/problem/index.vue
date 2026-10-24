@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import JudgeScript from './_modules/JudgeScript.vue';
 import UploadProject from './_components/UploadProject.vue';
-import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
+import LazyMarkdownEditingDrawer from '../_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
 import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';

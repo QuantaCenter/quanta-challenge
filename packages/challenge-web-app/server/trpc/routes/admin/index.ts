@@ -6,6 +6,7 @@ import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
 import { notificationAdminRouter } from './notification';
 import { problemRouter } from './problem';
+import { scheduledTaskAdminRouter } from './scheduled-task';
 import { submissionRouter } from './submission';
 import { tagRouter } from './tag';
 import { userRouter } from './user';
@@ -21,4 +22,5 @@ export const adminRouter = router({
    cloudFunction: cloudFunctionAdminRouter,
    notification: notificationAdminRouter,
    appeal: appealAdminRouter,
+   scheduledTask: scheduledTaskAdminRouter,
 });

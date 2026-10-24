@@ -1,5 +1,13 @@
 <script setup lang="ts">
-import { Box, Code, GoldMedalTwo, TableReport, Tag } from '@icon-park/vue-next';
+import {
+   Box,
+   Code,
+   GoldMedalTwo,
+   TableReport,
+   Tag,
+   Timer,
+   VolumeNotice,
+} from '@icon-park/vue-next';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
@@ -40,6 +48,20 @@ const options = [
       url: '/app/publish/cloud-function',
       icon: Code,
       iconColor: '#C267FF',
+   },
+   {
+      title: '发送通知',
+      description: '向全体或指定用户发送日常公告与严重警告',
+      url: '/app/publish/notification',
+      icon: VolumeNotice,
+      iconColor: '#8B5CF6',
+   },
+   {
+      title: '定时任务',
+      description: '创建定时执行的运营任务',
+      url: '/app/publish/scheduled-task',
+      icon: Timer,
+      iconColor: '#F97316',
    },
 ];
 </script>
