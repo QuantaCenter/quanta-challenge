@@ -350,7 +350,6 @@ const listProblemStatusesProcedure = protectedProcedure.query(
                },
             },
          },
-         distinct: ['problemId'],
       });
 
       // pid -> 是否通过过判题
