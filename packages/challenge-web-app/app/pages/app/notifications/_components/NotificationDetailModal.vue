@@ -2,6 +2,7 @@
 import { Close, Left, Right, Calendar, Help } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import { dialog, useDialogManager } from '~/composables/use-dialog';
+import { useMarkdown } from '~/composables/use-markdown';
 import { useMessage } from '~/components/st/Message/use-message';
 
 import type { inferRouterOutputs } from '@trpc/server';
@@ -85,6 +86,14 @@ const formattedTime = computed(() => {
    return new Date(props.notification.createdAt).toLocaleString();
 });
 
+// 通知正文支持 Markdown 渲染（代码块带语言栏与复制按钮）
+const { html, update } = useMarkdown({ codeHeader: true });
+watch(
+   () => props.notification?.content,
+   (content) => update(content ?? ''),
+   { immediate: true },
+);
+
 const handleKeydown = (e: KeyboardEvent) => {
    if (!opened.value || hasDialog.value) return;
    if (e.key === 'ArrowLeft' && props.hasPrevious) {
@@ -146,12 +155,7 @@ onUnmounted(() => {
 
             <!-- Content Area -->
             <div class="flex-1 overflow-y-auto px-10 pb-10 custom-scrollbar">
-               <div class="prose prose-invert max-w-none">
-                  <p
-                     class="text-lg text-accent-200 leading-relaxed whitespace-pre-wrap">
-                     {{ notification.content }}
-                  </p>
-               </div>
+               <LearningArticleBody :html="html" dense />
             </div>
 
             <div

@@ -1,107 +1,111 @@
 import { TRPCError } from '@trpc/server';
+import dayjs from 'dayjs';
 import z from 'zod';
-import prisma from '~~/lib/prisma';
-import { logger } from '~~/server/utils/logger';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import { notificationService } from '../../services/notificatoin';
-import { rankService } from '../../services/rank';
+import {
+  dispatchNotificationTask,
+  resolveNotificationTarget,
+  sendNotificationToUsers,
+} from '../../../services/send-notification';
 
-const SendNotificationSchema = z
-   .object({
-      type: z.enum(['ANNOUNCEMENT', 'WARNING']),
-      title: z
-         .string()
-         .trim()
-         .min(1, '标题不能为空')
-         .max(100, '标题最长 100 字'),
-      content: z
-         .string()
-         .trim()
-         .min(1, '内容不能为空')
-         .max(5000, '内容最长 5000 字'),
-      target: z.discriminatedUnion('scope', [
-         z.object({ scope: z.literal('ALL') }),
-         z.object({
-            scope: z.literal('USERS'),
-            userNames: z.array(z.string().trim().min(1)).min(1).max(500),
-         }),
-      ]),
-      /** 扣分分值，0 表示不扣 */
-      penaltyScore: z.number().int().min(0).max(10000).default(0),
-   })
-   .refine(
-      (input) =>
-         input.penaltyScore === 0 ||
-         (input.type === 'WARNING' && input.target.scope === 'USERS'),
-      { message: '只有向指定用户发送严重警告时才能扣分', path: ['penaltyScore'] },
-   );
+const SendNotificationBase = z.object({
+  type: z.enum(['ANNOUNCEMENT', 'WARNING']),
+  title: z
+    .string()
+    .trim()
+    .min(1, '标题不能为空')
+    .max(100, '标题最长 100 字'),
+  content: z
+    .string()
+    .trim()
+    .min(1, '内容不能为空')
+    .max(5000, '内容最长 5000 字'),
+  target: z.discriminatedUnion('scope', [
+    z.object({ scope: z.literal('ALL') }),
+    z.object({
+      scope: z.literal('USERS'),
+      userNames: z.array(z.string().trim().min(1)).min(1).max(500),
+    }),
+  ]),
+  /** 扣分分值，0 表示不扣 */
+  penaltyScore: z.number().int().min(0).max(10000).default(0),
+});
 
-const resolveUserIds = async (
-   target: z.infer<typeof SendNotificationSchema>['target'],
-) => {
-   if (target.scope === 'ALL') {
-      const users = await prisma.user.findMany({ select: { id: true } });
-      return users.map((user) => user.id);
-   }
-
-   const userNames = [...new Set(target.userNames)];
-   const users = await prisma.user.findMany({
-      where: { name: { in: userNames } },
-      select: { id: true, name: true },
-   });
-   const found = new Set(users.map((user) => user.name));
-   const missing = userNames.filter((name) => !found.has(name));
-   if (missing.length) {
-      throw new TRPCError({
-         code: 'BAD_REQUEST',
-         message: `以下用户不存在：${missing.join('、')}`,
-      });
-   }
-   return users.map((user) => user.id);
+/** 只有向指定用户发送严重警告时才能扣分 */
+const penaltyRefine = {
+  refine: (input: {
+    penaltyScore: number;
+    type: 'ANNOUNCEMENT' | 'WARNING';
+    target: { scope: string };
+  }) =>
+    input.penaltyScore === 0 ||
+    (input.type === 'WARNING' && input.target.scope === 'USERS'),
+  message: '只有向指定用户发送严重警告时才能扣分',
+  path: ['penaltyScore'],
 };
 
-/** 发送通知 */
+const SendNotificationSchema = SendNotificationBase.refine(
+  penaltyRefine.refine,
+  { message: penaltyRefine.message, path: penaltyRefine.path }
+);
+
+const ScheduledSendNotificationSchema = SendNotificationBase.extend({
+  /** 预定发送时间，必须晚于当前时间 */
+  runAt: z.coerce
+    .date()
+    .refine((date) => dayjs(date).isAfter(dayjs()), {
+      message: '发送时间必须晚于当前时间',
+    }),
+}).refine(penaltyRefine.refine, {
+  message: penaltyRefine.message,
+  path: penaltyRefine.path,
+});
+
+/** 发送通知（立即） */
 const sendProcedure = protectedAdminProcedure
-   .input(SendNotificationSchema)
-   .mutation(async ({ input }) => {
-      const { type, title, content, target, penaltyScore } = input;
+  .input(SendNotificationSchema)
+  .mutation(async ({ input }) => {
+    const { type, title, content, target, penaltyScore } = input;
 
-      const userIds = await resolveUserIds(target);
-      if (!userIds.length) return { count: 0 };
+    const userIds = await resolveNotificationTarget(target);
+    const count = await sendNotificationToUsers({
+      type,
+      title,
+      content,
+      userIds,
+      penaltyScore,
+    });
+    return { count };
+  });
 
-      if (penaltyScore === 0) {
-         const result = await notificationService.groupSendNotification({
-            type,
-            title,
-            content,
-            userIds,
-         });
-         return { count: result.count };
+/** 定时发送通知：到期后由 timer worker 执行 send-notification 处理器 */
+const scheduledSendProcedure = protectedAdminProcedure
+  .input(ScheduledSendNotificationSchema)
+  .mutation(async ({ input }) => {
+    const { type, title, content, target, penaltyScore, runAt } = input;
+
+    // USERS 范围在创建时即校验用户存在，避免到期后才发现收件人无效
+    if (target.scope === 'USERS') {
+      try {
+        await resolveNotificationTarget(target);
+      } catch (err) {
+        throw new TRPCError({
+          code: 'BAD_REQUEST',
+          message:
+            err instanceof Error ? err.message : '接收用户校验失败，请稍后重试',
+        });
       }
+    }
 
-      await prisma.$transaction(async (tx) => {
-         const notifications = await tx.notification.createManyAndReturn({
-            data: userIds.map((userId) => ({ type, title, content, userId })),
-            select: { id: true, userId: true },
-         });
-         await tx.scorePenalty.createMany({
-            data: notifications.map((notification) => ({
-               userId: notification.userId,
-               notificationId: notification.id,
-               score: penaltyScore,
-            })),
-         });
-      });
-      notificationEmitter.emit('new', { userIds: new Set(userIds) });
-
-      await rankService.syncUserScores(userIds).catch((err) => {
-         logger.error({ err, userIds }, '警告扣分后同步排行榜失败');
-      });
-
-      return { count: userIds.length };
-   });
+    const taskId = await dispatchNotificationTask(
+      { type, title, content, target, penaltyScore },
+      { runAt }
+    );
+    return { taskId, runAt };
+  });
 
 export const notificationAdminRouter = router({
-   send: sendProcedure,
+  send: sendProcedure,
+  scheduledSend: scheduledSendProcedure,
 });

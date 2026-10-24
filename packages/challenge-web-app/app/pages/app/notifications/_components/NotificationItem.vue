@@ -11,6 +11,7 @@ import {
 } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import type { Component } from 'vue';
+import { markdownToPlainText } from '~/utils/markdown-plain';
 
 import type { NotificationType } from '@prisma/client';
 
@@ -84,7 +85,7 @@ const isWarning = computed(() => props.type === 'WARNING');
             </span>
          </div>
          <p class="st-font-body-normal text-accent-300 line-clamp-2">
-            {{ content }}
+            {{ markdownToPlainText(content) }}
          </p>
       </div>
       <div

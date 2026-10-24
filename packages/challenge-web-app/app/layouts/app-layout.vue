@@ -76,6 +76,8 @@ onMounted(() => {
    });
    watch(event, (e) => {
       if (e && e.message === 'new_notification') {
+         // 递增全局信号，通知中心等页面监听后自动刷新列表
+         notificationNewSignal.value++;
          message.info('您有一条新的通知', void 0, {
             duration: 0,
          });
@@ -83,6 +85,9 @@ onMounted(() => {
       }
    });
 });
+
+/** 新通知到达信号：SSE 推送触发，跨组件共享 */
+const notificationNewSignal = useState('notification-new-signal', () => 0);
 </script>
 
 <template>
