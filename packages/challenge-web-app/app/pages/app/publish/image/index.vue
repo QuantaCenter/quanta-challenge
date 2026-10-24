@@ -391,7 +391,10 @@ const gzipCompress = async (
    onProgress: (ratio: number) => void,
 ) => {
    let consumed = 0;
-   const counter = new TransformStream<Uint8Array, Uint8Array>({
+   const counter = new TransformStream<
+      Uint8Array<ArrayBuffer>,
+      Uint8Array<ArrayBuffer>
+   >({
       transform(chunk, controller) {
          consumed += chunk.byteLength;
          onProgress(consumed / bytes.byteLength);
