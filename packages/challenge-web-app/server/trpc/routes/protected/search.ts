@@ -102,12 +102,26 @@ const searchProcedure = protectedProcedure
       const searchTags = async (): Promise<TypePage> => {
          if (!wants('tag')) return EMPTY_PAGE;
 
+         // 统计每个标签下"当前版本已发布"的题目数（与题库页过滤口径一致），
+         // 避免搜出没有可做题目的标签，跳转到题库后出现空结果
+         const liveRows = await prisma.$queryRaw<{ tid: number; live: number }[]>`
+            SELECT rel."B" AS tid, COUNT(DISTINCT b.id) AS live
+            FROM "_ProblemsToTags" rel
+            JOIN problems cp ON cp.pid = rel."A" AND cp.status = 'published'
+            JOIN base_problems b ON b."currentPid" = rel."A"
+            GROUP BY rel."B"
+         `;
+         const liveByTid = new Map(
+            liveRows.map((row) => [Number(row.tid), Number(row.live)])
+         );
+
          const tags = await prisma.tags.findMany({
             where: {
                name: {
                   contains: searchQuery,
                   mode: 'insensitive',
                },
+               tid: { in: [...liveByTid.keys()] },
             },
             include: {
                Problem: {
@@ -127,10 +141,11 @@ const searchProcedure = protectedProcedure
                type: 'tag' as const,
                title: tag.name,
                description:
-                  tag.description || `包含 ${tag.Problem.length} 道题目`,
+                  tag.description ||
+                  `包含 ${liveByTid.get(tag.tid) ?? 0} 道已发布题目`,
                url: `/app/problems?tag=${tag.tid}`,
                metadata: {
-                  problemCount: tag.Problem.length,
+                  problemCount: liveByTid.get(tag.tid) ?? 0,
                   color: tag.color || undefined,
                },
             }),
