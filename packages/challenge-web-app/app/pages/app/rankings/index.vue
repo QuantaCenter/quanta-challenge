@@ -10,46 +10,21 @@ import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 
 const { $trpc } = useNuxtApp();
 
-// TODO: 仅供预览效果的 mock 数据，验收完成后删除（将 transform 换回原实现即可）
-const MOCK_NAMES = [
-   '星尘',
-   '量子猫',
-   '代码搬运工',
-   '月亮不睡',
-   '阿基米德',
-   '螺旋桨',
-   '深夜刷题人',
-   '咖啡因依赖',
-   '斐波那契',
-   '小码农',
-   '海拉鲁剑客',
-   '芝士蛋糕',
-   '过河卒',
-   '像素风',
-   '半糖去冰',
-   '矩阵漫游者',
-   '拿铁不加糖',
-   '折跃点',
-   '摸鱼锦标赛冠军',
-   '算法废柴',
-];
-const MOCK_RANKINGS: IRanking[] = MOCK_NAMES.map((name, i) => ({
-   userId: `mock-${i + 1}`,
-   uid: `mock-uid-${i + 1}`,
-   userName: name,
-   rank: i + 1,
-   score: 2480 - i * 86,
-   correctRate: Number((96.4 - i * 2.1).toFixed(2)),
-   passCount: 326 - i * 11,
-   imageUrl: DEFAULT_AVATAR_URL,
-}));
-
 const { data: rankings, pending: loadingRankings } = useAsyncData(
    'rankings',
    () => $trpc.public.rank.getGlobalRankings.query(),
    {
-      // TODO: mock 预览 —— 验收后恢复为原 transform（见上方 MOCK_RANKINGS 注释）
-      transform: (): IRanking[] => MOCK_RANKINGS,
+      transform: (data): IRanking[] =>
+         data.map((item) => ({
+            userId: item.userId,
+            correctRate: item.correctRate,
+            imageUrl: item.avatarUrl ?? DEFAULT_AVATAR_URL,
+            rank: item.rank,
+            score: item.score,
+            passCount: item.passCount,
+            userName: item.userName,
+            uid: item.uid,
+         })),
    }
 );
 
