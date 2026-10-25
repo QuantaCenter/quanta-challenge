@@ -98,7 +98,7 @@ const mobileDrawerOpen = ref(false);
       <StSidebar
          class="w-[9.3125rem] !fixed left-0 top-0 h-screen max-md:hidden" />
       <div class="w-[9.3125rem] max-md:hidden"></div>
-      <main class="flex flex-col flex-1 pb-24 md:pb-0">
+      <main class="flex flex-col flex-1 min-w-0 pb-24 md:pb-0">
          <StHeader
             mode="gradient"
             class="fixed top-0 !w-[calc(100vw-9.3125rem)] !min-w-[calc(1440px-9.3125rem)] max-md:!hidden">

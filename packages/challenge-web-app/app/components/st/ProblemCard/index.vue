@@ -20,7 +20,7 @@ const imageSrc = computed(() =>
       fill-x
       direction="vertical"
       gap="0.75rem"
-      class="p-2 rounded-xl bg-accent-600 border hover:border-secondary/50 cursor-pointer border-transparent transition-all">
+      class="relative overflow-hidden p-2 rounded-xl bg-accent-600 border hover:border-secondary/50 cursor-pointer border-transparent transition-all">
       <StImage
          :src="imageSrc"
          :thumbhash="props.coverImageThumbhash"

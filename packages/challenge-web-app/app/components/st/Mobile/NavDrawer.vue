@@ -111,7 +111,7 @@ watch(
                   <NuxtLink
                      to="/app/space"
                      class="flex items-center gap-3 min-w-0 active:bg-accent-600 rounded-xl transition-colors -m-1 p-1">
-                     <StAvatar :url="avatarUrl" class="w-9 h-9 shrink-0" />
+                     <StAvatar :url="avatarUrl" class="!w-9 !h-9 shrink-0" />
                      <StSpace
                         direction="vertical"
                         justify="center"
