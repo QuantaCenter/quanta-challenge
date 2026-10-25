@@ -12,13 +12,12 @@ import { textColorOn } from './_utils/color';
 useSeoMeta({ title: '标签管理 - Quanta Challenge' });
 
 const columns: ITableColumn[] = [
-   // 图标 / 描述 / 颜色三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   // 描述 / 颜色两列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）；图标列保留展示
    {
       key: 'icon',
       title: '图标',
       width: '5rem',
       skeletonClass: 'size-[2.25rem] rounded-lg',
-      class: 'max-md:hidden',
    },
    { key: 'label', title: '标签名', width: '10rem' },
    {

@@ -30,7 +30,7 @@ onMounted(() => {
 
 <template>
    <div class="flex flex-col gap-2 w-full">
-      <div v-if="props.label" class="w-full flex justify-between">
+      <div v-if="props.label" class="w-full flex justify-between flex-wrap gap-x-4 gap-y-2">
          <div class="st-font-body-bold mb-1">
             <span v-if="props.required" class="text-error">*</span>
             {{ props.label }}

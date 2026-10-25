@@ -31,6 +31,9 @@ const debounceUpdate = useDebounceFn(update, 200);
 const message = useMessage();
 const { $trpc } = useNuxtApp();
 
+/** 移动端编辑器与预览改为上下排布 */
+const isMobile = useMediaQuery('(max-width: 767.98px)');
+
 const uploadingImage = ref(false);
 const imageFileInput = useTemplateRef<HTMLInputElement>('image-file-input');
 let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -144,7 +147,7 @@ const onImageFileChosen = (event: Event) => {
          <StSpace direction="vertical" gap="1.5rem" class="p-6 w-full h-full">
             <!-- Header -->
             <StSpace justify="between" align="center" class="w-full">
-               <h1 class="st-font-secondary-bold">{{ props.drawerTitle }}</h1>
+               <h1 class="st-font-secondary-bold max-md:text-[1.25rem]">{{ props.drawerTitle }}</h1>
                <StButton
                   :loading="uploadingImage"
                   :disabled="uploadingImage"
@@ -163,7 +166,7 @@ const onImageFileChosen = (event: Event) => {
                class="hidden"
                @change="onImageFileChosen" />
             <StSplitPanel
-               direction="horizontal"
+               :direction="isMobile ? 'vertical' : 'horizontal'"
                class="max-h-[calc(100vh-13rem)]">
                <template #start>
                   <div

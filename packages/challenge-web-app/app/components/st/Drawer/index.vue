@@ -10,6 +10,76 @@ const opened = defineModel<boolean>('opened', {
    default: false,
 });
 
+// 抽屉打开期间锁定背后页面的滚动；引用计数支持多个抽屉叠开（关完最后一个才解锁）。
+// 页面滚动容器不一定是 body（页面根节点常为 overflow-auto），因此遍历 DOM
+// 找出所有当前真正可滚动的元素逐个冻结，并跳过抽屉自身的子树
+const SCROLL_LOCK_ATTR = 'data-st-drawer-root';
+let scrollLockCount = 0;
+let lockedScrollElements: { el: HTMLElement; prevOverflow: string }[] = [];
+
+const collectScrollLockTargets = (): HTMLElement[] => {
+   const targets: HTMLElement[] = [];
+   const rootScroller = document.scrollingElement as HTMLElement | null;
+   if (rootScroller) targets.push(rootScroller);
+   const walk = (el: Element) => {
+      for (const child of Array.from(el.children)) {
+         if (child.hasAttribute(SCROLL_LOCK_ATTR)) continue;
+         const htmlEl = child as HTMLElement;
+         const { overflowY } = getComputedStyle(htmlEl);
+         if (
+            /(auto|scroll)/.test(overflowY) &&
+            htmlEl.scrollHeight > htmlEl.clientHeight
+         ) {
+            targets.push(htmlEl);
+         }
+         walk(child);
+      }
+   };
+   walk(document.body);
+   return targets;
+};
+
+const acquireScrollLock = () => {
+   if (!import.meta.client) return;
+   scrollLockCount++;
+   if (scrollLockCount > 1) return;
+   lockedScrollElements = collectScrollLockTargets().map((el) => {
+      const prevOverflow = el.style.overflow;
+      el.style.overflow = 'hidden';
+      return { el, prevOverflow };
+   });
+};
+
+const releaseScrollLock = () => {
+   if (!import.meta.client) return;
+   scrollLockCount = Math.max(0, scrollLockCount - 1);
+   if (scrollLockCount !== 0) return;
+   lockedScrollElements.forEach(({ el, prevOverflow }) => {
+      el.style.overflow = prevOverflow;
+   });
+   lockedScrollElements = [];
+};
+
+watch(
+   opened,
+   (value) => {
+      if (value) acquireScrollLock();
+      else releaseScrollLock();
+   },
+   { immediate: true }
+);
+onUnmounted(() => {
+   if (opened.value) releaseScrollLock();
+});
+// KeepAlive 场景兜底：组件被停用/恢复时同样要释放/重取锁，
+// 否则停用的抽屉会把计数卡在 >0，后续抽屉关闭时永远无法恢复滚动
+onDeactivated(() => {
+   if (opened.value) releaseScrollLock();
+});
+onActivated(() => {
+   if (opened.value) acquireScrollLock();
+});
+
 const rendered = ref(opened.value);
 const shown = ref(opened.value);
 let historyPushed = false;
@@ -102,6 +172,7 @@ watch(opened, () => {
       class="w-full h-full z-[9999]">
       <div
          @click.self="opened = false"
+         :data-st-drawer-root="true"
          :class="[
             global
                ? 'w-screen h-dvh fixed top-0 left-0'

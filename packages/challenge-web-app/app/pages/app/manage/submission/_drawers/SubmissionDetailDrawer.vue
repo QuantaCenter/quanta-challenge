@@ -180,18 +180,18 @@ onUnmounted(stopPolling);
           </template>
           <StSpace
             v-if="detail"
-            class="w-full max-w-[38rem] min-h-full absolute top-4 left-0 pb-8"
+            class="w-full max-w-[38rem] min-h-full absolute top-4 left-0 pb-8 max-md:top-10 max-md:left-4 max-md:right-4 max-md:w-auto"
             gap="1rem"
             direction="vertical">
             <StSpace
               fill-x
               justify="between"
               align="end">
-              <StSpace gap="0.5rem" align="center">
-                <span class="st-font-third-bold text-warning">
+              <StSpace gap="0.5rem" align="center" class="max-md:gap-0.5">
+                <span class="st-font-third-bold text-warning max-md:text-[1.25rem]">
                   #{{ detail.id }}
                 </span>
-                <span class="st-font-third-normal">
+                <span class="st-font-third-normal max-md:text-[1.125rem] max-md:break-all">
                   {{ detail.problem.title }}
                 </span>
               </StSpace>

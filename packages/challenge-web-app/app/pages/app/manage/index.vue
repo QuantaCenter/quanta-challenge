@@ -118,7 +118,7 @@ const options: ProcessOption[] = [
                         {{ option.title }}
                      </h2>
                      <p
-                        class="st-font-body-normal max-md:text-sm text-accent-300">
+                        class="st-font-body-normal max-md:text-sm text-accent-300 line-clamp-2">
                         {{ option.description }}
                      </p>
                   </StSpace>

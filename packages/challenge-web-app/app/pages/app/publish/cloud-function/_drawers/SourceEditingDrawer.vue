@@ -142,7 +142,7 @@ const handleTest = async () => {
             class="w-full flex-1 min-h-0 p-6 max-md:p-4">
             <StSpace justify="between" align="end" class="w-full">
                <StSpace direction="vertical" gap="0.25rem">
-                  <h2 class="st-font-secondary-bold">编辑并发布云函数</h2>
+                  <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">编辑并发布云函数</h2>
                   <p class="st-font-caption text-accent-300">
                      {{ name }} · 仅支持单文件、零依赖（不能 import 外部模块）
                   </p>

@@ -56,7 +56,7 @@ onUnmounted(() => {
    <Teleport to="body">
       <div
          :ref="popperKey"
-         class="absolute transition-opacity !w-fit"
+         class="absolute z-[10001] transition-opacity !w-fit"
          :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
          :style="{ zIndex: props.zIndex ?? 9998 }">
          <slot name="popper" :triggered>

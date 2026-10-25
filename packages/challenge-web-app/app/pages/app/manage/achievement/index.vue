@@ -7,13 +7,12 @@ import { logger } from '~~/lib/logger';
 useSeoMeta({ title: '成就管理 - Quanta Challenge' });
 
 const columns: ITableColumn[] = [
-   // 徽章 / 描述 / 创建时间三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   // 描述 / 创建时间两列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）；徽章列保留展示
    {
       key: 'badge',
       title: '徽章',
       width: '5rem',
       skeletonClass: 'size-[2.25rem] rounded-lg',
-      class: 'max-md:hidden',
    },
    {
       key: 'name',
@@ -171,16 +170,23 @@ const achievementList = computed(() => {
 </template>
 
 <style scoped>
-/* 仅移动端收窄可见列（成就名/成就分/操作）的列宽与内边距，PC 端样式不受影响 */
+/* 仅移动端收窄可见列（徽章/成就名/成就分/操作）的列宽与内边距，PC 端样式不受影响 */
 @media (max-width: 47.99rem) {
+   .achievement-table :deep(col:nth-child(1)) {
+      width: 3.5rem !important;
+   }
    .achievement-table :deep(col:nth-child(2)) {
-      width: 8rem !important;
+      width: 7.5rem !important;
    }
    .achievement-table :deep(col:nth-child(4)) {
-      width: 4.5rem !important;
+      width: 4rem !important;
    }
    .achievement-table :deep(col:nth-child(6)) {
-      width: 4rem !important;
+      width: 3.5rem !important;
+   }
+   .achievement-table :deep(th:nth-child(1)),
+   .achievement-table :deep(td:nth-child(1)) {
+      padding-left: 0.75rem;
    }
    .achievement-table :deep(th:nth-child(2)),
    .achievement-table :deep(td:nth-child(2)) {

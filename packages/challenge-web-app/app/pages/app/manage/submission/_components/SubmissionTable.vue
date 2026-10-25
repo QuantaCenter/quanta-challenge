@@ -22,9 +22,10 @@ const emits = defineEmits<{
 const columns: ITableColumn[] = [
   // 记录 ID / 判题耗时 / 提交时间三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
   { key: 'id', title: '记录 ID', width: '6rem', align: 'center', skeletonClass: 'h-5 w-[4rem] rounded-md mx-auto', class: 'max-md:hidden' },
-  { key: 'user', title: '用户', skeletonClass: 'h-9 w-[9rem] rounded-lg' },
-  { key: 'problem', title: '题目', skeletonClass: 'h-9 w-[12rem] rounded-lg' },
-  { key: 'result', title: '状态', width: '6.5rem', align: 'center', skeletonClass: 'h-5 w-[4rem] rounded-md mx-auto' },
+  // 移动端记录 ID 列被隐藏，用户列成为可见的第一列，需接管左侧圆角与内边距
+  { key: 'user', title: '用户', skeletonClass: 'h-9 w-[9rem] max-md:w-[4.5rem] rounded-lg', class: 'max-md:rounded-l-lg max-md:pl-6' },
+  { key: 'problem', title: '题目', skeletonClass: 'h-9 w-[12rem] max-md:w-[4.5rem] rounded-lg' },
+  { key: 'result', title: '状态', width: '6.5rem', align: 'center', skeletonClass: 'h-5 w-[4rem] max-md:w-[3rem] rounded-md mx-auto' },
   // 移动端最后三列被隐藏，得分列成为可见的最后一列，需接管右侧圆角与内边距
   { key: 'score', title: '得分', width: '5rem', align: 'center', skeletonClass: 'h-5 w-[2.5rem] rounded-md mx-auto', class: 'max-md:rounded-r-lg max-md:pr-6' },
   { key: 'judgingTime', title: '判题耗时', width: '7rem', align: 'center', skeletonClass: 'h-5 w-[4.5rem] rounded-md mx-auto', class: 'max-md:hidden' },

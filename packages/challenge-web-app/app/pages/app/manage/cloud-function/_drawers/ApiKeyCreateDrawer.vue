@@ -75,7 +75,7 @@ const submit = async () => {
             gap="1.25rem"
             class="w-full flex-1 min-h-0 overflow-auto p-6">
             <StSpace direction="vertical" gap="0.25rem">
-               <h2 class="st-font-secondary-bold">签发 API Key</h2>
+               <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">签发 API Key</h2>
                <p class="st-font-caption text-accent-300">
                   secret 仅在创建后显示一次，请立即妥善保存。
                </p>

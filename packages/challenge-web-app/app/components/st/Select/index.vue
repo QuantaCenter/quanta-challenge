@@ -93,6 +93,18 @@ defineExpose({
    },
 });
 
+// 弹层可能在抽屉等 display:none 容器内初始化（宽度 0、定位基准失效），
+// 打开时按容器当前尺寸重设宽度并重新定位
+watch(opened, (value) => {
+   if (!value) return;
+   nextTick(() => {
+      if (container.value && popper.value) {
+         popper.value.style.width = `${container.value.getBoundingClientRect().width}px`;
+      }
+      popperInstance.value?.update();
+   });
+});
+
 onMounted(() => {
    const resizeObserver = new ResizeObserver(() => {
       popperInstance.value?.update();
@@ -157,9 +169,9 @@ const optionEmptyText = computed(() => {
       <Component
          :is="props.attachToBody ? Teleport : 'div'"
          to="body"
-         class="absolute z-50">
+         class="absolute z-[10001]">
          <div
-            class="p-2 rounded-lg bg-background border border-accent-300 absolute hover:cursor-auto z-50"
+            class="p-2 rounded-lg bg-background border border-accent-300 absolute hover:cursor-auto z-[10001] overflow-hidden"
             :style="{
                transition: 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
                maxHeight: props.maxContainerHeight
@@ -192,19 +204,19 @@ const optionEmptyText = computed(() => {
                   :value="item.value"
                   :selected="selectedSet.has(item.value)">
                   <slot name="option" :item="item">
-                     <div class="flex gap-2 items-center w-full">
+                     <div class="flex gap-2 items-center w-full min-w-0">
                         <Component v-if="item.icon" :is="item.icon" />
                         <img
                            v-else-if="!props.hideIcon && item.imageUrl"
-                           class="size-6 rounded-md overflow-hidden object-contain"
+                           class="size-6 rounded-md overflow-hidden object-contain shrink-0"
                            :src="item.imageUrl"
                            :alt="item.label" />
                         <slot name="option-label" :item="item">
-                           {{ item.label }}
+                           <span class="truncate min-w-0">{{ item.label }}</span>
                         </slot>
                         <span
                            v-if="!props.hideDescription"
-                           class="ml-auto text-accent-400">
+                           class="ml-auto text-accent-400 truncate max-w-[40%] shrink-0">
                            {{ item.description }}
                         </span>
                      </div>
