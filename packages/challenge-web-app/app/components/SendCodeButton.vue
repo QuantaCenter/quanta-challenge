@@ -28,10 +28,6 @@ const handleSendCode = () => {
       }, 1000);
    }
 };
-
-const text = computed(() => {
-   return countdown.value > 0 ? `重新发送 (${countdown.value}s)` : '获取验证码';
-});
 </script>
 
 <template>
@@ -39,14 +35,20 @@ const text = computed(() => {
       <div
          @click="handleSendCode()"
          :class="[
-            'pl-2 h-6 min-w-8 right-0 st-font-caption rounded-sm flex items-center justify-center',
+            'pl-2 h-6 min-w-8 right-0 st-font-caption rounded-sm flex items-center justify-center whitespace-nowrap shrink-0',
             couldSend
                ? 'text-primary/90 cursor-pointer '
                : 'text-accent-400 cursor-not-allowed',
          ]">
          <LoadingFour v-if="loading" class="animate-spin" />
          <Check v-else-if="verified" class="text-success" />
-         <span v-else>{{ text }}</span>
+         <!-- 倒计时文案较长，小屏下只显示秒数，避免溢出输入框 -->
+         <span v-else>
+            <template v-if="countdown > 0">
+               <span class="hidden sm:inline">重新发送 </span>({{ countdown }}s)
+            </template>
+            <template v-else>获取验证码</template>
+         </span>
       </div>
    </div>
 </template>

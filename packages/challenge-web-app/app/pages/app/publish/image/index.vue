@@ -634,12 +634,18 @@ const handlePublish = async () => {
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6">
-         <StSpace align="end" gap="1rem">
-            <h1 class="st-font-hero-bold">{{ isEditMode ? '编辑快照镜像' : '构建快照镜像' }}</h1>
+      <StSpace
+         direction="vertical"
+         gap="1.5rem"
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <StSpace align="end" gap="1rem" class="max-md:flex-wrap">
+            <h1
+               class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+               {{ isEditMode ? '编辑快照镜像' : '构建快照镜像' }}
+            </h1>
             <span
                v-if="isEditMode"
-               class="st-font-caption font-mono text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
+               class="st-font-caption font-mono text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full max-md:break-all">
                {{ currentId }}
             </span>
          </StSpace>
@@ -653,7 +659,10 @@ const handlePublish = async () => {
          </StBanner>
 
          <div class="w-full">
-            <StSpace direction="vertical" gap="1.75rem" class="w-full px-[0.625rem]">
+            <StSpace
+               direction="vertical"
+               gap="1.75rem"
+               class="w-full px-[0.625rem] max-md:gap-4!">
                <StFormItem name="name" label="快照镜像名称" required>
                   <StInput
                      v-model:value="name"
@@ -748,11 +757,18 @@ const handlePublish = async () => {
                </StBanner>
             </StSpace>
 
-            <StSpace justify="between" align="center" gap="1rem" class="px-2 mt-4">
+            <StSpace
+               justify="between"
+               align="center"
+               gap="1rem"
+               class="px-2 mt-4 max-md:flex-col max-md:items-stretch max-md:gap-3!">
                <div class="flex-1 min-w-0 truncate text-accent-300" :title="footerText">
                   {{ footerText }}
                </div>
-               <StSpace align="center" gap="0.75rem" class="shrink-0 whitespace-nowrap">
+               <StSpace
+                  align="center"
+                  gap="0.75rem"
+                  class="shrink-0 whitespace-nowrap max-md:shrink max-md:flex-wrap max-md:justify-end max-md:whitespace-normal">
                   <StButton
                      v-if="isEditMode"
                      bordered

@@ -9,7 +9,7 @@ const emits = defineEmits<{
 
 <template>
    <section
-      class="flex w-full items-center justify-between rounded-2xl border border-error/40 p-6">
+      class="flex w-full items-center justify-between rounded-2xl border border-error/40 p-6 max-md:flex-col max-md:items-start max-md:gap-3 max-md:p-4">
       <StSpace direction="vertical" gap="0.25rem">
          <span class="st-font-body-bold text-error">删除云函数</span>
          <span class="st-font-caption text-accent-400">

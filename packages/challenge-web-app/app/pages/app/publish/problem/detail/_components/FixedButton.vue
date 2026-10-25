@@ -14,7 +14,7 @@ defineEmits(['click']);
    <StSpace
       center
       :class="[
-         'size-[4.5rem] rounded-full bg-accent-600 text-accent-200 outline-1',
+         'size-[4.5rem] max-md:size-[3.25rem] rounded-full bg-accent-600 text-accent-200 outline-1',
          'outline-transparent hover:outline-secondary hover:text-white transition-all cursor-pointer',
       ]"
       @click="$emit('click')">

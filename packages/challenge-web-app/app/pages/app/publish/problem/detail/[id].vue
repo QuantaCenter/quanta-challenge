@@ -191,7 +191,11 @@ const handlerViewVersion = () => {
          v-model:opened="drawerOpener"
          :problem-id="detail?.pid" />
       <StFixed right="1.82rem" bottom="1.82rem">
-         <StSpace direction="vertical" gap="1.2rem" align="center">
+         <StSpace
+            direction="vertical"
+            gap="1.2rem"
+            align="center"
+            class="max-md:flex-row max-md:gap-3!">
             <SidePopper content="审核记录">
                <FixedButton
                   @click="handlerViewVersion"
@@ -222,15 +226,21 @@ const handlerViewVersion = () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[48rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布详情</h1>
+         class="w-full max-w-[48rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            发布详情
+         </h1>
          <StSpace
             direction="vertical"
             gap="2rem"
             fill-x
             class="p-4 rounded-lg border border-secondary">
             <!-- Raw 0 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目 ID">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -253,7 +263,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 1 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目标题">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -274,7 +287,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 2 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="发布状态">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -293,7 +309,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 3 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目难度">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -336,7 +355,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 5 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="判题脚本" class="w-full">
                   <StSkeleton :loading="!detail">
                      <template #loading>

@@ -37,8 +37,8 @@ const formatTime = (time: string | Date | null) =>
     direction="vertical"
     gap="0.375rem"
     class="p-4 border border-accent-300 rounded-[0.5rem] w-full">
-    <StSpace justify="between" align="center" fill-x>
-      <StSpace gap="0.5rem" align="center">
+    <StSpace justify="between" align="center" fill-x class="max-md:flex-wrap!">
+      <StSpace gap="0.5rem" align="center" class="max-md:flex-wrap!">
         <StTag
           size="small"
           :content="statusOptions[task.status]?.label ?? task.status"
@@ -107,7 +107,7 @@ const formatTime = (time: string | Date | null) =>
         </span>
       </span>
     </StSpace>
-    <StSpace gap="1rem" class="st-font-caption text-accent-300">
+    <StSpace gap="1rem" class="st-font-caption text-accent-300 max-md:flex-wrap!">
       <span>预定：{{ formatTime(task.runAt) }}</span>
       <span>创建：{{ formatTime(task.createdAt) }}</span>
       <span v-if="task.executedAt">

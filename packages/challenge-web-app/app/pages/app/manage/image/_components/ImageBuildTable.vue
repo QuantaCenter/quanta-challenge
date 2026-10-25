@@ -33,12 +33,14 @@ const columns: ITableColumn[] = [
       align: 'center',
       skeletonClass: 'h-6 w-[3rem] rounded-md mx-auto',
    },
+   // 大小 / 使用题目 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
    {
       key: 'size',
       title: '大小（压缩后）',
       width: '8.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[4.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'references',
@@ -46,6 +48,7 @@ const columns: ITableColumn[] = [
       width: '6.5rem',
       align: 'center',
       skeletonClass: 'h-6 w-[2.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'updatedAt',
@@ -53,6 +56,7 @@ const columns: ITableColumn[] = [
       width: '9.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[7rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    // 操作列使用自定义骨架
    { key: 'action', title: '操作', width: '8.5rem', align: 'center' },

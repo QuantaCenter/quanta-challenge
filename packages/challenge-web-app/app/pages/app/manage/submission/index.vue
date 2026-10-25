@@ -42,9 +42,9 @@ const openDetail = (row: SubmissionRow) => {
     <StSpace
       direction="vertical"
       gap="1.5rem"
-      class="w-full max-w-[76rem] pb-[10rem] my-6">
+      class="w-full max-w-[76rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
       <StSpace align="end" gap="1rem">
-        <h1 class="st-font-hero-bold text-accent-100">最近提交</h1>
+        <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">最近提交</h1>
         <span
           class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
           共 {{ total }} 条记录

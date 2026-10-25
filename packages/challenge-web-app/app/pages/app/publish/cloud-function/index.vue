@@ -61,14 +61,19 @@ const handleCreated = async (name: string) => {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-full max-w-[64rem] pb-[10rem] my-6">
+         class="w-full max-w-[64rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <!-- Hero -->
-         <h1 class="w-full st-font-hero-bold text-accent-100">云函数发布</h1>
+         <h1
+            class="w-full st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">
+            云函数发布
+         </h1>
 
          <CloudFunctionStatsGrid :items="stats" />
 
          <!-- 加载骨架 -->
-         <div v-if="pending" class="grid grid-cols-3 gap-4 w-full">
+         <div
+            v-if="pending"
+            class="grid grid-cols-3 max-md:grid-cols-1 gap-4 w-full">
             <div
                v-for="i in 6"
                :key="i"
@@ -76,7 +81,7 @@ const handleCreated = async (name: string) => {
          </div>
 
          <!-- 函数网格 -->
-         <div v-else class="grid grid-cols-3 gap-4 w-full">
+         <div v-else class="grid grid-cols-3 max-md:grid-cols-1 gap-4 w-full">
             <NewFunctionTile @click="createOpened = true" />
 
             <FunctionCard

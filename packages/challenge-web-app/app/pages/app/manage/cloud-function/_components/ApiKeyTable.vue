@@ -22,12 +22,19 @@ const message = useMessage();
 const columns: ITableColumn[] = [
    // 名称列是两行（名称 + 创建日期），骨架用 #skeleton-name 自定义插槽
    { key: 'name', title: '名称', width: '11rem' },
-   { key: 'keyId', title: 'Key ID', skeletonClass: 'h-5 w-[11rem] rounded-md' },
+   // Key ID / 权限 / 有效期三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   {
+      key: 'keyId',
+      title: 'Key ID',
+      skeletonClass: 'h-5 w-[11rem] rounded-md',
+      class: 'max-md:hidden',
+   },
    {
       key: 'scopes',
       title: '权限',
       width: '10rem',
       skeletonClass: 'h-6 w-[5rem] rounded-md',
+      class: 'max-md:hidden',
    },
    {
       key: 'expiresAt',
@@ -35,6 +42,7 @@ const columns: ITableColumn[] = [
       width: '9rem',
       align: 'center',
       skeletonClass: 'h-5 w-[5.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'action',

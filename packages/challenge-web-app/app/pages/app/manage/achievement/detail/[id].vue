@@ -54,9 +54,9 @@ const handleReturn = () => {
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <StSpace align="center" justify="between" fill-x>
-            <h1 class="st-font-hero-bold">成就详情</h1>
+            <h1 class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">成就详情</h1>
             <StButton
                theme="secondary"
                bordered
@@ -84,7 +84,7 @@ const handleReturn = () => {
                direction="vertical"
                gap="2rem"
                fill-x
-               class="p-4 rounded-lg border border-secondary">
+               class="p-4 rounded-lg border border-secondary max-md:gap-4!">
                <StSpace align="center" gap="1.25rem">
                   <div
                      class="flex items-center justify-center size-[4.5rem] bg-accent-600 rounded-xl border border-accent-500 overflow-hidden shrink-0">
@@ -105,7 +105,7 @@ const handleReturn = () => {
                   </StSpace>
                </StSpace>
 
-               <div class="grid grid-cols-3 gap-x-[1rem] gap-y-[2rem] w-full">
+               <div class="grid grid-cols-3 gap-x-[1rem] gap-y-[2rem] w-full max-md:grid-cols-2 max-md:gap-y-[1.25rem]">
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">成就 ID</div>
                      <div class="text-white font-bold font-family-manrope">

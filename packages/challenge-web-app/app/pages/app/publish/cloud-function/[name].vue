@@ -36,7 +36,7 @@ const {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-full max-w-[56rem] pb-[10rem] my-6">
+         class="w-full max-w-[56rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <NuxtLink
             to="/app/publish/cloud-function"
             class="flex w-fit items-center gap-2 text-accent-300 transition-colors hover:text-white">
@@ -45,9 +45,12 @@ const {
          </NuxtLink>
 
          <!-- Hero -->
-         <StSpace justify="between" align="center" class="w-full">
+         <StSpace
+            justify="between"
+            align="center"
+            class="w-full max-md:flex-col max-md:items-start max-md:gap-3!">
             <h1
-               class="font-mono st-font-secondary-bold leading-none text-accent-100">
+               class="font-mono st-font-secondary-bold leading-none text-accent-100 break-all max-md:text-[1.5rem] max-md:leading-[1.2]">
                {{ name }}
             </h1>
             <StButton

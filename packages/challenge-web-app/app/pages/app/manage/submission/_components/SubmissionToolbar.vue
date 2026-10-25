@@ -42,7 +42,7 @@ const resultLabel = (value: ResultFilter) =>
   <StSpace fill-x justify="between" align="center" gap="1rem" class="flex-wrap">
     <StSpace align="center" gap="0.75rem" class="flex-wrap">
       <div
-        class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[14rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
+        class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[14rem] max-md:w-[13rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
         <Search class="text-accent-300 text-lg shrink-0" />
         <input
           v-model="userKeywordInput"
@@ -60,7 +60,7 @@ const resultLabel = (value: ResultFilter) =>
       </div>
 
       <div
-        class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
+        class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] max-md:w-[13rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
         <Search class="text-accent-300 text-lg shrink-0" />
         <input
           v-model="problemKeywordInput"
@@ -91,7 +91,7 @@ const resultLabel = (value: ResultFilter) =>
         v-model:start-value="startTimeInput"
         v-model:end-value="endTimeInput"
         placeholder="选择提交日期范围"
-        outer-class="bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[18rem] shrink-0 gap-2 focus-within:ring-1 focus-within:ring-primary/50" />
+        outer-class="bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[18rem] max-md:basis-full shrink-0 gap-2 focus-within:ring-1 focus-within:ring-primary/50" />
     </StSpace>
 
     <StButton

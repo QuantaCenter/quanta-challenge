@@ -58,9 +58,9 @@ const handleKeyCreated = async (secret: { keyId: string; secret: string }) => {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-full max-w-[64rem] pb-[10rem] my-6">
+         class="w-full max-w-[64rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <!-- Hero -->
-         <h1 class="w-full st-font-hero-bold text-accent-100">云函数管理</h1>
+         <h1 class="w-full st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">云函数管理</h1>
 
          <CloudFunctionStatsGrid :items="stats" />
 

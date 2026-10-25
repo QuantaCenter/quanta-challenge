@@ -126,10 +126,10 @@ onMounted(() => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">定时任务管理</h1>
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1 class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">定时任务管理</h1>
 
-         <StSpace gap="0.75rem" class="w-full">
+         <StSpace gap="0.75rem" class="w-full max-md:flex-wrap!">
             <StSlideRadioGroup
                :options="statusFilters"
                v-model:value="activeFilter" />

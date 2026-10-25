@@ -135,7 +135,7 @@ const handleCreate = async () => {
             <StSpace
                direction="vertical"
                gap="1.75rem"
-               class="w-full px-[0.625rem]">
+               class="w-full px-[0.625rem] max-md:gap-4!">
                <StFormItem name="userNames" label="重置用户" required>
                   <template #default="{ status }">
                      <StUserPicker

@@ -35,9 +35,9 @@ const setSortBy = (value: unknown) => {
 
 <template>
    <StSpace fill-x justify="between" align="center" gap="1rem">
-      <StSpace align="center" gap="0.75rem">
+      <StSpace align="center" gap="0.75rem" class="max-md:flex-wrap!">
          <div
-            class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
+            class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] max-md:w-[13rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
             <Search class="text-accent-300 text-lg shrink-0" />
             <input
                v-model="keywordInput"
