@@ -87,6 +87,12 @@ body::-webkit-scrollbar {
    display: none;
 }
 
+html.auth-scroll-lock,
+html.auth-scroll-lock body {
+   overflow: hidden;
+   overscroll-behavior: none;
+}
+
 ::-webkit-scrollbar {
    width: 8px;
    height: 8px;
