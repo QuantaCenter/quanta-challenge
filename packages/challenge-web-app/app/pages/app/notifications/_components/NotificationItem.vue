@@ -76,7 +76,7 @@ const isWarning = computed(() => props.type === 'WARNING');
       </div>
       <div class="flex-1 min-w-0">
          <div class="flex justify-between items-start">
-            <h3 class="st-font-bold-body text-accent-100 mb-1">
+            <h3 class="st-font-bold-body text-accent-100 mb-1 min-w-0 truncate">
                {{ title }}
             </h3>
             <span

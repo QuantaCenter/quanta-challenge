@@ -13,7 +13,7 @@ const handleView = () => {
       <div
          v-if="count > 0"
          role="alert"
-         class="fixed right-6 bottom-6 z-40 p-4 rounded-xl border border-error/50 bg-accent-600 text-white shadow-2xl flex items-center gap-8">
+         class="fixed right-6 bottom-6 z-40 p-4 rounded-xl border border-error/50 bg-accent-600 text-white shadow-2xl flex items-center gap-8 max-md:top-16 max-md:bottom-auto max-md:left-3 max-md:right-3 max-md:gap-4">
          <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
                <Caution size="1rem" fill="#EF4444" :strokeWidth="3" />
@@ -43,5 +43,13 @@ const handleView = () => {
 .warning-notice-leave-to {
    opacity: 0;
    transform: translateY(1rem);
+}
+
+/* 移动端弹窗位于顶部：动画方向改为从上方滑入/滑出 */
+@media (max-width: 767.98px) {
+   .warning-notice-enter-from,
+   .warning-notice-leave-to {
+      transform: translateY(-1rem);
+   }
 }
 </style>

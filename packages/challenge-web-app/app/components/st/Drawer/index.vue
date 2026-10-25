@@ -135,7 +135,7 @@ watch(opened, () => {
                @touchmove="onHandleTouchMove"
                @touchend="onHandleTouchEnd"
                @touchcancel="onHandleTouchEnd"
-               class="absolute top-0 right-0 left-0 z-10 hidden max-md:flex justify-center pt-2 pb-1 touch-none select-none">
+               class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 touch-none select-none">
                <div class="h-1 w-10 rounded-full bg-accent-400"></div>
             </div>
             <slot></slot>

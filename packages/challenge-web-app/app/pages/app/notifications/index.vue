@@ -189,7 +189,7 @@ const handleNext = () => {
          fill
          class="px-4 py-6 max-w-[50rem] w-full shrink-0">
          <div class="flex justify-between items-end w-full">
-            <h1 class="st-font-hero-bold">通知中心</h1>
+            <h1 class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">通知中心</h1>
             <div
                v-if="unread.unreadCount.value > 0"
                @click="markAllAsRead"
@@ -245,7 +245,7 @@ const handleNext = () => {
                   v-else-if="allLoaded"
                   align="center"
                   gap="0.4em"
-                  class="-translate-x-4">
+                  class="-translate-x-4 max-md:translate-x-0">
                   <Ghost theme="outline" size="1rem" />
                   没有更多通知了～
                </StSpace>
