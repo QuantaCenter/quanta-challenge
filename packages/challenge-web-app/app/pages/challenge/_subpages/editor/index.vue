@@ -143,7 +143,8 @@ const selectedPath = ref<string>();
 const selectedFilePath = ref<string>();
 
 watch(selectedFilePath, (newPath) => {
-   newPath && (selectedPath.value = newPath);
+   // 所有 tab 关闭时 newPath 为空字符串，需同步清空文件树选中状态
+   selectedPath.value = newPath || undefined;
 });
 
 watch(selectedPath, (newPath) => {

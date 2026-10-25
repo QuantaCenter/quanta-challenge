@@ -4,19 +4,6 @@ import { useLayoutStore, type EditorBoardId } from '~/stores/layout-store';
 import { keyboardDelta, percentFromDrag } from '~/components/st/SplitPanel/layout-math';
 import { resizeBoardPair } from '~/utils/board-layout';
 
-/**
- * 做题页三个板块的容器：**拖拽换位** + 拖拽调整宽度。
- *
- * 板块内容由父组件通过具名插槽提供（`#board-files` / `#board-code` / `#board-preview`），
- * 所以每个板块的组件、ref、props 都留在编辑器页面里，不会被这里包一层而丢失引用。
- *
- * ## 为什么用 CSS `order` 而不是重排 DOM
- *
- * 三个板块的 DOM 顺序是**固定**的（files、code、preview），视觉顺序由 `order` 控制。
- * 换位时 Vue 不需要移动任何组件实例 —— 否则 Monaco、xterm 终端、预览 iframe 都会被
- * 卸载重建：终端里挂着的 WebContainer 进程会断，预览也会重新加载。
- * 实测这类重挂正是"开发容器起不来"最容易踩的坑之一。
- */
 const layoutStore = useLayoutStore();
 
 const props = withDefaults(
@@ -24,7 +11,7 @@ const props = withDefaults(
    { previewLabel: '实时预览' },
 );
 
-/** DOM 里固定的板块顺序（≠ 视觉顺序） */
+/** DOM 里固定的板块顺序 */
 const BOARD_IDS: EditorBoardId[] = ['files', 'code', 'preview'];
 const BOARD_LABEL = computed<Record<EditorBoardId, string>>(() => ({
    files: '资源管理器',
@@ -57,7 +44,6 @@ const boardStyle = (id: EditorBoardId) => {
    const percent = currentSizes.value[index] ?? 0;
    return {
       order: String(index * 2),
-      // 用 flex-grow 的权重来表达百分比，而不是 flex-basis: 两条分隔条各占 0.75rem，若用 basis 百分比，三者相加 100% 之后再加上分隔条 就会超出容器（这正是 SplitPanel 早先"多出 0.5rem"的同一类 bug）。 flex-basis: 0 + grow 按权重分配的是**扣掉分隔条之后的剩余空间**， 因此各板块的实际宽度比例严格等于这里的百分比，且永不溢出。
       flexGrow: String(percent),
       flexShrink: '1',
       flexBasis: '0%',
@@ -127,7 +113,6 @@ const handleDividerDown = (index: number, event: PointerEvent) => {
    const origin = event.clientX;
    let moved = false;
 
-   // 使用 Pointer 事件，触屏拖动才不会被页面滚动（pointercancel）打断
    const onPointerMove = (moveEvent: PointerEvent) => {
       const next = percentFromDrag({
          startSize,
@@ -136,7 +121,6 @@ const handleDividerDown = (index: number, event: PointerEvent) => {
       });
       if (next === null) return;
       moved = true;
-      // 注意用的是**已落盘**的 sizes 作为基准，而不是上一帧的临时值
       draggingSizes.value = resizeBoardPair(sizes.value, index, next);
    };
 
@@ -211,24 +195,10 @@ watch(
          @drop.prevent="handleDrop(id)">
          <slot :name="`board-${id}`" />
 
-         <!--
-            拖拽悬停高亮：画在板块**内部**的一层描边。
-            不能用 ring/box-shadow —— 那是画在盒子外面的，而板块是满高、外层的
-            内容区又带 overflow-hidden，上/下沿（以及最左/最右板块的外侧沿）会被裁掉，
-            看起来就是"高亮不完整"。
-         -->
          <div
             v-if="dragOverBoard === id"
             class="pointer-events-none absolute inset-0 z-30 rounded-xl border-2 border-primary" />
 
-         <!--
-            拖拽把手：贴在板块顶部、居中显示的细横条（悬停板块时才出现）。
-            刻意做得又扁又靠边——每个板块的顶部左上角/右上角都有自己的按钮或标签页，
-            放大到 20px 见方的把手会挡住它们（代码编辑器第一个标签页就是这么被挡的）。
-            视觉上不再用 ⠿⠿ 点阵：一条 3px 圆角短横线更像"把手"，也不会抢视线；
-            拖动中把手变主色，给出"正在搬运这个板块"的反馈（不做整块变暗——
-            那会连 Monaco / xterm / 预览 iframe 一起变淡，反而看不清）。
-         -->
          <div
             :draggable="!layoutStore.locked"
             :title="
@@ -261,12 +231,6 @@ watch(
          </div>
       </div>
 
-      <!--
-         分隔条：与 StSplitPanel 保持一致 —— 外层是一条透明的拖拽热区，内部再画一根
-         常驻可见的圆角短把手。
-         早先这里只有 `hover:bg-secondary`，静止状态下整条分隔条完全透明，看起来就像
-         "水平方向没有可拖动的控制柄"（竖直方向因为用的是 SplitPanel，一直有把手）。
-      -->
       <div
          v-for="index in DIVIDER_INDEXES"
          :key="`divider-${index}`"
@@ -279,7 +243,6 @@ watch(
          :aria-label="`第 ${index + 1} 条面板分隔条`"
          :aria-disabled="layoutStore.locked"
          :tabindex="layoutStore.locked ? -1 : 0"
-         title="拖动调整两侧宽度；方向键微调（Shift 加速）"
          class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          style="touch-action: none"
          :class="{
