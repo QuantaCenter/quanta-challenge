@@ -4,6 +4,7 @@ import type monaco from 'monaco-editor';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useMarkdown } from '~/composables/use-markdown';
 import { useSimpleEditor } from '~/composables/use-simple-editor';
+import { isTouchDevice } from '~/composables/monaco-mobile-support';
 
 const script = defineModel<string>('markdown');
 const opened = defineModel<boolean>('opened', { default: false });
@@ -31,8 +32,8 @@ const debounceUpdate = useDebounceFn(update, 200);
 const message = useMessage();
 const { $trpc } = useNuxtApp();
 
-/** 移动端编辑器与预览改为上下排布 */
-const isMobile = useMediaQuery('(max-width: 767.98px)');
+/** 仅移动端（触屏设备）上下排布，PC 端始终左右排布 */
+const isMobile = isTouchDevice();
 
 const uploadingImage = ref(false);
 const imageFileInput = useTemplateRef<HTMLInputElement>('image-file-input');

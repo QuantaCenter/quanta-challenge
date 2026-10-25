@@ -10,12 +10,33 @@ const opened = defineModel<boolean>('opened', {
    default: false,
 });
 
-// 抽屉打开期间锁定背后页面的滚动；引用计数支持多个抽屉叠开（关完最后一个才解锁）。
+// 抽屉打开期间锁定背后页面的滚动。锁状态直接记录在目标元素的 data 属性上
+// （而非组件实例内存里）：热更新/页面更新销毁重建实例后，残留的锁也能被
+// 识别并恢复，避免"抽屉关了但背景永远无法滚动"。
 // 页面滚动容器不一定是 body（页面根节点常为 overflow-auto），因此遍历 DOM
 // 找出所有当前真正可滚动的元素逐个冻结，并跳过抽屉自身的子树
 const SCROLL_LOCK_ATTR = 'data-st-drawer-root';
-let scrollLockCount = 0;
-let lockedScrollElements: { el: HTMLElement; prevOverflow: string }[] = [];
+const SCROLL_LOCKED_ATTR = 'data-st-drawer-scroll-locked';
+
+const findLockedElements = (): HTMLElement[] =>
+   import.meta.client
+      ? Array.from(
+           document.querySelectorAll<HTMLElement>(`[${SCROLL_LOCKED_ATTR}]`)
+        )
+      : [];
+
+const lockScrollElement = (el: HTMLElement) => {
+   if (el.hasAttribute(SCROLL_LOCKED_ATTR)) return;
+   el.setAttribute(SCROLL_LOCKED_ATTR, '');
+   el.dataset.stDrawerPrevOverflow = el.style.overflow;
+   el.style.overflow = 'hidden';
+};
+
+const unlockScrollElement = (el: HTMLElement) => {
+   el.style.overflow = el.dataset.stDrawerPrevOverflow ?? '';
+   delete el.dataset.stDrawerPrevOverflow;
+   el.removeAttribute(SCROLL_LOCKED_ATTR);
+};
 
 const collectScrollLockTargets = (): HTMLElement[] => {
    const targets: HTMLElement[] = [];
@@ -39,25 +60,20 @@ const collectScrollLockTargets = (): HTMLElement[] => {
    return targets;
 };
 
+let scrollLockCount = 0;
+
 const acquireScrollLock = () => {
    if (!import.meta.client) return;
    scrollLockCount++;
    if (scrollLockCount > 1) return;
-   lockedScrollElements = collectScrollLockTargets().map((el) => {
-      const prevOverflow = el.style.overflow;
-      el.style.overflow = 'hidden';
-      return { el, prevOverflow };
-   });
+   collectScrollLockTargets().forEach(lockScrollElement);
 };
 
 const releaseScrollLock = () => {
    if (!import.meta.client) return;
    scrollLockCount = Math.max(0, scrollLockCount - 1);
    if (scrollLockCount !== 0) return;
-   lockedScrollElements.forEach(({ el, prevOverflow }) => {
-      el.style.overflow = prevOverflow;
-   });
-   lockedScrollElements = [];
+   findLockedElements().forEach(unlockScrollElement);
 };
 
 watch(
@@ -125,6 +141,12 @@ const onPopState = () => {
 
 onMounted(() => {
    window.addEventListener('popstate', onPopState);
+   // 自愈：实例可能已被热更新/页面更新销毁重建，若 DOM 上残留滚动锁
+   // 且当前没有任何打开的抽屉（锁的主人已死），立即恢复背景滚动
+   const hasOpenDrawer = document.querySelector(
+      '[data-st-drawer-root]:not(.hidden)'
+   );
+   if (!hasOpenDrawer) findLockedElements().forEach(unlockScrollElement);
 });
 
 onUnmounted(() => {
@@ -201,12 +223,13 @@ watch(opened, () => {
                   dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
             }">
             <!-- 移动端把手：指示可下拉，拖拽超过阈值关闭 -->
+            <!-- 背景与面板一致（bg-black），滚动内容不会从把手行下面透出 -->
             <div
                @touchstart="onHandleTouchStart"
                @touchmove="onHandleTouchMove"
                @touchend="onHandleTouchEnd"
                @touchcancel="onHandleTouchEnd"
-               class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 touch-none select-none">
+               class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 bg-black max-md:rounded-t-[1rem] touch-none select-none">
                <div class="h-1 w-10 rounded-full bg-accent-400"></div>
             </div>
             <slot></slot>

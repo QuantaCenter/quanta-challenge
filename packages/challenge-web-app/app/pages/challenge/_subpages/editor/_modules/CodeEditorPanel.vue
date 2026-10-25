@@ -14,6 +14,7 @@ import {
 } from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
+import MobileEditorToolbar from './MobileEditorToolbar.vue';
 
 const currentFilePath = defineModel<string>('currentFilePath');
 
@@ -323,6 +324,7 @@ defineExpose({
                该文件无法预览
             </span>
          </StSpace>
+         <MobileEditorToolbar :on-editor-instance-ready="onEditorInstanceReady" />
       </StSpace>
    </StSpace>
 

@@ -3,6 +3,11 @@ import {
    getActiveMonacoTheme,
    markMonacoThemeActive,
 } from './monaco-state';
+import {
+   applyMobileTouchSupport,
+   getMobileEditorOptions,
+   isTouchDevice,
+} from './monaco-mobile-support';
 
 export interface IUseSimpleEditorOptions {
    script: string;
@@ -70,6 +75,7 @@ const setEnvironment = () => {
 export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
    let monacoInstance: typeof import('monaco-editor') | null = null;
+   let mobileTouchSupportDisposable: monaco.IDisposable | null = null;
    const containerKey = options.containerRef ?? 'container-key';
    const container = useTemplateRef<HTMLElement>(containerKey);
 
@@ -132,6 +138,7 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
             options.script,
             options.language ?? 'typescript'
          );
+         const isTouch = isTouchDevice();
          editor = monaco.editor.create(el, {
             model,
             language: options.language ?? 'typescript',
@@ -139,8 +146,12 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
             fontSize: 16,
             autoClosingBrackets: 'always',
             minimap: { enabled: false },
+            ...(isTouch && getMobileEditorOptions()),
             ...options.options,
          });
+         if (isTouch && editor) {
+            mobileTouchSupportDisposable = applyMobileTouchSupport(editor);
+         }
          applySimpleEditorTheme(monaco);
       };
 
@@ -157,6 +168,7 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
 
    onUnmounted(() => {
       editorBeforeDisposedCallbacks.forEach((callback) => callback(editor!));
+      mobileTouchSupportDisposable?.dispose();
       editor?.dispose();
    });
 
