@@ -70,21 +70,24 @@ watch(
 );
 
 // 处理拖拽事件
-let activeMouseMove: ((event: MouseEvent) => void) | null = null;
-let activeMouseUp: (() => void) | null = null;
+let activePointerMove: ((event: PointerEvent) => void) | null = null;
+let activePointerUp: (() => void) | null = null;
 
 const detachDragListeners = () => {
-   if (activeMouseMove) {
-      document.removeEventListener('mousemove', activeMouseMove);
+   if (activePointerMove) {
+      document.removeEventListener('pointermove', activePointerMove);
    }
-   if (activeMouseUp) {
-      document.removeEventListener('mouseup', activeMouseUp);
+   if (activePointerUp) {
+      document.removeEventListener('pointerup', activePointerUp);
+      document.removeEventListener('pointercancel', activePointerUp);
    }
-   activeMouseMove = null;
-   activeMouseUp = null;
+   activePointerMove = null;
+   activePointerUp = null;
 };
 
-const handleResize = (event: MouseEvent) => {
+const handleResize = (event: PointerEvent) => {
+   // pointerdown 对触摸也会触发，这里仅响应主键（左键 / 触屏）
+   if (event.button !== 0) return;
    if (!container.value || isDragging.value || locked.value) return;
 
    const startEl = container.value.children[0] as HTMLElement | undefined;
@@ -104,7 +107,7 @@ const handleResize = (event: MouseEvent) => {
    const containerSize = isHorizontal ? containerRect.width : containerRect.height;
    const endSize = Math.max(containerSize - startSize, 0);
 
-   const onMouseMove = (moveEvent: MouseEvent) => {
+   const onPointerMove = (moveEvent: PointerEvent) => {
       const current = isHorizontal ? moveEvent.clientX : moveEvent.clientY;
       const next = percentFromDrag({
          startSize,
@@ -115,20 +118,19 @@ const handleResize = (event: MouseEvent) => {
       if (next !== null) override.value = next;
    };
 
-   const onMouseUp = () => {
+   const onPointerUp = () => {
       isDragging.value = false;
       detachDragListeners();
-      // 拖拽结束才落盘，避免拖动过程中高频写 localStorage；
-      // applyPercent 会顺手清掉本地覆盖值，否则「恢复默认布局」清不掉它
       applyPercent(override.value, true);
    };
 
    // 先清掉可能残留的监听（例如上一次拖拽期间组件被卸载）
    detachDragListeners();
-   activeMouseMove = onMouseMove;
-   activeMouseUp = onMouseUp;
-   document.addEventListener('mousemove', onMouseMove);
-   document.addEventListener('mouseup', onMouseUp);
+   activePointerMove = onPointerMove;
+   activePointerUp = onPointerUp;
+   document.addEventListener('pointermove', onPointerMove);
+   document.addEventListener('pointerup', onPointerUp);
+   document.addEventListener('pointercancel', onPointerUp);
 };
 
 /** 键盘可达：方向键微调（Shift 加速），Home 恢复默认 */
@@ -265,9 +267,10 @@ const methodsToProvide = {
                ? '面板已锁定'
                : '拖动调整面板大小；双击或按 Home 恢复默认'
          "
-         @mousedown.left="handleResize"
+         @pointerdown.left="handleResize"
          @dblclick="applyPercent(defaultPercent(), true)"
          @keydown="handleResizeKeydown"
+         style="touch-action: none"
          class="flex items-center justify-center hover:bg-secondary group transition-colors shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          :class="{
             'w-1 h-full mx-1 hover:cursor-col-resize':

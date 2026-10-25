@@ -21,29 +21,31 @@ export const useResizable = (
       const handler = unref(el);
       if (!handler) return;
 
-      handler.addEventListener('mousedown', onStartResize);
-      document.addEventListener('mousemove', onResizing);
-      document.addEventListener('mouseup', onStopResize);
+      handler.addEventListener('pointerdown', onStartResize);
+      document.addEventListener('pointermove', onResizing);
+      document.addEventListener('pointerup', onStopResize);
+      document.addEventListener('pointercancel', onStopResize);
    });
 
    onUnmounted(() => {
       const handler = unref(el);
       if (!handler) return;
 
-      handler.removeEventListener('mousedown', onStartResize);
-      document.removeEventListener('mousemove', onResizing);
-      document.removeEventListener('mouseup', onStopResize);
+      handler.removeEventListener('pointerdown', onStartResize);
+      document.removeEventListener('pointermove', onResizing);
+      document.removeEventListener('pointerup', onStopResize);
+      document.removeEventListener('pointercancel', onStopResize);
    });
 
    const startPosition = { x: 0, y: 0 };
-   const onStartResize = (event: MouseEvent) => {
+   const onStartResize = (event: PointerEvent) => {
       isResizing.value = true;
       startPosition.x = event.clientX;
       startPosition.y = event.clientY;
       event.preventDefault();
    };
 
-   const onResizing = (event: MouseEvent) => {
+   const onResizing = (event: PointerEvent) => {
       if (!isResizing.value) return;
 
       const dx = event.clientX - startPosition.x;
@@ -58,7 +60,7 @@ export const useResizable = (
       event.preventDefault();
    };
 
-   const onStopResize = (event: MouseEvent) => {
+   const onStopResize = (event: PointerEvent) => {
       if (!isResizing.value) return;
 
       const dx = event.clientX - startPosition.x;

@@ -106,8 +106,10 @@ const handleDragEnd = () => {
 // ————————————————— 拖拽分隔条调宽度 —————————————————
 let activeCleanup: (() => void) | null = null;
 
-const handleDividerDown = (index: number, event: MouseEvent) => {
+const handleDividerDown = (index: number, event: PointerEvent) => {
    if (layoutStore.locked) return;
+   // pointerdown 对触摸也会触发，这里仅响应主键（左键 / 触屏）
+   if (event.button !== 0) return;
 
    const leftId = order.value[index];
    const rightId = order.value[index + 1];
@@ -125,7 +127,8 @@ const handleDividerDown = (index: number, event: MouseEvent) => {
    const origin = event.clientX;
    let moved = false;
 
-   const onMouseMove = (moveEvent: MouseEvent) => {
+   // 使用 Pointer 事件，触屏拖动才不会被页面滚动（pointercancel）打断
+   const onPointerMove = (moveEvent: PointerEvent) => {
       const next = percentFromDrag({
          startSize,
          endSize,
@@ -137,7 +140,7 @@ const handleDividerDown = (index: number, event: MouseEvent) => {
       draggingSizes.value = resizeBoardPair(sizes.value, index, next);
    };
 
-   const onMouseUp = () => {
+   const onPointerUp = () => {
       detach();
       if (moved && draggingSizes.value) {
          layoutStore.setEditorBoardSizes(draggingSizes.value);
@@ -146,16 +149,18 @@ const handleDividerDown = (index: number, event: MouseEvent) => {
    };
 
    const detach = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerUp);
       draggingDivider.value = null;
       activeCleanup = null;
    };
 
    activeCleanup?.();
    activeCleanup = detach;
-   document.addEventListener('mousemove', onMouseMove);
-   document.addEventListener('mouseup', onMouseUp);
+   document.addEventListener('pointermove', onPointerMove);
+   document.addEventListener('pointerup', onPointerUp);
+   document.addEventListener('pointercancel', onPointerUp);
 };
 
 /** 键盘微调：与 SplitPanel 的分隔条行为保持一致 */
@@ -276,11 +281,12 @@ watch(
          :tabindex="layoutStore.locked ? -1 : 0"
          title="拖动调整两侧宽度；方向键微调（Shift 加速）"
          class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         style="touch-action: none"
          :class="{
             'opacity-0 hover:!cursor-default': layoutStore.locked,
             '!bg-secondary': draggingDivider === index,
          }"
-         @mousedown.left="handleDividerDown(index, $event)"
+         @pointerdown.left="handleDividerDown(index, $event)"
          @keydown="handleDividerKeydown(index, $event)">
          <div
             class="w-1 h-8 rounded-xl bg-accent-600 transition-colors group-hover/divider:bg-primary"
