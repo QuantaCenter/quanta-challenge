@@ -149,17 +149,25 @@ const redo = () => {
 };
 
 /**
- * 同步当前 model 的撤回/重做可用性，供顶栏按钮禁用态展示。
- * Monaco 0.52 已移除 model.undo / model.canUndo 等 API，用版本号近似判断：
- * - versionId 从 1 开始，只要发生过编辑就 > 1，说明撤销栈非空、还有可撤回内容；
- * - alternativeVersionId 表示"把所有撤回都重做完"后的版本号，
- *   大于当前 versionId 说明存在可重做内容。
+ * Monaco 0.52 的类型声明移除了 model.undo / model.canUndo / model.canRedo，
+ * 但运行时实现仍在（内部委托全局 IUndoRedoService，与 VS Code 的撤回/重做
+ * 可用态判定同源），可直接调用。
+ * 不能再用版本号近似判断：0.52 下 versionId 在撤回/重做时同样单调递增，
+ * alternativeVersionId 被撤回栈整体覆盖，"alternativeVersionId > versionId"
+ * 的旧近似不再成立，会导致重做按钮始终置灰。
  */
+type HistoryCapableModel = editor.ITextModel & {
+   canUndo?: () => boolean;
+   canRedo?: () => boolean;
+};
+
 const syncHistoryState = (instance: editor.IStandaloneCodeEditor) => {
-   const model = instance.getModel();
-   canUndo.value = !!model && model.getVersionId() > 1;
+   const model = instance.getModel() as HistoryCapableModel | null;
+   canUndo.value = !!model && (model.canUndo?.() ?? model.getVersionId() > 1);
    canRedo.value =
-      !!model && model.getAlternativeVersionId() > model.getVersionId();
+      !!model &&
+      (model.canRedo?.() ??
+         model.getAlternativeVersionId() > model.getVersionId());
 };
 
 onEditorInstanceReady((instance) => {

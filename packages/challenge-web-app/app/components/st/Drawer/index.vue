@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Teleport } from 'vue';
+import { useHistoryLayer } from '~/composables/use-history-layer';
 
 const props = defineProps<{
    global?: boolean;
@@ -99,16 +100,23 @@ onActivated(() => {
 
 const rendered = ref(opened.value);
 const shown = ref(opened.value);
-let historyPushed = false;
-let suppressNextPopstate = false;
+
+// 历史栈管理（composables/use-history-layer）：支持返回键逐层关闭弹层
+const {
+   acquire: acquireHistory,
+   release: releaseHistory,
+   onClose: onHistoryClose,
+} = useHistoryLayer();
+
+onHistoryClose(() => {
+   // 返回键触发：历史已由 popstate 回退，这里只负责关闭抽屉
+   opened.value = false;
+});
 
 watch(opened, (value) => {
    if (value) {
       rendered.value = true;
-      if (!historyPushed && import.meta.client) {
-         history.pushState({ stDrawer: true }, '');
-         historyPushed = true;
-      }
+      acquireHistory();
       nextTick(() => {
          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
@@ -118,30 +126,15 @@ watch(opened, (value) => {
       });
    } else {
       shown.value = false;
-      if (historyPushed && import.meta.client) {
-         historyPushed = false;
-         suppressNextPopstate = true;
-         history.back();
-      }
+      // 主动关闭时回退自己压入的历史记录（若由返回键触发则仅出栈，不再回退）
+      releaseHistory();
       setTimeout(() => {
          if (!opened.value) rendered.value = false;
       }, 300);
    }
 });
 
-const onPopState = () => {
-   if (suppressNextPopstate) {
-      suppressNextPopstate = false;
-      return;
-   }
-   if (opened.value) {
-      historyPushed = false;
-      opened.value = false;
-   }
-};
-
 onMounted(() => {
-   window.addEventListener('popstate', onPopState);
    // 自愈：DOM 上残留的滚动锁在无打开抽屉时立即恢复背景滚动
    const hasOpenDrawer = document.querySelector(
       '[data-st-drawer-root]:not(.hidden)'
@@ -150,12 +143,8 @@ onMounted(() => {
 });
 
 onUnmounted(() => {
-   window.removeEventListener('popstate', onPopState);
-   // 卸载时抽屉仍开着：回收压入的历史记录
-   if (historyPushed && import.meta.client) {
-      suppressNextPopstate = true;
-      history.back();
-   }
+   // 卸载时抽屉仍开着：回收压入的历史记录（已释放时为空操作）
+   releaseHistory();
 });
 
 // 移动端底部抽屉：拖拽顶部把手下拉关闭。仅移动端渲染把手，桌面端不受影响
@@ -184,6 +173,14 @@ watch(opened, () => {
    dragging.value = false;
    dragOffset.value = 0;
 });
+
+// 点击遮罩关闭：阻止事件继续冒泡。非 global 模式下抽屉内联在页面 DOM 树中，
+// 遮罩的 click 会穿过背后的页面容器；global 模式下也会传到 body/document
+// 上的全局监听，这里统一在遮罩处截断
+const onMaskClick = (event: MouseEvent) => {
+   event.stopPropagation();
+   opened.value = false;
+};
 </script>
 
 <template>
@@ -193,7 +190,7 @@ watch(opened, () => {
       :class="{ 'pointer-events-none': !opened }"
       class="w-full h-full z-[9999]">
       <div
-         @click.self="opened = false"
+         @click.self="onMaskClick"
          :data-st-drawer-root="true"
          :class="[
             global

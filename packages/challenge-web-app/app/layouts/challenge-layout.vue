@@ -27,20 +27,17 @@ const authStore = useAuthStore();
 const { $trpc } = useNuxtApp();
 await authStore.fetchUserInfo($trpc);
 
-/** 移动端判定：水合安全（SSR 与客户端首帧恒为 false，mounted 后同步真实值） */
 const isMobile = useIsMobile();
 
-// challenge 是全屏 IDE 布局，从 body 层锁死 document 滚动
+// challenge 是全屏 IDE 布局，从 body 层锁死 document 滚动。
 useHead({
+   htmlAttrs: { class: 'challenge-html-lock' },
    bodyAttrs: { class: 'challenge-body-lock' },
 });
 
 const drawerRootRef = useTemplateRef<HTMLDivElement>('drawer-root');
 
-/**
- * 抽屉打开时通过 touchmove preventDefault 阻止触摸滚动穿透到背后页面，
- * 仅文件树容器内部允许正常滚动。
- */
+// 抽屉打开时通过 touchmove preventDefault 阻止触摸滚动穿透到背后页面，仅文件树容器内部允许正常滚动
 let detachDrawerTouchLock: (() => void) | null = null;
 onMounted(() => {
    const el = drawerRootRef.value;
@@ -152,15 +149,17 @@ onUnmounted(() => detachDrawerTouchLock?.());
             </div>
          </div>
 
-         <!-- 对话框覆盖层 -->
          <DialogOverlay />
       </div>
    </StMessageProvider>
 </template>
 
 <style>
-/* challenge 布局期间锁死 document 滚动（桌面同为全屏布局，body 无需滚动）。
-   离开 challenge 路由时 useHead 会自动移除该 class */
+.challenge-html-lock {
+   overflow: hidden;
+   height: 100%;
+}
+
 .challenge-body-lock {
    overflow: hidden;
    height: 100%;

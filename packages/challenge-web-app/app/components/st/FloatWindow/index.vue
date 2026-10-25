@@ -43,7 +43,7 @@ const isActive = defineModel<boolean>('isActive', {
 <template>
    <Teleport to="body">
       <StSpace
-         class="w-screen h-screen absolute left-0 top-0 z-[9999] overflow-hidden"
+         class="w-screen h-screen fixed left-0 top-0 z-[9999] overflow-hidden"
          :class="{
             'pointer-events-none': !isDragging && !isResizing,
          }">

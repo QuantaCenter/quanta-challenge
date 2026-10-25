@@ -58,7 +58,7 @@ onMounted(() => {
             to="/app/achievements"
             description="查看成就" />
       </template>
-      <div class="w-full h-5"></div>
+      <div class="w-full h-5 max-md:h-4"></div>
       <div
          ref="container"
          class="w-full h-full relative hide-scrollbar min-h-[16rem] max-md:min-h-[24rem]"

@@ -78,7 +78,7 @@ const positionName = computed(() => {
 
                <!-- 经验进度条 -->
                <StSpace direction="vertical" gap="0.5rem" fill-x>
-                  <StSpace fill-x justify="between" align="end">
+                  <StSpace fill-x justify="between" align="end" gap="0" no-wrap>
                      <div class="st-font-body-normal text-accent-200">
                         当前经验值：
                      </div>

@@ -3,6 +3,7 @@ import { Calendar, Left, Right } from '@icon-park/vue-next';
 import dayjs from 'dayjs';
 import type { FormItemStatus } from '../Form/type';
 import { usePopper } from '~/composables/use-popper';
+import { useHistoryLayer } from '~/composables/use-history-layer';
 import { Teleport } from 'vue';
 
 const props = defineProps<{
@@ -40,9 +41,24 @@ const shown = ref(false);
 
 // 关闭后延迟移除布局（display:none），同时保留关闭时的淡出/滑出动效
 const rendered = ref(false);
+
+// 历史栈管理（composables/use-history-layer）：移动端抽屉形态支持返回键逐层关闭
+const {
+   acquire: acquireHistory,
+   release: releaseHistory,
+   onClose: onHistoryClose,
+} = useHistoryLayer();
+
+onHistoryClose(() => {
+   // 返回键触发：历史已由 popstate 回退，这里只负责关闭选择器
+   opened.value = false;
+});
+
 watch(opened, (value) => {
    if (value) {
       rendered.value = true;
+      // 仅移动端抽屉形态压入历史记录；桌面 Popper 浮层不参与历史栈
+      if (isMobile.value) acquireHistory();
       // 等元素完成首次绘制后再置位 shown，触发抽屉上滑过渡
       nextTick(() => {
          requestAnimationFrame(() => {
@@ -53,6 +69,8 @@ watch(opened, (value) => {
       });
    } else {
       shown.value = false;
+      // 主动关闭时回退自己压入的历史记录（若由返回键触发则仅出栈，不再回退）
+      releaseHistory();
       setTimeout(() => {
          if (!opened.value) rendered.value = false;
       }, isMobile.value ? 300 : 100);
@@ -69,6 +87,11 @@ onMounted(() => {
    onUnmounted(() => {
       mq.removeEventListener('change', onChange);
    });
+});
+
+onUnmounted(() => {
+   // 组件卸载时选择器仍开着：回收压入的历史记录（已释放时为空操作）
+   releaseHistory();
 });
 
 // 移动端抽屉动画走 translate 属性；桌面端保持原有的 margin + opacity 过渡

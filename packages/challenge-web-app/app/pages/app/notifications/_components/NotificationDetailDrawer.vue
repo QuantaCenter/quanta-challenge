@@ -121,9 +121,9 @@ onUnmounted(() => {
       <div
          v-if="notification"
          ref="cardRef"
-         class="relative h-full bg-accent-600 flex flex-col overflow-hidden max-md:rounded-t-[1rem]">
+         class="relative h-full bg-accent-600 max-md:bg-black flex flex-col overflow-hidden max-md:rounded-t-[1rem]">
             <!-- Header Area（标题容器：底部留白已减小） -->
-            <div class="px-10 pt-10 pb-2 max-md:px-5 max-md:pt-7 shrink-0 bg-accent-600 z-10">
+            <div class="px-10 pt-10 pb-2 max-md:px-5 max-md:pt-7 shrink-0 bg-accent-600 max-md:bg-black z-10">
                <div class="flex justify-between items-start mb-2">
                   <div class="flex items-center gap-3 flex-wrap gap-y-1.5 min-w-0">
                      <span
@@ -156,7 +156,7 @@ onUnmounted(() => {
             <div class="relative flex-1 min-h-0 z-10">
                <!-- 顶部渐隐 mask：滚动内容在标题容器下缘平滑淡出 -->
                <div
-                  class="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-accent-600 to-transparent pointer-events-none z-10">
+                  class="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-accent-600 max-md:from-black to-transparent pointer-events-none z-10">
                </div>
                <div class="h-full overflow-y-auto px-10 pt-2 pb-10 max-md:px-5 max-md:pb-8 custom-scrollbar">
                   <LearningArticleBody :html="html" dense />
@@ -203,7 +203,7 @@ onUnmounted(() => {
             </div>
 
             <!-- Logo：抽屉右下角水印 -->
-            <div class="absolute right-8 bottom-8 max-md:right-4 max-md:bottom-6 z-0 opacity-20 pointer-events-none">
+            <div class="absolute right-8 bottom-8 max-md:right-4 max-md:bottom-6 z-0 opacity-10 pointer-events-none">
                <IconLogo class="scale-[500%] -rotate-[10deg]" />
             </div>
 

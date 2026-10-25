@@ -9,7 +9,7 @@ defineProps<{
 </script>
 
 <template>
-   <div class="flex justify-between w-full max-md:flex-wrap max-md:gap-y-1">
+   <div class="flex justify-between w-full max-md:flex-col max-md:items-start max-md:gap-y-1">
       <StSpace align="center" gap="0.5rem" class="max-md:flex-wrap">
          <div class="st-font-body-bold">{{ title }}</div>
          <div
