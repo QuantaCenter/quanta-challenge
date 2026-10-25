@@ -82,7 +82,8 @@ onUnmounted(() => detachDrawerTouchLock?.());
                   @click="store.mobileFileDrawerOpened = true"
                   aria-label="更多：打开文件树与操作菜单"
                   class="h-9 w-9 shrink-0 flex items-center justify-center rounded-md text-white active:bg-white/10 transition-colors cursor-pointer">
-                  <HamburgerButton class="h-5 w-5" />
+                  <HamburgerButton
+                     class="h-5 w-5 inline-flex items-center justify-center" />
                </button>
 
                <button
@@ -90,14 +91,14 @@ onUnmounted(() => detachDrawerTouchLock?.());
                   :disabled="!mobileHistoryActions || !canUndo"
                   aria-label="撤回"
                   class="h-9 w-9 shrink-0 flex items-center justify-center rounded-md text-white active:bg-white/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
-                  <Undo class="h-5 w-5" />
+                  <Undo class="h-5 w-5 inline-flex items-center justify-center" />
                </button>
                <button
                   @click="mobileHistoryActions?.redo()"
                   :disabled="!mobileHistoryActions || !canRedo"
                   aria-label="重做"
                   class="h-9 w-9 shrink-0 flex items-center justify-center rounded-md text-white active:bg-white/10 transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed">
-                  <Redo class="h-5 w-5" />
+                  <Redo class="h-5 w-5 inline-flex items-center justify-center" />
                </button>
             </template>
 

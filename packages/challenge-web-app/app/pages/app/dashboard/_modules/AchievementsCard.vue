@@ -32,6 +32,8 @@ const formatAchievedDate = (date: string) => {
 };
 
 const hideMask = ref(false);
+// 顶部遮罩仅在列表下滚后出现，避免静止时盖住首个徽章
+const hideTopMask = ref(true);
 const container = useTemplateRef('container');
 onMounted(() => {
    if (!container.value) return;
@@ -39,6 +41,7 @@ onMounted(() => {
    const scrollHandler = () => {
       if (!container.value) return;
       hideMask.value = el.scrollHeight - el.scrollTop <= el.clientHeight + 10;
+      hideTopMask.value = el.scrollTop <= 10;
    };
    el.addEventListener('scroll', scrollHandler);
    onBeforeUnmount(() => {
@@ -58,7 +61,7 @@ onMounted(() => {
             to="/app/achievements"
             description="查看成就" />
       </template>
-      <div class="w-full h-5 max-md:h-4"></div>
+      <div class="w-full h-5"></div>
       <div
          ref="container"
          class="w-full h-full relative hide-scrollbar min-h-[16rem] max-md:min-h-[24rem]"
@@ -122,7 +125,10 @@ onMounted(() => {
          </StSkeleton>
       </div>
       <div
-         class="bottom-mask w-full h-[3rem] absolute bottom-0 transition-opacity"
+         class="top-mask pointer-events-none absolute top-16 h-6 w-full transition-opacity"
+         :style="{ opacity: hideTopMask ? 0 : 1 }"></div>
+      <div
+         class="bottom-mask pointer-events-none w-full h-[3rem] absolute bottom-0 transition-opacity"
          :style="{ opacity: hideMask ? 0 : 1 }"></div>
    </StCard>
 </template>

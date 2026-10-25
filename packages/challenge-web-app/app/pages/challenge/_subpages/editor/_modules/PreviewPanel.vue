@@ -384,12 +384,12 @@ defineExpose({ refresh, toggleConsole });
             <div
                v-else
                ref="inline-frame"
-               class="size-full"
+               class="size-full bg-white"
                :style="{ opacity: fullScreenMode ? 0 : 1 }">
                <iframe
                   ref="inline-iframe"
                   :src="iframeSrc"
-                  class="size-full"
+                  class="size-full bg-white"
                   :style="{ pointerEvents: consoleDragging ? 'none' : undefined }"></iframe>
             </div>
          </StSpace>
@@ -431,7 +431,7 @@ defineExpose({ refresh, toggleConsole });
                class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
                <OffScreen />
             </StSpace>
-            <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full"></iframe>
+            <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full bg-white"></iframe>
          </div>
       </Teleport>
    </StSpace>

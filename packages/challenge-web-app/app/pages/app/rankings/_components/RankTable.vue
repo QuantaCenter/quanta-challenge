@@ -71,7 +71,7 @@ const columns: ITableColumn[] = [
          </template>
 
          <template #cell-userName="{ row }">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
                <StImage
                   lazy
                   :src="row.imageUrl"
@@ -79,10 +79,11 @@ const columns: ITableColumn[] = [
                   width="2.25rem"
                   height="2.25rem"
                   object="cover"
-                  class="rounded-lg" />
+                  class="rounded-lg shrink-0" />
                <NuxtLink
                   :to="`/app/space/${row.uid}`"
-                  class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all">
+                  class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all min-w-0 max-md:truncate"
+                  :title="row.userName">
                   {{ row.userName }}
                </NuxtLink>
             </div>
