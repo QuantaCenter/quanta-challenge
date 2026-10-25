@@ -15,8 +15,7 @@ const username = computed(
 );
 
 const avatarUrl = computed(() => {
-   // 必须用数据库里的文件名（avatar.name = `<uuid>.<ext>`），不能拿 imageId 硬拼 .jpg。
-   // 实际文件是 .png/.webp，硬拼 .jpg 会 404，头像一直是坏的。
+   // 用数据库里的文件名（avatar.name = `<uuid>.<ext>`）
    const user = authStore.user as
       | (typeof authStore.user & { avatar?: { name?: string } | null })
       | null;
@@ -137,7 +136,6 @@ const mobileDrawerOpen = ref(false);
          <slot></slot>
       </main>
 
-      <!-- 移动端导航（< 768px） -->
       <StMobileHeader @open-drawer="mobileDrawerOpen = true" />
       <StMobileNavDrawer v-model:open="mobileDrawerOpen" />
       <StMobileBottomNav />

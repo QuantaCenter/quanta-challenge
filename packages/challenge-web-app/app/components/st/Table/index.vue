@@ -131,7 +131,6 @@ const rowIdentifier = (row: T, index: number) => {
       </tbody>
       </table>
 
-      <!-- 空态渲染在表格外：table-fixed 下空态 colspan 行会干扰列宽分配，导致表头坍缩 -->
       <StSpace
          v-if="!loading && rows.length === 0"
          center

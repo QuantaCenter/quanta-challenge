@@ -13,7 +13,7 @@ defineProps<{
    loading: boolean;
 }>();
 
-// 「正确率 / 通过次数」两列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致导致样式闪跳）
+// 「正确率 / 通过次数」两列在移动端通过 CSS 隐藏（SSR 安全）
 const columns: ITableColumn[] = [
    {
       key: 'rank',

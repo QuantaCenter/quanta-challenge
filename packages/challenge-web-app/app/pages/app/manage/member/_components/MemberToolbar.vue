@@ -45,7 +45,6 @@ const filterDrawerOpened = ref(false);
 
 <template>
    <StSpace fill-x justify="between" align="center" gap="1rem">
-      <!-- 桌面端：完整筛选行 -->
       <StSpace align="center" gap="0.75rem" class="max-md:hidden">
          <div
             class="flex items-center gap-2 bg-accent-600 rounded-xl px-4 h-[3.5rem] w-[16rem] shrink-0 transition-colors focus-within:ring-1 focus-within:ring-primary/50">
@@ -105,7 +104,6 @@ const filterDrawerOpened = ref(false);
          </button>
       </StSpace>
 
-      <!-- 移动端：筛选入口图标 -->
       <button
          type="button"
          aria-label="打开筛选"
@@ -121,7 +119,6 @@ const filterDrawerOpened = ref(false);
       </span>
    </StSpace>
 
-   <!-- 移动端筛选抽屉：每个筛选项占满一行 -->
    <StDrawer global v-model:opened="filterDrawerOpened" width="24rem">
       <div class="flex flex-col gap-6 p-6 w-full text-white max-md:p-5">
          <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">筛选</h2>

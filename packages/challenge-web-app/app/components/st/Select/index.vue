@@ -93,8 +93,7 @@ defineExpose({
    },
 });
 
-// 弹层可能在抽屉等 display:none 容器内初始化（宽度 0、定位基准失效），
-// 打开时按容器当前尺寸重设宽度并重新定位
+// 弹层可能在抽屉等 display:none 容器内初始化，打开时按容器当前尺寸重设宽度并重新定位
 watch(opened, (value) => {
    if (!value) return;
    nextTick(() => {

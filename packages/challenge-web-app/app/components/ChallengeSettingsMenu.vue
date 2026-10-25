@@ -15,8 +15,7 @@ const props = defineProps<{
 
 const rootRef = useTemplateRef<HTMLElement>('settings-root');
 
-// 点击外部关闭（仅桌面弹出菜单；移动端抽屉内容 Teleport 到 body，
-// 会被判为"外部"，不能参与该关闭逻辑）
+// 仅桌面弹出菜单参与点击外部关闭
 onClickOutside(rootRef, () => {
    if (isMobile.value) return;
    opened.value = false;
@@ -107,7 +106,6 @@ const handleReset = async () => {
          <SettingOne class="text-[1.1rem]" />
       </StMiniSidebarButton>
 
-      <!-- 桌面端：按钮旁弹出菜单 -->
       <Transition
          enter-active-class="transition-all duration-100 ease-out"
          enter-from-class="opacity-0"
@@ -146,7 +144,6 @@ const handleReset = async () => {
          </div>
       </Transition>
 
-      <!-- 移动端：StDrawer 底部抽屉 -->
       <StDrawer v-if="isMobile" v-model:opened="opened" global fit width="18rem">
          <div class="w-72 max-w-full mx-auto p-4 max-md:pt-10 max-md:pb-4">
             <template v-if="props.problemId">

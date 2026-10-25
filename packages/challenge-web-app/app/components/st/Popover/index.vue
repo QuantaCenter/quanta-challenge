@@ -32,8 +32,7 @@ onMounted(() => {
    observer.observe(container.value.parentNode!, {
       childList: true,
    });
-   // pop content 卸载/重新挂载会改变 wrapper 尺寸，popper 必须重新定位，
-   // 否则会按空 wrapper（宽度为 0）的位置摆放，且不再跟随目标
+   // pop content 卸载/重新挂载会改变 wrapper 尺寸，需重新定位
    if (popper.value) {
       observer.observe(popper.value, {
          childList: true,

@@ -20,7 +20,7 @@ const emits = defineEmits<{
 const columns: ITableColumn[] = [
    // 名称列是两行（函数名 + 描述），骨架用 #skeleton-name 自定义插槽
    { key: 'name', title: '函数' },
-   // 版本 / KV 隔离 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   // 版本 / KV 隔离 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全）
    {
       key: 'version',
       title: '版本',

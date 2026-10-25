@@ -234,7 +234,7 @@ onWebContainerFailed((err: any) => {
 const editorStore = useEditorStore();
 
 // 移动端（与布局层 max-md: 断点一致）：文件树改由「更多」抽屉承载。
-// 用水合安全的判定：SSR 与客户端首帧恒为 false，避免 hydration mismatch
+// 用水合安全的判定：SSR 与客户端首帧恒为 false
 const isMobile = useIsMobile();
 
 // 移动端在抽屉文件树里选中文件后：关闭抽屉并滑动到代码板块
@@ -801,14 +801,10 @@ useSeoMeta({
       <StSpace fill>
          <EditorBoardLayout :preview-label="previewBoardLabel">
             <template #board-detail>
-               <!-- 移动端：题面作为代码编辑器左侧的独立分页板块（桌面走 DetailWindow 浮窗）。
-                    不用 v-if="isMobile"：那会让 SSR 首屏缺少题面（含骨架屏），移动端
-                    首帧一片黑。这里始终渲染，桌面端由板块外层的 hidden max-md:block 隐藏 -->
                <MobileProblemDetail :markdown="problem?.detail" />
             </template>
 
             <template #board-files>
-               <!-- 移动端：Teleport 到布局层「更多」抽屉；桌面端保持三栏内嵌 -->
                <Teleport :disabled="!isMobile" to="#challenge-mobile-drawer-files">
                   <FileManagerPanel :dir-loader="dirLoader" :file-loader="fileLoader" :fs-tree="fsTree"
                      :last-sync-time="fileChangeSync.lastSyncTime.value" :is-syncing="fileChangeSync.isSyncing.value"

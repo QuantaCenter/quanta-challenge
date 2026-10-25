@@ -33,7 +33,7 @@ const columns: ITableColumn[] = [
       align: 'center',
       skeletonClass: 'h-6 w-[3rem] rounded-md mx-auto',
    },
-   // 大小 / 使用题目 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   // 大小 / 使用题目 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全）
    {
       key: 'size',
       title: '大小（压缩后）',

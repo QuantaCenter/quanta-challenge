@@ -7,7 +7,7 @@ const { $trpc } = useNuxtApp();
 const authStore = useAuthStore();
 
 const avatarUrl = computed(() => {
-   // 与 ProfileCard 口径一致：用数据库里的文件名 avatar.name，而不是 imageId 硬拼扩展名
+   // 与 ProfileCard 口径一致：用数据库里的文件名 avatar.name
    const user = authStore.user as
       | (typeof authStore.user & { avatar?: { name?: string } | null })
       | null;
@@ -18,7 +18,7 @@ const avatarUrl = computed(() => {
       : DEFAULT_AVATAR_URL;
 });
 
-// 复用桌面端卡片的 useAsyncData key，共享缓存避免重复请求
+// 复用桌面端卡片的 useAsyncData key，共享缓存
 const { data: myRank, pending: loadingRank } = useAsyncData('ranking', () =>
    $trpc.protected.rank.getMyGlobalRank.query()
 );

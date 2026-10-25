@@ -22,21 +22,15 @@ const toggleDetailWindow = () => {
 /**
  * 提交事件。
  *
- * 显式声明载荷类型（而不是让 T 退化为 any）：
- * 监听方 CommitModal 只用 `watch(event, ...)` 作为触发信号，不关心具体内容，
- * 因此载荷仅携带一个时间戳用于"每次点击都会触发"。
+ * 显式声明载荷类型：监听方 CommitModal 只将事件作为触发信号，
+ * 载荷仅携带一个时间戳用于"每次点击都会触发"。
  */
 const { emit: emitCommitEvent } = useEventEmitter<{ at: number }>(
    'challenge-layout',
    'commit',
 );
 
-/**
- * 提交按钮点击处理。
- *
- * 原先按钮在容器未就绪时只是变灰（40% 透明）且不可点击，**没有任何文字说明**，
- * 用户会误以为"没有提交按钮"。这里改为：不可用时明确弹出原因。
- */
+/** 提交按钮点击处理：不可用时明确弹出原因。 */
 const handleCommitClick = () => {
    if (store.hasProjectInitialized) {
       emitCommitEvent({ at: Date.now() });
@@ -49,7 +43,7 @@ const handleCommitClick = () => {
    try {
       useMessageOutsideVue().warning('暂时无法提交', reason);
    } catch {
-      // 消息系统在极早期不可用时，至少保证控制台有记录（上面已 warn）
+      // 消息系统不可用时忽略（上方已 console.warn）
    }
 };
 
@@ -64,7 +58,7 @@ const mode = computed<'problem' | 'record'>(() => {
 
 const authStore = useAuthStore();
 const avatarUrl = computed(() => {
-   // 同 app-layout.vue：用 avatar.name（数据库里的真实文件名），不要硬拼 .jpg
+   // 用 avatar.name（数据库里的真实文件名）
    const user = authStore.user as
       | (typeof authStore.user & { avatar?: { name?: string } | null })
       | null;
@@ -77,7 +71,6 @@ const avatarUrl = computed(() => {
 <template>
    <StMiniSidebarDivider />
 
-   <!-- 导航按钮组 -->
    <StSpace direction="vertical" align="center" gap="0.5rem">
       <template v-if="mode === 'record'">
          <StSidebarSidePopper content="返回题目">
@@ -93,7 +86,6 @@ const avatarUrl = computed(() => {
       </template>
 
       <template v-if="mode === 'problem'">
-         <!-- 移动端不显示：题面已默认作为代码编辑器左侧的分页板块 -->
          <StSidebarSidePopper v-if="!isMobile" content="题目">
             <StRippleEffect>
                <button
@@ -120,15 +112,10 @@ const avatarUrl = computed(() => {
       </template>
    </StSpace>
 
-   <!-- 操作按钮组 -->
    <template v-if="mode === 'problem'">
       <StMiniSidebarDivider />
 
       <StSpace direction="vertical" align="center" gap="0.5rem">
-         <!-- 注意：这里刻意 **不** 使用原生 disabled 属性。
-              原生 disabled 的按钮不会触发 click，用户点了没有任何反应，
-              也就看不到"为什么不能提交"。改为用样式表达不可用，
-              并让点击能弹出具体原因。 -->
          <StMiniSidebarButton
             @click="handleCommitClick"
             :name="
@@ -148,15 +135,12 @@ const avatarUrl = computed(() => {
 
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
-         <!-- 移动端不显示：三栏拖拽布局是桌面专属能力 -->
          <ChallengeLayoutMenu v-if="!isMobile" />
       </StSpace>
    </template>
 
-   <!-- 弹性空间 -->
    <div class="flex-1" />
 
-   <!-- 底部按钮 -->
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
       <ChallengeSettingsMenu :problem-id="mode === 'problem' ? id : undefined" />
 

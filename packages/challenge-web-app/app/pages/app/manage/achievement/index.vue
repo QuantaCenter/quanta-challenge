@@ -7,7 +7,7 @@ import { logger } from '~~/lib/logger';
 useSeoMeta({ title: '成就管理 - Quanta Challenge' });
 
 const columns: ITableColumn[] = [
-   // 描述 / 创建时间两列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）；徽章列保留展示
+   // 描述 / 创建时间两列在移动端通过 CSS 隐藏（SSR 安全）；徽章列保留展示
    {
       key: 'badge',
       title: '徽章',

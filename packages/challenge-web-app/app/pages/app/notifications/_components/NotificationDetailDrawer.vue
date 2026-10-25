@@ -153,7 +153,6 @@ onUnmounted(() => {
                </h2>
             </div>
 
-            <!-- Content Area（z-10：压在右下角 logo 水印之上，避免遮挡正文与图片） -->
             <div class="relative flex-1 min-h-0 z-10">
                <!-- 顶部渐隐 mask：滚动内容在标题容器下缘平滑淡出 -->
                <div

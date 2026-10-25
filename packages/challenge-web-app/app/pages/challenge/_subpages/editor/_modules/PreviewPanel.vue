@@ -420,8 +420,6 @@ defineExpose({ refresh, toggleConsole });
          </template>
       </div>
       <Teleport to="body">
-         <!-- 常驻挂载预加载：iframe 提前加载预览页，进入全屏时内容已就绪，不会黑屏。
-              移动端横屏全屏时去掉边框，铺满整个视口（纯 CSS 断点，避免水合不一致） -->
          <div
             v-show="fullScreenMode"
             class="fixed z-[10000] overflow-hidden bg-[#1F1F1F] border border-accent-500 max-md:border-0"

@@ -190,7 +190,6 @@ const handlerViewVersion = () => {
          ref="drawer"
          v-model:opened="drawerOpener"
          :problem-id="detail?.pid" />
-      <!-- 桌面端：右下角悬浮按钮 -->
       <StFixed right="1.82rem" bottom="1.82rem" class="max-md:hidden">
          <StSpace direction="vertical" gap="1.2rem" align="center">
             <SidePopper content="审核记录">
@@ -233,7 +232,6 @@ const handlerViewVersion = () => {
                class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
                发布详情
             </h1>
-            <!-- 移动端：标题右侧按钮 -->
             <StSpace gap="1rem" align="center" class="md:hidden max-md:gap-2!">
                <SidePopper content="审核记录" placement="bottom">
                   <FixedButton

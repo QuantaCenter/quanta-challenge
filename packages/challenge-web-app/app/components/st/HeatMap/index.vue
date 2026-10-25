@@ -58,7 +58,7 @@ const PopperContent = defineComponent({
                   hideTimer = null;
                }
                mounted.value = true;
-               // 先让元素以"隐藏态"渲染一帧，再切成可见态，过渡才会真正播放
+               // 先以隐藏态渲染一帧，再切成可见态以触发过渡
                requestAnimationFrame(() =>
                   requestAnimationFrame(() => {
                      if (props.triggered) visible.value = true;
@@ -151,7 +151,7 @@ const showZeroTip = (date: string) => {
    if (alreadyVisible) return;
 
    zeroTipVisible.value = false;
-   // 先让元素以"隐藏态"渲染一帧，再切成可见态，过渡才会真正播放
+   // 先以隐藏态渲染一帧，再切成可见态以触发过渡
    requestAnimationFrame(() =>
       requestAnimationFrame(() => {
          zeroTipVisible.value = true;

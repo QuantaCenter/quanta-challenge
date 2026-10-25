@@ -38,13 +38,12 @@ const opened = ref(false);
 const isMobile = ref(false);
 const shown = ref(false);
 
-// 关闭后延迟移除布局（display:none）：visibility:hidden 仍会贡献 scrollWidth，
-// 导致移动端幻影横向溢出；延迟是为了保留关闭时的淡出/滑出动效
+// 关闭后延迟移除布局（display:none），同时保留关闭时的淡出/滑出动效
 const rendered = ref(false);
 watch(opened, (value) => {
    if (value) {
       rendered.value = true;
-      // 等元素完成首次绘制后再置位 shown，保证抽屉上滑过渡生效
+      // 等元素完成首次绘制后再置位 shown，触发抽屉上滑过渡
       nextTick(() => {
          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
@@ -550,16 +549,12 @@ watch(
          <Calendar :size="20" :strokeWidth="3" />
       </div>
 
-      <!-- 包装层带 z-index：弹层需整体高于抽屉(z-9999)/弹窗(z-10000)，
-           否则会被包装层的层叠上下文困在低层级（内部子元素 z 再高也无法越级） -->
       <Teleport to="body" class="absolute z-[10001]">
-         <!-- 移动端遮罩：点击关闭；用 shown 而非 opened 控制透明度，保证挂载后能触发淡入过渡 -->
          <div
             v-if="rendered && isMobile"
             @click="opened = false"
             class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
             :class="shown ? 'opacity-100' : 'opacity-0'"></div>
-         <!-- 移动端底部抽屉：全宽贴底、上圆角、限高滚动；后缀 ! 覆盖 Popper 写入的内联定位样式（Tailwind v4 语法） -->
          <div
             :ref="popperKey"
             :style="popperStyle"
@@ -577,13 +572,9 @@ watch(
                   ? 'max-sm:translate-y-0'
                   : 'max-sm:translate-y-full',
             ]">
-            <!-- 范围模式：两个时间面板的包装层。
-                 桌面端 display:contents 不产生盒子，面板仍相对抽屉容器左右浮动；
-                 移动端变为左右分布，避免上下堆叠挤压导致无法选择 -->
             <div
                v-if="showTime && range && (startValue || endValue)"
                class="contents max-sm:order-last max-sm:mt-3 max-sm:flex max-sm:flex-row max-sm:gap-3 max-sm:w-full">
-               <!-- 范围模式：开始时间面板（浮于日期面板左侧，高度与日期面板一致） -->
                <div
                   v-if="startValue"
                   class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
@@ -633,7 +624,6 @@ watch(
                   </div>
                </div>
 
-               <!-- 范围模式：结束时间面板（浮于日期面板右侧，高度与日期面板一致） -->
                <div
                   v-if="endValue"
                   class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">

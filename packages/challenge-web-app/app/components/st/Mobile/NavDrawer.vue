@@ -34,7 +34,7 @@ const description = computed(() =>
 );
 
 const avatarUrl = computed(() => {
-   // 与 app-layout.vue 保持一致：必须用数据库里的文件名（avatar.name），不能拿 imageId 硬拼扩展名
+   // 与 app-layout.vue 保持一致：用数据库里的文件名（avatar.name）
    const user = authStore.user as
       | (typeof authStore.user & { avatar?: { name?: string } | null })
       | null;
@@ -59,15 +59,12 @@ const handleLogout = async () => {
       return;
    }
 
-   // 清除客户端 localStorage
    if (import.meta.client) {
       localStorage.removeItem('csrfToken');
    }
 
-   // 跳转到认证页面
    await navigateTo('/auth/login');
 
-   // 刷新页面以清除状态
    if (import.meta.client) {
       window.location.reload();
    }

@@ -42,7 +42,6 @@ const handleSendCode = () => {
          ]">
          <LoadingFour v-if="loading" class="animate-spin" />
          <Check v-else-if="verified" class="text-success" />
-         <!-- 倒计时文案较长，小屏下只显示秒数，避免溢出输入框 -->
          <span v-else>
             <template v-if="countdown > 0">
                <span class="hidden sm:inline">重新发送 </span>({{ countdown }}s)

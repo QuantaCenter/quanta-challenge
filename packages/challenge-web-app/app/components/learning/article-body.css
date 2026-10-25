@@ -326,7 +326,7 @@
    margin: 1.25em 0;
 }
 
-/* ---------- 移动端：仅 dense 模式（通知弹窗等窄容器）缩小字号，避免内容溢出 ---------- */
+/* ---------- 移动端：仅 dense 模式（通知弹窗等窄容器）缩小字号 ---------- */
 
 @media (max-width: 767.98px) {
    .article-body--dense {
@@ -350,7 +350,7 @@
       font-size: 1rem;
    }
 
-   /* 行内代码允许断行，长 token 不再撑破容器 */
+   /* 行内代码允许断行 */
    .article-body--dense code {
       font-size: 0.8125em;
       word-break: break-all;

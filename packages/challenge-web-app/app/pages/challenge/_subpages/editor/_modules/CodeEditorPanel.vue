@@ -96,8 +96,7 @@ const hasEditorReady = ref(false);
 
 // 下拉菜单状态
 const isDropdownOpen = ref(false);
-// 菜单内容延迟到首次打开才渲染：Popper 元素常驻 DOM 且会持续跟随锚点重算位置，
-// 若内容一开始就渲染，任何隐藏样式失效时都会出现"漂浮的齿轮图标"
+// 菜单内容延迟到首次打开才渲染
 const hasOpenedDropdown = ref(false);
 const dropdownButtonRef = ref<HTMLElement>();
 const dropdownMenuRef = ref<HTMLElement>();
@@ -110,8 +109,7 @@ const toggleDropdown = async () => {
    isDropdownOpen.value = !isDropdownOpen.value;
    if (isDropdownOpen.value) {
       hasOpenedDropdown.value = true;
-      // 关闭态是 display:none（彻底移出布局，避免把文档撑出横向溢出），
-      // 打开后需等 DOM 恢复显示再让 Popper 重新测量定位
+      // 关闭态是 display:none，打开后需等 DOM 恢复显示再让 Popper 重新测量定位
       await nextTick();
       popperInstance.value?.update();
    }

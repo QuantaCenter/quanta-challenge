@@ -27,7 +27,7 @@ const columns: ITableColumn[] = [
       align: 'center',
       skeletonClass: 'h-5 w-[3rem] rounded-md mx-auto',
    },
-   // 活跃时间 / 最近 7 天 / 最近 30 天 / 总提交 / 分数 / 正确率在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致）
+   // 活跃时间 / 最近 7 天 / 最近 30 天 / 总提交 / 分数 / 正确率在移动端通过 CSS 隐藏（SSR 安全）
    {
       key: 'activeAt',
       title: '活跃时间',

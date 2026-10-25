@@ -3,14 +3,12 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 /**
- * 开发环境的 HTTPS（可选，供手机真机调试做题页）。
+ * 开发环境的 HTTPS（可选）。
  *
- * WebContainer 需要「安全上下文 + 跨源隔离」：COOP/COEP 响应头已对 /challenge/**
- * 下发，但手机浏览器经局域网 IP 走 http 访问时不是安全上下文，
- * SharedArrayBuffer 直接不可用，做题页会提示「无法启动开发容器」。
- *
- * 解决：用 mkcert 给 localhost + 局域网 IP 签发证书放到 .dev-certs/（不入库），
- * 本配置检测到证书后自动以 HTTPS 启动 dev server：
+ * WebContainer 需要「安全上下文 + 跨源隔离」，COOP/COEP 响应头已对
+ * /challenge/** 下发，dev server 须以 HTTPS 启动：
+ * 用 mkcert 给 localhost + 局域网 IP 签发证书放到 .dev-certs/（不入库），
+ * 本配置检测到证书后自动以 HTTPS 启动：
  *   pnpm exec mkcert -install
  *   pnpm exec mkcert -cert-file .dev-certs/cert.pem -key-file .dev-certs/key.pem \
  *     localhost 127.0.0.1 ::1 $(ipconfig getifaddr en0)
@@ -52,7 +50,7 @@ const envSecret = (key: string) => {
 export default defineNuxtConfig({
    compatibilityDate: '2025-07-15',
 
-   // .dev-certs/ 存在 mkcert 证书时自动以 HTTPS 启动（手机真机调试做题页需要安全上下文）
+   // .dev-certs/ 存在 mkcert 证书时自动以 HTTPS 启动
    devServer: devServerHttps ? { https: devServerHttps } : {},
 
    // 关闭 DevTools 面板。 原因：/challenge/** 为了 WebContainer 必须下发 COOP/COEP（跨源隔离）， 而 DevTools 是通过 iframe 注入的，在跨源隔离下会被浏览器拦截，控制台持续报 "Blocked a frame with origin http://localhost:3000 from accessing a cross-origin frame" 既污染日志，也可能触发额外的重载/重挂载——而重挂载正是编辑器侧 WebContainer 被误 teardown 的诱因之一。

@@ -33,8 +33,7 @@ const updateMenuHeight = async () => {
    }
 };
 
-// 点击外部关闭（仅桌面弹出菜单；移动端抽屉内容 Teleport 到 body，
-// 会被判为"外部"，不能参与该关闭逻辑）
+// 仅桌面弹出菜单参与点击外部关闭
 onClickOutside(
    menuRef,
    () => {
@@ -84,7 +83,6 @@ const onPanelChange = (status: TimerStatus) => {
          </StMiniSidebarButton>
       </div>
 
-      <!-- 桌面端：按钮旁弹出菜单 -->
       <Transition
          enter-active-class="transition-all duration-100 ease-out"
          enter-from-class="opacity-0"
@@ -115,7 +113,6 @@ const onPanelChange = (status: TimerStatus) => {
          </div>
       </Transition>
 
-      <!-- 移动端：StDrawer 底部抽屉 -->
       <StDrawer
          v-if="isMobile"
          v-model:opened="showMenu"

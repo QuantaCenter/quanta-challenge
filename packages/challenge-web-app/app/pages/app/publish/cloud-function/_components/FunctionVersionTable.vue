@@ -31,7 +31,7 @@ const columns: ITableColumn[] = [
       title: '源码指纹',
       width: '9rem',
       skeletonClass: 'h-5 w-[4rem] rounded-md',
-      // 移动端隐藏次要列，避免横向溢出（参照 RankTable 的做法）
+      // 移动端隐藏次要列（参照 RankTable 的做法）
       class: 'max-md:hidden',
    },
    {

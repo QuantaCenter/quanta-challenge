@@ -11,8 +11,7 @@ const isRecordMode = computed(() => route.path.startsWith('/challenge/record'));
 const path = useParam<string[]>('path', { required: true });
 const problemId = computed(() => Number(path.value?.[1] ?? 0));
 
-// 移动端抽屉内的导航跳转（如「提交记录」）后自动收起抽屉：
-// 布局组件在题目/记录页之间复用不销毁，抽屉开关状态不会自动复位
+// 路由变化后自动收起抽屉
 watch(
    () => route.path,
    () => {
@@ -31,8 +30,7 @@ await authStore.fetchUserInfo($trpc);
 /** 移动端判定：水合安全（SSR 与客户端首帧恒为 false，mounted 后同步真实值） */
 const isMobile = useIsMobile();
 
-// challenge 是全屏 IDE 布局，锁死 document 滚动：
-// 移动端 100vh 大于可视高度时浏览器仍会出现整页橡皮筋滚动，必须从 body 层禁掉
+// challenge 是全屏 IDE 布局，从 body 层锁死 document 滚动
 useHead({
    bodyAttrs: { class: 'challenge-body-lock' },
 });
@@ -40,9 +38,8 @@ useHead({
 const drawerRootRef = useTemplateRef<HTMLDivElement>('drawer-root');
 
 /**
- * 抽屉打开时，遮罩与侧边栏上的滑动不允许透传成背后页面的滚动。
- * body 的 overflow:hidden 在 iOS 上挡不住这种穿透，必须对 touchmove
- * 显式 preventDefault；仅文件树容器内部允许正常滚动。
+ * 抽屉打开时通过 touchmove preventDefault 阻止触摸滚动穿透到背后页面，
+ * 仅文件树容器内部允许正常滚动。
  */
 let detachDrawerTouchLock: (() => void) | null = null;
 onMounted(() => {
@@ -69,17 +66,12 @@ onUnmounted(() => detachDrawerTouchLock?.());
    <StMessageProvider>
       <div
          class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden">
-         <!-- 桌面侧边栏：移动端隐藏，功能由「更多」抽屉承接 -->
          <StMiniSidebar class="max-md:hidden">
             <ChallengeSidebarContent />
          </StMiniSidebar>
 
-         <!-- 移动端紧凑顶栏：左侧「更多」按钮打开抽屉；
-              右侧是板块切换 Tab（由 EditorBoardLayout 通过 Teleport 注入，
-              与顶栏按钮保持同一行高度对齐） -->
          <div
             class="hidden max-md:flex h-11 shrink-0 items-center gap-1.5 bg-[#1F1F1F] rounded-lg px-1.5">
-            <!-- 提交记录页：顶栏仅剩「返回」按钮，回到做题页 -->
             <NuxtLink
                v-if="isRecordMode"
                :to="`/challenge/editor/${problemId}`"
@@ -114,9 +106,6 @@ onUnmounted(() => detachDrawerTouchLock?.());
 
             <div class="flex-1" />
 
-            <!-- 板块切换 Tab 的挂载点（移动端）。
-                 提交记录页不显示：编辑器组件在记录页下仍以 v-show 存活，
-                 其 Teleport 进来的 Tab 会残留，这里直接隐藏挂载点 -->
             <div
                v-show="!isRecordMode"
                id="challenge-mobile-board-tabs"
@@ -128,13 +117,10 @@ onUnmounted(() => detachDrawerTouchLock?.());
             <slot></slot>
          </div>
 
-         <!-- 移动端「更多」抽屉：左侧是 PC 端侧边栏按钮，右侧是文件树。
-              容器常驻 DOM（仅用样式显隐），因为做题页的文件树会 Teleport 进来 -->
          <div
             ref="drawer-root"
             class="hidden max-md:block fixed inset-0 z-[100]"
             :class="store.mobileFileDrawerOpened ? '' : 'pointer-events-none'">
-            <!-- 遮罩 -->
             <Transition
                enter-active-class="transition-opacity duration-200"
                enter-from-class="opacity-0"
@@ -148,11 +134,6 @@ onUnmounted(() => detachDrawerTouchLock?.());
                   @click="store.mobileFileDrawerOpened = false" />
             </Transition>
 
-            <!-- 抽屉面板：从左侧滑入。宽度用 88vw（显式视口单位）而不是百分比，
-                 避免页面出现水平溢出时包含块变宽把抽屉/文件树撑大；
-                 收起时同时 visibility:hidden，不参与溢出计算。
-                 p-1 + gap-1 提供统一的 4px 间距，左列按钮栏与右列文件树
-                 距抽屉四周的距离完全一致 -->
             <div
                class="absolute inset-y-0 left-0 flex bg-[#111111] shadow-2xl transition-all duration-200 ease-out rounded-r-xl overflow-hidden p-1 gap-1"
                :class="
@@ -161,13 +142,10 @@ onUnmounted(() => detachDrawerTouchLock?.());
                      : '-translate-x-full invisible'
                "
                style="width: 88vw; max-width: calc(100vw - 0.5rem)">
-               <!-- 左列：原 PC 端侧边栏按钮（固定宽度，防止内容撑开） -->
                <StMiniSidebar v-if="isMobile" class="w-16 shrink-0 overflow-hidden">
                   <ChallengeSidebarContent />
                </StMiniSidebar>
 
-               <!-- 右列：文件树（做题页通过 Teleport 挂载 FileManagerPanel）；
-                    overscroll-y-contain 防止树滚到边界后把滑动链到背后的页面 -->
                <div
                   id="challenge-mobile-drawer-files"
                   class="flex-1 min-w-0 h-full overflow-hidden overscroll-y-contain" />

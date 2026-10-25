@@ -5,8 +5,8 @@ const props = defineProps<{
    global?: boolean;
    width?: string;
    /**
-    * 移动端（<md 底部抽屉）高度随内容自适应（不超过 90dvh），
-    * 而不是固定撑到 90dvh。桌面右侧抽屉不受影响。
+    * 移动端（<md 底部抽屉）高度随内容自适应（不低于 40dvh、不超过 90dvh），
+    * 桌面右侧抽屉不受影响。
     */
    fit?: boolean;
 }>();
@@ -15,11 +15,8 @@ const opened = defineModel<boolean>('opened', {
    default: false,
 });
 
-// 抽屉打开期间锁定背后页面的滚动。锁状态直接记录在目标元素的 data 属性上
-// （而非组件实例内存里）：热更新/页面更新销毁重建实例后，残留的锁也能被
-// 识别并恢复，避免"抽屉关了但背景永远无法滚动"。
-// 页面滚动容器不一定是 body（页面根节点常为 overflow-auto），因此遍历 DOM
-// 找出所有当前真正可滚动的元素逐个冻结，并跳过抽屉自身的子树
+// 抽屉打开期间锁定背后页面的滚动。锁状态直接记录在目标元素的 data 属性上；
+// 遍历 DOM 找出所有当前真正可滚动的元素逐个冻结，并跳过抽屉自身的子树
 const SCROLL_LOCK_ATTR = 'data-st-drawer-root';
 const SCROLL_LOCKED_ATTR = 'data-st-drawer-scroll-locked';
 
@@ -92,8 +89,7 @@ watch(
 onUnmounted(() => {
    if (opened.value) releaseScrollLock();
 });
-// KeepAlive 场景兜底：组件被停用/恢复时同样要释放/重取锁，
-// 否则停用的抽屉会把计数卡在 >0，后续抽屉关闭时永远无法恢复滚动
+// 组件被停用/恢复时同样要释放/重取锁
 onDeactivated(() => {
    if (opened.value) releaseScrollLock();
 });
@@ -146,8 +142,7 @@ const onPopState = () => {
 
 onMounted(() => {
    window.addEventListener('popstate', onPopState);
-   // 自愈：实例可能已被热更新/页面更新销毁重建，若 DOM 上残留滚动锁
-   // 且当前没有任何打开的抽屉（锁的主人已死），立即恢复背景滚动
+   // 自愈：DOM 上残留的滚动锁在无打开抽屉时立即恢复背景滚动
    const hasOpenDrawer = document.querySelector(
       '[data-st-drawer-root]:not(.hidden)'
    );
@@ -156,7 +151,7 @@ onMounted(() => {
 
 onUnmounted(() => {
    window.removeEventListener('popstate', onPopState);
-   // 卸载时抽屉仍开着：回收压入的历史记录，避免留下一条"空"返回记录
+   // 卸载时抽屉仍开着：回收压入的历史记录
    if (historyPushed && import.meta.client) {
       suppressNextPopstate = true;
       history.back();
@@ -212,8 +207,6 @@ watch(opened, () => {
             { hidden: !rendered },
          ]"
          class="z-[9999] flex items-center justify-end max-md:items-end max-md:justify-center overflow-hidden transition-all duration-300">
-         <!-- 移动端（<md）为底部抽屉：全宽、90dvh、上圆角，从底部滑入；桌面端保持右侧抽屉。
-              宽度走 CSS 变量而非内联 style，否则 max-md:w-full 无法覆盖它 -->
          <div
             class="st-drawer-panel relative h-dvh w-[var(--drawer-width)] bg-black border-l border-accent-600 text-white max-md:w-full max-md:rounded-t-[1rem] max-md:border-l-0 max-md:border-t"
             :class="[
@@ -222,8 +215,7 @@ watch(opened, () => {
                   : 'md:translate-x-full max-md:translate-y-full',
                dragging ? 'transition-none' : 'transition-all duration-300',
                // 移动端高度：默认固定 90dvh；fit 模式随内容自适应，
-               // 但不低于 40dvh（太贴内容会显得局促），cap 到 90dvh。
-               // 二者互斥地写进条件类，避免同类名冲突后依赖样式表顺序
+               // 不低于 40dvh，cap 到 90dvh
                props.fit
                   ? 'max-md:h-auto max-md:min-h-[40dvh] max-md:max-h-[90dvh]'
                   : 'max-md:h-[90dvh]',
@@ -233,8 +225,6 @@ watch(opened, () => {
                transform:
                   dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
             }">
-            <!-- 移动端把手：指示可下拉，拖拽超过阈值关闭 -->
-            <!-- 背景与面板一致（bg-black），滚动内容不会从把手行下面透出 -->
             <div
                @touchstart="onHandleTouchStart"
                @touchmove="onHandleTouchMove"

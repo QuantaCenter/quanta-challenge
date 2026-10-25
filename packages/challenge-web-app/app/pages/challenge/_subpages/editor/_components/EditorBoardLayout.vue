@@ -44,12 +44,7 @@ const boardEl = (id: EditorBoardId) =>
 /** md 及以上走三栏拖拽布局；以下变为整屏横向滑动的分页 */
 const isDesktop = useMediaQuery('(min-width: 768px)');
 
-/**
- * Tab 的渲染开关：mounted 后才允许渲染。
- * SSR 期间 isDesktop 恒为 false（v-if="!isDesktop" 会渲染 Tab），
- * 而 PC 客户端首帧是 true（不渲染）——两端结构不一致会触发
- * hydration mismatch，导致整个板块区域被重建（面板闪烁）。
- */
+/** Tab 的渲染开关：mounted 后才允许渲染（保证水合安全）。 */
 const tabsReady = ref(false);
 onMounted(() => {
    tabsReady.value = true;
@@ -102,8 +97,6 @@ watch(
 
 /**
  * 板块尺寸：以 CSS 变量输出（SSR 也会渲染），由模板里的 md: 前缀规则消费。
- * 不能直接输出 flex 内联样式——移动端分页靠 max-md:w-full 控制宽度，
- * 内联 flex 属性会覆盖类样式导致需要 JS 判断断点，首屏（SSR）就会坍缩。
  */
 const boardStyle = (id: EditorBoardId) => {
    const index = order.value.indexOf(id);
@@ -246,8 +239,6 @@ watch(
 
 <template>
    <div class="w-full h-full flex flex-col max-md:min-h-0">
-      <!-- 移动端：板块切换 Tab，注入顶栏右侧挂载点（与顶栏按钮齐平）。
-           tabsReady 保证 SSR 与客户端首帧都不渲染，避免水合不一致 -->
       <Teleport v-if="tabsReady && !isDesktop" to="#challenge-mobile-board-tabs">
          <div role="tablist" aria-label="板块切换" class="flex items-center gap-1">
             <button
@@ -267,22 +258,16 @@ watch(
          </div>
       </Teleport>
 
-      <!-- 桌面：三栏拖拽布局；移动端：整屏横向滑动分页（文件树板块隐藏，改由抽屉承载） -->
       <div
          ref="container"
          class="relative w-full h-full flex flex-row min-h-0 max-md:flex-1 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:snap-x max-md:snap-mandatory max-md:overscroll-x-contain max-md:rounded-lg editor-board-pager"
          @scroll.passive="handleBoardScroll">
-         <!-- 移动端专属板块：题面详情，位于代码编辑器左侧（桌面不渲染）。
-              max-md:overflow-x-hidden 防止 markdown 宽内容把分页容器撑出横向滚动区 -->
          <div
             data-board="detail"
             class="relative h-full w-full shrink-0 snap-center hidden max-md:block max-md:overflow-x-hidden max-md:px-0.5">
             <slot name="board-detail" />
          </div>
 
-         <!-- 板块：DOM 顺序固定，视觉顺序由 CSS order 决定（换位不重挂组件）。
-              桌面尺寸经 CSS 变量 + md: 规则应用，SSR 首屏即正确；
-              移动端由 max-md:w-full 分页，不消费这些变量 -->
          <div
             v-for="id in BOARD_IDS"
             :key="id"
@@ -363,7 +348,7 @@ watch(
 </template>
 
 <style scoped>
-/* 移动端分页容器：隐藏滚动条，让滑动看起来像原生翻页 */
+/* 移动端分页容器：隐藏滚动条 */
 @media (max-width: 767px) {
    .editor-board-pager {
       scrollbar-width: none;

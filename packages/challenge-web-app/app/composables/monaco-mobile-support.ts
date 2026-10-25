@@ -36,8 +36,7 @@ interface IApplyMobileTouchSupportOptions {
  * - 拖动滚动（带惯性）；
  * - 滚动条触摸拖拽。
  *
- * touch 事件会 stopPropagation 阻断 Monaco 全局 Gesture 识别器（监听
- * document），否则原生 pan 滚动会与本 hack 叠加造成双倍滚动。
+ * touch 事件会 stopPropagation 阻断 Monaco 全局 Gesture 识别器（监听 document）。
  *
  * @returns 可销毁句柄，会还原监听与样式。
  */
@@ -72,10 +71,9 @@ export const applyMobileTouchSupport = (
       });
    };
 
-   // 长按不弹 iOS 原生放大镜菜单
    domNode.style.setProperty('-webkit-touch-callout', 'none');
    domNode.style.setProperty('user-select', 'none');
-   // 触摸行为全部由本 hack 接管，避免编辑器内滚动链到页面
+   // 触摸行为全部由本模块接管
    domNode.style.setProperty('touch-action', 'none');
    disposables.push({
       dispose: () => {
@@ -100,7 +98,7 @@ export const applyMobileTouchSupport = (
    const positionAt = (x: number, y: number) => {
       const target = instance.getTargetAtClientPoint(x, y);
       if (!target) return null;
-      // 行号槽等区域的 target 只有 range 没有 position，取 range 起点兜底
+      // 无 position 时取 range 起点兜底
       if (target.position) return target.position;
       return target.range
          ? {
@@ -124,14 +122,12 @@ export const applyMobileTouchSupport = (
       velocity = { x: 0, y: 0 };
    };
 
-   /** 按当前速度启动惯性滚动，速度不足或已静止时不启动 */
+   /** 按当前速度启动惯性滚动 */
    const startMomentum = () => {
-      // 只取消未完成的动画帧，velocity 来自 touchmove 追踪，不能清空
       if (momentumFrame !== null) {
          cancelAnimationFrame(momentumFrame);
          momentumFrame = null;
       }
-      // 松手前已停顿较久，视为主动停止
       if (performance.now() - lastMoveAt > 100) return;
       const maxVelocity = 3;
       velocity.x = Math.max(
@@ -159,7 +155,6 @@ export const applyMobileTouchSupport = (
          // 取 -velocity 与拖动滚动方向一致（内容跟随手指）
          instance.setScrollTop(prevTop - velocity.y * dt);
          instance.setScrollLeft(prevLeft - velocity.x * dt);
-         // 值未变化说明已被钳制到滚动边界，停止该轴
          if (instance.getScrollTop() === prevTop) velocity.y = 0;
          if (instance.getScrollLeft() === prevLeft) velocity.x = 0;
 
@@ -176,7 +171,7 @@ export const applyMobileTouchSupport = (
    };
 
    // ---------- 滚动条拖拽 ----------
-   /** Monaco 滚动条不支持触摸拖动，这里自行换算轨道位置 */
+   /** Monaco 滚动条触摸拖动：自行换算轨道位置 */
    interface IScrollbarDrag {
       isVertical: boolean;
       /** 轨道起点（top 或 left） */
@@ -259,7 +254,6 @@ export const applyMobileTouchSupport = (
       'touchstart',
       (event: TouchEvent) => {
          if (event.touches.length !== 1) {
-            // 双指手势交给浏览器
             start = null;
             return;
          }
@@ -359,8 +353,7 @@ export const applyMobileTouchSupport = (
          if (Date.now() - startTime > 400) return;
          if (isGestureReserved(event.target)) return;
 
-         // 阻断浏览器由连续点按合成的 mouse 事件（dblclick 等），
-         // 避免触发原生选区 / 编辑器的多击选词
+         // 阻断浏览器由连续点按合成的 mouse 事件（dblclick 等）
          event.preventDefault();
 
          const position = positionAt(touch.clientX, touch.clientY);

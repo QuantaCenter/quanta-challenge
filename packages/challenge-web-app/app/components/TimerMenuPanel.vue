@@ -59,7 +59,6 @@ const displayTime = computed(() => {
 const startTimer = () => {
    if (timerStatus.value === 'running') return;
 
-   // 倒计时为 0 的时候不能开始
    if (currentMode.value === 'countdown' && remainingSeconds.value <= 0) {
       return;
    }
@@ -120,7 +119,6 @@ const resetTimer = () => {
 
 // 选择模式
 const selectMode = (mode: TimerMode) => {
-   // 如果正在计时，先停止
    if (timerStatus.value !== 'idle') {
       stopTimer();
    }
@@ -175,14 +173,12 @@ const progressPercent = computed(() => {
 
 <template>
    <div class="w-full">
-      <!-- 模式选择界面 -->
       <div v-if="!currentMode">
          <div class="p-4">
             <h3 class="text-lg font-semibold text-white mb-4">
                选择计时模式
             </h3>
 
-            <!-- 正计时 -->
             <button
                @click="selectMode('stopwatch')"
                class="w-full p-4 mb-3 bg-accent-500 hover:bg-accent-400 cursor-pointer rounded-lg transition-all duration-200 text-left group">
@@ -196,7 +192,6 @@ const progressPercent = computed(() => {
                </div>
             </button>
 
-            <!-- 倒计时 -->
             <button
                @click="selectMode('countdown')"
                class="w-full p-4 bg-accent-500 hover:bg-accent-400 cursor-pointer rounded-lg transition-all duration-200 text-left group">
@@ -212,7 +207,6 @@ const progressPercent = computed(() => {
          </div>
       </div>
 
-      <!-- 正计时界面 -->
       <div v-else-if="currentMode === 'stopwatch'">
          <div class="p-4">
             <div class="flex items-center justify-between mb-4">
@@ -224,7 +218,6 @@ const progressPercent = computed(() => {
                </button>
             </div>
 
-            <!-- 时间显示 -->
             <div class="text-center mb-6">
                <div
                   class="text-5xl font-family-manrope font-bold text-success mb-2">
@@ -241,7 +234,6 @@ const progressPercent = computed(() => {
                </div>
             </div>
 
-            <!-- 控制按钮 -->
             <div class="flex gap-2">
                <button
                   v-if="timerStatus !== 'running'"
@@ -266,7 +258,6 @@ const progressPercent = computed(() => {
          </div>
       </div>
 
-      <!-- 倒计时界面 -->
       <div v-else-if="currentMode === 'countdown'">
          <div class="p-4">
             <div class="flex items-center justify-between mb-4">
@@ -278,7 +269,6 @@ const progressPercent = computed(() => {
                </button>
             </div>
 
-            <!-- 时间显示 -->
             <div class="text-center mb-4">
                <div
                   class="text-5xl font-family-manrope font-bold mb-2"
@@ -300,7 +290,6 @@ const progressPercent = computed(() => {
                   }}
                </div>
 
-               <!-- 进度条 -->
                <div
                   v-if="timerStatus !== 'idle'"
                   class="w-full h-2 bg-accent-500 rounded-full overflow-hidden">
@@ -316,7 +305,6 @@ const progressPercent = computed(() => {
                </div>
             </div>
 
-            <!-- 时间设置（仅在空闲状态显示） -->
             <div v-if="timerStatus === 'idle'" class="mb-4">
                <div class="text-accent-200 text-sm mb-2">快速设置</div>
                <div class="flex flex-wrap gap-2 mb-3">
@@ -334,7 +322,6 @@ const progressPercent = computed(() => {
                   </button>
                </div>
 
-               <!-- 自定义时间 -->
                <div class="flex gap-2">
                   <StInput
                      v-model:value.number="customMinutes"
@@ -352,7 +339,6 @@ const progressPercent = computed(() => {
                </div>
             </div>
 
-            <!-- 控制按钮 -->
             <div class="flex gap-2">
                <button
                   v-if="timerStatus !== 'running'"

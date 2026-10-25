@@ -17,8 +17,7 @@ import JudgeResultSkeleton from '../_skeletons/JudgeResultSkeleton.vue';
 
 const props = defineProps<{
    problemId: number;
-   // 初始展示的记录 id：移动端详情面板挂在抽屉里、随开关销毁重建，
-   // 无法依赖事件总线收到此前发出的选中事件，改由父组件通过 prop 传入
+   // 初始展示的记录 id，由父组件通过 prop 传入
    initialRecordId?: number | null;
    // passive：实例被 CSS 隐藏（移动端下桌面分栏不可见），不发起请求
    passive?: boolean;
@@ -59,8 +58,7 @@ const commitRecordSelectEmitter = useEventBus<CommitRecordType, boolean>(
 );
 commitRecordSelectEmitter.on((record, init) => {
    if (!record) return;
-   // 已由 initialRecordId（URL ?id=）指定记录时，忽略列表的初始选中同步，
-   // 否则首条记录会把 URL 指定的记录覆盖掉
+   // 已由 initialRecordId（URL ?id=）指定记录时，忽略列表的初始选中同步
    if (init && recordId.value !== null) return;
    recordId.value = record.id;
    if (!init) {

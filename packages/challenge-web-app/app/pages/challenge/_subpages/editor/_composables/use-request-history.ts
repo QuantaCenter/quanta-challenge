@@ -71,7 +71,7 @@ export const useRequestHistory = () => {
    });
 
    const record = (entry: Omit<IRequestHistoryEntry, 'id' | 'at'>) => {
-      // crypto.randomUUID 只在安全上下文暴露（移动端 http://IP 调试时不存在），降级生成
+      // 非安全上下文下降级生成
       const id =
          typeof crypto !== 'undefined' && crypto.randomUUID
             ? crypto.randomUUID()

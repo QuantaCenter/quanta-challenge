@@ -311,7 +311,6 @@ onMounted(() => {
          <StSpace
             direction="vertical"
             class="my-8 max-md:my-0 w-[44rem] max-md:w-full">
-            <!-- 正确率/总得分/通过数三卡片：移动端整行隐藏 -->
             <StSpace fill class="max-md:hidden">
                <StSpace
                   fill

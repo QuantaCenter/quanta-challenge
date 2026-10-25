@@ -10,8 +10,7 @@ import { ADD_MESSAGE_OUTSIDE_VUE_KEY, ADD_MESSAGE_KEY } from './use-message';
 
 const messages = ref<(Message | CustomMessage)[]>([]);
 
-// crypto.randomUUID 只在安全上下文（HTTPS/localhost）暴露；移动端经局域网
-// http://IP 调试时不存在，降级为时间戳+随机串（仅用于消息 id，无需密码学强度）
+// 非安全上下文下降级为时间戳+随机串（仅用于消息 id）
 const genId = (): string => {
    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
       return crypto.randomUUID();

@@ -213,10 +213,8 @@ const {
                         <Right theme="outline" size="16" fill="#fff" />
                      </button>
                   </div>
-                  <!-- 仅桌面端需要的占位块；移动端它会溢出到下方并挡住筛选/搜索栏的点击 -->
                   <div class="h-[3.5rem] max-md:hidden"></div>
                </div>
-               <!-- 桌面端 contents 透传为顶层 flex 子项（保持单行布局）；移动端为第二栏：筛选 + 搜索同行 -->
                <StSpace
                   gap="1rem"
                   class="contents max-md:flex max-md:w-full max-md:min-w-0">
