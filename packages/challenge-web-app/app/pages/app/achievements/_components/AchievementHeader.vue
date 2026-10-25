@@ -9,8 +9,8 @@ defineProps<{
 </script>
 
 <template>
-   <StSpace fill justify="between">
-      <StSpace align="center" gap="0.5rem">
+   <div class="flex justify-between w-full max-md:flex-wrap max-md:gap-y-1">
+      <StSpace align="center" gap="0.5rem" class="max-md:flex-wrap">
          <div class="st-font-body-bold">{{ title }}</div>
          <div
             :class="[
@@ -25,5 +25,5 @@ defineProps<{
       <div v-if="achivedAt" class="st-font-caption">
          于 {{ dayjs(achivedAt).format('YYYY.MM.DD') }} 获得
       </div>
-   </StSpace>
+   </div>
 </template>

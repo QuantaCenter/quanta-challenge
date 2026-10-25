@@ -34,6 +34,51 @@ const borderClass = computed(() => {
 
 const opened = ref(false);
 
+// 移动端（<sm）以底部抽屉形式展示；桌面端仍为 Popper 浮层
+const isMobile = ref(false);
+const shown = ref(false);
+
+// 关闭后延迟移除布局（display:none）：visibility:hidden 仍会贡献 scrollWidth，
+// 导致移动端幻影横向溢出；延迟是为了保留关闭时的淡出/滑出动效
+const rendered = ref(false);
+watch(opened, (value) => {
+   if (value) {
+      rendered.value = true;
+      // 等元素完成首次绘制后再置位 shown，保证抽屉上滑过渡生效
+      nextTick(() => {
+         requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+               if (opened.value) shown.value = true;
+            });
+         });
+      });
+   } else {
+      shown.value = false;
+      setTimeout(() => {
+         if (!opened.value) rendered.value = false;
+      }, isMobile.value ? 300 : 100);
+   }
+});
+
+onMounted(() => {
+   const mq = window.matchMedia('(max-width: 639.98px)');
+   isMobile.value = mq.matches;
+   const onChange = (event: MediaQueryListEvent) => {
+      isMobile.value = event.matches;
+   };
+   mq.addEventListener('change', onChange);
+   onUnmounted(() => {
+      mq.removeEventListener('change', onChange);
+   });
+});
+
+// 移动端抽屉动画走 translate 属性；桌面端保持原有的 margin + opacity 过渡
+const popperStyle = computed(() => ({
+   transition: isMobile.value
+      ? 'translate 0.3s ease-in-out, opacity 0.3s ease-in-out'
+      : 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
+}));
+
 const togglePicker = () => {
    opened.value = !opened.value;
    // 重新打开时回到日期视图
@@ -506,23 +551,34 @@ watch(
       </div>
 
       <Teleport to="body" class="absolute z-50">
+         <!-- 移动端遮罩：点击关闭；用 shown 而非 opened 控制透明度，保证挂载后能触发淡入过渡 -->
+         <div
+            v-if="rendered && isMobile"
+            @click="opened = false"
+            class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
+            :class="shown ? 'opacity-100' : 'opacity-0'"></div>
+         <!-- 移动端底部抽屉：全宽贴底、上圆角、限高滚动；后缀 ! 覆盖 Popper 写入的内联定位样式（Tailwind v4 语法） -->
          <div
             :ref="popperKey"
-            :style="{
-               transition: 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
-            }"
+            :style="popperStyle"
             :class="[
-               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem] max-sm:min-w-0 max-sm:max-w-[calc(100vw-1rem)]',
+               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
+               'max-sm:fixed! max-sm:left-0! max-sm:right-0! max-sm:top-auto! max-sm:bottom-0! max-sm:transform-none! max-sm:min-w-0 max-sm:max-w-none max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-h-[85dvh] max-sm:overflow-y-auto max-sm:flex max-sm:flex-col max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-accent-600',
                { 'opacity-0 pointer-events-none': !opened },
-               !opened && {
-                  '!-mb-4': upside,
-                  '!-mt-4': !upside,
-               },
+               { hidden: !rendered },
+               !opened &&
+                  !isMobile && {
+                     '-mb-4!': upside,
+                     '-mt-4!': !upside,
+                  },
+               shown
+                  ? 'max-sm:translate-y-0'
+                  : 'max-sm:translate-y-full',
             ]">
             <!-- 范围模式：开始时间面板（浮于日期面板左侧，高度与日期面板一致） -->
             <div
                v-if="showTime && range && startValue"
-               class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
+               class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
                <div
                   class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
                   开始时间
@@ -572,7 +628,7 @@ watch(
             <!-- 范围模式：结束时间面板（浮于日期面板右侧，高度与日期面板一致） -->
             <div
                v-if="showTime && range && endValue"
-               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
+               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
                <div
                   class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
                   结束时间
@@ -630,7 +686,7 @@ watch(
             <!-- 单选模式：时间面板（浮于日期面板右侧，高度与日期面板一致） -->
             <div
                v-if="showTime && !range && value"
-               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
+               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
                <div
                   class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
                   时间

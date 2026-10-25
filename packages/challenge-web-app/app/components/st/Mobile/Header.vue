@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HamburgerButton, Search } from '@icon-park/vue-next';
+import { HamburgerButton, Remind, Search } from '@icon-park/vue-next';
 import Logo from '~/components/icon/Logo.vue';
 
 const emit = defineEmits<{
@@ -7,6 +7,7 @@ const emit = defineEmits<{
 }>();
 
 const { openSearch } = useSearch();
+const { unreadCount } = useUnreadNotifications();
 </script>
 
 <template>
@@ -16,6 +17,15 @@ const { openSearch } = useSearch();
          <Logo class="scale-75 origin-left" />
       </NuxtLink>
       <StSpace gap="0.5rem" align="center">
+         <NuxtLink
+            to="/app/notifications"
+            aria-label="通知"
+            class="size-10 relative flex items-center justify-center rounded-full text-white active:bg-accent-500 transition-colors cursor-pointer">
+            <Remind class="text-[1.375rem]" />
+            <div
+               v-if="unreadCount > 0"
+               class="absolute top-2 right-2 size-2 bg-rose-500 rounded-full z-10 pointer-events-none select-none"></div>
+         </NuxtLink>
          <button
             aria-label="搜索"
             class="size-10 flex items-center justify-center rounded-full text-white active:bg-accent-500 transition-colors cursor-pointer"

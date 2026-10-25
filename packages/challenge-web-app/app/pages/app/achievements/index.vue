@@ -31,8 +31,11 @@ const statusToText: Record<'achieved' | 'inProgress' | 'locked', string> = {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[44rem] pb-[2rem] my-6">
-         <h1 class="st-font-hero-bold">成就</h1>
+         class="w-full max-w-[44rem] px-4 pb-[2rem] my-6 max-md:my-4">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            成就
+         </h1>
 
          <AchievementInfoCard />
 
@@ -62,7 +65,8 @@ const statusToText: Record<'achieved' | 'inProgress' | 'locked', string> = {
                      :title="achievement.name"
                      :achivedAt="achievement.achievedAt"
                      :score="achievement.score" />
-                  <div class="st-font-body-normal text-accent-100">
+                  <div
+                     class="st-font-body-normal text-accent-100 max-md:-mt-[0.1rem]">
                      {{
                         name === 'locked' ? '？？？' : achievement.description
                      }}

@@ -5,7 +5,6 @@ import {
    DashboardTwo,
    Logout,
    Ranking,
-   Remind,
    SettingTwo,
    TableReport,
    Trophy,
@@ -176,13 +175,6 @@ watch(
                      :class="{ 'bg-accent-600 text-white': isActive('/app/achievements') }">
                      <Trophy />
                      <span>成就</span>
-                  </NuxtLink>
-                  <NuxtLink
-                     to="/app/notifications"
-                     class="st-mobile-drawer-item"
-                     :class="{ 'bg-accent-600 text-white': isActive('/app/notifications') }">
-                     <Remind />
-                     <span>通知</span>
                   </NuxtLink>
                   <NuxtLink
                      to="/app/settings"

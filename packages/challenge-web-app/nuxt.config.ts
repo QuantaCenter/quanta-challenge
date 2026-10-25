@@ -192,7 +192,10 @@ export default defineNuxtConfig({
          mode: 'out-in',
       },
       head: {
-         meta: [{ name: 'referrer', content: 'origin-when-cross-origin' }],
+         meta: [
+            { name: 'referrer', content: 'origin-when-cross-origin' },
+            { name: 'theme-color', content: '#111111' },
+         ],
       },
    },
 
