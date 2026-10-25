@@ -126,7 +126,7 @@ const focusInput = () => {
 </script>
 
 <template>
-   <StSpace fill direction="vertical" gap="0" class="bg-[#181818] rounded-xl overflow-hidden border border-accent-600">
+   <StSpace fill direction="vertical" gap="0" class="bg-[#181818] rounded-xl max-md:rounded-b-none max-md:border-0 overflow-hidden border border-accent-600">
       <StSpace fill-x no-shrink gap="0" class="p-1 bg-accent-600">
          <StSpace fill-x align="center" justify="between" gap="0.5rem"
             class="h-[2.15rem] px-1 text-accent-200">

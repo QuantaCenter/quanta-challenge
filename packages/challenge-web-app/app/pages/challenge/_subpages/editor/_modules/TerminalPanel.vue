@@ -166,12 +166,12 @@ defineExpose({
       fill-x
       direction="vertical"
       gap="0"
-      class="bg-[#181818] rounded-xl"
+      class="bg-[#181818] rounded-xl max-md:rounded-b-none"
       :class="{ 'h-full': !folded }">
       <StSpace
          fill-x
          class="p-1 rounded-t-xl bg-accent-600"
-         :class="{ 'rounded-b-xl': folded }"
+         :class="{ 'rounded-b-xl max-md:rounded-b-none': folded }"
          justify="between"
          align="center"
          gap="0">

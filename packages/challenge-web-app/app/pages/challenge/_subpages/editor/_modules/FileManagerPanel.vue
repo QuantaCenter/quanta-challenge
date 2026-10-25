@@ -125,7 +125,11 @@ const getSyncDisplayText = (
             </Operation>
          </StSpace>
       </StSpace>
-      <StSpace fill class="relative overflow-x-hidden">
+      <!-- 树区域占剩余高度（不能 h-full，否则会把头部/同步条顶出面板）；
+           树组件自身没有滚动，这里由容器负责纵向滚动 -->
+      <StSpace
+         fill-x
+         class="relative flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden">
          <StSkeleton :loading="!fsTree">
             <template #loading>
                <FsTreeSkeleton />

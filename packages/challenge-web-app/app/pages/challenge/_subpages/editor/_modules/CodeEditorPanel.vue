@@ -7,6 +7,7 @@ import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
+import type { editor } from 'monaco-editor';
 import { onClickOutside } from '@vueuse/core';
 import {
    hasBinarySnapshotExtension,
@@ -14,7 +15,6 @@ import {
 } from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
-import MobileEditorToolbar from './MobileEditorToolbar.vue';
 
 const currentFilePath = defineModel<string>('currentFilePath');
 
@@ -96,13 +96,28 @@ const hasEditorReady = ref(false);
 
 // 下拉菜单状态
 const isDropdownOpen = ref(false);
+// 菜单内容延迟到首次打开才渲染：Popper 元素常驻 DOM 且会持续跟随锚点重算位置，
+// 若内容一开始就渲染，任何隐藏样式失效时都会出现"漂浮的齿轮图标"
+const hasOpenedDropdown = ref(false);
 const dropdownButtonRef = ref<HTMLElement>();
 const dropdownMenuRef = ref<HTMLElement>();
 
 // 配置 Modal 状态
 const isSettingsModalOpen = ref(false);
 
-const { popperKey, containerKey: popperContainerKey } = usePopper({
+// 打开/收起下拉菜单
+const toggleDropdown = async () => {
+   isDropdownOpen.value = !isDropdownOpen.value;
+   if (isDropdownOpen.value) {
+      hasOpenedDropdown.value = true;
+      // 关闭态是 display:none（彻底移出布局，避免把文档撑出横向溢出），
+      // 打开后需等 DOM 恢复显示再让 Popper 重新测量定位
+      await nextTick();
+      popperInstance.value?.update();
+   }
+};
+
+const { popperKey, containerKey: popperContainerKey, popperInstance } = usePopper({
    options: {
       placement: 'bottom-end',
       modifiers: [
@@ -117,6 +132,54 @@ const { popperKey, containerKey: popperContainerKey } = usePopper({
 });
 
 const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
+
+// 移动端顶栏撤回/重做：注册执行能力，供顶栏按钮调用
+const { actions: historyActions, canUndo, canRedo } = useMobileEditorHistory();
+
+const undo = () => {
+   onEditorInstanceReady((instance) => {
+      instance.trigger('mobile-toolbar', 'undo', null);
+      syncHistoryState(instance);
+   });
+};
+
+const redo = () => {
+   onEditorInstanceReady((instance) => {
+      instance.trigger('mobile-toolbar', 'redo', null);
+      syncHistoryState(instance);
+   });
+};
+
+/**
+ * 同步当前 model 的撤回/重做可用性，供顶栏按钮禁用态展示。
+ * Monaco 0.52 已移除 model.undo / model.canUndo 等 API，用版本号近似判断：
+ * - versionId 从 1 开始，只要发生过编辑就 > 1，说明撤销栈非空、还有可撤回内容；
+ * - alternativeVersionId 表示"把所有撤回都重做完"后的版本号，
+ *   大于当前 versionId 说明存在可重做内容。
+ */
+const syncHistoryState = (instance: editor.IStandaloneCodeEditor) => {
+   const model = instance.getModel();
+   canUndo.value = !!model && model.getVersionId() > 1;
+   canRedo.value =
+      !!model && model.getAlternativeVersionId() > model.getVersionId();
+};
+
+onEditorInstanceReady((instance) => {
+   const update = () => syncHistoryState(instance);
+   instance.onDidChangeModelContent(update);
+   instance.onDidChangeModel(update);
+   update();
+});
+
+historyActions.value = { undo, redo };
+
+onUnmounted(() => {
+   if (historyActions.value?.undo === undo) {
+      historyActions.value = null;
+      canUndo.value = false;
+      canRedo.value = false;
+   }
+});
 
 // 打开配置 Modal
 const openSettingsModal = () => {
@@ -246,10 +309,10 @@ defineExpose({
       fill
       direction="vertical"
       gap="0"
-      class="bg-[#1F1F1F] rounded-xl overflow-hidden">
+      class="bg-[#1F1F1F] rounded-xl max-md:rounded-t-none overflow-hidden">
       <StSpace
          fill-x
-         class="p-1 rounded-t-xl bg-accent-600"
+         class="p-1 rounded-t-xl max-md:rounded-t-none bg-accent-600"
          justify="between"
          align="center"
          gap="0">
@@ -278,27 +341,25 @@ defineExpose({
             <div
                :ref="popperContainerKey"
                class="size-[2rem] rounded-[0.5rem] m-0.5 text-accent-200 bg-accent-500 cursor-pointer hover:bg-accent-400 transition-colors flex items-center justify-center"
-               @click="isDropdownOpen = !isDropdownOpen">
+               @click="toggleDropdown">
                <MoreOne />
             </div>
 
-            <!-- 下拉菜单 -->
             <Teleport to="body">
                <div
                   :ref="popperKey"
-                  class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem] border border-accent-500"
-                  :class="{
-                     '-translate-y-2 opacity-0 pointer-events-none':
-                        !isDropdownOpen,
-                  }">
-                  <StSpace
-                     align="center"
-                     gap="0.5rem"
-                     class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
-                     @click="openSettingsModal">
-                     <Setting />
-                     编辑器设置
-                  </StSpace>
+                  class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
+                  :class="isDropdownOpen ? 'visible' : 'hidden'">
+                  <template v-if="hasOpenedDropdown">
+                     <StSpace
+                        align="center"
+                        gap="0.5rem"
+                        class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
+                        @click="openSettingsModal">
+                        <Setting />
+                        编辑器设置
+                     </StSpace>
+                  </template>
                </div>
             </Teleport>
          </div>
@@ -324,7 +385,6 @@ defineExpose({
                该文件无法预览
             </span>
          </StSpace>
-         <MobileEditorToolbar :on-editor-instance-ready="onEditorInstanceReady" />
       </StSpace>
    </StSpace>
 

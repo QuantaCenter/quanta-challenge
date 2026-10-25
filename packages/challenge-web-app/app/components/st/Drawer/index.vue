@@ -4,6 +4,11 @@ import { Teleport } from 'vue';
 const props = defineProps<{
    global?: boolean;
    width?: string;
+   /**
+    * 移动端（<md 底部抽屉）高度随内容自适应（不超过 90dvh），
+    * 而不是固定撑到 90dvh。桌面右侧抽屉不受影响。
+    */
+   fit?: boolean;
 }>();
 
 const opened = defineModel<boolean>('opened', {
@@ -210,12 +215,18 @@ watch(opened, () => {
          <!-- 移动端（<md）为底部抽屉：全宽、90dvh、上圆角，从底部滑入；桌面端保持右侧抽屉。
               宽度走 CSS 变量而非内联 style，否则 max-md:w-full 无法覆盖它 -->
          <div
-            class="st-drawer-panel relative h-dvh w-[var(--drawer-width)] bg-black border-l border-accent-600 text-white max-md:h-[90dvh] max-md:w-full max-md:rounded-t-[1rem] max-md:border-l-0 max-md:border-t"
+            class="st-drawer-panel relative h-dvh w-[var(--drawer-width)] bg-black border-l border-accent-600 text-white max-md:w-full max-md:rounded-t-[1rem] max-md:border-l-0 max-md:border-t"
             :class="[
                shown
                   ? 'right-0'
                   : 'md:translate-x-full max-md:translate-y-full',
                dragging ? 'transition-none' : 'transition-all duration-300',
+               // 移动端高度：默认固定 90dvh；fit 模式随内容自适应，
+               // 但不低于 40dvh（太贴内容会显得局促），cap 到 90dvh。
+               // 二者互斥地写进条件类，避免同类名冲突后依赖样式表顺序
+               props.fit
+                  ? 'max-md:h-auto max-md:min-h-[40dvh] max-md:max-h-[90dvh]'
+                  : 'max-md:h-[90dvh]',
             ]"
             :style="{
                '--drawer-width': props.width || 'fit-content',

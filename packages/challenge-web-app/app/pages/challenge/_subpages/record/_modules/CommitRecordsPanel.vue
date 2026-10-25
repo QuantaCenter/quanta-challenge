@@ -5,7 +5,14 @@ import dayjs from 'dayjs';
 import CommitRecordSkeleton from '../_skeletons/CommitRecordSkeleton.vue';
 import type { CommitRecordType } from '../_types/shared-types';
 
-const props = defineProps<{ id: number }>();
+/**
+ * passive：本实例被 CSS 隐藏、由另一端（移动端/桌面）的实例接管交互。
+ * 页面为让 SSR 首屏即为正确布局会同时渲染桌面分栏与移动端列表两棵树
+ * （CSS 按断点显隐），passive 的一侧不发轮询请求、不响应事件总线。
+ */
+const props = defineProps<{ id: number; passive?: boolean }>();
+
+const emit = defineEmits<{ select: [record: CommitRecordType] }>();
 
 const { $trpc } = useNuxtApp();
 
@@ -33,12 +40,14 @@ const hasPending = computed(
 const startPolling = async () => {
    let waitTime = 1000;
    const polling = async () => {
+      if (props.passive) return;
       await refresh();
       if (hasPending.value) {
          waitTime *= 1.5;
          setTimeout(polling, waitTime);
       }
    };
+   if (props.passive) return;
    if (hasPending.value) {
       setTimeout(polling, waitTime);
    }
@@ -48,6 +57,7 @@ onMounted(startPolling);
 
 const commitEmitter = useEventBus<number>('challenge-commit');
 commitEmitter.on((id) => {
+   if (props.passive) return;
    // 提交后重新获取记录
    refresh().then(() => {
       const record =
@@ -62,6 +72,7 @@ const currentComponent = inject<Ref<'editor' | 'record'> | undefined>(
    undefined
 )!;
 watch(currentComponent, async (newVal) => {
+   if (props.passive) return;
    const opened = newVal === 'record';
    if (opened && !loading.value) {
       records.value = await getRecords();
@@ -135,6 +146,12 @@ recordSelectEmitter.emit(selectedRecord.value!, true);
 const selectRecord = (record: CommitRecordType) => {
    selectedRecord.value = record;
 };
+// 点击列表项：除常规选中（分栏联动）外，还向上通知——
+// 移动端父组件据此弹出详情抽屉
+const clickRecord = (record: CommitRecordType) => {
+   selectRecord(record);
+   emit('select', record);
+};
 
 watch(selectedRecord, (newRecord) => {
    if (newRecord) {
@@ -175,7 +192,7 @@ watch(selectedRecord, (newRecord) => {
                   class="opacity-50" />
                <CommitRecord
                   v-for="record in records"
-                  @click="selectRecord(record)"
+                  @click="clickRecord(record)"
                   :selected="selectedRecord?.id === record.id"
                   :key="record.createdAt"
                   :record="record" />

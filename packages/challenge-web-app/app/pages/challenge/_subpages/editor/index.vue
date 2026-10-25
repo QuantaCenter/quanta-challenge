@@ -15,6 +15,7 @@ import PreviewPanel from './_modules/PreviewPanel.vue';
 import RequestPanel from './_modules/RequestPanel.vue';
 import { useWebContainer } from '../../_composables/use-web-container';
 import DetailWindow from './_components/DetailWindow.vue';
+import MobileProblemDetail from './_components/MobileProblemDetail.vue';
 import CommitModal from './_components/CommitModal.vue';
 import EditorBoardLayout from './_components/EditorBoardLayout.vue';
 import { useCommands } from '../../_composables/use-commands/index';
@@ -231,6 +232,19 @@ onWebContainerFailed((err: any) => {
 
 // run project
 const editorStore = useEditorStore();
+
+// 移动端（与布局层 max-md: 断点一致）：文件树改由「更多」抽屉承载。
+// 用水合安全的判定：SSR 与客户端首帧恒为 false，避免 hydration mismatch
+const isMobile = useIsMobile();
+
+// 移动端在抽屉文件树里选中文件后：关闭抽屉并滑动到代码板块
+watch(selectedFilePath, (newPath) => {
+   if (!isMobile.value || !newPath || !editorStore.mobileFileDrawerOpened) {
+      return;
+   }
+   editorStore.mobileFileDrawerOpened = false;
+   editorStore.mobileBoardJump = { board: 'code', at: Date.now() };
+});
 type BootStep = 'container' | 'snapshot' | 'install' | 'start';
 const bootStep = ref<BootStep>('container');
 const snapshotStepText = ref('正在拉取快照镜像...');
@@ -786,12 +800,22 @@ useSeoMeta({
          :problem-id="id!" />
       <StSpace fill>
          <EditorBoardLayout :preview-label="previewBoardLabel">
+            <template #board-detail>
+               <!-- 移动端：题面作为代码编辑器左侧的独立分页板块（桌面走 DetailWindow 浮窗）。
+                    不用 v-if="isMobile"：那会让 SSR 首屏缺少题面（含骨架屏），移动端
+                    首帧一片黑。这里始终渲染，桌面端由板块外层的 hidden max-md:block 隐藏 -->
+               <MobileProblemDetail :markdown="problem?.detail" />
+            </template>
+
             <template #board-files>
-               <FileManagerPanel :dir-loader="dirLoader" :file-loader="fileLoader" :fs-tree="fsTree"
-                  :last-sync-time="fileChangeSync.lastSyncTime.value" :is-syncing="fileChangeSync.isSyncing.value"
-                  :sync-status="fileChangeSync.syncStatus.value" v-model:selected-path="selectedPath"
-                  @move-item="handleMoveItem" @file-click="handleFileClick" @add-file="handleAddFile"
-                  @add-folder="handleAddFolder" />
+               <!-- 移动端：Teleport 到布局层「更多」抽屉；桌面端保持三栏内嵌 -->
+               <Teleport :disabled="!isMobile" to="#challenge-mobile-drawer-files">
+                  <FileManagerPanel :dir-loader="dirLoader" :file-loader="fileLoader" :fs-tree="fsTree"
+                     :last-sync-time="fileChangeSync.lastSyncTime.value" :is-syncing="fileChangeSync.isSyncing.value"
+                     :sync-status="fileChangeSync.syncStatus.value" v-model:selected-path="selectedPath"
+                     @move-item="handleMoveItem" @file-click="handleFileClick" @add-file="handleAddFile"
+                     @add-folder="handleAddFolder" />
+               </Teleport>
             </template>
 
             <template #board-code>
