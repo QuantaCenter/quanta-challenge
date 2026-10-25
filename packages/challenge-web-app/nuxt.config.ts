@@ -125,6 +125,8 @@ export default defineNuxtConfig({
             headers: {
                contentSecurityPolicy: {
                   'script-src': ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+                  'upgrade-insecure-requests':
+                     process.env.NODE_ENV === 'production',
                },
             },
          },
