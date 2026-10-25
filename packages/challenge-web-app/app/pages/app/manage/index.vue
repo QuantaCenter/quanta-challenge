@@ -127,7 +127,7 @@ const options: ProcessOption[] = [
                      :fill="option.iconColor"
                      :strokeWidth="3"
                      size="7rem"
-                     class="max-md:w-[4.5rem]! max-md:h-[4.5rem]! absolute -right-5 -bottom-6 max-md:-right-2 max-md:-bottom-4 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
+                     class="max-md:w-[4.5rem]! max-md:h-[4.5rem]! absolute -right-5 -bottom-6 max-md:-right-1 max-md:-bottom-2 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
                </StSpace>
             </NuxtLink>
          </StSpace>

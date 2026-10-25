@@ -58,27 +58,28 @@ const rowIdentifier = (row: T, index: number) => {
 </script>
 
 <template>
-   <table class="!border-separate border-spacing-0 w-full table-fixed">
-      <colgroup>
-         <col
-            v-for="column in columns"
-            :key="column.key"
-            :class="column.class"
-            :style="column.width ? { width: column.width } : undefined" />
-      </colgroup>
-
-      <thead class="sticky top-[5.75rem] max-md:top-14 z-10">
-         <tr class="text-accent-700 text-nowrap whitespace-nowrap">
-            <th
-               v-for="(column, index) in columns"
+   <div class="w-full">
+      <table class="!border-separate border-spacing-0 w-full table-fixed">
+         <colgroup>
+            <col
+               v-for="column in columns"
                :key="column.key"
-               :class="headerClass(column, index)">
-               <slot :name="`header-${column.key}`" :column="column">
-                  {{ column.title }}
-               </slot>
-            </th>
-         </tr>
-      </thead>
+               :class="column.class"
+               :style="column.width ? { width: column.width } : undefined" />
+         </colgroup>
+
+         <thead class="sticky top-[5.75rem] max-md:top-14 z-10">
+            <tr class="text-accent-700 text-nowrap whitespace-nowrap">
+               <th
+                  v-for="(column, index) in columns"
+                  :key="column.key"
+                  :class="headerClass(column, index)">
+                  <slot :name="`header-${column.key}`" :column="column">
+                     {{ column.title }}
+                  </slot>
+               </th>
+            </tr>
+         </thead>
 
       <tbody v-if="loading">
          <tr
@@ -128,19 +129,16 @@ const rowIdentifier = (row: T, index: number) => {
             </td>
          </tr>
       </tbody>
+      </table>
 
-      <tbody v-else>
-         <tr>
-            <td :colspan="columns.length">
-               <slot name="empty">
-                  <StSpace
-                     center
-                     class="text-accent-400 my-[20vh] st-font-body-normal">
-                     {{ emptyText }}
-                  </StSpace>
-               </slot>
-            </td>
-         </tr>
-      </tbody>
-   </table>
+      <!-- 空态渲染在表格外：table-fixed 下空态 colspan 行会干扰列宽分配，导致表头坍缩 -->
+      <StSpace
+         v-if="!loading && rows.length === 0"
+         center
+         class="text-accent-400 my-[20vh] st-font-body-normal">
+         <slot name="empty">
+            {{ emptyText }}
+         </slot>
+      </StSpace>
+   </div>
 </template>

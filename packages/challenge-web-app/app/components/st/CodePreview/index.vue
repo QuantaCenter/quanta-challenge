@@ -48,4 +48,13 @@ onMounted(() => {
    font-family: 'FiraCode Nerd Font Mono', 'monospace' !important;
    font-variant-ligatures: none !important;
 }
+
+@media (max-width: 47.99rem) {
+   .code {
+      font-size: 0.8125rem;
+   }
+   .code :deep(pre) {
+      font-size: 0.8125rem !important;
+   }
+}
 </style>

@@ -10,11 +10,17 @@ export const AuditFail = () => {
    );
 };
 
-export const AuditSuccess = () => {
+export const AuditSuccess = ({
+   iconOnlyOnMobile,
+}: {
+   iconOnlyOnMobile?: boolean;
+}) => {
    return (
       <StSpace align='center' gap='0.375rem' class='text-success'>
          <CheckOne />
-         审核成功
+         <span class={iconOnlyOnMobile ? 'max-md:hidden' : undefined}>
+            审核成功
+         </span>
       </StSpace>
    );
 };

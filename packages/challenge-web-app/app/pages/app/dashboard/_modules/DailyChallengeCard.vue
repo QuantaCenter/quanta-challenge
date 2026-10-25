@@ -68,7 +68,12 @@ const {
    pending: isDailyProblemPending,
 } = useAsyncData(
    'daily-problem',
-   () => $trpc.public.daily.getProblem.query({ date: selectedDate.value }),
+   () => {
+      const request = $trpc.public.daily.getProblem.query({
+         date: selectedDate.value,
+      });
+      return import.meta.server ? request : atLeastTime(400, request);
+   },
    { watch: [selectedDate], dedupe: 'cancel' }
 );
 

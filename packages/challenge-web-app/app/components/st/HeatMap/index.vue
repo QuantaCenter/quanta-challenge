@@ -37,37 +37,84 @@ onMounted(() => {
       });
 });
 
-const PopperContent = (props: {
-   month: number;
-   day: number;
-   triggered: boolean;
-}) => {
-   const { month, day, triggered } = props;
-   const count = getCountByDate(month, day);
-   const date = getDateId(month, day);
-   return (
-      <div
-         class={[
-            'bg-accent-700 p-2 text-white rounded-md transition-all',
-            triggered
-               ? 'translate-0 scale-100 opacity-100'
-               : 'translate-y-2 scale-90 opacity-0',
-         ]}>
-         <div class='st-font-body-normal mb-1 flex items-center gap-1 text-white/60'>
-            <Calendar />
-            {date}
-         </div>
-         <div class='st-font-body-small flex items-center gap-1 text-white/60'>
-            <UploadOne />
-            <span>
-               当日
-               <span class='text-primary'> {count} </span>
-               次提交
-            </span>
-         </div>
-      </div>
-   );
-};
+const PopperContent = defineComponent({
+   props: {
+      month: { type: Number, required: true },
+      day: { type: Number, required: true },
+      triggered: { type: Boolean, default: false },
+   },
+   setup(props) {
+      // mounted 决定 DOM 是否存在，visible 只负责过渡动画
+      const mounted = ref(props.triggered);
+      const visible = ref(props.triggered);
+      let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+      watch(
+         () => props.triggered,
+         (triggered) => {
+            if (triggered) {
+               if (hideTimer) {
+                  clearTimeout(hideTimer);
+                  hideTimer = null;
+               }
+               mounted.value = true;
+               // 先让元素以"隐藏态"渲染一帧，再切成可见态，过渡才会真正播放
+               requestAnimationFrame(() =>
+                  requestAnimationFrame(() => {
+                     if (props.triggered) visible.value = true;
+                  })
+               );
+            } else {
+               visible.value = false;
+               hideTimer = setTimeout(() => {
+                  if (!props.triggered) mounted.value = false;
+               }, 250);
+            }
+         },
+         { immediate: true }
+      );
+
+      const onTransitionEnd = (event: TransitionEvent) => {
+         if (event.target !== event.currentTarget) return;
+         if (!props.triggered && !visible.value) {
+            if (hideTimer) {
+               clearTimeout(hideTimer);
+               hideTimer = null;
+            }
+            mounted.value = false;
+         }
+      };
+
+      return () => {
+         if (!mounted.value) return null;
+         const count = getCountByDate(props.month, props.day);
+         const date = getDateId(props.month, props.day);
+         return (
+            <div
+               class={[
+                  'bg-accent-700 p-2 text-white rounded-md transition-all',
+                  visible.value
+                     ? 'translate-0 scale-100 opacity-100'
+                     : 'translate-y-2 scale-90 opacity-0',
+               ]}
+               onTransitionend={onTransitionEnd}>
+               <div class='st-font-body-normal mb-1 flex items-center gap-1 text-white/60'>
+                  <Calendar />
+                  {date}
+               </div>
+               <div class='st-font-body-small flex items-center gap-1 text-white/60'>
+                  <UploadOne />
+                  <span>
+                     当日
+                     <span class='text-primary'> {count} </span>
+                     次提交
+                  </span>
+               </div>
+            </div>
+         );
+      };
+   },
+});
 
 const ZERO_HOVER_DELAY = 450;
 const zeroTipPos = ref<{ date: string; x: number; y: number } | null>(null);

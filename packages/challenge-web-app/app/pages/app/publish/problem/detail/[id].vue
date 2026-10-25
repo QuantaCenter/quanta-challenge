@@ -190,12 +190,9 @@ const handlerViewVersion = () => {
          ref="drawer"
          v-model:opened="drawerOpener"
          :problem-id="detail?.pid" />
-      <StFixed right="1.82rem" bottom="1.82rem">
-         <StSpace
-            direction="vertical"
-            gap="1.2rem"
-            align="center"
-            class="max-md:flex-row max-md:gap-3!">
+      <!-- 桌面端：右下角悬浮按钮 -->
+      <StFixed right="1.82rem" bottom="1.82rem" class="max-md:hidden">
+         <StSpace direction="vertical" gap="1.2rem" align="center">
             <SidePopper content="审核记录">
                <FixedButton
                   @click="handlerViewVersion"
@@ -226,11 +223,49 @@ const handlerViewVersion = () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[48rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
-         <h1
-            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
-            发布详情
-         </h1>
+         class="w-full max-w-[48rem] pb-[10rem] my-6 max-md:pb-6! max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <StSpace
+            fill-x
+            justify="between"
+            align="center"
+            class="flex-wrap gap-3!">
+            <h1
+               class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+               发布详情
+            </h1>
+            <!-- 移动端：标题右侧按钮 -->
+            <StSpace gap="1rem" align="center" class="md:hidden max-md:gap-2!">
+               <SidePopper content="审核记录" placement="bottom">
+                  <FixedButton
+                     @click="handlerViewVersion"
+                     :icon="HamburgerButton" />
+               </SidePopper>
+               <SidePopper
+                  v-if="showSetCurrentButton"
+                  content="设为当前版本"
+                  placement="bottom">
+                  <FixedButton
+                     @click="handleSetCurrentProblem"
+                     :loading="onSetCurrentProblem"
+                     :icon="Flag" />
+               </SidePopper>
+               <SidePopper
+                  v-if="showSwitchButton"
+                  placement="bottom"
+                  :content="detail?.status === 'published' ? '取消发布' : '发布'">
+                  <FixedButton
+                     @click="handleSwitchPublishStatus"
+                     :loading="onSwitchPublishStatus"
+                     :icon="switchButtonIcon" />
+               </SidePopper>
+               <SidePopper content="编辑" placement="bottom">
+                  <FixedButton @click="handleEdit" :icon="Edit" />
+               </SidePopper>
+               <SidePopper content="返回" placement="bottom">
+                  <FixedButton @click="handleReturn" :icon="Return" />
+               </SidePopper>
+            </StSpace>
+         </StSpace>
          <StSpace
             direction="vertical"
             gap="2rem"
