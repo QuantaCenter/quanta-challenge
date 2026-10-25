@@ -48,9 +48,16 @@ onMounted(() => {
             </StSpace>
             <DailyChallengeCard />
          </StSpace>
-         <StSpace direction="vertical" gap="1.5rem" fill>
+         <StSpace
+            direction="vertical"
+            gap="1.5rem"
+            fill
+            class="max-md:h-auto max-md:shrink-0">
             <SubmissionStatusCard />
-            <StSpace gap="1.5rem" fill class="max-md:flex-col">
+            <StSpace
+               gap="1.5rem"
+               fill
+               class="max-md:flex-col max-md:h-auto max-md:shrink-0">
                <RankingCard />
                <AchievementsCard />
             </StSpace>

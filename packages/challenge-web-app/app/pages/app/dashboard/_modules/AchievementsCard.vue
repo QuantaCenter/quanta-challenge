@@ -32,8 +32,6 @@ const formatAchievedDate = (date: string) => {
 };
 
 const hideMask = ref(false);
-// 顶部遮罩仅在列表下滚后出现，避免静止时盖住首个徽章
-const hideTopMask = ref(true);
 const container = useTemplateRef('container');
 onMounted(() => {
    if (!container.value) return;
@@ -41,7 +39,6 @@ onMounted(() => {
    const scrollHandler = () => {
       if (!container.value) return;
       hideMask.value = el.scrollHeight - el.scrollTop <= el.clientHeight + 10;
-      hideTopMask.value = el.scrollTop <= 10;
    };
    el.addEventListener('scroll', scrollHandler);
    onBeforeUnmount(() => {
@@ -54,7 +51,7 @@ onMounted(() => {
    <StCard
       :icon="FiveStarBadge"
       :title="status === 'personal-space' ? '我的成就' : '徽章墙'"
-      class="w-full h-full !pb-0 overflow-hidden relative">
+      class="w-full h-full !pb-0 overflow-hidden relative max-md:h-auto max-md:shrink-0">
       <template #header-right>
          <LinkButton
             v-if="status !== 'personal-space'"
@@ -108,7 +105,7 @@ onMounted(() => {
                      </div>
                   </StSpace>
                </StSpace>
-               <div class="w-full h-1.5"></div>
+               <div class="w-full h-4 shrink-0 -mt-3"></div>
             </StSpace>
 
             <StSpace
@@ -124,9 +121,6 @@ onMounted(() => {
             </StSpace>
          </StSkeleton>
       </div>
-      <div
-         class="top-mask pointer-events-none absolute top-16 h-6 w-full transition-opacity"
-         :style="{ opacity: hideTopMask ? 0 : 1 }"></div>
       <div
          class="bottom-mask pointer-events-none w-full h-[3rem] absolute bottom-0 transition-opacity"
          :style="{ opacity: hideMask ? 0 : 1 }"></div>
