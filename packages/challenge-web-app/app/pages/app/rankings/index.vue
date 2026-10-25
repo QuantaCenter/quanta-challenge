@@ -3,28 +3,53 @@ import { ToTop } from '@icon-park/vue-next';
 import CurrentRankCard from './_components/CurrentRankCard.vue';
 import ProfileCard from './_components/ProfileCard.vue';
 import RankingTrendsCard from './_components/RankingTrendsCard.vue';
+import MobileRankSummaryCard from './_components/MobileRankSummaryCard.vue';
 import RankTable from './_components/RankTable.vue';
 import type { IRanking } from './_types';
 import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
-import useAuthStore from '~/stores/auth-store';
 
 const { $trpc } = useNuxtApp();
+
+// TODO: 仅供预览效果的 mock 数据，验收完成后删除（将 transform 换回原实现即可）
+const MOCK_NAMES = [
+   '星尘',
+   '量子猫',
+   '代码搬运工',
+   '月亮不睡',
+   '阿基米德',
+   '螺旋桨',
+   '深夜刷题人',
+   '咖啡因依赖',
+   '斐波那契',
+   '小码农',
+   '海拉鲁剑客',
+   '芝士蛋糕',
+   '过河卒',
+   '像素风',
+   '半糖去冰',
+   '矩阵漫游者',
+   '拿铁不加糖',
+   '折跃点',
+   '摸鱼锦标赛冠军',
+   '算法废柴',
+];
+const MOCK_RANKINGS: IRanking[] = MOCK_NAMES.map((name, i) => ({
+   userId: `mock-${i + 1}`,
+   uid: `mock-uid-${i + 1}`,
+   userName: name,
+   rank: i + 1,
+   score: 2480 - i * 86,
+   correctRate: Number((96.4 - i * 2.1).toFixed(2)),
+   passCount: 326 - i * 11,
+   imageUrl: DEFAULT_AVATAR_URL,
+}));
 
 const { data: rankings, pending: loadingRankings } = useAsyncData(
    'rankings',
    () => $trpc.public.rank.getGlobalRankings.query(),
    {
-      transform: (data): IRanking[] =>
-         data.map((item) => ({
-            userId: item.userId,
-            correctRate: item.correctRate,
-            imageUrl: item.avatarUrl ?? DEFAULT_AVATAR_URL,
-            rank: item.rank,
-            score: item.score,
-            passCount: item.passCount,
-            userName: item.userName,
-            uid: item.uid,
-         })),
+      // TODO: mock 预览 —— 验收后恢复为原 transform（见上方 MOCK_RANKINGS 注释）
+      transform: (): IRanking[] => MOCK_RANKINGS,
    }
 );
 
@@ -55,30 +80,33 @@ const handleToTop = () => {
    });
 };
 
-const authStore = useAuthStore();
-const isListed = computed(() => {
-   if (!rankings.value || !authStore.user) return false;
-   return rankings.value.some((item) => item.userId === authStore.user!.id);
-});
 </script>
 
 <template>
-   <StSpace fill-y justify="center" gap="1.25rem" class="pt-6">
+   <StSpace
+      fill-y
+      justify="center"
+      gap="1.25rem"
+      class="pt-6 max-md:flex-col max-md:px-4">
       <StSpace
          ref="rankContainer"
          gap="0"
          fill-y
          direction="vertical"
          align="center"
-         class="pb-48 relative">
-         <h1 class="text-[2.5rem] font-bold text-white w-full">排行榜</h1>
+         class="pb-48 max-md:pb-24 relative">
+         <h1
+            class="text-[2.5rem] font-bold text-white w-full max-md:text-[1.5rem] max-md:leading-[1.2] max-md:mb-4">
+            排行榜
+         </h1>
+         <MobileRankSummaryCard class="max-md:flex md:hidden" />
          <StSpace
             fill-x
-            class="bg-background h-6 sticky top-[4.25rem]"></StSpace>
+            class="bg-background h-6 sticky top-[4.25rem] max-md:top-14 max-md:h-4"></StSpace>
          <RankTable :data="rankings ?? []" :loading="loadingRankings" />
          <StSpace
             @click="handleToTop"
-            class="fixed bottom-6 bg-accent-500 opacity-60 hover:opacity-100 cursor-pointer border border-transparent hover:border-secondary transition-all p-4 py-2 rounded-lg"
+            class="fixed bottom-6 max-md:bottom-24 bg-accent-500 opacity-60 hover:opacity-100 cursor-pointer border border-transparent hover:border-secondary transition-all p-4 py-2 rounded-lg"
             :class="{
                '!opacity-0 translate-y-4 pointer-events-none': !showToTop,
             }"
@@ -92,7 +120,7 @@ const isListed = computed(() => {
          direction="vertical"
          align="center"
          gap="0.75rem"
-         class="!sticky bottom-0 w-[18.875rem] pb-4 self-end min-h-[calc(100vh-5.75rem-1.25rem)]">
+         class="!sticky bottom-0 w-[18.875rem] pb-4 self-end min-h-[calc(100vh-5.75rem-1.25rem)] max-md:w-full max-md:!static max-md:self-auto max-md:min-h-0 max-md:hidden">
          <ProfileCard />
          <CurrentRankCard :is-listed="isListed" />
          <RankingTrendsCard />

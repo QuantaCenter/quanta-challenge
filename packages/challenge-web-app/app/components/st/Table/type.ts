@@ -10,4 +10,6 @@ export interface ITableColumn {
    cellAlign?: 'left' | 'center' | 'right';
    /** 骨架条形状，默认 'h-5 w-[6rem] rounded-md'；横向是「内容宽度」而非列宽 */
    skeletonClass?: string;
+   /** 追加到该列 col/th/td 上的类名，如用 'max-md:hidden' 做响应式隐藏列（SSR 安全） */
+   class?: string;
 }

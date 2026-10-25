@@ -13,6 +13,7 @@ defineProps<{
    loading: boolean;
 }>();
 
+// 「正确率 / 通过次数」两列在移动端通过 CSS 隐藏（SSR 安全，避免水合前后列数不一致导致样式闪跳）
 const columns: ITableColumn[] = [
    {
       key: 'rank',
@@ -27,12 +28,15 @@ const columns: ITableColumn[] = [
       title: '分数',
       width: '6rem',
       skeletonClass: 'h-5 w-[4.7rem] rounded-md',
+      // 移动端最后两列被隐藏，分数列成为可见的最后一列，需接管右侧圆角与内边距
+      class: 'max-md:rounded-r-lg max-md:pr-6',
    },
    {
       key: 'correctRate',
       title: '正确率',
       width: '6rem',
       skeletonClass: 'h-5 w-[5rem] rounded-md',
+      class: 'max-md:hidden',
    },
    {
       key: 'passCount',
@@ -40,6 +44,7 @@ const columns: ITableColumn[] = [
       width: '6rem',
       cellAlign: 'center',
       skeletonClass: 'h-5 w-[5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
 ];
 </script>
