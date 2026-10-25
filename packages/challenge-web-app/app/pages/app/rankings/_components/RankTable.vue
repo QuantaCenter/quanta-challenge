@@ -45,7 +45,7 @@ const columns: ITableColumn[] = [
 </script>
 
 <template>
-   <StSpace class="w-[48rem]">
+   <StSpace class="w-full max-w-[48rem]">
       <StTable
          :columns="columns"
          :rows="data"

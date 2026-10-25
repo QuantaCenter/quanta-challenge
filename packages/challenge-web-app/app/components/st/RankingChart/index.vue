@@ -60,7 +60,7 @@ const xAxisLabels = computed(() => {
             :class="[
                currentIntervalIdx === idx ? 'bg-primary' : 'bg-secondary',
             ]"
-            class="w-full rounded-sm transition-all duration-500 ease-out relative">
+            class="w-full rounded-sm transition-[height] duration-500 ease-out relative">
             <svg
                v-if="currentIntervalIdx === idx"
                xmlns="http://www.w3.org/2000/svg"

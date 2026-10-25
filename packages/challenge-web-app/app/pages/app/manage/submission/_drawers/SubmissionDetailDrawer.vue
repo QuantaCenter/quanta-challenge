@@ -173,14 +173,14 @@ onUnmounted(stopPolling);
 <template>
   <StDrawer v-model:opened="opened" global width="42rem">
     <div class="w-full h-full flex items-start justify-center">
-      <div class="w-[38rem] h-full relative overflow-auto hide-scrollbar pt-4">
+      <div class="w-full max-w-[38rem] h-full relative overflow-auto hide-scrollbar pt-4">
         <StSkeleton :loading="loading">
           <template #loading>
             <CommitDetailSkeleton />
           </template>
           <StSpace
             v-if="detail"
-            class="w-[38rem] min-h-full absolute top-4 left-0 pb-8"
+            class="w-full max-w-[38rem] min-h-full absolute top-4 left-0 pb-8"
             gap="1rem"
             direction="vertical">
             <StSpace

@@ -512,7 +512,7 @@ watch(
                transition: 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
             }"
             :class="[
-               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
+               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem] max-sm:min-w-0 max-sm:max-w-[calc(100vw-1rem)]',
                { 'opacity-0 pointer-events-none': !opened },
                !opened && {
                   '!-mb-4': upside,

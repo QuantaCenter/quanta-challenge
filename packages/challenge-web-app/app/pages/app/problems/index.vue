@@ -138,7 +138,7 @@ const {
       align="center"
       gap="0"
       class="hide-scrollbar overflow-auto">
-      <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
+      <StSpace fill-y direction="vertical" class="mt-6 w-full max-w-[65rem]">
          <h1 class="text-[2.5rem] font-bold text-white">题目</h1>
          <StSkeleton :loading="tagsStatus === 'pending'">
             <template #loading>
@@ -225,7 +225,7 @@ const {
             <StEmptyStatus
                v-if="!problems.length"
                content="暂无题目"
-               class="!w-[61.75rem] pb-32 mt-[5rem]" />
+               class="!w-full !max-w-[61.75rem] pb-32 mt-[5rem]" />
             <StGrid v-else fill :cols="4" gap="1.25rem">
                <a
                   v-for="(problem, idx) in problems"

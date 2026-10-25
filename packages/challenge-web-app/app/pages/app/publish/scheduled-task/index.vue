@@ -116,7 +116,7 @@ const handleCreate = async () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-full max-w-[44rem] pb-[10rem] my-6">
          <h1 class="st-font-hero-bold">定时任务</h1>
 
          <!-- 仅一种任务类型时隐藏切换，后续增加任务类型后自动展示 -->

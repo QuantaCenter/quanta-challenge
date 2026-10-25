@@ -40,7 +40,7 @@ const {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[60rem] pb-[10rem] my-6">
+         class="w-full max-w-[60rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem">
             <h1 class="st-font-hero-bold text-accent-100">成员管理</h1>
             <span

@@ -194,7 +194,7 @@ const handleSend = async () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-full max-w-[44rem] pb-[10rem] my-6">
          <h1 class="st-font-hero-bold">发送通知</h1>
          <StForm
             ref="form"

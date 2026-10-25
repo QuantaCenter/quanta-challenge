@@ -94,7 +94,7 @@ const options: ProcessOption[] = [
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-full max-w-[44rem] pb-[10rem] my-6">
          <h1 class="st-font-hero-bold">管理流程</h1>
 
          <StSpace direction="vertical" gap="1.5rem" fill-x>

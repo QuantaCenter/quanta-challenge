@@ -126,7 +126,7 @@ onMounted(() => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
+         class="w-full max-w-[44rem] pb-[10rem] my-6">
          <h1 class="st-font-hero-bold">定时任务管理</h1>
 
          <StSpace gap="0.75rem" class="w-full">

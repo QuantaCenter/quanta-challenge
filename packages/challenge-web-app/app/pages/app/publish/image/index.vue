@@ -634,7 +634,7 @@ const handlePublish = async () => {
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem">
             <h1 class="st-font-hero-bold">{{ isEditMode ? '编辑快照镜像' : '构建快照镜像' }}</h1>
             <span

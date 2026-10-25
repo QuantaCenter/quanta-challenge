@@ -127,7 +127,7 @@ const increaseRatioText = computed(() => {
             </StSpace>
          </StSpace>
 
-         <StSpace fill class="max-h-[13rem]">
+         <StSpace fill class="max-h-[13rem] max-md:h-[10rem]">
             <StRankingChart
                :rank="rankings ?? []"
                :current-score="statistics.score" />

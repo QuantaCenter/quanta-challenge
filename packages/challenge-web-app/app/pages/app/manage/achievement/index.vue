@@ -70,7 +70,7 @@ const achievementList = computed(() => {
 
 <template>
    <StSpace fill justify="center">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6">
          <StSpace align="end" gap="1rem">
             <h1 class="st-font-hero-bold text-accent-100">成就管理</h1>
             <span

@@ -58,7 +58,7 @@ const handleKeyCreated = async (secret: { keyId: string; secret: string }) => {
       <StSpace
          direction="vertical"
          gap="2.5rem"
-         class="w-[64rem] pb-[10rem] my-6">
+         class="w-full max-w-[64rem] pb-[10rem] my-6">
          <!-- Hero -->
          <h1 class="w-full st-font-hero-bold text-accent-100">云函数管理</h1>
 

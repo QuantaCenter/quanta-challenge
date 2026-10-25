@@ -138,7 +138,7 @@ const handleCheckin = async () => {
 
 <template>
    <StCard :icon="Calendar" class="h-full" title="每日一题">
-      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5">
+      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5 max-sm:flex-col">
          <StSpace direction="vertical" gap="1rem" class="w-full h-full">
             <StDateIndicator
                v-model="selectedDate"

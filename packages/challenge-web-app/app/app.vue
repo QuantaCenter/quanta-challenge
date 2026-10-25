@@ -12,7 +12,7 @@ onMounted(() => {
 <template>
    <div
       class="bg-background text-white font-family-sans text-base"
-      :class="{ 'min-w-[1440px]': !isQuantaLoginPath(route.path) }"
+      :class="{ 'md:min-w-[1440px]': !isQuantaLoginPath(route.path) }"
    >
       <NuxtPage />
    </div>

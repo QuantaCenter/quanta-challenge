@@ -88,16 +88,20 @@ onMounted(() => {
 
 /** 新通知到达信号：SSE 推送触发，跨组件共享 */
 const notificationNewSignal = useState('notification-new-signal', () => 0);
+
+// 移动端导航抽屉（< 768px 时由移动端顶栏展开）
+const mobileDrawerOpen = ref(false);
 </script>
 
 <template>
-   <div class="w-full flex min-w-[1440px]">
-      <StSidebar class="w-[9.3125rem] !fixed left-0 top-0 h-screen" />
-      <div class="w-[9.3125rem]"></div>
-      <main class="flex flex-col flex-1">
+   <div class="w-full flex md:min-w-[1440px]">
+      <StSidebar
+         class="w-[9.3125rem] !fixed left-0 top-0 h-screen max-md:hidden" />
+      <div class="w-[9.3125rem] max-md:hidden"></div>
+      <main class="flex flex-col flex-1 pb-24 md:pb-0">
          <StHeader
             mode="gradient"
-            class="fixed top-0 !w-[calc(100vw-9.3125rem)] !min-w-[calc(1440px-9.3125rem)]">
+            class="fixed top-0 !w-[calc(100vw-9.3125rem)] !min-w-[calc(1440px-9.3125rem)] max-md:!hidden">
             <template #left>
                <StSpace gap="0.75rem" align="center">
                   <StHeaderButton text="搜索" @click="handleSearchClick">
@@ -129,9 +133,14 @@ const notificationNewSignal = useState('notification-new-signal', () => 0);
             </template>
          </StHeader>
 
-         <div class="h-[5.75rem]"></div>
+         <div class="h-14 md:h-[5.75rem]"></div>
          <slot></slot>
       </main>
+
+      <!-- 移动端导航（< 768px） -->
+      <StMobileHeader @open-drawer="mobileDrawerOpen = true" />
+      <StMobileNavDrawer v-model:open="mobileDrawerOpen" />
+      <StMobileBottomNav />
 
       <StPageLoading />
 
