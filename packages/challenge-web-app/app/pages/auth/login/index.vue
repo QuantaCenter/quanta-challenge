@@ -89,9 +89,9 @@ const gotoQuantaLogin = async () => {
 </script>
 
 <template>
-   <div class="w-screen h-screen flex items-center justify-center">
+   <div class="w-full h-dvh overflow-hidden flex items-center justify-center">
       <div
-         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-none gap-6 w-screen h-screen sm:rounded-r5 sm:w-[28.5rem] sm:h-auto"
+         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-none gap-6 w-full h-full overflow-y-auto sm:rounded-r5 sm:w-[28.5rem] sm:h-auto"
       >
          <IconLogo />
          <div class="flex flex-col items-center gap-r6">

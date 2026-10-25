@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3';
-import { ITokenPayload, verifyToken } from '../utils/jwt';
+import type { ITokenPayload } from '../utils/jwt';
+import { verifyToken } from '../utils/jwt';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { getRequestContext } from '@challenge/shared/trace';
 

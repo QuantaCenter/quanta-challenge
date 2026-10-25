@@ -154,10 +154,12 @@ export function loginError(error: unknown) {
       data?.error ??
       value?.code;
    return {
+      // Object.hasOwn 守卫下 labels[code] 仍是 string | undefined（noUncheckedIndexedAccess），
+      // 用 ?? 兜底保证 message 恒为 string
       message:
-         typeof code === 'string' && Object.hasOwn(labels, code)
+         (typeof code === 'string' && Object.hasOwn(labels, code)
             ? labels[code]
-            : '登录未完成，请稍后重试。',
+            : undefined) ?? '登录未完成，请稍后重试。',
       restart: typeof code === 'string' && restartCodes.has(code),
    };
 }

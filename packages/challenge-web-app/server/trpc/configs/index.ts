@@ -1,4 +1,4 @@
-import { ValidFieldPath } from '@challenge/database';
+import type { ValidFieldPath } from '@challenge/database';
 
 /** 不合法的字段路径列表（正则或具体路径） */
 export const invalidFieldsPattern: (ValidFieldPath | RegExp)[] = [

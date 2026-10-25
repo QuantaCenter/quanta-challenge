@@ -9,10 +9,11 @@ import {
 } from '../../schemas/publish-schema';
 import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
-import { IFile, projectService } from '../../services/project';
+import type { IFile } from '../../services/project';
+import { projectService } from '../../services/project';
 import z from 'zod';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { DefaultArgs } from '@prisma/client/runtime/library';
+import type { DefaultArgs } from '@prisma/client/runtime/library';
 import { useStore } from '../../store';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';

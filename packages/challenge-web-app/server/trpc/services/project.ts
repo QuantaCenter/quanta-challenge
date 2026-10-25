@@ -1,6 +1,6 @@
 import prisma from '~~/lib/prisma';
-import { Prisma, PrismaClient, VirtualFiles } from '@prisma/client';
-import { DefaultArgs } from '@prisma/client/runtime/library';
+import { Prisma, PrismaClient, type VirtualFiles } from '@prisma/client';
+import type { DefaultArgs } from '@prisma/client/runtime/library';
 import { TRPCError } from '@trpc/server';
 import { observer } from './achievement';
 

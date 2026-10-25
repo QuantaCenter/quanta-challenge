@@ -97,7 +97,7 @@ const handleToTop = () => {
          gap="0.75rem"
          class="!sticky bottom-0 w-[18.875rem] pb-4 self-end min-h-[calc(100vh-5.75rem-1.25rem)] max-md:w-full max-md:!static max-md:self-auto max-md:min-h-0 max-md:hidden">
          <ProfileCard />
-         <CurrentRankCard :is-listed="isListed" />
+         <CurrentRankCard />
          <RankingTrendsCard />
       </StSpace>
    </StSpace>

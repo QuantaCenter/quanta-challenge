@@ -1,7 +1,7 @@
 import prisma from '@challenge/database';
 import { TRPCError } from '@trpc/server';
 import pkg from 'node-sql-parser';
-import { ValidPath } from '~~/lib/track-wrapper';
+import type { ValidPath } from '~~/lib/track-wrapper';
 import { LRUMap } from '../../../utils/lru-map';
 import { EventEmitter } from '../../../../app/utils/event-emitter';
 import { VM } from 'vm2';

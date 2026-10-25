@@ -1,6 +1,6 @@
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import { searchQuerySchema, SearchType } from '../../schemas/search';
+import { searchQuerySchema, type SearchType } from '../../schemas/search';
 import prisma from '~~/lib/prisma';
 import type {
    SearchResult,

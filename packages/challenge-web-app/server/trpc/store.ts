@@ -1,4 +1,4 @@
-import { IStore } from '../utils/i-store';
+import type { IStore } from '../utils/i-store';
 
 const store = new LocalStore();
 
