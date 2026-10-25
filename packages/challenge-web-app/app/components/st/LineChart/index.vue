@@ -69,7 +69,7 @@ const length = computed(() => {
 
 <template>
    <StSpace fill-x ref="container">
-      <svg :viewBox="`0 0 ${width} ${height}`" class="w-full transition-all">
+      <svg :viewBox="`0 0 ${width} ${height}`" class="w-full">
          <polyline
             :points="path"
             :style="{ '--stroke-length': length }"

@@ -39,10 +39,10 @@ const description = computed(() => {
 </script>
 
 <template>
-   <StSpace class="w-[18.875rem] p-2 pb-7 rounded-xl bg-accent-600 relative">
+   <StSpace class="w-full md:w-[18.875rem] p-2 pb-7 rounded-xl bg-accent-600 relative">
       <StSpace fill-x direction="vertical" align="center" class="mt-[5.62rem]">
          <StSpace
-            class="w-[17.875rem] h-32 rounded-t-lg bg-accent-500 absolute top-2 left-2 overflow-hidden">
+            class="h-32 rounded-t-lg bg-accent-500 absolute top-2 left-2 right-2 overflow-hidden">
             <StSkeletonItem v-if="pending" class="size-full rounded-md" />
             <StImage v-else :src="DEFAULT_PROFILE_BANNER" class="size-full" />
          </StSpace>

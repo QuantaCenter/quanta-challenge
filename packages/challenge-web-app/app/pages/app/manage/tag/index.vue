@@ -12,6 +12,7 @@ import { textColorOn } from './_utils/color';
 useSeoMeta({ title: '标签管理 - Quanta Challenge' });
 
 const columns: ITableColumn[] = [
+   // 描述 / 颜色两列在移动端通过 CSS 隐藏（SSR 安全）；图标列保留展示
    {
       key: 'icon',
       title: '图标',
@@ -19,8 +20,13 @@ const columns: ITableColumn[] = [
       skeletonClass: 'size-[2.25rem] rounded-lg',
    },
    { key: 'label', title: '标签名', width: '10rem' },
-   { key: 'description', title: '描述', skeletonClass: 'h-5 w-[12rem] rounded-md' },
-   { key: 'color', title: '颜色', width: '8.5rem' },
+   {
+      key: 'description',
+      title: '描述',
+      skeletonClass: 'h-5 w-[12rem] rounded-md',
+      class: 'max-md:hidden',
+   },
+   { key: 'color', title: '颜色', width: '8.5rem', class: 'max-md:hidden' },
    { key: 'action', title: '操作', width: '7rem', align: 'center' },
 ];
 
@@ -122,9 +128,9 @@ const deleteTag = async (tid: number) => {
 
 <template>
    <StSpace fill justify="center">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <StSpace align="end" gap="1rem">
-            <h1 class="st-font-hero-bold text-accent-100">标签管理</h1>
+            <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">标签管理</h1>
             <span
                class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
                共 {{ tagOptions.length }} 个标签

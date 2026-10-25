@@ -7,21 +7,37 @@ import { logger } from '~~/lib/logger';
 useSeoMeta({ title: '成就管理 - Quanta Challenge' });
 
 const columns: ITableColumn[] = [
+   // 描述 / 创建时间两列在移动端通过 CSS 隐藏（SSR 安全）；徽章列保留展示
    {
       key: 'badge',
       title: '徽章',
       width: '5rem',
       skeletonClass: 'size-[2.25rem] rounded-lg',
    },
-   { key: 'name', title: '成就名', width: '10rem' },
-   { key: 'description', title: '描述', skeletonClass: 'h-5 w-[12rem] rounded-md' },
+   {
+      key: 'name',
+      title: '成就名',
+      width: '10rem',
+      skeletonClass: 'h-5 w-[12rem] max-md:w-[5.5rem] rounded-md',
+   },
+   {
+      key: 'description',
+      title: '描述',
+      skeletonClass: 'h-5 w-[12rem] rounded-md',
+      class: 'max-md:hidden',
+   },
    {
       key: 'score',
       title: '成就分',
       width: '6rem',
       skeletonClass: 'h-5 w-[3rem] rounded-md',
    },
-   { key: 'createdAt', title: '创建时间', width: '8rem' },
+   {
+      key: 'createdAt',
+      title: '创建时间',
+      width: '8rem',
+      class: 'max-md:hidden',
+   },
    {
       key: 'action',
       title: '操作',
@@ -70,16 +86,17 @@ const achievementList = computed(() => {
 
 <template>
    <StSpace fill justify="center">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <StSpace align="end" gap="1rem">
-            <h1 class="st-font-hero-bold text-accent-100">成就管理</h1>
+            <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">成就管理</h1>
             <span
-               class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
+               class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full max-md:px-2 max-md:py-0.5 max-md:my-1">
                共 {{ achievementList.length }} 个成就
             </span>
          </StSpace>
 
          <StTable
+            class="achievement-table"
             :columns="columns"
             :rows="achievementList"
             :loading="pending"
@@ -151,3 +168,33 @@ const achievementList = computed(() => {
       </StSpace>
    </StSpace>
 </template>
+
+<style scoped>
+/* 仅移动端收窄可见列（徽章/成就名/成就分/操作）的列宽与内边距，PC 端样式不受影响 */
+@media (max-width: 47.99rem) {
+   .achievement-table :deep(col:nth-child(1)) {
+      width: 3.5rem !important;
+   }
+   .achievement-table :deep(col:nth-child(2)) {
+      width: 7.5rem !important;
+   }
+   .achievement-table :deep(col:nth-child(4)) {
+      width: 4rem !important;
+   }
+   .achievement-table :deep(col:nth-child(6)) {
+      width: 3.5rem !important;
+   }
+   .achievement-table :deep(th:nth-child(1)),
+   .achievement-table :deep(td:nth-child(1)) {
+      padding-left: 0.75rem;
+   }
+   .achievement-table :deep(th:nth-child(2)),
+   .achievement-table :deep(td:nth-child(2)) {
+      padding-left: 0.75rem;
+   }
+   .achievement-table :deep(th:nth-child(6)),
+   .achievement-table :deep(td:nth-child(6)) {
+      padding-right: 0.75rem;
+   }
+}
+</style>

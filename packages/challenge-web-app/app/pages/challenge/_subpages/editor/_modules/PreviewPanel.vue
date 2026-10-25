@@ -78,6 +78,9 @@ const onAddressEscape = (event: KeyboardEvent) => {
 
 const fullScreenMode = ref(false);
 
+/** 移动端（与布局层 max-md: 断点一致） */
+const isMobile = useMediaQuery('(max-width: 767px)');
+
 const FULLSCREEN_TARGET = {
    left: '2rem',
    top: '2rem',
@@ -86,6 +89,21 @@ const FULLSCREEN_TARGET = {
    borderRadius: '0.75rem',
 };
 const FULLSCREEN_TRANSITION = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+
+/**
+ * 移动端横屏全屏目标：rotate(90deg) 把预览转成横屏。
+ * 变换以左上角为原点、锚在 left:100%，宽取 100dvh、高取 100dvw，
+ * 旋转后恰好铺满整个竖屏视口（无四周间隔、无圆角）。
+ */
+const MOBILE_LANDSCAPE_TARGET = {
+   left: '100%',
+   top: '0px',
+   width: '100dvh',
+   height: '100dvw',
+   transform: 'rotate(90deg)',
+   transformOrigin: 'top left',
+   borderRadius: '0px',
+};
 
 /** 全屏层的定位样式：初始钉在容器内 iframe 的位置，再过渡到全屏 */
 const fullscreenStyle = ref<Record<string, string>>({});
@@ -104,6 +122,17 @@ let leaveTimer: ReturnType<typeof setTimeout> | undefined;
 const enterFullScreenMode = () => {
    if (fullScreenMode.value) return;
    clearTimeout(leaveTimer);
+   // 移动端：直接切到横屏全屏（旋转铺满视口，无间隔），不做飞入动画
+   if (isMobile.value) {
+      fullScreenMode.value = true;
+      fullscreenStyle.value = {
+         ...MOBILE_LANDSCAPE_TARGET,
+         opacity: '1',
+         pointerEvents: 'auto',
+         transition: 'none',
+      };
+      return;
+   }
    const rect = inlineFrameRef.value?.getBoundingClientRect();
    fullScreenMode.value = true;
    fullscreenStyle.value = {
@@ -129,6 +158,11 @@ const enterFullScreenMode = () => {
 
 const leaveFullScreenMode = () => {
    if (!fullScreenMode.value) return;
+   // 移动端：直接退出，不回放飞回动画
+   if (isMobile.value) {
+      fullScreenMode.value = false;
+      return;
+   }
    const rect = inlineFrameRef.value?.getBoundingClientRect();
    if (!rect) {
       fullScreenMode.value = false;
@@ -180,14 +214,16 @@ const consolePercent = computed(
 const consoleDragging = computed(() => consoleDragPercent.value !== null);
 const splitRef = useTemplateRef<HTMLElement>('split');
 
-const startConsoleResize = (event: MouseEvent) => {
+const startConsoleResize = (event: PointerEvent) => {
+   // pointerdown 对触摸同样触发，仅响应主键（左键 / 触屏）
+   if (event.button !== 0) return;
    const container = splitRef.value;
    if (!container) return;
    event.preventDefault();
    const rect = container.getBoundingClientRect();
    consoleDragPercent.value = consolePercent.value;
 
-   const onMouseMove = (moveEvent: MouseEvent) => {
+   const onPointerMove = (moveEvent: PointerEvent) => {
       const percent = ((rect.bottom - moveEvent.clientY) / rect.height) * 100;
       consoleDragPercent.value = clampPercent(
          percent,
@@ -195,9 +231,10 @@ const startConsoleResize = (event: MouseEvent) => {
          100 - MIN_PANEL_PERCENT,
       );
    };
-   const onMouseUp = () => {
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
+   const onPointerUp = () => {
+      document.removeEventListener('pointermove', onPointerMove);
+      document.removeEventListener('pointerup', onPointerUp);
+      document.removeEventListener('pointercancel', onPointerUp);
       document.documentElement.style.cursor = '';
       if (consoleDragPercent.value !== null) {
          layoutStore.setPanelSize(CONSOLE_STORAGE_KEY, consoleDragPercent.value);
@@ -205,8 +242,9 @@ const startConsoleResize = (event: MouseEvent) => {
       consoleDragPercent.value = null;
    };
    document.documentElement.style.cursor = 'row-resize';
-   document.addEventListener('mousemove', onMouseMove);
-   document.addEventListener('mouseup', onMouseUp);
+   document.addEventListener('pointermove', onPointerMove);
+   document.addEventListener('pointerup', onPointerUp);
+   document.addEventListener('pointercancel', onPointerUp);
 };
 const resetConsoleSize = () => {
    layoutStore.setPanelSize(CONSOLE_STORAGE_KEY, CONSOLE_DEFAULT_PERCENT);
@@ -236,10 +274,10 @@ defineExpose({ refresh, toggleConsole });
 </script>
 
 <template>
-   <StSpace fill direction="vertical" gap="0" class="rounded-xl">
+   <StSpace fill direction="vertical" gap="0" class="rounded-xl max-md:rounded-none">
       <StSpace
          fill-x
-         class="p-1 rounded-t-xl bg-accent-600"
+         class="p-1 rounded-t-xl max-md:rounded-t-none bg-accent-600"
          justify="between"
          align="center"
          gap="0.25rem">
@@ -301,6 +339,7 @@ defineExpose({ refresh, toggleConsole });
          <StSpace
             fill
             class="min-h-0 bg-[#1F1F1F] rounded-b-xl overflow-hidden border border-t-0 border-accent-600"
+            :class="consoleOpen ? '' : 'max-md:rounded-b-none'"
             :style="consoleOpen ? { flex: `0 0 calc(${100 - consolePercent}% - 0.75rem)` } : undefined">
             <StSpace
                v-if="!props.previewUrl"
@@ -362,7 +401,8 @@ defineExpose({ refresh, toggleConsole });
                title="拖动调整控制台高度；双击恢复默认"
                class="flex items-center justify-center w-full h-1 my-1 shrink-0 rounded-full hover:bg-secondary group transition-colors cursor-row-resize"
                :class="{ '!bg-secondary': consoleDragging }"
-               @mousedown.left="startConsoleResize"
+               style="touch-action: none"
+               @pointerdown.left="startConsoleResize"
                @dblclick="resetConsoleSize">
                <div
                   class="w-8 h-1 rounded-xl bg-accent-600 group-hover:bg-primary transition-colors"
@@ -380,10 +420,9 @@ defineExpose({ refresh, toggleConsole });
          </template>
       </div>
       <Teleport to="body">
-         <!-- 常驻挂载预加载：iframe 提前加载预览页，进入全屏时内容已就绪，不会黑屏 -->
          <div
             v-show="fullScreenMode"
-            class="fixed z-[10000] overflow-hidden border border-accent-500 bg-[#1F1F1F]"
+            class="fixed z-[10000] overflow-hidden bg-[#1F1F1F] border border-accent-500 max-md:border-0"
             :style="fullscreenStyle">
             <StSpace
                @click="leaveFullScreenMode"

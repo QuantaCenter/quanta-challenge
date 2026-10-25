@@ -193,8 +193,6 @@ const handleSpaceConfigUpdated = async () => {
    await refreshSpaceConfig();
 };
 
-const width = ref(24);
-
 const scrollContainer = useTemplateRef('scrollContainer');
 const showEndMask = ref(true);
 onMounted(() => {
@@ -208,17 +206,20 @@ onMounted(() => {
 
 <template>
    <StSpace fill justify="center" class="overflow-y-auto overflow-x-hidden">
-      <StSpace fill justify="center" direction="horizontal">
+      <StSpace
+         fill
+         justify="center"
+         direction="horizontal"
+         class="max-md:flex-col max-md:px-4">
          <StSpace
             direction="vertical"
             gap="0.5rem"
-            :style="{ width: `${width}rem` }"
-            class="p-[0.5rem] pb-4 mt-[2rem] bg-accent-600 rounded-[1.5rem]">
+            class="relative p-[0.5rem] pb-4 mt-[2rem] bg-accent-600 rounded-[1.5rem] w-[24rem] max-md:w-full">
             <StSpace fill-x direction="vertical">
                <StImage
                   :src="targetUser?.bannerImageUrl || DEFAULT_SPACE_URL"
                   height="10rem"
-                  :width="`${width - 1.1}rem`"
+                  width="calc(100% - 1.1rem)"
                   class="rounded-t-[1rem] rounded-b-none object-top absolute"
                   object="cover" />
                <StSpace
@@ -239,14 +240,18 @@ onMounted(() => {
                </StSpace>
             </StSpace>
 
-            <StSpace class="px-3 py-2" fill-x justify="between" align="center">
+            <StSpace
+               class="px-3 py-2 min-w-0"
+               fill-x
+               justify="between"
+               align="center">
                <StSpace
                   direction="horizontal"
                   align="center"
                   gap="0.5rem"
-                  class="flex-wrap">
+                  class="flex-wrap min-w-0">
                   <div
-                     class="st-font-third-bold font-family-manrope text-3xl text-shadow-sm tracking-wide">
+                     class="st-font-third-bold font-family-manrope text-3xl text-shadow-sm tracking-wide break-all">
                      {{ targetUser?.displayName ?? targetUser?.name }}
                   </div>
                   <!-- 暂时隐藏：20th 前端工程师 badge
@@ -303,13 +308,15 @@ onMounted(() => {
             </StGrid>
          </StSpace>
 
-         <StSpace direction="vertical" class="my-8" :style="{ width: `44rem` }">
-            <StSpace fill>
+         <StSpace
+            direction="vertical"
+            class="my-8 max-md:my-0 w-[44rem] max-md:w-full">
+            <StSpace fill class="max-md:hidden">
                <StSpace
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
+                  class="relative min-w-0 overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 max-md:px-4 py-4">
                   <div class="font-family-manrope st-font-third-bold">
                      {{ commitStatistics?.correctRate ?? 0
                      }}<span class="font-family-fira-code text-xl ml-0.5"
@@ -326,7 +333,7 @@ onMounted(() => {
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
+                  class="relative min-w-0 overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 max-md:px-4 py-4">
                   <div class="font-family-manrope st-font-third-bold">
                      {{ commitStatistics?.score ?? 0 }}
                   </div>
@@ -340,7 +347,7 @@ onMounted(() => {
                   fill
                   direction="vertical"
                   gap="0rem"
-                  class="relative overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 py-4">
+                  class="relative min-w-0 overflow-hidden bg-gradient-to-br from-accent-600 via-accent-600 to-accent-500 rounded-[1rem] px-6 max-md:px-4 py-4">
                   <div class="font-family-manrope st-font-third-bold">
                      {{ commitStatistics?.passCount ?? 0 }}
                   </div>

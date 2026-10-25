@@ -71,10 +71,15 @@ export const useRequestHistory = () => {
    });
 
    const record = (entry: Omit<IRequestHistoryEntry, 'id' | 'at'>) => {
-      entries.value = [
-         { ...entry, id: crypto.randomUUID(), at: Date.now() },
-         ...entries.value,
-      ].slice(0, MAX_ENTRIES);
+      // 非安全上下文下降级生成
+      const id =
+         typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+      entries.value = [{ ...entry, id, at: Date.now() }, ...entries.value].slice(
+         0,
+         MAX_ENTRIES,
+      );
       persist();
    };
 

@@ -7,7 +7,7 @@ const props = defineProps<{
    zIndex?: number;
 }>();
 
-const { containerKey, popperKey, container, popperInstance } = usePopper({
+const { containerKey, popperKey, container, popper, popperInstance } = usePopper({
    options: {
       placement: props.placement ?? 'auto',
    },
@@ -32,6 +32,13 @@ onMounted(() => {
    observer.observe(container.value.parentNode!, {
       childList: true,
    });
+   // pop content 卸载/重新挂载会改变 wrapper 尺寸，需重新定位
+   if (popper.value) {
+      observer.observe(popper.value, {
+         childList: true,
+         subtree: true,
+      });
+   }
    setTimeout(() => {
       popperInstance.value?.update();
    }, 200);
@@ -48,7 +55,7 @@ onUnmounted(() => {
    <Teleport to="body">
       <div
          :ref="popperKey"
-         class="absolute transition-opacity !w-fit"
+         class="absolute z-[10001] transition-opacity !w-fit"
          :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
          :style="{ zIndex: props.zIndex ?? 9998 }">
          <slot name="popper" :triggered>

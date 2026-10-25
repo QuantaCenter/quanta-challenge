@@ -55,9 +55,9 @@ const handleRemove = async (id: string, name: string) => {
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace direction="vertical" gap="2.5rem" class="w-[64rem] pb-[10rem] my-6">
+      <StSpace direction="vertical" gap="2.5rem" class="w-full max-w-[64rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
          <StSpace fill-x justify="between" align="end">
-            <h1 class="st-font-hero-bold text-accent-100">快照镜像管理</h1>
+            <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">快照镜像管理</h1>
             <StButton
                class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem] mb-1"
                @click="openImageBuildEditor()">

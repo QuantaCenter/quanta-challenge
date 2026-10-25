@@ -139,10 +139,10 @@ const handleTest = async () => {
          <StSpace
             direction="vertical"
             gap="1rem"
-            class="w-full flex-1 min-h-0 p-6">
+            class="w-full flex-1 min-h-0 p-6 max-md:p-4">
             <StSpace justify="between" align="end" class="w-full">
                <StSpace direction="vertical" gap="0.25rem">
-                  <h2 class="st-font-secondary-bold">编辑并发布云函数</h2>
+                  <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">编辑并发布云函数</h2>
                   <p class="st-font-caption text-accent-300">
                      {{ name }} · 仅支持单文件、零依赖（不能 import 外部模块）
                   </p>
@@ -173,7 +173,7 @@ const handleTest = async () => {
 
                <!-- 输入参数 + 运行结果合并成一块：无边框 / 无圆角，底色与上方编辑器一致 -->
                <div
-                  class="grid w-full grid-cols-2 bg-simple-editor-background">
+                  class="grid w-full grid-cols-2 max-md:grid-cols-1 bg-simple-editor-background">
                   <div class="min-w-0 px-3 py-2">
                      <div class="mb-1 st-font-caption text-accent-400">
                         输入参数（JSON）
@@ -201,7 +201,7 @@ const handleTest = async () => {
             justify="end"
             align="center"
             gap="0.75rem"
-            class="w-full border-t border-accent-600 p-4">
+            class="w-full border-t border-accent-600 p-4 max-md:flex-wrap">
             <StButton
                bordered
                theme="primary"

@@ -34,6 +34,50 @@ const borderClass = computed(() => {
 
 const opened = ref(false);
 
+// 移动端（<sm）以底部抽屉形式展示；桌面端仍为 Popper 浮层
+const isMobile = ref(false);
+const shown = ref(false);
+
+// 关闭后延迟移除布局（display:none），同时保留关闭时的淡出/滑出动效
+const rendered = ref(false);
+watch(opened, (value) => {
+   if (value) {
+      rendered.value = true;
+      // 等元素完成首次绘制后再置位 shown，触发抽屉上滑过渡
+      nextTick(() => {
+         requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+               if (opened.value) shown.value = true;
+            });
+         });
+      });
+   } else {
+      shown.value = false;
+      setTimeout(() => {
+         if (!opened.value) rendered.value = false;
+      }, isMobile.value ? 300 : 100);
+   }
+});
+
+onMounted(() => {
+   const mq = window.matchMedia('(max-width: 639.98px)');
+   isMobile.value = mq.matches;
+   const onChange = (event: MediaQueryListEvent) => {
+      isMobile.value = event.matches;
+   };
+   mq.addEventListener('change', onChange);
+   onUnmounted(() => {
+      mq.removeEventListener('change', onChange);
+   });
+});
+
+// 移动端抽屉动画走 translate 属性；桌面端保持原有的 margin + opacity 过渡
+const popperStyle = computed(() => ({
+   transition: isMobile.value
+      ? 'translate 0.3s ease-in-out, opacity 0.3s ease-in-out'
+      : 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
+}));
+
 const togglePicker = () => {
    opened.value = !opened.value;
    // 重新打开时回到日期视图
@@ -505,124 +549,135 @@ watch(
          <Calendar :size="20" :strokeWidth="3" />
       </div>
 
-      <Teleport to="body" class="absolute z-50">
+      <Teleport to="body" class="absolute z-[10001]">
+         <div
+            v-if="rendered && isMobile"
+            @click="opened = false"
+            class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
+            :class="shown ? 'opacity-100' : 'opacity-0'"></div>
          <div
             :ref="popperKey"
-            :style="{
-               transition: 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
-            }"
+            :style="popperStyle"
             :class="[
                'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
+               'max-sm:fixed! max-sm:left-0! max-sm:right-0! max-sm:top-auto! max-sm:bottom-0! max-sm:transform-none! max-sm:min-w-0 max-sm:max-w-none max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-h-[85dvh] max-sm:overflow-y-auto max-sm:flex max-sm:flex-col max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-accent-600',
                { 'opacity-0 pointer-events-none': !opened },
-               !opened && {
-                  '!-mb-4': upside,
-                  '!-mt-4': !upside,
-               },
+               { hidden: !rendered },
+               !opened &&
+                  !isMobile && {
+                     '-mb-4!': upside,
+                     '-mt-4!': !upside,
+                  },
+               shown
+                  ? 'max-sm:translate-y-0'
+                  : 'max-sm:translate-y-full',
             ]">
-            <!-- 范围模式：开始时间面板（浮于日期面板左侧，高度与日期面板一致） -->
             <div
-               v-if="showTime && range && startValue"
-               class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
+               v-if="showTime && range && (startValue || endValue)"
+               class="contents max-sm:order-last max-sm:mt-3 max-sm:flex max-sm:flex-row max-sm:gap-3 max-sm:w-full">
                <div
-                  class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
-                  开始时间
-               </div>
-               <div class="flex flex-1 min-h-0">
+                  v-if="startValue"
+                  class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
                   <div
-                     ref="startHourCol"
-                     class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
-                     <button
-                        v-for="hour in hourOptions"
-                        :key="hour"
-                        @click.stop="setStartTime(hour)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isHourSelected(startTime, hour),
-                              'text-white hover:bg-accent-600':
-                                 !isHourSelected(startTime, hour),
-                           },
-                        ]">
-                        {{ pad(hour) }} 时
-                     </button>
+                     class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                     开始时间
                   </div>
-                  <div
-                     ref="startMinuteCol"
-                     class="flex-1 overflow-y-auto py-1">
-                     <button
-                        v-for="minute in minuteOptions"
-                        :key="minute"
-                        @click.stop="setStartTime(undefined, minute)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isMinuteSelected(startTime, minute),
-                              'text-white hover:bg-accent-600':
-                                 !isMinuteSelected(startTime, minute),
-                           },
-                        ]">
-                        {{ pad(minute) }} 分
-                     </button>
+                  <div class="flex flex-1 min-h-0">
+                     <div
+                        ref="startHourCol"
+                        class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                        <button
+                           v-for="hour in hourOptions"
+                           :key="hour"
+                           @click.stop="setStartTime(hour)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isHourSelected(startTime, hour),
+                                 'text-white hover:bg-accent-600':
+                                    !isHourSelected(startTime, hour),
+                              },
+                           ]">
+                           {{ pad(hour) }} 时
+                        </button>
+                     </div>
+                     <div
+                        ref="startMinuteCol"
+                        class="flex-1 overflow-y-auto py-1">
+                        <button
+                           v-for="minute in minuteOptions"
+                           :key="minute"
+                           @click.stop="setStartTime(undefined, minute)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isMinuteSelected(startTime, minute),
+                                 'text-white hover:bg-accent-600':
+                                    !isMinuteSelected(startTime, minute),
+                              },
+                           ]">
+                           {{ pad(minute) }} 分
+                        </button>
+                     </div>
                   </div>
                </div>
-            </div>
 
-            <!-- 范围模式：结束时间面板（浮于日期面板右侧，高度与日期面板一致） -->
-            <div
-               v-if="showTime && range && endValue"
-               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
                <div
-                  class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
-                  结束时间
-               </div>
-               <div class="flex flex-1 min-h-0">
+                  v-if="endValue"
+                  class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
                   <div
-                     ref="endHourCol"
-                     class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
-                     <button
-                        v-for="hour in hourOptions"
-                        :key="hour"
-                        :disabled="isEndHourDisabled(hour)"
-                        @click.stop="setEndTime(hour)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isHourSelected(endTime, hour),
-                              'text-white hover:bg-accent-600':
-                                 !isHourSelected(endTime, hour) &&
-                                 !isEndHourDisabled(hour),
-                              'text-accent-500 cursor-not-allowed':
-                                 isEndHourDisabled(hour),
-                           },
-                        ]">
-                        {{ pad(hour) }} 时
-                     </button>
+                     class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                     结束时间
                   </div>
-                  <div
-                     ref="endMinuteCol"
-                     class="flex-1 overflow-y-auto py-1">
-                     <button
-                        v-for="minute in minuteOptions"
-                        :key="minute"
-                        :disabled="isEndMinuteDisabled(minute)"
-                        @click.stop="setEndTime(undefined, minute)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isMinuteSelected(endTime, minute),
-                              'text-white hover:bg-accent-600':
-                                 !isMinuteSelected(endTime, minute) &&
-                                 !isEndMinuteDisabled(minute),
-                              'text-accent-500 cursor-not-allowed':
-                                 isEndMinuteDisabled(minute),
-                           },
-                        ]">
-                        {{ pad(minute) }} 分
-                     </button>
+                  <div class="flex flex-1 min-h-0">
+                     <div
+                        ref="endHourCol"
+                        class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                        <button
+                           v-for="hour in hourOptions"
+                           :key="hour"
+                           :disabled="isEndHourDisabled(hour)"
+                           @click.stop="setEndTime(hour)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isHourSelected(endTime, hour),
+                                 'text-white hover:bg-accent-600':
+                                    !isHourSelected(endTime, hour) &&
+                                    !isEndHourDisabled(hour),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isEndHourDisabled(hour),
+                              },
+                           ]">
+                           {{ pad(hour) }} 时
+                        </button>
+                     </div>
+                     <div
+                        ref="endMinuteCol"
+                        class="flex-1 overflow-y-auto py-1">
+                        <button
+                           v-for="minute in minuteOptions"
+                           :key="minute"
+                           :disabled="isEndMinuteDisabled(minute)"
+                           @click.stop="setEndTime(undefined, minute)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isMinuteSelected(endTime, minute),
+                                 'text-white hover:bg-accent-600':
+                                    !isMinuteSelected(endTime, minute) &&
+                                    !isEndMinuteDisabled(minute),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isEndMinuteDisabled(minute),
+                              },
+                           ]">
+                           {{ pad(minute) }} 分
+                        </button>
+                     </div>
                   </div>
                </div>
             </div>
@@ -630,7 +685,7 @@ watch(
             <!-- 单选模式：时间面板（浮于日期面板右侧，高度与日期面板一致） -->
             <div
                v-if="showTime && !range && value"
-               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden">
+               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
                <div
                   class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
                   时间

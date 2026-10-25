@@ -20,12 +20,14 @@ const emits = defineEmits<{
 const columns: ITableColumn[] = [
    // 名称列是两行（函数名 + 描述），骨架用 #skeleton-name 自定义插槽
    { key: 'name', title: '函数' },
+   // 版本 / KV 隔离 / 更新时间三列在移动端通过 CSS 隐藏（SSR 安全）
    {
       key: 'version',
       title: '版本',
       width: '6rem',
       align: 'center',
       skeletonClass: 'h-6 w-[2rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'isolation',
@@ -33,6 +35,7 @@ const columns: ITableColumn[] = [
       width: '7.5rem',
       align: 'center',
       skeletonClass: 'h-6 w-[4.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'status',
@@ -47,6 +50,7 @@ const columns: ITableColumn[] = [
       width: '10rem',
       align: 'center',
       skeletonClass: 'h-5 w-[7rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    // 操作列是两个图标按钮，骨架用 #skeleton-action 自定义插槽
    {

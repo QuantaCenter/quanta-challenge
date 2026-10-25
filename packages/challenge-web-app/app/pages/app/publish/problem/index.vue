@@ -325,8 +325,11 @@ const handleSubmit = async () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">{{ fromId ? '编辑题目' : '发布题目' }}</h1>
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            {{ fromId ? '编辑题目' : '发布题目' }}
+         </h1>
          <StForm
             v-model:model-value="draft"
             :ref="formKey"
@@ -335,7 +338,7 @@ const handleSubmit = async () => {
             <StSpace
                direction="vertical"
                gap="1.75rem"
-               class="w-full px-[0.625rem]">
+               class="w-full px-[0.625rem] max-md:gap-4!">
                <StFormItem name="title" label="题目标题" required>
                   <StInput
                      v-model:value="draft.title"
@@ -557,7 +560,7 @@ const handleSubmit = async () => {
             <StSpace
                justify="between"
                align="center"
-               class="px-2"
+               class="px-2 max-md:flex-col max-md:items-end max-md:gap-3!"
                :class="fromId && baseline ? 'mt-4' : 'mt-[2.13rem]'">
                <div class="text-accent-300">已经自动保存</div>
                <StButton

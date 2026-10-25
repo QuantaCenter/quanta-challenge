@@ -137,12 +137,18 @@ const {
       direction="vertical"
       align="center"
       gap="0"
-      class="hide-scrollbar overflow-auto">
-      <StSpace fill-y direction="vertical" class="mt-6 w-[65rem]">
-         <h1 class="text-[2.5rem] font-bold text-white">题目</h1>
+      class="hide-scrollbar overflow-auto max-md:overflow-x-hidden">
+      <StSpace
+         fill-y
+         direction="vertical"
+         class="mt-6 w-full max-w-[65rem] max-md:px-4">
+         <h1
+            class="text-[2.5rem] font-bold text-white max-md:text-[1.5rem] max-md:leading-[1.2]">
+            题目
+         </h1>
          <StSkeleton :loading="tagsStatus === 'pending'">
             <template #loading>
-               <StSpace fill-x>
+               <StSpace fill-x class="max-md:flex-col">
                   <StSpace gap="0.75rem" fill-x>
                      <StSkeletonItem
                         v-for="i in 3"
@@ -155,8 +161,12 @@ const {
                      class="h-[3.5rem] w-[16rem] shrink-0 !rounded-xl" />
                </StSpace>
             </template>
-            <StSpace fill-x class="h-[3.5rem]" gap="1rem">
-               <div class="relative flex-1 min-w-0 h-[3.5rem]">
+            <StSpace
+               fill-x
+               class="h-[3.5rem] max-md:h-auto max-md:flex-col max-md:w-full max-md:min-w-0"
+               gap="1rem">
+               <div
+                  class="relative flex-1 min-w-0 h-[3.5rem] max-md:flex-none max-md:w-full">
                   <div
                      :class="[
                         'absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-r from-background to-transparent pr-4 pl-1 transition-opacity duration-300',
@@ -166,7 +176,7 @@ const {
                      ]">
                      <button
                         @click="scrollLeft"
-                        class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
+                        class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer max-md:hidden">
                         <Left theme="outline" size="16" fill="#fff" />
                      </button>
                   </div>
@@ -199,14 +209,18 @@ const {
                      ]">
                      <button
                         @click="scrollRight"
-                        class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
+                        class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer max-md:hidden">
                         <Right theme="outline" size="16" fill="#fff" />
                      </button>
                   </div>
-                  <div class="h-[3.5rem]"></div>
+                  <div class="h-[3.5rem] max-md:hidden"></div>
                </div>
-               <DifficultyFilter v-model:value="selectedDifficulty" />
-               <ProblemSearchInput v-model:value="searchKeyword" />
+               <StSpace
+                  gap="1rem"
+                  class="contents max-md:flex max-md:w-full max-md:min-w-0">
+                  <DifficultyFilter v-model:value="selectedDifficulty" />
+                  <ProblemSearchInput v-model:value="searchKeyword" />
+               </StSpace>
             </StSpace>
          </StSkeleton>
          <Divider />
@@ -214,19 +228,22 @@ const {
             :loading="problemsStatus === 'pending' && problems.length === 0"
             class="w-full h-full">
             <template #loading>
-               <StGrid fill :cols="4" gap="1.25rem">
+               <div
+                  class="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4 md:gap-[1.25rem]">
                   <StSkeletonItem
                      v-for="i in 12"
                      :key="i"
-                     class="w-[14.5rem] h-[20rem]"
+                     class="w-full h-[20rem]"
                      rounded="lg" />
-               </StGrid>
+               </div>
             </template>
             <StEmptyStatus
                v-if="!problems.length"
                content="暂无题目"
-               class="!w-[61.75rem] pb-32 mt-[5rem]" />
-            <StGrid v-else fill :cols="4" gap="1.25rem">
+               class="!w-full !max-w-[61.75rem] pb-32 mt-[5rem]" />
+            <div
+               v-else
+               class="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4 md:gap-[1.25rem]">
                <a
                   v-for="(problem, idx) in problems"
                   class="h-fit"
@@ -234,8 +251,7 @@ const {
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx"
                   :href="`/challenge/editor/${problem.pid}`">
-                  <StProblemCard
-                     class="w-[14.5rem] h-fit"
+                  <StProblemCard class="w-full h-fit"
                      :cover-image-name="problem.imageName"
                      :cover-image-thumbhash="problem.imageHash"
                      :cover-image-thumbhash-url="problem.imageThumbhashUrl">
@@ -260,16 +276,23 @@ const {
                      </StProblemCardInfo>
                   </StProblemCard>
                </a>
-            </StGrid>
+            </div>
          </StSkeleton>
          <div
             v-if="problems.length > 0"
             class="shrink-0 w-full h-[3.5rem] flex items-center justify-center gap-2 text-sm text-accent-400 ">
             <template v-if="loadingMore">
-               <LoadingFour class="animate-spin -translate-x-4" theme="outline" size="0.875rem" />
+               <LoadingFour
+                  class="animate-spin -translate-x-4 max-md:translate-x-0"
+                  theme="outline"
+                  size="0.875rem" />
                <span>加载中...</span>
             </template>
-            <StSpace v-else-if="allLoaded" align="center" gap="0.4em" class="-translate-x-4">
+            <StSpace
+               v-else-if="allLoaded"
+               align="center"
+               gap="0.4em"
+               class="-translate-x-4 max-md:translate-x-0">
                 <Ghost theme="outline" size="1rem" />
                 没有更多题目了～
             </StSpace>

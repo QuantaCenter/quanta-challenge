@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { useMediaQuery } from '@vueuse/core';
 import { useLayoutStore, type EditorBoardId } from '~/stores/layout-store';
+import { useEditorStore } from '~/stores/editor-store';
 import { keyboardDelta, percentFromDrag } from '~/components/st/SplitPanel/layout-math';
 import { resizeBoardPair } from '~/utils/board-layout';
 
@@ -38,15 +40,70 @@ const draggingDivider = ref<number | null>(null);
 const boardEl = (id: EditorBoardId) =>
    container.value?.querySelector(`[data-board="${id}"]`) as HTMLElement | null;
 
-/** 板块：视觉位置由 order 决定；宽度按同一顺序取 */
+// ————————————————— 移动端：板块横向滑动切换 —————————————————
+/** md 及以上走三栏拖拽布局；以下变为整屏横向滑动的分页 */
+const isDesktop = useMediaQuery('(min-width: 768px)');
+
+/** Tab 的渲染开关：mounted 后才允许渲染（保证水合安全）。 */
+const tabsReady = ref(false);
+onMounted(() => {
+   tabsReady.value = true;
+});
+
+/** 移动端分页的板块 id：题面默认位于代码编辑器左侧 */
+type MobileBoardId = 'detail' | 'code' | 'preview';
+
+/** 移动端参与分页的板块：文件树移入「更多」抽屉，题面取代其位置排在最左 */
+const MOBILE_BOARD_IDS: MobileBoardId[] = ['detail', 'code', 'preview'];
+
+/** 移动端 Tab 文案（顶栏空间有限，用短标签） */
+const MOBILE_TAB_LABEL: Record<MobileBoardId, string> = {
+   detail: '题目',
+   code: '代码',
+   preview: '预览',
+};
+
+/** 当前展示的板块（移动端顶栏 Tab 与滑动位置双向同步） */
+const activeBoard = ref<MobileBoardId>(MOBILE_BOARD_IDS[0]!);
+
+const handleBoardScroll = () => {
+   if (isDesktop.value) return;
+   const el = container.value;
+   if (!el || el.clientWidth === 0) return;
+   const index = Math.round(el.scrollLeft / el.clientWidth);
+   const id = MOBILE_BOARD_IDS[index];
+   if (id && id !== activeBoard.value) activeBoard.value = id;
+};
+
+const scrollToBoard = (id: MobileBoardId) => {
+   activeBoard.value = id;
+   if (isDesktop.value) return;
+   const el = container.value;
+   if (!el) return;
+   el.scrollTo({
+      left: MOBILE_BOARD_IDS.indexOf(id) * el.clientWidth,
+      behavior: 'smooth',
+   });
+};
+
+// 做题页在文件树选中文件后请求跳到代码板块（移动端）
+const editorStore = useEditorStore();
+watch(
+   () => editorStore.mobileBoardJump,
+   (jump) => {
+      if (jump) scrollToBoard(jump.board);
+   },
+);
+
+/**
+ * 板块尺寸：以 CSS 变量输出（SSR 也会渲染），由模板里的 md: 前缀规则消费。
+ */
 const boardStyle = (id: EditorBoardId) => {
    const index = order.value.indexOf(id);
    const percent = currentSizes.value[index] ?? 0;
    return {
-      order: String(index * 2),
-      flexGrow: String(percent),
-      flexShrink: '1',
-      flexBasis: '0%',
+      '--board-order': String(index * 2),
+      '--board-grow': String(percent),
    };
 };
 
@@ -181,15 +238,46 @@ watch(
 </script>
 
 <template>
-   <div ref="container" class="relative w-full h-full flex flex-row">
-      <!-- 板块：DOM 顺序固定，视觉顺序由 CSS order 决定（换位不重挂组件） -->
+   <div class="w-full h-full flex flex-col max-md:min-h-0">
+      <Teleport v-if="tabsReady && !isDesktop" to="#challenge-mobile-board-tabs">
+         <div role="tablist" aria-label="板块切换" class="flex items-center gap-1">
+            <button
+               v-for="id in MOBILE_BOARD_IDS"
+               :key="`tab-${id}`"
+               role="tab"
+               :aria-selected="activeBoard === id"
+               class="h-7 px-2.5 rounded-md text-xs whitespace-nowrap transition-colors cursor-pointer"
+               :class="
+                  activeBoard === id
+                     ? 'bg-accent-600 text-white'
+                     : 'bg-accent-600/30 text-accent-200'
+               "
+               @click="scrollToBoard(id)">
+               {{ MOBILE_TAB_LABEL[id] }}
+            </button>
+         </div>
+      </Teleport>
+
       <div
-         v-for="id in BOARD_IDS"
-         :key="id"
-         :data-board="id"
-         :style="boardStyle(id)"
-         class="group/board relative h-full min-w-0 flex-shrink-0 rounded-xl"
-         :class="{ 'pointer-events-none': draggingDivider !== null }"
+         ref="container"
+         class="relative w-full h-full flex flex-row min-h-0 max-md:flex-1 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:snap-x max-md:snap-mandatory max-md:overscroll-x-contain max-md:rounded-lg editor-board-pager"
+         @scroll.passive="handleBoardScroll">
+         <div
+            data-board="detail"
+            class="relative h-full w-full shrink-0 snap-center hidden max-md:block max-md:overflow-x-hidden max-md:px-0.5">
+            <slot name="board-detail" />
+         </div>
+
+         <div
+            v-for="id in BOARD_IDS"
+            :key="id"
+            :data-board="id"
+            :style="boardStyle(id)"
+            class="group/board relative h-full min-w-0 md:rounded-xl md:[order:var(--board-order)] md:[flex-grow:var(--board-grow)] md:[flex-shrink:1] md:[flex-basis:0%] max-md:w-full max-md:shrink-0 max-md:snap-center max-md:overflow-x-hidden"
+            :class="{
+               'pointer-events-none': draggingDivider !== null,
+               'max-md:hidden': id === 'files',
+            }"
          @dragover.prevent="handleDragOver(id)"
          @dragleave="handleDragLeave(id)"
          @drop.prevent="handleDrop(id)">
@@ -206,7 +294,7 @@ watch(
                   ? '布局已锁定'
                   : `拖动这里把「${BOARD_LABEL[id]}」移到另一个板块的位置`
             "
-            class="absolute inset-x-0 top-0 z-20 flex h-3 items-start justify-center"
+            class="absolute left-1/2 top-0 z-20 w-40 -translate-x-1/2 max-md:hidden h-5 pt-2 items-start justify-center"
             :class="
                layoutStore.locked
                   ? 'cursor-not-allowed'
@@ -216,11 +304,11 @@ watch(
             @dragend="handleDragEnd">
             <span
                v-if="!layoutStore.locked"
-               class="flex items-center justify-center rounded-b-lg border border-t-0 bg-accent-600/90 px-2.5 py-[0.3rem] shadow-sm transition-all duration-150"
+               class="flex items-center justify-center transition-all duration-150"
                :class="
                   draggingBoard === id
-                     ? 'border-primary/70 opacity-100'
-                     : 'border-accent-500/60 opacity-0 group-hover/board:opacity-100 hover:opacity-100'
+                     ? 'opacity-100'
+                     : 'opacity-0 group-hover/board:opacity-100 hover:opacity-100'
                ">
                <span
                   class="block h-[3px] w-7 rounded-full transition-colors duration-150"
@@ -243,7 +331,7 @@ watch(
          :aria-label="`第 ${index + 1} 条面板分隔条`"
          :aria-disabled="layoutStore.locked"
          :tabindex="layoutStore.locked ? -1 : 0"
-         class="group/divider flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         class="group/divider hidden md:flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          style="touch-action: none"
          :class="{
             'opacity-0 hover:!cursor-default': layoutStore.locked,
@@ -255,5 +343,19 @@ watch(
             class="w-1 h-8 rounded-xl bg-accent-600 transition-colors group-hover/divider:bg-primary"
             :class="{ '!bg-primary': draggingDivider === index }" />
       </div>
+      </div>
    </div>
 </template>
+
+<style scoped>
+/* 移动端分页容器：隐藏滚动条 */
+@media (max-width: 767px) {
+   .editor-board-pager {
+      scrollbar-width: none;
+      -webkit-overflow-scrolling: touch;
+   }
+   .editor-board-pager::-webkit-scrollbar {
+      display: none;
+   }
+}
+</style>

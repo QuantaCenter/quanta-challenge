@@ -61,7 +61,7 @@ onMounted(() => {
       <div class="w-full h-5"></div>
       <div
          ref="container"
-         class="w-full h-full relative hide-scrollbar min-h-[16rem]"
+         class="w-full h-full relative hide-scrollbar min-h-[16rem] max-md:min-h-[24rem]"
          :class="{ 'overflow-auto': achievements?.length }">
          <StSkeleton :loading="loading" class="w-full h-full absolute top-0">
             <template #loading>

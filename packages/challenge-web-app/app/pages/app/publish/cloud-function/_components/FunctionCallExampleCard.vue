@@ -23,7 +23,8 @@ const { data } = await res.json();`,
 </script>
 
 <template>
-   <section class="w-full rounded-2xl border border-accent-500 p-6">
+   <section
+      class="w-full rounded-2xl border border-accent-500 p-6 max-md:p-4">
       <StSpace align="center" gap="0.625rem" class="mb-5">
          <Code class="text-[1.375rem] text-accent-200" />
          <h2 class="st-font-third-bold text-white">如何调用</h2>

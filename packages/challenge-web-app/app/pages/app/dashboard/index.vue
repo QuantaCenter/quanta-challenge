@@ -30,10 +30,19 @@ onMounted(() => {
 
 <template>
    <StSpace direction="vertical" align="center" gap="0">
-      <StSpace gap="1.5rem" fill class="px-4 py-6 max-w-[80.68rem] shrink-0">
+      <StSpace
+         gap="1.5rem"
+         fill
+         class="px-4 py-6 max-w-[80.68rem] shrink-0 max-md:flex-col">
          <StSpace direction="vertical" align="start" gap="1.5rem" fill>
-            <h1 class="st-font-hero-bold">{{ greeting }}，{{ username }}</h1>
-            <StSpace gap="1.5rem" fill-x class="mt-4">
+            <h1
+               class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+               {{ greeting }}，{{ username }}
+            </h1>
+            <StSpace
+               gap="1.5rem"
+               fill-x
+               class="mt-4 max-md:mt-0 max-md:hidden">
                <RecentSubmissionCard />
                <RecentLearningCard />
             </StSpace>
@@ -41,7 +50,7 @@ onMounted(() => {
          </StSpace>
          <StSpace direction="vertical" gap="1.5rem" fill>
             <SubmissionStatusCard />
-            <StSpace gap="1.5rem" fill>
+            <StSpace gap="1.5rem" fill class="max-md:flex-col">
                <RankingCard />
                <AchievementsCard />
             </StSpace>

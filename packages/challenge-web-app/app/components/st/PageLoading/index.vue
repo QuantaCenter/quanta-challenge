@@ -14,7 +14,7 @@ const { isLoading } = useLoadingIndicator({
    <Transition name="st-page-loading">
       <div
          v-if="isLoading"
-         class="fixed top-0 right-0 bottom-0 left-[9.3125rem] z-[999] bg-background flex flex-col items-center justify-center gap-3 text-accent-300">
+         class="fixed top-0 right-0 bottom-0 left-0 md:left-[9.3125rem] z-[999] bg-background flex flex-col items-center justify-center gap-3 text-accent-300">
          <LoadingFour class="animate-spin text-[1.75rem]" />
          <span class="st-font-caption">加载中…</span>
       </div>

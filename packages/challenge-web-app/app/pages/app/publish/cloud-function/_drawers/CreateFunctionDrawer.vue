@@ -76,7 +76,7 @@ const submit = async () => {
             gap="1.25rem"
             class="w-full flex-1 min-h-0 overflow-auto p-6">
             <StSpace direction="vertical" gap="0.25rem">
-               <h2 class="st-font-secondary-bold">新建云函数</h2>
+               <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">新建云函数</h2>
                <p class="st-font-caption text-accent-300">
                   创建后即可编写源码并发布版本，成员与内部服务通过 HTTP 调用。
                </p>

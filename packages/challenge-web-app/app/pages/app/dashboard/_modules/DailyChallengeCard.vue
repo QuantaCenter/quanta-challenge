@@ -68,7 +68,12 @@ const {
    pending: isDailyProblemPending,
 } = useAsyncData(
    'daily-problem',
-   () => $trpc.public.daily.getProblem.query({ date: selectedDate.value }),
+   () => {
+      const request = $trpc.public.daily.getProblem.query({
+         date: selectedDate.value,
+      });
+      return import.meta.server ? request : atLeastTime(400, request);
+   },
    { watch: [selectedDate], dedupe: 'cancel' }
 );
 
@@ -138,7 +143,7 @@ const handleCheckin = async () => {
 
 <template>
    <StCard :icon="Calendar" class="h-full" title="每日一题">
-      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5">
+      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5 max-sm:flex-col">
          <StSpace direction="vertical" gap="1rem" class="w-full h-full">
             <StDateIndicator
                v-model="selectedDate"

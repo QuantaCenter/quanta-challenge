@@ -325,3 +325,39 @@
 .article-body--dense hr {
    margin: 1.25em 0;
 }
+
+/* ---------- 移动端：仅 dense 模式（通知弹窗等窄容器）缩小字号 ---------- */
+
+@media (max-width: 767.98px) {
+   .article-body--dense {
+      font-size: 0.9375rem;
+   }
+
+   .article-body--dense h1 {
+      font-size: 1.375rem;
+   }
+
+   .article-body--dense h2 {
+      font-size: 1.25rem;
+   }
+
+   .article-body--dense h3 {
+      font-size: 1.125rem;
+   }
+
+   .article-body--dense h4,
+   .article-body--dense h5 {
+      font-size: 1rem;
+   }
+
+   /* 行内代码允许断行 */
+   .article-body--dense code {
+      font-size: 0.8125em;
+      word-break: break-all;
+   }
+
+   .article-body--dense pre {
+      font-size: 0.8125rem;
+      padding: 0.875rem 1rem;
+   }
+}

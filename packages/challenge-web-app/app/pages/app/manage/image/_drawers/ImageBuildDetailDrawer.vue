@@ -78,7 +78,7 @@ const copy = async (text: string, tip: string) => {
             <StSpace v-else-if="detail" direction="vertical" gap="1.5rem" fill-x>
                <StSpace direction="vertical" gap="0.5rem" fill-x>
                   <StSpace align="center" gap="0.75rem">
-                     <h2 class="st-font-secondary-bold">{{ detail.name }}</h2>
+                     <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">{{ detail.name }}</h2>
                      <span
                         class="rounded-md px-2 py-0.5 st-font-caption"
                         :class="

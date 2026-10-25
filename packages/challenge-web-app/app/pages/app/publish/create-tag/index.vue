@@ -78,8 +78,11 @@ const handleCreate = async () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">创建标签</h1>
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            创建标签
+         </h1>
          <StForm
             ref="form"
             v-model:model-value="formdata"
@@ -88,7 +91,7 @@ const handleCreate = async () => {
             <StSpace
                direction="vertical"
                gap="1.75rem"
-               class="w-full px-[0.625rem]">
+               class="w-full px-[0.625rem] max-md:gap-4!">
                <StFormItem name="name" label="标签名" required>
                   <StInput
                      v-model:value="formdata.name"

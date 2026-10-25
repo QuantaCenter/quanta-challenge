@@ -17,7 +17,7 @@ const diplayedRank = computed(() => (myRank.value === -1 ? '0' : myRank.value));
    <StSpace
       direction="vertical"
       justify="center"
-      class="p-4 bg-accent-600 rounded-xl w-[18.875rem]"
+      class="p-4 bg-accent-600 rounded-xl w-full md:w-[18.875rem]"
       gap="0.625rem">
       <StSpace fill-x justify="between">
          <StSkeletonItem

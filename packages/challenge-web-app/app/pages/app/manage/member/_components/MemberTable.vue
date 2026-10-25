@@ -27,12 +27,14 @@ const columns: ITableColumn[] = [
       align: 'center',
       skeletonClass: 'h-5 w-[3rem] rounded-md mx-auto',
    },
+   // 活跃时间 / 最近 7 天 / 最近 30 天 / 总提交 / 分数 / 正确率在移动端通过 CSS 隐藏（SSR 安全）
    {
       key: 'activeAt',
       title: '活跃时间',
       width: '10.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[7rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'recent7',
@@ -40,6 +42,7 @@ const columns: ITableColumn[] = [
       width: '6.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[2.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'recent30',
@@ -47,6 +50,7 @@ const columns: ITableColumn[] = [
       width: '6.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[2.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'submissionCount',
@@ -54,6 +58,7 @@ const columns: ITableColumn[] = [
       width: '5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[2.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'score',
@@ -61,6 +66,7 @@ const columns: ITableColumn[] = [
       width: '5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[2.5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'correctRate',
@@ -68,6 +74,7 @@ const columns: ITableColumn[] = [
       width: '5.5rem',
       align: 'center',
       skeletonClass: 'h-5 w-[3rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'action',

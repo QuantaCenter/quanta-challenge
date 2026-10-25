@@ -4,6 +4,7 @@ import type monaco from 'monaco-editor';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useMarkdown } from '~/composables/use-markdown';
 import { useSimpleEditor } from '~/composables/use-simple-editor';
+import { isTouchDevice } from '~/composables/monaco-mobile-support';
 
 const script = defineModel<string>('markdown');
 const opened = defineModel<boolean>('opened', { default: false });
@@ -30,6 +31,9 @@ const { html, update } = useMarkdown();
 const debounceUpdate = useDebounceFn(update, 200);
 const message = useMessage();
 const { $trpc } = useNuxtApp();
+
+/** 仅移动端（触屏设备）上下排布，PC 端始终左右排布 */
+const isMobile = isTouchDevice();
 
 const uploadingImage = ref(false);
 const imageFileInput = useTemplateRef<HTMLInputElement>('image-file-input');
@@ -144,7 +148,7 @@ const onImageFileChosen = (event: Event) => {
          <StSpace direction="vertical" gap="1.5rem" class="p-6 w-full h-full">
             <!-- Header -->
             <StSpace justify="between" align="center" class="w-full">
-               <h1 class="st-font-secondary-bold">{{ props.drawerTitle }}</h1>
+               <h1 class="st-font-secondary-bold max-md:text-[1.25rem]">{{ props.drawerTitle }}</h1>
                <StButton
                   :loading="uploadingImage"
                   :disabled="uploadingImage"
@@ -163,7 +167,7 @@ const onImageFileChosen = (event: Event) => {
                class="hidden"
                @change="onImageFileChosen" />
             <StSplitPanel
-               direction="horizontal"
+               :direction="isMobile ? 'vertical' : 'horizontal'"
                class="max-h-[calc(100vh-13rem)]">
                <template #start>
                   <div

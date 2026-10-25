@@ -244,10 +244,10 @@ const leaveFullScreenMode = () => {
          fill
          direction="vertical"
          gap="0"
-         class="bg-[#1F1F1F] rounded-xl">
+         class="bg-[#1F1F1F] rounded-xl max-md:rounded-none">
          <StSpace
             fill-x
-            class="p-1 rounded-t-xl bg-accent-600"
+            class="p-1 rounded-t-xl max-md:rounded-t-none bg-accent-600"
             justify="between"
             align="center"
             gap="0.25rem">
@@ -270,7 +270,7 @@ const leaveFullScreenMode = () => {
          </StSpace>
          <StSpace
             fill
-            class="rounded-b-xl overflow-hidden border border-t-0 border-accent-600"
+            class="rounded-b-xl max-md:rounded-b-none overflow-hidden border border-t-0 border-accent-600"
             direction="vertical"
             center
             :class="props.unsupportedReason ? '' : 'grayscale-100'">
@@ -339,10 +339,10 @@ const leaveFullScreenMode = () => {
                      fill
                      direction="vertical"
                      gap="0"
-                     class="min-h-0 bg-[#1F1F1F] rounded-xl">
+                     class="min-h-0 bg-[#1F1F1F] rounded-xl max-md:rounded-none">
                      <StSpace
                         fill-x
-                        class="p-1 rounded-t-xl bg-accent-600"
+                        class="p-1 rounded-t-xl max-md:rounded-t-none bg-accent-600"
                         justify="between"
                         align="center"
                         gap="0.25rem">
@@ -404,7 +404,7 @@ const leaveFullScreenMode = () => {
                         fill
                         direction="vertical"
                         gap="0"
-                        class="min-h-0 rounded-b-xl overflow-hidden border border-t-0 border-accent-600">
+                        class="min-h-0 rounded-b-xl max-md:rounded-b-none overflow-hidden border border-t-0 border-accent-600">
                         <!-- 不能省 fill-x：StSpace 默认 items-start，这行会按内容宽度收缩。 -->
                         <StSpace
                            fill-x

@@ -121,13 +121,13 @@ onUnmounted(() => {
       <div
          v-if="notification"
          ref="cardRef"
-         class="relative h-screen bg-accent-600 flex flex-col overflow-hidden">
+         class="relative h-full bg-accent-600 flex flex-col overflow-hidden max-md:rounded-t-[1rem]">
             <!-- Header Area（标题容器：底部留白已减小） -->
-            <div class="px-10 pt-10 pb-2 shrink-0 bg-accent-600 z-10">
+            <div class="px-10 pt-10 pb-2 max-md:px-5 max-md:pt-7 shrink-0 bg-accent-600 z-10">
                <div class="flex justify-between items-start mb-2">
-                  <div class="flex items-center gap-3">
+                  <div class="flex items-center gap-3 flex-wrap gap-y-1.5 min-w-0">
                      <span
-                        class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border"
+                        class="px-2.5 py-1 rounded text-xs font-bold uppercase tracking-wider border max-md:hidden"
                         :class="
                            notification.type === 'WARNING'
                               ? 'bg-error/20 text-error border-error/60'
@@ -138,7 +138,7 @@ onUnmounted(() => {
                      <div
                         class="flex items-center gap-1.5 text-accent-400 text-sm">
                         <Calendar size="14" />
-                        <span>{{ formattedTime }}</span>
+                        <span class="whitespace-nowrap">{{ formattedTime }}</span>
                      </div>
                   </div>
                   <div
@@ -148,25 +148,24 @@ onUnmounted(() => {
                   </div>
                </div>
                <h2
-                  class="text-3xl font-bold text-white leading-tight tracking-tight font-family-manrope">
+                  class="text-3xl max-md:text-2xl font-bold text-white leading-tight tracking-tight font-family-manrope">
                   {{ notification.title }}
                </h2>
             </div>
 
-            <!-- Content Area -->
-            <div class="relative flex-1 min-h-0">
+            <div class="relative flex-1 min-h-0 z-10">
                <!-- 顶部渐隐 mask：滚动内容在标题容器下缘平滑淡出 -->
                <div
                   class="absolute inset-x-0 top-0 h-4 bg-gradient-to-b from-accent-600 to-transparent pointer-events-none z-10">
                </div>
-               <div class="h-full overflow-y-auto px-10 pt-2 pb-10 custom-scrollbar">
+               <div class="h-full overflow-y-auto px-10 pt-2 pb-10 max-md:px-5 max-md:pb-8 custom-scrollbar">
                   <LearningArticleBody :html="html" dense />
                </div>
             </div>
 
             <div
                v-if="notification.type === 'WARNING'"
-               class="relative z-10 shrink-0 px-10 py-5 border-t border-accent-500 flex items-center justify-between gap-4">
+               class="relative z-10 shrink-0 px-10 py-5 max-md:px-5 max-md:py-4 border-t border-accent-500 flex items-center justify-between gap-4">
                <div class="flex flex-col gap-1">
                   <span
                      v-if="notification.scorePenalty"
@@ -204,12 +203,12 @@ onUnmounted(() => {
             </div>
 
             <!-- Logo：抽屉右下角水印 -->
-            <div class="absolute right-8 bottom-8 z-0 opacity-20 pointer-events-none">
+            <div class="absolute right-8 bottom-8 max-md:right-4 max-md:bottom-6 z-0 opacity-20 pointer-events-none">
                <IconLogo class="scale-[500%] -rotate-[10deg]" />
             </div>
 
             <!-- 底部导航：左侧“上一条”，右侧“下一条” -->
-            <div class="relative z-10 shrink-0 px-10 py-4 border-t border-accent-500 flex items-center justify-between">
+            <div class="relative z-10 shrink-0 px-10 py-4 max-md:px-5 border-t border-accent-500 flex items-center justify-between">
                <button
                   :disabled="!hasPrevious"
                   @click="$emit('prev')"

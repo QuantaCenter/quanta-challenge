@@ -150,17 +150,21 @@ const showServerError = (msg: string): void => {
 /**
  * SSR 下重定向到登录页（客户端的 SPA 跳转见插件内的 redirectToLoginClient）
  */
-const redirectToLoginSSR = (event: H3Event): void => {
+const redirectToLoginSSR = (
+   event: H3Event,
+   nuxtApp?: ReturnType<typeof useNuxtApp>,
+): void => {
    const target = event.node.req.url || '/';
    // 已经在登录流程页时不再重定向：登录接口本身返回 401（密码错误）、 或登录页上的其他请求 401 时，若也走重定向，会把 /auth/login 塞进 redirect 参数，登录成功后又被弹回登录页，URL 自我嵌套无限循环。 此时直接抛错即可，登录页会展示「登录失败」提示。
    // OAuth has its own safe restart UI; do not replace it with an email-login redirect.
    if (target.startsWith('/auth/login') || isQuantaLoginPath(target)) {
       return;
    }
-   event.node.res.writeHead(302, {
-      Location: '/auth/login?redirect=' + encodeURIComponent(target),
-   });
-   event.node.res.end();
+   nuxtApp?.runWithContext(() =>
+      navigateTo('/auth/login?redirect=' + encodeURIComponent(target), {
+         redirectCode: 302,
+      }),
+   );
 };
 
 const genTraceId = (): string => {
@@ -177,6 +181,8 @@ export default defineNuxtPlugin(() => {
 
    // 在插件顶层获取 Nuxt composables
    const event = import.meta.server ? useRequestEvent() : undefined;
+   // 供 redirectToLoginSSR 在无 async context 的 tRPC 回调里使用
+   const ssrNuxtApp = import.meta.server ? useNuxtApp() : undefined;
    // 实时读取当前路由（插件初始化时捕获的 route 会在 SPA 导航后过期，redirect 参数会带上旧路径）
    const router = import.meta.client ? useRouter() : undefined;
 
@@ -291,7 +297,7 @@ export default defineNuxtPlugin(() => {
          return await fetch(url, options);
       } catch (err) {
          if (isServer && event) {
-            redirectToLoginSSR(event);
+            redirectToLoginSSR(event, ssrNuxtApp);
          } else {
             redirectToLoginClient();
          }

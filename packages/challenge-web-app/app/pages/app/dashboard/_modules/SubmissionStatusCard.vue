@@ -51,14 +51,14 @@ onMounted(() => {
       :icon="Fire"
       ref="card"
       title="提交情况"
-      class="w-full !h-fit mt-4 relative overflow-clip">
+      class="w-full !h-fit mt-4 max-md:mt-0 relative overflow-clip">
       <div
          ref="scrollContainer"
          class="mt-4 overflow-x-auto flex shrink-0 w-0 hide-scrollbar relative"
          :class="[
             status === 'personal-space'
                ? 'min-h-[14.625rem]'
-               : 'min-w-[36.625rem]',
+               : 'md:min-w-[36.625rem]',
          ]"
          :style="{ width: `${width - 34}px` }">
          <StHeatMap

@@ -17,13 +17,17 @@ const outerClass = 'border !py-3 !px-4 !rounded-[0.5rem] w-full';
 </script>
 
 <template>
-   <section class="w-full rounded-2xl border border-accent-500 p-6">
+   <section
+      class="w-full rounded-2xl border border-accent-500 p-6 max-md:p-4">
       <StSpace align="center" gap="0.625rem" class="mb-5">
          <SettingTwo class="text-[1.375rem] text-accent-200" />
          <h2 class="st-font-third-bold text-white">基本信息</h2>
       </StSpace>
 
-      <StSpace direction="vertical" gap="1.25rem" class="w-full">
+      <StSpace
+         direction="vertical"
+         gap="1.25rem"
+         class="w-full max-md:gap-4!">
          <StSpace direction="vertical" gap="0.5rem" class="w-full">
             <label class="st-font-caption text-accent-200">描述</label>
             <StTextarea
@@ -56,7 +60,7 @@ const outerClass = 'border !py-3 !px-4 !rounded-[0.5rem] w-full';
             <StInput
                v-model:value="form.timeoutMs"
                type="number"
-               outer-class="border !py-2 !px-3 !rounded-[0.5rem] w-[8rem]" />
+               outer-class="border !py-2 !px-3 !rounded-[0.5rem] w-[8rem] max-md:w-[6rem]" />
          </StSpace>
 
          <StSpace align="center" justify="between" class="w-full">

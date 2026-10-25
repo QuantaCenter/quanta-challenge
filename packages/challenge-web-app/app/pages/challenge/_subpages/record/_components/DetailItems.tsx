@@ -9,8 +9,13 @@ export const DataBlock: FunctionalComponent<{ title: string }> = (
 ) => {
    return (
       <StSpace direction='vertical' gap='0.5rem' class='w-full'>
-         <span class='st-font-body-normal text-accent-200'>{title}</span>
-         <div class='font-family-manrope font-bold'>{slots.default?.()}</div>
+         {/* 移动端标题与数值整体缩小 */}
+         <span class='st-font-body-normal text-accent-200 max-md:text-[0.75rem]'>
+            {title}
+         </span>
+         <div class='font-family-manrope font-bold max-md:text-[0.875rem]'>
+            {slots.default?.()}
+         </div>
       </StSpace>
    );
 };
@@ -41,7 +46,8 @@ export const JudgeStatus: FunctionalComponent<{
          gap='0.25rem'
          align='center'>
          <Icon class={status === 'pending' ? 'animate-spin' : ''} />
-         <span class='font-bold'>{text}</span>
+         {/* 移动端仅显示图标，节省空间 */}
+         <span class='font-bold max-md:hidden'>{text}</span>
       </StSpace>
    );
 };

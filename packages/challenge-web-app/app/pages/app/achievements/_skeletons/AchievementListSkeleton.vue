@@ -17,7 +17,8 @@
                   <StSkeletonItem
                      class="h-5 w-[5rem] rounded-md bg-accent-500" />
                </StSpace>
-               <StSkeletonItem class="h-5 w-[15rem] rounded-md bg-accent-500" />
+               <StSkeletonItem
+                  class="h-5 w-[15rem] max-md:w-[10rem] rounded-md bg-accent-500" />
             </StSpace>
          </StSkeletonItem>
       </StSpace>

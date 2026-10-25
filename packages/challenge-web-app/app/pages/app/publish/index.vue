@@ -71,10 +71,13 @@ const options = [
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布流程</h1>
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            发布流程
+         </h1>
 
-         <StSpace direction="vertical" gap="1.5rem" fill-x>
+         <StSpace direction="vertical" gap="1.5rem" fill-x class="max-md:gap-4!">
             <NuxtLink
                v-for="option in options"
                :key="option.title"
@@ -86,12 +89,14 @@ const options = [
                   :to="option.url"
                   justify="between"
                   align="center"
-                  class="p-6 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
+                  class="p-6 max-md:p-5 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
                   <StSpace direction="vertical" gap="0.5rem">
-                     <h2 class="st-font-capture text-[1.25rem] text-white">
+                     <h2
+                        class="st-font-capture text-[1.25rem] max-md:text-[1.125rem] text-white">
                         {{ option.title }}
                      </h2>
-                     <p class="st-font-body-normal text-accent-300">
+                     <p
+                        class="st-font-body-normal max-md:text-sm text-accent-300 line-clamp-2">
                         {{ option.description }}
                      </p>
                   </StSpace>
@@ -100,7 +105,7 @@ const options = [
                      :fill="option.iconColor"
                      :strokeWidth="3"
                      size="7rem"
-                     class="absolute -right-5 -bottom-6 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
+                     class="max-md:w-[4.5rem]! max-md:h-[4.5rem]! absolute -right-5 -bottom-6 max-md:-right-1 max-md:-bottom-2 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
                </StSpace>
             </NuxtLink>
          </StSpace>

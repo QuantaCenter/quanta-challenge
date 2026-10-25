@@ -1,10 +1,15 @@
-import type { editor } from 'monaco-editor';
+import type { IDisposable, editor } from 'monaco-editor';
 import { createHighlighterCoreSync, createJavaScriptRegexEngine } from 'shiki';
 import { shikiToMonaco } from '@shikijs/monaco';
 import { registerLanguageWorkers } from './workers';
 import * as editorActions from './editor-actions';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import { markMonacoThemeActive } from '~/composables/monaco-state';
+import {
+   applyMobileTouchSupport,
+   getMobileEditorOptions,
+   isTouchDevice,
+} from '~/composables/monaco-mobile-support';
 import {
    defaultEditorOptions,
    editorThemeRegistration,
@@ -91,6 +96,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
    let editorInstance: editor.IStandaloneCodeEditor | null = null;
    let disposeLanguageWorkers: (() => void) | null = null;
    let disposeViewStatePreserver: (() => void) | null = null;
+   let mobileTouchSupportDisposable: IDisposable | null = null;
 
    // 编辑器准备回调
    const monacoReadyCallbacks = new Set<MonacoReadyCallback>();
@@ -232,12 +238,17 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       // 自动重新测量字体
       autoRemeasureFont(monaco);
 
-      // 创建编辑器实例
+      // 创建编辑器实例（触屏设备追加移动端默认选项）
+      const isTouch = isTouchDevice();
       const instance = monaco.editor.create(container.value, {
          ...defaultEditorOptions,
+         ...(isTouch && getMobileEditorOptions()),
          ...options?.options,
       });
       editorInstance = instance;
+      if (isTouch) {
+         mobileTouchSupportDisposable = applyMobileTouchSupport(instance);
+      }
       disposeViewStatePreserver = preserveViewStateOnModelSwitch(
          monaco,
          instance
@@ -260,6 +271,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
             callback(editorInstance!)
          );
       disposeViewStatePreserver?.();
+      mobileTouchSupportDisposable?.dispose();
       monaco && monaco.editor.getModels().forEach((model) => model.dispose());
       editorInstance?.dispose();
       disposeLanguageWorkers?.();
