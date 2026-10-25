@@ -2,6 +2,7 @@ import z from 'zod';
 import { publicProcedure, router } from '../../trpc';
 import { hashPassword } from '~~/server/utils/password';
 import { generateTokens } from '~~/server/utils/jwt';
+import { identityCookieOptions } from '~~/server/utils/auth-cookies';
 import prisma from '~~/lib/prisma';
 import { TRPCError } from '@trpc/server';
 
@@ -75,15 +76,10 @@ const emailRegisterProcedure = publicProcedure
       // 验证标记一次性使用
       await redis.del('email_verified:' + email);
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return {
          csrfToken,

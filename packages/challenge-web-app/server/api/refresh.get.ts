@@ -1,4 +1,5 @@
 import { logger } from '~~/server/utils/logger';
+import { identityCookieOptions } from '~~/server/utils/auth-cookies';
 
 export default defineEventHandler(async (event) => {
    const refreshToken = getCookie(event, 'quanta_refresh_token');
@@ -11,15 +12,9 @@ export default defineEventHandler(async (event) => {
    try {
       const tokens = await renewTokens(refreshToken);
 
-      // 设置新的 cookie
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as const,
-      };
-
-      setCookie(event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(event, 'quanta_refresh_token', tokens.refreshToken, opt);
+      // 设置新的 cookie（带 Max-Age，滑动续期）
+      setCookie(event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(event, 'quanta_refresh_token', tokens.refreshToken, identityCookieOptions(tokens.refreshToken));
 
       setResponseStatus(event, 200);
       return tokens;

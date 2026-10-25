@@ -53,14 +53,41 @@ const parseCookies = (cookieString: string): Record<string, string> => {
 };
 
 /**
+ * 解码 JWT 的有效期（秒，exp - iat）。SSR 回写 cookie 时用于生成 Max-Age，
+ * 使 cookie 存活期与 token 实际有效期对齐（否则是会话 cookie，移动端浏览器会很快丢弃）。
+ */
+const REFRESH_TOKEN_FALLBACK_SECONDS = 7 * 24 * 60 * 60;
+const decodeJwtMaxAgeSeconds = (token: string): number => {
+   try {
+      const base64 = token.split('.')[1]?.replace(/-/g, '+').replace(/_/g, '/');
+      if (!base64) return REFRESH_TOKEN_FALLBACK_SECONDS;
+      const payload = JSON.parse(atob(base64)) as {
+         iat?: unknown;
+         exp?: unknown;
+      };
+      if (
+         typeof payload.iat === 'number' &&
+         typeof payload.exp === 'number' &&
+         payload.exp > payload.iat
+      ) {
+         return payload.exp - payload.iat;
+      }
+   } catch {
+      // 解析失败走兜底值
+   }
+   return REFRESH_TOKEN_FALLBACK_SECONDS;
+};
+
+/**
  * 创建 Set-Cookie header 字符串
  */
 const createSetCookieHeader = (
    name: string,
    value: string,
    secure: boolean,
+   maxAgeSeconds: number,
 ): string => {
-   return `${name}=${value}; HttpOnly; Path=/; SameSite=lax${secure ? '; Secure' : ''}`;
+   return `${name}=${value}; HttpOnly; Path=/; SameSite=lax; Max-Age=${maxAgeSeconds}${secure ? '; Secure' : ''}`;
 };
 
 /**
@@ -73,8 +100,18 @@ const setSSRCookies = (
 ): void => {
    const isProduction = process.env.NODE_ENV === 'production';
    const newCookies = [
-      createSetCookieHeader(TOKEN_KEYS.ACCESS, accessToken, isProduction),
-      createSetCookieHeader(TOKEN_KEYS.REFRESH, refreshToken, isProduction),
+      createSetCookieHeader(
+         TOKEN_KEYS.ACCESS,
+         accessToken,
+         isProduction,
+         decodeJwtMaxAgeSeconds(accessToken),
+      ),
+      createSetCookieHeader(
+         TOKEN_KEYS.REFRESH,
+         refreshToken,
+         isProduction,
+         decodeJwtMaxAgeSeconds(refreshToken),
+      ),
    ];
 
    const existing = event.node.res.getHeader('set-cookie');

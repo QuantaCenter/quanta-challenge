@@ -6,6 +6,7 @@ import * as serverAuthn from '@simplewebauthn/server';
 import { TRPCError } from '@trpc/server';
 import type { H3Event } from 'h3';
 import { logger } from '~~/server/utils/logger';
+import { identityCookieOptions } from '~~/server/utils/auth-cookies';
 
 /** WebAuthn 的 RP ID 与 expectedOrigin 必须与实际访问站点一致，否则 credentials.create() 直接抛错；按 请求 Origin > APP_SERVER > Host+x-forwarded-proto 解析，rpID 取 hostname。 */
 const resolveWebAuthnContext = (event: H3Event) => {
@@ -161,14 +162,10 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       const tokens = generateTokens({ userId, role: 'USER' });
       const csrfToken = crypto.randomUUID();
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return { csrfToken };
    });
@@ -313,14 +310,10 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
       });
       const csrfToken = crypto.randomUUID();
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return { csrfToken };
    });

@@ -1,6 +1,7 @@
 import type { User } from '@prisma/client';
 import type { H3Event } from 'h3';
 import { generateTokens, verifyToken } from '../../utils/jwt';
+import { identityCookieOptions } from '../../utils/auth-cookies';
 import type { SessionHandoff } from './core';
 import { HOME, OAuthFailure, opaque, validateHandoff } from './core';
 import { browser, cookie, ephemeral, HANDOFF } from './http';
@@ -17,15 +18,11 @@ export async function establishSession(
       browser(event),
       60,
    );
-   const options = {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'lax' as const,
-      path: '/',
-   };
-   setCookie(event, 'quanta_access_token', tokens.accessToken, options);
-   setCookie(event, 'quanta_refresh_token', tokens.refreshToken, options);
-   setCookie(event, 'quanta_csrf_token', csrfToken, options);
+   // OAuth 通道恒为 https，secure 保持 true
+   const refreshOpt = identityCookieOptions(tokens.refreshToken, true);
+   setCookie(event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken, true));
+   setCookie(event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+   setCookie(event, 'quanta_csrf_token', csrfToken, refreshOpt);
    cookie(event, HANDOFF, handoff.token, 60);
 }
 export async function readSessionHandoff(event: H3Event) {
