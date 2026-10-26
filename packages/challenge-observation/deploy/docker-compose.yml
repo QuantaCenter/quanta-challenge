@@ -145,8 +145,6 @@ services:
       - --enabled-tools
       - datasource,prometheus,loki
       - --disable-write
-      # data-mcp 以 http://grafana-mcp:8000/mcp 访问，Host 头是 grafana-mcp:8000；
-      # mcp-grafana 默认只放行 loopback 变体，不放行会 403 "host not allowed"。
       - --allowed-hosts=grafana-mcp:8000,grafana-mcp,localhost:8000,127.0.0.1:8000
     environment:
       - GRAFANA_URL=http://grafana:3000

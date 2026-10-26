@@ -16,10 +16,6 @@ export interface AuditEvent {
   errorCode?: string;
 }
 
-// esbuild/tsup 会把 `import { DatabaseSync } from 'node:sqlite'` 的 specifier
-// 改写成裸名 `sqlite`（`node:crypto` → `crypto` 仍能解析到内置模块，但 `sqlite`
-// 不是内置模块名），导致打包产物在容器里 ERR_MODULE_NOT_FOUND。
-// 改成运行时取内置模块：不产生静态 import，esbuild 无从改写，且保持同步初始化。
 const { DatabaseSync } = process.getBuiltinModule('node:sqlite');
 
 export class AuditStore {

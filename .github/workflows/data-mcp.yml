@@ -63,7 +63,6 @@ jobs:
         run: |
           test -f dist/server.js
           ls -l dist/server.js
-          # 回归防护：esbuild 会把 node:sqlite 改写成裸包名 sqlite，容器里直接 ERR_MODULE_NOT_FOUND
           if grep -q 'from "sqlite"' dist/server.js; then
             echo "::error::dist/server.js 出现裸包名 sqlite，node:sqlite 被 esbuild 重写了"
             exit 1
