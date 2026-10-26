@@ -7,6 +7,12 @@ export const sentrySpanDurationSeconds = new client.Histogram({
    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
 })
 
+export const sentryEventsTotal = new client.Counter({
+   name: 'sentry_events_total',
+   help: 'Sentry 错误与消息事件数量（按级别和事件分类）',
+   labelNames: ['app', 'kind', 'level'] as const,
+})
+
 // 前端上报指标（由 Prometheus 抓取）
 export const register = client.register
 client.collectDefaultMetrics({ register, prefix: 'observation_' })

@@ -1,9 +1,8 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { config } from '../config.ts'
-import { pushFrontendLog } from '../loki.ts'
-import { frontendErrorsTotal } from '../metrics.ts'
-import { consumePerformance, isRecord } from '../sentry/performance.ts'
+import { consumeEvent } from '../sentry/events.ts'
+import { consumePerformance } from '../sentry/performance.ts'
 
 /** Sentry Envelope 接收端点：浏览器经 tunnel 代理、服务端按 DSN 直连；DSN 的 publicKey 即 app 标识。 */
 
@@ -119,38 +118,7 @@ async function handleEnvelope(c: Context) {
          consumePerformance(app, item.type, payload)
          continue
       }
-      if (!isRecord(payload))
-         continue
-      const event = payload
-
-      const values = (event.exception as { values?: Array<Record<string, unknown>> } | undefined)?.values
-      const exc = values?.[0]
-      const message = exc
-         ? `${exc.type ?? 'Error'}: ${exc.value ?? ''}`.trim()
-         : String(event.message ?? 'unknown error')
-
-      frontendErrorsTotal.inc({ app, type: 'sentry' })
-      pushFrontendLog(
-         app,
-         'sentry',
-         JSON.stringify({
-            kind: 'error',
-            type: 'sentry',
-            message: message.slice(0, 2000),
-            level: typeof event.level === 'string' ? event.level : 'error',
-            event_id: typeof event.event_id === 'string' ? event.event_id : undefined,
-            environment: typeof event.environment === 'string' ? event.environment : undefined,
-            release: typeof event.release === 'string' ? event.release : undefined,
-            path: typeof (event.request as { url?: unknown } | undefined)?.url === 'string'
-               ? (event.request as { url: string }).url.slice(0, 512)
-               : undefined,
-            stack: exc?.stacktrace
-               ? JSON.stringify(exc.stacktrace).slice(0, 4000)
-               : undefined,
-            ts: new Date().toISOString(),
-            user_agent: c.req.header('user-agent') ?? '',
-         }),
-      )
+      consumeEvent(app, payload, c.req.header('user-agent') ?? '')
    }
 
    // SDK 对 2xx 一律认为成功

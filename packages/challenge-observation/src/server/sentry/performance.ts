@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { pushFrontendLog } from '../loki.ts'
+import { writeSentryLog } from './logging.ts'
 import {
    frontendApiDurationSeconds,
    frontendApiRequestsTotal,
@@ -89,14 +89,15 @@ function observeSpan(app: string, span: z.infer<typeof spanSchema>): void {
          frontendApiDurationSeconds.observe({ app }, duration)
    }
 
-   pushFrontendLog(app, 'sentry_performance', JSON.stringify({
+   writeSentryLog(app, 'sentry_performance', {
       kind: 'span', op, duration,
-      name: typeof (span.name ?? span.description ?? span.transaction) === 'string'
-         ? String(span.name ?? span.description ?? span.transaction).slice(0, 512) : undefined,
-      trace_id: typeof span.trace_id === 'string' ? span.trace_id : undefined,
-      span_id: typeof span.span_id === 'string' ? span.span_id : undefined,
-      ts: new Date().toISOString(),
-   }))
+      name: span.name ?? span.description ?? span.transaction,
+      trace_id: span.trace_id, span_id: span.span_id, parent_span_id: span.parent_span_id,
+      start_timestamp: span.start_timestamp,
+      end_timestamp: span.end_timestamp ?? span.timestamp,
+      status: span.status,
+      attributes, measurements: span.measurements,
+   })
 }
 
 export function consumePerformance(app: string, type: string, payload: unknown): boolean {

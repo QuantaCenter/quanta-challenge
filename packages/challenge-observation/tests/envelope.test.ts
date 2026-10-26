@@ -85,3 +85,49 @@ test('invalid versions and reversed timestamps do not pollute metrics', async ()
    assert.equal(await sample('frontend_web_vitals_seconds_count', { app: 'test_app', metric: 'lcp' }), 0)
    assert.equal(await sample('frontend_web_vitals_seconds_count', { app: 'test_app', metric: 'fcp' }), 0)
 })
+
+test('ordinary messages and warnings are not counted as errors', async () => {
+   await report('event', { message: 'started' })
+   await report('event', { logentry: { message: 'retrying', formatted: 'retry 1' }, level: 'warning' })
+   await report('event', { message: 'failed', level: 'error' })
+   assert.equal(await sample('frontend_errors_total', { app: 'test_app', type: 'sentry' }), 1)
+   assert.equal(await sample('sentry_events_total', { app: 'test_app', kind: 'message', level: 'info' }), 1)
+   assert.equal(await sample('sentry_events_total', { app: 'test_app', kind: 'message', level: 'warning' }), 1)
+})
+
+test('errors preserve exception chain and tracing context, but redact sensitive fields', async () => {
+   await report('event', {
+      exception: { values: [{ type: 'Outer', value: 'failure', stacktrace: { frames: [{ filename: 'app.js', lineno: 2 }] } }, { type: 'Inner', value: 'cause' }] },
+      breadcrumbs: [{ category: 'http', data: { status: 200, token: 'breadcrumb-secret' } }],
+      contexts: { trace: { trace_id: 'trace', span_id: 'span' } },
+      extra: { password: 'password-secret', nested: { access_token: 'nested-secret', safe: 'keep' } },
+      request: { url: 'https://user:pass@example.test/page?token=url-secret#hash', headers: { Authorization: 'header-secret' }, data: 'body-secret' },
+      user: { id: 'opaque-id', email: 'person@example.test', ip_address: '127.0.0.1' },
+   })
+   mock.timers.tick(2000)
+   assert.equal(logs.length, 1)
+   const log = logs[0] as any
+   assert.equal(log.kind, 'error')
+   assert.equal(log.exception.values.length, 2)
+   assert.equal(log.contexts.trace.trace_id, 'trace')
+   assert.equal(log.breadcrumbs[0].data.status, 200)
+   assert.equal(log.extra.nested.safe, 'keep')
+   assert.equal(log.path, 'https://example.test/page')
+   assert.deepEqual(log.user, { id: 'opaque-id' })
+   const serialized = JSON.stringify(log)
+   for (const secret of ['breadcrumb-secret', 'password-secret', 'nested-secret', 'url-secret', 'header-secret', 'body-secret', 'person@example.test'])
+      assert.ok(!serialized.includes(secret))
+})
+
+test('malformed events are ignored without crashing or adding error counts', async () => {
+   for (const value of [null, [], {}, { exception: { values: 'wrong' } }, { level: 'custom', message: 'invalid' }])
+      assert.equal((await report('event', value)).status, 204)
+   assert.equal(await sample('frontend_errors_total', { app: 'test_app', type: 'sentry' }), 0)
+})
+
+test('large contexts are bounded without invalid JSON', async () => {
+   await report('event', { message: 'large', extra: Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`key${i}`, 'x'.repeat(5000)])) })
+   mock.timers.tick(2000)
+   assert.equal(logs.length, 1)
+   assert.ok(JSON.stringify(logs[0]).length < 20000)
+})
