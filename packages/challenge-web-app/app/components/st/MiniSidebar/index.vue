@@ -1,3 +1,17 @@
+<script setup lang="ts">
+import { computed, provide } from 'vue';
+import { MINI_SIDEBAR_TOOLTIP_HIDDEN_KEY } from './type';
+
+const props = defineProps<{
+   hideTooltips?: boolean;
+}>();
+
+provide(
+   MINI_SIDEBAR_TOOLTIP_HIDDEN_KEY,
+   computed(() => props.hideTooltips ?? false),
+);
+</script>
+
 <template>
    <aside
       class="h-full flex flex-col items-center py-2 px-2 shrink-0 bg-[#1F1F1F] rounded-xl z-[1000]">

@@ -19,6 +19,7 @@ onMounted(() => {
       :class="{ 'md:min-w-[1440px]': !isImmersivePath(route.path) }"
    >
       <NuxtPage />
+      <StImageViewerProvider />
    </div>
 </template>
 

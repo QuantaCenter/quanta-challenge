@@ -140,7 +140,8 @@ onUnmounted(() => detachDrawerTouchLock?.());
                      : '-translate-x-full invisible'
                "
                style="width: 88vw; max-width: calc(100vw - 0.5rem)">
-               <StMiniSidebar v-if="isMobile" class="w-16 shrink-0 overflow-hidden">
+               <StMiniSidebar v-if="isMobile" hide-tooltips
+                  class="w-16 shrink-0 overflow-hidden">
                   <ChallengeSidebarContent />
                </StMiniSidebar>
 

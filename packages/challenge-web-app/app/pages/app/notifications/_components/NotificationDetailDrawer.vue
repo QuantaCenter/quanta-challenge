@@ -75,8 +75,9 @@ const handleAppeal = async () => {
 // 点击卡片以外的区域关闭
 const handleOutsidePointerDown = (e: PointerEvent) => {
    if (!opened.value || hasDialog.value) return;
-   const target = e.target as Node | null;
+   const target = e.target as HTMLElement | null;
    if (!target) return;
+   if (target.closest?.('[data-st-image-viewer]')) return;
    if (cardRef.value?.contains(target)) return;
    close();
 };
@@ -96,6 +97,8 @@ watch(
 
 const handleKeydown = (e: KeyboardEvent) => {
    if (!opened.value || hasDialog.value) return;
+   // 图片查看器打开时，键盘事件（含 Esc）交给查看器处理
+   if (globalImage.isOpen()) return;
    if (e.key === 'ArrowLeft' && props.hasPrevious) {
       emit('prev');
    } else if (e.key === 'ArrowRight' && props.hasNext) {
