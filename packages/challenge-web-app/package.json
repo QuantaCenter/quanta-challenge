@@ -4,6 +4,7 @@
    "type": "module",
    "scripts": {
       "test:oauth": "node --experimental-strip-types --test tests/quanta-oauth.test.ts tests/quanta-oauth-accounts.test.ts tests/quanta-oauth-client.test.ts tests/quanta-oauth-rpc.test.ts",
+      "test:observation": "node --experimental-strip-types --test tests/navigation-observation.test.ts",
       "lint:oauth": "biome check --diagnostic-level=warn --error-on-warnings .",
       "format:oauth": "biome format --write .",
       "build": "node scripts/pre-build.ts && nuxt build && node scripts/post-build.ts",
