@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { frontendErrorsTotal, sentryEventsTotal } from '../metrics.ts'
 import { isRecord } from './performance.ts'
 import { writeSentryLog } from './logging.ts'
+import { consumeNavigation } from './navigation.ts'
 
 export const levelSchema = z.enum(['debug', 'info', 'log', 'warning', 'error', 'fatal'])
 const eventSchema = z.object({
@@ -12,6 +13,11 @@ const eventSchema = z.object({
 }).passthrough().refine(event => Boolean(event.exception || event.message || event.logentry?.message || event.logentry?.formatted))
 
 export function consumeEvent(app: string, payload: unknown, userAgent: string): boolean {
+   if (isRecord(payload) && payload.message === 'observation.navigation') {
+      if (payload.exception || payload.level !== 'info' || !isRecord(payload.contexts))
+         return false
+      return consumeNavigation(app, payload.contexts.navigation)
+   }
    const parsed = eventSchema.safeParse(payload)
    if (!parsed.success)
       return false

@@ -306,3 +306,60 @@ test('Loki queue overflow and send failures are observable', async () => {
       globalThis.fetch = originalFetch
    }
 })
+
+const navigation = { version: 1, kind: 'navigation', from: '/app/dashboard', to: '/app/space/:id', device: 'mobile' }
+const navigationEvent = (data: unknown) => ({ message: 'observation.navigation', level: 'info', contexts: { navigation: data } })
+
+test('navigation events aggregate from/to and device without inflating error or message counts', async () => {
+   const response = await report('event', navigationEvent(navigation))
+   assert.equal(response.status, 204)
+   assert.equal(response.headers.get('x-observation-accepted'), '1')
+   assert.equal(await sample('frontend_page_views_total', { app: 'test_app', page: '/app/space/:id', device: 'mobile', kind: 'navigation' }), 1)
+   assert.equal(await sample('frontend_navigation_total', { app: 'test_app', from: '/app/dashboard', to: '/app/space/:id', device: 'mobile' }), 1)
+   assert.equal(await sample('frontend_errors_total', { app: 'test_app', type: 'sentry' }), 0)
+   assert.equal(await sample('sentry_events_total', { app: 'test_app', kind: 'message', level: 'info' }), 0)
+   mock.timers.tick(2000)
+   assert.ok(logs.some(log => log.from === '/app/dashboard' && log.to === '/app/space/:id' && log.device === 'mobile'))
+})
+
+test('entry source supports direct, external, and internal pages and strips external credentials/parameters', async () => {
+   for (const from of ['direct', 'external', '/auth/login'])
+      assert.equal((await report('event', navigationEvent({ ...navigation, kind: 'entry', from, device: 'pc', referrer_origin: 'https://user:password@outside.test/path?token=secret#hash' }))).status, 204)
+   assert.equal(await sample('frontend_page_views_total', { app: 'test_app', page: '/app/space/:id', device: 'pc', kind: 'entry' }), 3)
+   mock.timers.tick(2000)
+   const external = logs.find(log => log.from === 'external')
+   assert.equal(external?.referrer_origin, 'https://outside.test/')
+   assert.ok(!JSON.stringify(logs).includes('secret'))
+})
+
+test('malformed navigation and raw query/hash URLs are rejected before metrics change', async () => {
+   for (const data of [
+      { ...navigation, version: 2 }, { ...navigation, device: 'tablet' },
+      { ...navigation, from: 'direct' }, { ...navigation, to: 'external' },
+      { ...navigation, to: '/page?token=secret' }, { ...navigation, from: 'https://outside.test/path' },
+      { ...navigation, to: '/page#secret' },
+   ])
+      assert.equal((await report('event', navigationEvent(data))).status, 400)
+   assert.equal((await report('event', { ...navigationEvent(navigation), level: 'error' })).status, 400)
+   assert.equal(await sample('frontend_page_views_total', { app: 'test_app', page: '/app/space/:id', device: 'mobile', kind: 'navigation' }), 0)
+})
+
+test('navigation ignores inherited identity and extra sensitive event context', async () => {
+   await report('event', { ...navigationEvent({ ...navigation, user_id: 'private-user' }),
+      user: { id: 'private-user', email: 'user@example.test' }, request: { url: 'https://app.test?token=secret' }, extra: { token: 'secret' },
+   })
+   mock.timers.tick(2000)
+   assert.ok(!JSON.stringify(logs).includes('private-user'))
+   assert.ok(!JSON.stringify(logs).includes('secret'))
+})
+
+test('navigation page and flow cardinality is bounded without losing total counts', async () => {
+   const { consumeNavigation } = await import('../src/server/sentry/navigation.ts')
+   for (let i = 0; i < 110; i++)
+      assert.equal(consumeNavigation('page_bounds', { ...navigation, kind: 'entry', from: 'direct', to: `/page${i}` }), true)
+   assert.ok(await sample('frontend_page_views_total', { app: 'page_bounds', page: 'other', device: 'mobile', kind: 'entry' }) > 0)
+   for (let i = 0; i < 40; i++)
+      for (let j = 0; j < 40; j++)
+         consumeNavigation('flow_bounds', { ...navigation, from: `/page${i}`, to: `/page${j}` })
+   assert.equal(await sample('frontend_navigation_total', { app: 'flow_bounds', from: 'other', to: 'other', device: 'mobile' }), 600)
+})

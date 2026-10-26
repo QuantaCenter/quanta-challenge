@@ -65,6 +65,18 @@ export const sentryCheckInsTotal = new client.Counter({
 export const register = client.register
 client.collectDefaultMetrics({ register, prefix: 'observation_' })
 
+export const frontendPageViewsTotal = new client.Counter({
+   name: 'frontend_page_views_total',
+   help: '页面访问事件数量（路由模板、设备与首屏/站内跳转；非独立用户数）',
+   labelNames: ['app', 'page', 'device', 'kind'] as const,
+})
+
+export const frontendNavigationTotal = new client.Counter({
+   name: 'frontend_navigation_total',
+   help: '页面来源去向数量（路由模板，direct/external/unknown；流向数量有上限）',
+   labelNames: ['app', 'from', 'to', 'device'] as const,
+})
+
 export const frontendErrorsTotal = new client.Counter({
    name: 'frontend_errors_total',
    help: '前端异常总数（SDK 上报，按应用与类型）',
