@@ -131,3 +131,60 @@ test('large contexts are bounded without invalid JSON', async () => {
    assert.equal(logs.length, 1)
    assert.ok(JSON.stringify(logs[0]).length < 20000)
 })
+
+test('client reports aggregate quantities and normalize arbitrary reasons/categories', async () => {
+   await report('client_report', { timestamp: 100, discarded_events: [
+      { reason: 'sample_rate', category: 'span', quantity: 7 },
+      { reason: 'custom-reason', category: 'custom-category', quantity: 2 },
+   ] })
+   assert.equal(await sample('sentry_client_discarded_total', { app: 'test_app', reason: 'sample_rate', category: 'span' }), 7)
+   assert.equal(await sample('sentry_client_discarded_total', { app: 'test_app', reason: 'other', category: 'unknown' }), 2)
+   await report('client_report', { timestamp: 100, discarded_events: [{ reason: 'sample_rate', category: 'span', quantity: -1 }] })
+   assert.equal(await sample('sentry_client_discarded_total', { app: 'test_app', reason: 'sample_rate', category: 'span' }), 7)
+})
+
+test('single session updates and batch session counts remain separate', async () => {
+   const session = { sid: 'session1', init: true, timestamp: '2026-01-01', started: '2026-01-01', status: 'ok', errors: 0 }
+   await report('session', session)
+   await report('session', { ...session, init: false, status: 'crashed', errors: 1 })
+   await report('sessions', { aggregates: [{ started: '2026-01-01', exited: 5, errored: 2, crashed: 1 }] })
+   assert.equal(await sample('sentry_session_updates_total', { app: 'test_app', status: 'ok' }), 1)
+   assert.equal(await sample('sentry_session_updates_total', { app: 'test_app', status: 'crashed' }), 1)
+   assert.equal(await sample('sentry_session_aggregates_total', { app: 'test_app', status: 'exited' }), 5)
+   assert.equal(await sample('sentry_session_aggregates_total', { app: 'test_app', status: 'errored' }), 2)
+})
+
+test('log and trace_metric v2 containers preserve values, units, and trace linkage', async () => {
+   await report('log', { version: 2, items: [
+      { timestamp: 100, level: 'warn', body: 'retry', trace_id: 'trace1', attributes: { password: attr('sensitive') } },
+      { timestamp: 101, level: 'error', body: 'failed' },
+   ] })
+   await report('trace_metric', { version: 2, items: [
+      { timestamp: 100, type: 'gauge', name: 'temperature', value: -5, unit: 'celsius', trace_id: 'trace1' },
+      { timestamp: 101, type: 'distribution', name: 'latency', value: 123, unit: 'millisecond' },
+   ] })
+   assert.equal(await sample('sentry_logs_total', { app: 'test_app', level: 'warn' }), 1)
+   assert.equal(await sample('sentry_metric_samples_total', { app: 'test_app', type: 'gauge' }), 1)
+   assert.equal(await sample('frontend_errors_total', { app: 'test_app', type: 'sentry' }), 0)
+   mock.timers.tick(2000)
+   assert.ok(logs.some(log => log.name === 'temperature' && log.value === -5 && log.unit === 'celsius' && log.trace_id === 'trace1'))
+   assert.ok(!JSON.stringify(logs).includes('sensitive'))
+})
+
+test('invalid container member rejects the whole item before any side effects', async () => {
+   await report('log', { version: 2, items: [{ timestamp: 100, level: 'info', body: 'valid' }, { timestamp: 100, level: 'wrong', body: 'invalid' }] })
+   assert.equal(await sample('sentry_logs_total', { app: 'test_app', level: 'info' }), 0)
+})
+
+test('feedback, check-ins, and CSP reports are recorded without contact details', async () => {
+   await report('feedback', { event_id: 'feedback1', contexts: { feedback: { message: 'button broken', associated_event_id: 'error1', contact_email: 'secret@example.test', name: 'Private Name' } } })
+   await report('user_report', { event_id: 'error1', comments: 'legacy feedback', email: 'secret@example.test', name: 'Private Name' })
+   await report('check_in', { check_in_id: 'check1', monitor_slug: 'cleanup', status: 'error', duration: 1.5 })
+   await report('raw_security', { 'csp-report': { 'document-uri': 'https://example.test/page?token=secret', 'violated-directive': 'script-src' } })
+   assert.equal(await sample('sentry_check_ins_total', { app: 'test_app', status: 'error' }), 1)
+   mock.timers.tick(2000)
+   assert.ok(logs.some(log => log.kind === 'feedback' && log.associated_event_id === 'error1'))
+   assert.ok(logs.some(log => log.kind === 'raw_security'))
+   assert.ok(!JSON.stringify(logs).includes('secret'))
+   assert.ok(!JSON.stringify(logs).includes('Private Name'))
+})

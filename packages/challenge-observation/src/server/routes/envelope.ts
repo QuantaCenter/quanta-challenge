@@ -3,6 +3,7 @@ import type { Context } from 'hono'
 import { config } from '../config.ts'
 import { consumeEvent } from '../sentry/events.ts'
 import { consumePerformance } from '../sentry/performance.ts'
+import { consumeTelemetry, telemetryTypes } from '../sentry/telemetry.ts'
 
 /** Sentry Envelope 接收端点：浏览器经 tunnel 代理、服务端按 DSN 直连；DSN 的 publicKey 即 app 标识。 */
 
@@ -104,7 +105,7 @@ async function handleEnvelope(c: Context) {
 
    const app = appFromDsn(envelope.dsn) ?? c.req.param('projectId') ?? 'unknown'
    for (const item of envelope.items) {
-      if (!['event', 'transaction', 'span'].includes(item.type) || !item.payload)
+      if ((!['event', 'transaction', 'span'].includes(item.type) && !telemetryTypes.has(item.type)) || !item.payload)
          continue
 
       let payload: unknown
@@ -114,11 +115,12 @@ async function handleEnvelope(c: Context) {
       catch {
          continue
       }
-      if (item.type !== 'event') {
+      if (item.type === 'event')
+         consumeEvent(app, payload, c.req.header('user-agent') ?? '')
+      else if (item.type === 'transaction' || item.type === 'span')
          consumePerformance(app, item.type, payload)
-         continue
-      }
-      consumeEvent(app, payload, c.req.header('user-agent') ?? '')
+      else
+         consumeTelemetry(app, item.type, payload)
    }
 
    // SDK 对 2xx 一律认为成功

@@ -13,6 +13,42 @@ export const sentryEventsTotal = new client.Counter({
    labelNames: ['app', 'kind', 'level'] as const,
 })
 
+export const sentryClientDiscardedTotal = new client.Counter({
+   name: 'sentry_client_discarded_total',
+   help: 'SDK 报告的丢弃数量（原因与类别归一化）',
+   labelNames: ['app', 'reason', 'category'] as const,
+})
+
+export const sentrySessionUpdatesTotal = new client.Counter({
+   name: 'sentry_session_updates_total',
+   help: 'Sentry 单会话状态更新次数（不是独立会话数）',
+   labelNames: ['app', 'status'] as const,
+})
+
+export const sentrySessionAggregatesTotal = new client.Counter({
+   name: 'sentry_session_aggregates_total',
+   help: 'Sentry 批量会话聚合数量',
+   labelNames: ['app', 'status'] as const,
+})
+
+export const sentryLogsTotal = new client.Counter({
+   name: 'sentry_logs_total',
+   help: 'Sentry 结构化日志数量',
+   labelNames: ['app', 'level'] as const,
+})
+
+export const sentryMetricSamplesTotal = new client.Counter({
+   name: 'sentry_metric_samples_total',
+   help: 'Sentry 自定义指标样本数量（具体值与单位存于 Loki）',
+   labelNames: ['app', 'type'] as const,
+})
+
+export const sentryCheckInsTotal = new client.Counter({
+   name: 'sentry_check_ins_total',
+   help: 'Sentry 任务状态上报次数',
+   labelNames: ['app', 'status'] as const,
+})
+
 // 前端上报指标（由 Prometheus 抓取）
 export const register = client.register
 client.collectDefaultMetrics({ register, prefix: 'observation_' })
