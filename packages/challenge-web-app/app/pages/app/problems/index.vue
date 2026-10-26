@@ -131,7 +131,9 @@ const currentFilters = () => ({
    tids: selectedTags.value,
    difficulty: selectedDifficulty.value || undefined,
    keyword: searchKeyword.value || undefined,
-   excludePids: onlyUncompleted.value ? completedProblemIds.value : undefined,
+   excludePids: onlyUncompleted.value
+      ? [...completedProblemIdSet.value]
+      : undefined,
    currentWeekOnly: onlyCurrentWeek.value || undefined,
 });
 
