@@ -65,65 +65,60 @@ const iconMapping = {
 
 type IconKey = keyof typeof iconMapping;
 
-// 以下请求互不依赖，并行发出（useAsyncData 需在首个 await 之前同步调用）
-const [
-   { data: targetUser, refresh: refreshTargetUser },
-   { data: spaceConfig, refresh: refreshSpaceConfig },
-   { data: commitStatistics },
-   { data: recentProblems },
-   { data: rawUserInfo, refresh: refreshRawUserInfo },
-] = await Promise.all([
-   // 获取目标用户的信息
-   useAsyncData(
-      `get-user-by-name-${userName.value}`,
-      () => $trpc.protected.user.getUserByName.query({ name: userName.value }),
-      {
-         watch: [userName],
-      },
-   ),
-   // 获取用户的空间配置
-   useAsyncData(
-      `get-user-space-config-${userName.value}`,
-      () =>
-         $trpc.protected.user.getUserSpaceConfig.query({
-            name: userName.value,
-         }),
-      {
-         watch: [userName],
-      },
-   ),
-   // 获取用户提交状态
-   useAsyncData(
-      `get-user-commit-status-${userName.value}`,
-      () =>
-         $trpc.protected.user.getCommitStatistic.query({
-            name: userName.value,
-         }),
-      {
-         watch: [userName],
-      },
-   ),
-   // 获取最近提交的题目
-   useAsyncData(
-      `get-user-recent-problems-${userName.value}`,
-      () =>
-         $trpc.protected.user.getRecentProblems.query({ name: userName.value }),
-      {
-         watch: [userName],
-      },
-   ),
-   // 为了兼容编辑功能，保留获取自己信息的接口（仅在查看自己空间时调用）
-   useAsyncData(
-      'get-raw-user-info',
-      () =>
-         isOwnSpace.value
-            ? $trpc.protected.user.getUserInfo.query()
-            : Promise.resolve(null),
-      {
-         watch: [isOwnSpace],
-      },
-   ),
-]);
+// 以下请求互不依赖，同步调用即并行发出，再逐个 await
+// （不经过 Promise.all，避免 tRPC 类型在元组推断中实例化过深；useAsyncData 需在首个 await 之前同步调用）
+const targetUserAsync = useAsyncData(
+   `get-user-by-name-${userName.value}`,
+   () => $trpc.protected.user.getUserByName.query({ name: userName.value }),
+   {
+      watch: [userName],
+   },
+);
+const spaceConfigAsync = useAsyncData(
+   `get-user-space-config-${userName.value}`,
+   () =>
+      $trpc.protected.user.getUserSpaceConfig.query({
+         name: userName.value,
+      }),
+   {
+      watch: [userName],
+   },
+);
+const commitStatisticsAsync = useAsyncData(
+   `get-user-commit-status-${userName.value}`,
+   () =>
+      $trpc.protected.user.getCommitStatistic.query({
+         name: userName.value,
+      }),
+   {
+      watch: [userName],
+   },
+);
+const recentProblemsAsync = useAsyncData(
+   `get-user-recent-problems-${userName.value}`,
+   () =>
+      $trpc.protected.user.getRecentProblems.query({ name: userName.value }),
+   {
+      watch: [userName],
+   },
+);
+// 为了兼容编辑功能，保留获取自己信息的接口（仅在查看自己空间时调用）
+const rawUserInfoAsync = useAsyncData(
+   'get-raw-user-info',
+   () =>
+      isOwnSpace.value
+         ? $trpc.protected.user.getUserInfo.query()
+         : Promise.resolve(null),
+   {
+      watch: [isOwnSpace],
+   },
+);
+
+const { data: targetUser, refresh: refreshTargetUser } = await targetUserAsync;
+const { data: spaceConfig, refresh: refreshSpaceConfig } = await spaceConfigAsync;
+const { data: commitStatistics } = await commitStatisticsAsync;
+const { data: recentProblems } = await recentProblemsAsync;
+const { data: _, refresh: refreshRawUserInfo } = await rawUserInfoAsync;
 
 // 安全获取可见性配置
 const getVisibility = (field: string): boolean => {

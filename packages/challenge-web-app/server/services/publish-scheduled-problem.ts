@@ -4,8 +4,7 @@ import { dispatchTimerTask, registerTimerHandler } from '../utils/timer';
 
 const HANDLER_ID = 'publish-scheduled-problem';
 
-// 执行发布：仅当题目仍处于 ready 且定时时间已到才翻转状态。
-// 执行前被立即发布/取消发布/改期/取消定时抢先的题目会在状态检查处静默跳过。
+// 条件更新防止与改期/立即发布并发冲突，未命中则静默跳过
 const publishIfDue = async (problemId: number) => {
    const problem = await prisma.problems.findUnique({
       where: { pid: problemId },
@@ -24,21 +23,30 @@ const publishIfDue = async (problemId: number) => {
       return;
    }
 
-   // 只发布当前版本；被新版本取代的旧版本只清掉定时标记
+   // 非当前版本仅清除定时标记，不翻转状态
    const isCurrentVersion =
       !problem.BaseProblem.currentPid ||
       problem.BaseProblem.currentPid === problemId;
-   await prisma.problems.update({
-      where: { pid: problemId },
+   const { count } = await prisma.problems.updateMany({
+      where: {
+         pid: problemId,
+         status: 'ready',
+         scheduledPublishAt: problem.scheduledPublishAt,
+         ...(isCurrentVersion && {
+            BaseProblem: { currentPid: problem.BaseProblem.currentPid ?? null },
+         }),
+      },
       data: {
          status: isCurrentVersion ? 'published' : undefined,
          scheduledPublishAt: null,
       },
    });
-   logger.info(
-      { problemId, published: isCurrentVersion },
-      '定时发布执行完成',
-   );
+   if (count > 0) {
+      logger.info(
+         { problemId, published: isCurrentVersion },
+         '定时发布执行完成',
+      );
+   }
 };
 
 export const registerPublishScheduledProblemHandler = () => {
@@ -47,19 +55,8 @@ export const registerPublishScheduledProblemHandler = () => {
    });
 };
 
-/**
- * 投递题目定时发布任务（题目须处于 ready 且带定时时间，否则忽略）。
- * 会先清掉该题旧的 pending 任务再投递，改期/重设定时不会堆积任务；
- * 过去的 runAt 会被 Worker 立即领取，用于 audit 通过晚于定时时间的补偿。
- */
-export const dispatchPublishScheduledTask = async (problemId: number) => {
-   const problem = await prisma.problems.findUnique({
-      where: { pid: problemId },
-      select: { status: true, scheduledPublishAt: true },
-   });
-   if (problem?.status !== 'ready' || problem.scheduledPublishAt == null) {
-      return;
-   }
+/** 清除该题目的 pending 定时发布任务 */
+export const cancelPublishScheduledTask = async (problemId: number) => {
    await prisma.timerTask.deleteMany({
       where: {
          handlerId: HANDLER_ID,
@@ -67,6 +64,18 @@ export const dispatchPublishScheduledTask = async (problemId: number) => {
          payload: { equals: { problemId } },
       },
    });
+};
+
+/** 投递定时发布任务：先清除旧 pending 任务，非 ready 或未设定时则忽略 */
+export const dispatchPublishScheduledTask = async (problemId: number) => {
+   const problem = await prisma.problems.findUnique({
+      where: { pid: problemId },
+      select: { status: true, scheduledPublishAt: true },
+   });
+   await cancelPublishScheduledTask(problemId);
+   if (problem?.status !== 'ready' || problem.scheduledPublishAt == null) {
+      return;
+   }
    await dispatchTimerTask(
       HANDLER_ID,
       { problemId },

@@ -311,7 +311,10 @@ const handleSubmit = async () => {
          snapshotImageId: draft.value.snapshotImageId || null,
          taskStartAt: draft.value.taskStartAt || undefined,
          taskEndAt: draft.value.taskEndAt || undefined,
-         scheduledPublishAt: draft.value.scheduledPublishAt || undefined,
+         // datetime-local 按浏览器时区解析后转为 ISO，避免服务端按自身时区误读
+         scheduledPublishAt: draft.value.scheduledPublishAt
+            ? new Date(draft.value.scheduledPublishAt).toISOString()
+            : undefined,
       });
    };
    submitLoading.value = true;

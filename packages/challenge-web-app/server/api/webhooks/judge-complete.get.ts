@@ -89,8 +89,7 @@ export default defineEventHandler(async (event) => {
    /* 触发成就判定。*/
    observer.manualMarkDirty(['judge_records'] as ValidPath[], { userId });
 
-   // 审计记录：调度器此时已把题目翻转为 ready/invalid，重新派发定时发布任务。
-   // 服务内部会校验题目状态与定时时间，审计失败或未设定时则直接跳过。
+   // 审计通过后重新派发定时发布任务，内部校验状态与定时时间
    if (type === 'audit') {
       await dispatchPublishScheduledTask(problem.pid);
    }
