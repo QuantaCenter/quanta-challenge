@@ -1,4 +1,5 @@
 import type { StForm } from '#components';
+import dayjs from 'dayjs';
 import {
    BACKEND_SERVICE_IMAGES,
    buildBackendBootCommand,
@@ -263,8 +264,9 @@ export const useProblemPublicationForm = (storageName: string) => {
       },
       {
          field: 'scheduledPublishAt',
+         // DatePicker 的值格式为 YYYY-MM-DD HH:mm，用 dayjs 按本地时区解析
          validator(value) {
-            return !value || new Date(value).getTime() > Date.now();
+            return !value || dayjs(value).valueOf() > Date.now();
          },
       },
    ]);

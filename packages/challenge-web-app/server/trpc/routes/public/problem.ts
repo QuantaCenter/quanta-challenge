@@ -13,6 +13,10 @@ const GetAllPublicProblemsSchema = z.object({
    tids: z.array(z.number('Tag ID must be a number')).optional(),
    difficulty: z.enum(['easy', 'medium', 'hard', 'very_hard']).optional(),
    keyword: z.string().optional(),
+   // 只显示未完成：前端传入已完成题目 pid 列表
+   excludePids: z.array(z.number('Problem ID must be a number')).optional(),
+   // 只显示本周任务：任务日期区间与本周相交
+   currentWeekOnly: z.boolean().optional(),
    cursor: z.number('Cursor must be a number').int().nullish(),
    limit: z
       .number('Limit must be a number')
@@ -36,6 +40,33 @@ const getAllPublicProblems = publicProcedure
       const keywordFilter = input.keyword
          ? { title: { contains: input.keyword, mode: 'insensitive' as const } }
          : {};
+      const excludePidsFilter =
+         input.excludePids && input.excludePids.length > 0
+            ? { pid: { notIn: input.excludePids } }
+            : {};
+      let currentWeekFilter = {};
+      if (input.currentWeekOnly) {
+         // 周边界按 UTC+8 计算，与服务器部署时区无关
+         const UTC8 = 8 * 60 * 60 * 1000;
+         const nowUtc8 = new Date(Date.now() + UTC8);
+         const day = (nowUtc8.getUTCDay() + 6) % 7;
+         const weekStart = new Date(
+            Date.UTC(
+               nowUtc8.getUTCFullYear(),
+               nowUtc8.getUTCMonth(),
+               nowUtc8.getUTCDate() - day,
+            ) - UTC8,
+         );
+         const weekEnd = new Date(weekStart.getTime() + 7 * 86400_000);
+         // 区间相交；单边日期视为开放区间，无任务日期不算本周任务
+         currentWeekFilter = {
+            OR: [
+               { taskStartAt: { lt: weekEnd }, taskEndAt: null },
+               { taskEndAt: { gt: weekStart }, taskStartAt: null },
+               { taskStartAt: { lt: weekEnd }, taskEndAt: { gt: weekStart } },
+            ],
+         };
+      }
       const problems = await prisma.baseProblems.findMany({
          where: {
             CurrentProblem: {
@@ -43,6 +74,8 @@ const getAllPublicProblems = publicProcedure
                ...tagFilter,
                ...difficultyFilter,
                ...keywordFilter,
+               ...excludePidsFilter,
+               ...currentWeekFilter,
             },
          },
          // 多取一条用于判断是否还有下一页
