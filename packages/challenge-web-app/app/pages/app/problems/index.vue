@@ -110,11 +110,7 @@ const resetAdvanced = () => {
    onlyCurrentWeek.value = false;
 };
 
-watch(selectedDifficulty, () => {
-   startViewTransition(refresh);
-});
-
-watch([onlyUncompleted, onlyCurrentWeek], () => {
+watch([selectedDifficulty, onlyUncompleted, onlyCurrentWeek], () => {
    startViewTransition(refresh);
 });
 
@@ -262,7 +258,7 @@ const {
                </StSpace>
             </StSpace>
          </StSkeleton>
-         <!-- grid-rows 0fr/1fr 过渡实现面板高度平滑展开收起 -->
+         <!-- grid-rows 0fr/1fr 实现高度过渡 -->
          <div
             class="grid transition-[grid-template-rows,opacity] duration-300 ease-out"
             :class="
@@ -276,46 +272,46 @@ const {
                   align="center"
                   gap="1rem"
                   class="mt-1 flex-wrap rounded-2xl border border-accent-500/20">
-               <StSpace align="center" gap="0.75rem" class="shrink-0">
-                  <DifficultyFilter v-model:value="selectedDifficulty" />
-               </StSpace>
-               <StSpace
-                  gap="0.5rem"
-                  align="center"
-                  @click="onlyCurrentWeek = !onlyCurrentWeek"
-                  class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
-                  :class="{
-                     'bg-accent-100 text-accent-600 border-transparent':
-                        onlyCurrentWeek,
-                     'bg-accent-600 text-accent-100 border-accent-500/40':
-                        !onlyCurrentWeek,
-                  }">
-                  <Calendar class="text-[1.25rem]" />
-                  <span class="font-family-manrope font-bold">只显示本周任务</span>
-               </StSpace>
-               <StSpace
-                  gap="0.5rem"
-                  align="center"
-                  @click="onlyUncompleted = !onlyUncompleted"
-                  class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
-                  :class="{
-                     'bg-accent-100 text-accent-600 border-transparent':
-                        onlyUncompleted,
-                     'bg-accent-600 text-accent-100 border-accent-500/40':
-                        !onlyUncompleted,
-                  }">
-                  <Round class="text-[1.25rem]" />
-                  <span class="font-family-manrope font-bold">只显示未完成</span>
-               </StSpace>
-               <StSpace
-                  v-if="hasActiveAdvanced"
-                  gap="0.5rem"
-                  align="center"
-                  @click="resetAdvanced"
-                  class="ml-auto h-[3rem] px-5 rounded-full cursor-pointer shrink-0 text-nowrap whitespace-nowrap text-accent-300 hover:text-white hover:bg-accent-600 transition-colors">
-                  <Clear class="text-[1.25rem]" />
-                  <span class="font-family-manrope font-bold">清除筛选</span>
-               </StSpace>
+                  <StSpace align="center" gap="0.75rem" class="shrink-0">
+                     <DifficultyFilter v-model:value="selectedDifficulty" />
+                  </StSpace>
+                  <StSpace
+                     gap="0.5rem"
+                     align="center"
+                     @click="onlyCurrentWeek = !onlyCurrentWeek"
+                     class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
+                     :class="{
+                        'bg-accent-100 text-accent-600 border-transparent':
+                           onlyCurrentWeek,
+                        'bg-accent-600 text-accent-100 border-accent-500/40':
+                           !onlyCurrentWeek,
+                     }">
+                     <Calendar class="text-[1.25rem]" />
+                     <span class="font-family-manrope font-bold">只显示本周任务</span>
+                  </StSpace>
+                  <StSpace
+                     gap="0.5rem"
+                     align="center"
+                     @click="onlyUncompleted = !onlyUncompleted"
+                     class="h-[3rem] px-5 rounded-full cursor-pointer border shrink-0 text-nowrap whitespace-nowrap transition-colors"
+                     :class="{
+                        'bg-accent-100 text-accent-600 border-transparent':
+                           onlyUncompleted,
+                        'bg-accent-600 text-accent-100 border-accent-500/40':
+                           !onlyUncompleted,
+                     }">
+                     <Round class="text-[1.25rem]" />
+                     <span class="font-family-manrope font-bold">只显示未完成</span>
+                  </StSpace>
+                  <StSpace
+                     v-if="hasActiveAdvanced"
+                     gap="0.5rem"
+                     align="center"
+                     @click="resetAdvanced"
+                     class="ml-auto h-[3rem] px-5 rounded-full cursor-pointer shrink-0 text-nowrap whitespace-nowrap text-accent-300 hover:text-white hover:bg-accent-600 transition-colors">
+                     <Clear class="text-[1.25rem]" />
+                     <span class="font-family-manrope font-bold">清除筛选</span>
+                  </StSpace>
                </StSpace>
             </div>
          </div>
@@ -401,4 +397,3 @@ const {
 </template>
 
 <style scoped src="@/assets/css/utils.css" />
-
