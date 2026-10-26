@@ -174,22 +174,20 @@ const showSwitchButton = computed(() => {
    return status === 'published' || status === 'ready';
 });
 
-// 定时发布：仅审核通过且未发布的当前版本可设置
 const scheduleModalOpened = ref(false);
-/** StDatePicker 的值，格式 YYYY-MM-DD HH:mm */
 const scheduledPublishAtInput = ref('');
 const onSchedulePublish = ref(false);
-/** 可选时间下限：弹窗打开期间每秒刷新，保证不早于当前时间 */
 const minDateTime = ref(dayjs().format('YYYY-MM-DD HH:mm'));
 useIntervalFn(() => {
    if (!scheduleModalOpened.value) return;
    minDateTime.value = dayjs().format('YYYY-MM-DD HH:mm');
-   // 已选时间若落入禁选范围，自动修正为当前最早可选时间
    if (
       scheduledPublishAtInput.value &&
       scheduledPublishAtInput.value < minDateTime.value
    ) {
-      scheduledPublishAtInput.value = minDateTime.value;
+      scheduledPublishAtInput.value = dayjs()
+         .add(1, 'minute')
+         .format('YYYY-MM-DD HH:mm');
    }
 }, 1_000);
 const showScheduleButton = computed(() => {
@@ -213,9 +211,13 @@ const handleSchedulePublish = async () => {
    if (!scheduledPublishAtInput.value) return;
    onSchedulePublish.value = true;
    try {
+      const target = dayjs(scheduledPublishAtInput.value);
+      const scheduledPublishAt = target.isAfter(dayjs())
+         ? target.toDate()
+         : dayjs().add(1, 'minute').startOf('minute').toDate();
       const result = $trpc.admin.problem.schedulePublish.mutate({
          problemId: Number(id),
-         scheduledPublishAt: dayjs(scheduledPublishAtInput.value).toDate(),
+         scheduledPublishAt,
       });
       await atLeastTime(500, result);
       scheduleModalOpened.value = false;
@@ -373,7 +375,7 @@ const handlerViewVersion = () => {
                      取消定时
                   </button>
                   <button
-                     class="flex-1 rounded-md bg-primary text-black py-2 cursor-pointer disabled:opacity-40"
+                     class="flex-1 rounded-md bg-primary text-white py-2 cursor-pointer disabled:opacity-40"
                      :disabled="onSchedulePublish || !scheduledPublishAtInput"
                      @click="handleSchedulePublish">
                      确认定时
