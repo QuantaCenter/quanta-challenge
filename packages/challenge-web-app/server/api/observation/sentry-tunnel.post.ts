@@ -2,7 +2,7 @@
 export default defineEventHandler(async (event) => {
    const config = useRuntimeConfig(event);
 
-   const body = await readRawBody(event, 'utf-8');
+   const body = await readRawBody(event, false);
    if (!body) {
       setResponseStatus(event, 400);
       return null;
@@ -18,14 +18,27 @@ export default defineEventHandler(async (event) => {
    // 采集侧 Loki 日志里带 user_agent，透传原始 UA
    const userAgent = getRequestHeader(event, 'user-agent');
    if (userAgent) headers['user-agent'] = userAgent;
+   const contentEncoding = getRequestHeader(event, 'content-encoding');
+   if (contentEncoding) headers['content-encoding'] = contentEncoding;
+   if (body.length > 1024 * 1024) {
+      setResponseStatus(event, 413);
+      return null;
+   }
 
    try {
       const res = await $fetch.raw(`${config.observation.serverUrl}/api/1/envelope/`, {
          method: 'POST',
          body,
          headers,
+         retry: 0,
+         ignoreResponseError: true,
       });
       setResponseStatus(event, res.status);
+      for (const outcome of ['accepted', 'invalid', 'unsupported', 'dropped']) {
+         const name = `x-observation-${outcome}`;
+         const value = res.headers.get(name);
+         if (value !== null) setResponseHeader(event, name, value);
+      }
       return null;
    }
    catch (error) {

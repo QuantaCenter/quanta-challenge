@@ -55,10 +55,10 @@ const uploadShape = {
       .regex(/^[A-Za-z0-9_-]+$/, '快照镜像 id 不合法')
       .nullable()
       .optional(),
-   /** 任务日期范围（本周任务筛选与展示用） */
+   /** 任务日期范围 */
    taskStartAt: z.coerce.date().optional(),
    taskEndAt: z.coerce.date().optional(),
-   /** 定时发布时间（晚于当前时间时题目保持 ready，到点由后台任务自动发布） */
+   /** 定时发布时间，到点自动发布 */
    scheduledPublishAt: z.coerce.date().optional(),
 };
 

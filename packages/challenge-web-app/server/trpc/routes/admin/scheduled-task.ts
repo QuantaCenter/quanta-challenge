@@ -100,6 +100,8 @@ const listProcedure = protectedAdminProcedure.query(async () => {
 type TaskPayloadMeta = {
    userNames?: string[];
    problemTitles?: string[];
+   problemId?: number;
+   problemTitle?: string;
 };
 
 /** 列表标签展示所需的用户补充信息 */
@@ -117,6 +119,11 @@ const buildTaskSummary = (
       return typeof userCount === 'number'
          ? `定时发送通知 · ${userCount} 位指定用户`
          : '定时发送通知 · 全体用户';
+   }
+   if (handlerId === 'publish-scheduled-problem') {
+      return payload?.problemTitle
+         ? `定时发布 · ${payload.problemTitle}`
+         : `定时发布 · #${payload?.problemId ?? '?'}`;
    }
    return handlerId;
 };
@@ -220,15 +227,32 @@ const listAllProcedure = protectedAdminProcedure
 const cancelProcedure = protectedAdminProcedure
    .input(TaskIdSchema)
    .mutation(async ({ input }) => {
-      const result = await prisma.timerTask.deleteMany({
-         where: { id: input.id, status: 'pending' },
+      const task = await prisma.timerTask.findUnique({
+         where: { id: input.id },
+         select: { status: true, handlerId: true, payload: true },
       });
-      if (result.count === 0) {
+      if (!task || task.status !== 'pending') {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: '任务不存在或已不在待执行状态',
          });
       }
+      // 定时发布任务是「应用状态 + 队列」双写，取消队列时需同步清空题目的定时标记
+      const problemId =
+         task.handlerId === 'publish-scheduled-problem'
+            ? (task.payload as TaskPayloadMeta | null)?.problemId
+            : undefined;
+      await prisma.$transaction([
+         prisma.timerTask.delete({ where: { id: input.id } }),
+         ...(typeof problemId === 'number'
+            ? [
+                 prisma.problems.updateMany({
+                    where: { pid: problemId },
+                    data: { scheduledPublishAt: null },
+                 }),
+              ]
+            : []),
+      ]);
       return { ok: true };
    });
 

@@ -93,6 +93,18 @@ const IMAGES = [
          'packages/challenge-observation/src', // COPY src
       ],
    },
+   {
+      short: 'data-mcp',
+      title: '统一查数 MCP',
+      dockerfile: 'packages/challenge-data-mcp/Dockerfile',
+      watches: [
+         'packages/challenge-data-mcp/Dockerfile',
+         'packages/challenge-data-mcp/package.json',
+         'packages/challenge-data-mcp/tsconfig.json',
+         'packages/challenge-data-mcp/tsup.config.ts',
+         'packages/challenge-data-mcp/src', // COPY src
+      ],
+   },
 ];
 
 /** 影响所有镜像的路径：这些文件一变，每个镜像的依赖层都会变。 */

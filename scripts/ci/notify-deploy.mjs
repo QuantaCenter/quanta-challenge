@@ -39,6 +39,7 @@ const COMPOSE_SERVICE = {
    'backend-judge-machine': null,
    'cloud-function': 'challenge-cloud-function',
    'observation': 'observation',
+   'data-mcp': 'data-mcp',
 };
 
 // webhook 同步等部署完成（docker pull 最长 8 分钟）才回包
