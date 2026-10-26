@@ -53,6 +53,15 @@ const SERVICES = {
       health: env.HEALTH_OBSERVATION || 'http://127.0.0.1:9310/healthz',
       codes: [200],
    },
+   // 查数 MCP：同属监控栈 compose 项目；compose 里写作 challenge-data-mcp:latest
+   'data-mcp': {
+      refVar: '',
+      ref: 'challenge-data-mcp:latest',
+      composeFile: 'packages/challenge-observation/deploy/docker-compose.yml',
+      envFile: 'packages/challenge-observation/deploy/.env',
+      health: env.HEALTH_DATA_MCP || 'http://127.0.0.1:9320/healthz',
+      codes: [200],
+   },
 };
 
 /** service 为 null 的镜像不在 compose 里，调度器按本地镜像名:latest 拉容器，这些本地名必须由 webhook 维护。 */

@@ -89,6 +89,12 @@ DNS 解析失败。
 compose 文件（带项目目录下的 `.env`）`up -d --no-deps observation`，健康检查 `:9310/healthz`。
 监控栈其余组件（Prometheus/Loki/Grafana 等）用上游官方镜像，不随发布更新。
 
+### 查数 MCP（`data-mcp`）
+
+同属监控栈 compose 项目。CI 发布 `data-mcp` 镜像后，webhook 重打为 `challenge-data-mcp:latest`，
+`up -d --no-deps data-mcp`，健康检查 `:9320/healthz`。源码变更走 `.github/workflows/data-mcp.yml`
+（typecheck / test / build）；镜像变更走 `publish-images.yml` 的 `data-mcp` 矩阵项。
+
 状态：`/var/lib/quanta-deploy/state.json`（含最近 20 次记录、回滚点），日志 `/var/log/quanta-deploy-webhook.log`。
 
 ## 运维

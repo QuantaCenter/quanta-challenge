@@ -1,0 +1,80 @@
+name: data-mcp
+
+# 统一查数 MCP：typecheck / 测试 / 构建。
+#
+# 只在本包或 lockfile 变化时触发，避免无关改动跑一遍。
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'packages/challenge-data-mcp/**'
+      - '.github/workflows/data-mcp.yml'
+      - 'pnpm-lock.yaml'
+  pull_request:
+    paths:
+      - 'packages/challenge-data-mcp/**'
+      - '.github/workflows/data-mcp.yml'
+      - 'pnpm-lock.yaml'
+  workflow_dispatch:
+
+concurrency:
+  group: data-mcp-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: packages/challenge-data-mcp
+
+jobs:
+  verify:
+    name: typecheck / test / build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (tsc)
+        run: pnpm typecheck
+
+      - name: Test (node:test)
+        run: pnpm test
+
+      - name: Build (tsup)
+        run: pnpm build
+
+      - name: Verify build output
+        run: |
+          test -f dist/server.js
+          ls -l dist/server.js
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### data-mcp"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 结果 | \`${{ job.status }}\` |"
+            echo "| node | \`$(node --version)\` |"
+            echo "| pnpm | \`$(pnpm --version)\` |"
+            echo ""
+            echo "本地复现：\`pnpm --filter @challenge/data-mcp typecheck && pnpm --filter @challenge/data-mcp test && pnpm --filter @challenge/data-mcp build\`"
+          } >> "$GITHUB_STEP_SUMMARY"
