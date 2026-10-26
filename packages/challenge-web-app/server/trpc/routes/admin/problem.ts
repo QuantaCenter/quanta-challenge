@@ -10,6 +10,7 @@ import {
 import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
 import type { IFile } from '../../services/project';
+import { dispatchPublishScheduledTask } from '../../../services/publish-scheduled-problem';
 import { projectService } from '../../services/project';
 import z from 'zod';
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -438,7 +439,7 @@ const setStatusProcedure = protectedAdminProcedure
       return { message: `Problem is now ${newStatus}` };
    });
 
-// 设置/取消定时发布（到点由 server/plugins/publish-scheduled-problems.ts 轮询自动发布）
+// 设置/取消定时发布（到点由定时器模块 publish-scheduled-problem 处理器自动发布）
 const SchedulePublishSchema = z.object({
    problemId: z.number('Problem ID must be a number').int(),
    scheduledPublishAt: z.coerce.date().nullish(),
@@ -494,6 +495,9 @@ const schedulePublishProcedure = protectedAdminProcedure
          where: { pid: problemId },
          data: { scheduledPublishAt: scheduledPublishAt ?? null },
       });
+
+      // 设定/改期后经定时器模块投递发布任务（取消定时则旧任务到点后按状态检查跳过）
+      await dispatchPublishScheduledTask(problemId);
 
       return {
          message: scheduledPublishAt
@@ -840,6 +844,8 @@ const reuploadProcedure = protectedAdminProcedure
                data: { updatedAt: new Date() },
             }),
          ]);
+         // 免审核快速更新后重新投递定时发布任务（published 题目的定时已被清空，内部会忽略）
+         await dispatchPublishScheduledTask(current.pid);
          return {
             message: 'Problem info updated without audit',
             problemId: current.pid,

@@ -1,4 +1,5 @@
 import prisma from '~~/lib/prisma';
+import { dispatchPublishScheduledTask } from '~~/server/services/publish-scheduled-problem';
 import z from 'zod';
 import { getRequestContext } from '@challenge/shared/trace';
 import { rankService } from '~~/server/trpc/services/rank';
@@ -32,7 +33,7 @@ export default defineEventHandler(async (event) => {
 
    const { recordId } = parseResult.data;
 
-   const { problem, score, result, userId } = await prisma.judgeRecords
+   const { problem, score, result, userId, type } = await prisma.judgeRecords
       .findUniqueOrThrow({
          where: { id: recordId },
          select: {
@@ -45,6 +46,7 @@ export default defineEventHandler(async (event) => {
             userId: true,
             score: true,
             result: true,
+            type: true,
          },
       })
       .catch((error) => {
@@ -86,6 +88,12 @@ export default defineEventHandler(async (event) => {
 
    /* 触发成就判定。*/
    observer.manualMarkDirty(['judge_records'] as ValidPath[], { userId });
+
+   // 审计记录：调度器此时已把题目翻转为 ready/invalid，重新派发定时发布任务。
+   // 服务内部会校验题目状态与定时时间，审计失败或未设定时则直接跳过。
+   if (type === 'audit') {
+      await dispatchPublishScheduledTask(problem.pid);
+   }
 
    logger.info(
       {

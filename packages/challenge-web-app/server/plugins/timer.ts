@@ -1,3 +1,4 @@
+import { registerPublishScheduledProblemHandler } from '../services/publish-scheduled-problem';
 import { registerResetTaskHandler } from '../services/reset-task';
 import { registerSendNotificationHandler } from '../services/send-notification';
 import { startTimerWorker } from '../utils/timer';
@@ -6,6 +7,7 @@ import { startTimerWorker } from '../utils/timer';
 export default defineNitroPlugin(() => {
    registerResetTaskHandler();
    registerSendNotificationHandler();
+   registerPublishScheduledProblemHandler();
 
    const { timer } = useRuntimeConfig();
    startTimerWorker(timer);
