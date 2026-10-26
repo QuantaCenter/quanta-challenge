@@ -5,6 +5,8 @@ RUN corepack enable && corepack prepare pnpm@10.20.0 --activate
 COPY packages/challenge-data-mcp/package.json ./
 RUN pnpm install --no-frozen-lockfile
 COPY packages/challenge-data-mcp/tsconfig.json ./
+# tsup 无命令行参数时从 cwd 的 tsup.config.ts 读取入口（src/main.ts），漏拷会导致 "No input files" 构建失败
+COPY packages/challenge-data-mcp/tsup.config.ts ./
 COPY packages/challenge-data-mcp/src ./src
 RUN pnpm build
 
