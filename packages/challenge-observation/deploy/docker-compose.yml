@@ -134,6 +134,63 @@ services:
           cpus: "0.5"
           memory: 512M
 
+  # ---------- Agent 查数（只读 MCP） ----------
+  # 官方 Grafana MCP 仅在监控内网开放；统一网关代理其 Prometheus/Loki 工具。
+  grafana-mcp:
+    image: grafana/mcp-grafana:2.1.1
+    restart: unless-stopped
+    command:
+      - -t
+      - streamable-http
+      - --enabled-tools
+      - datasource,prometheus,loki
+      - --disable-write
+      - --allowed-hosts=grafana-mcp:8000,grafana-mcp,localhost:8000,127.0.0.1:8000
+    environment:
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN:?请设置只读 Grafana Service Account Token}
+    networks:
+      - monitoring
+    depends_on:
+      - grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+
+  data-mcp:
+    build:
+      context: ../../..
+      dockerfile: packages/challenge-data-mcp/Dockerfile
+    image: challenge-data-mcp:latest
+    restart: unless-stopped
+    environment:
+      - DATA_MCP_HOST=0.0.0.0
+      - DATA_MCP_PORT=9320
+      - DATA_MCP_PUBLIC_URL=${DATA_MCP_PUBLIC_URL:-http://127.0.0.1:9320/mcp}
+      - DATA_MCP_BEARER_TOKENS=${DATA_MCP_BEARER_TOKENS:?请设置 caller:token 格式的 MCP Token}
+      - DATA_MCP_DATABASE_URL=${DATA_MCP_DATABASE_URL:?请设置 data_agent_reader 的只读数据库连接串}
+      - DATA_MCP_AUDIT_DB_PATH=/data/audit.sqlite3
+      - DATA_MCP_ALLOWED_HOSTS=${DATA_MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,data-mcp}
+      - DATA_MCP_ALLOWED_ORIGINS=${DATA_MCP_ALLOWED_ORIGINS:-localhost,127.0.0.1}
+      - DATA_MCP_MAX_LOOKBACK_HOURS=${DATA_MCP_MAX_LOOKBACK_HOURS:-720}
+      - GRAFANA_MCP_URL=http://grafana-mcp:8000/mcp
+    volumes:
+      - ./data/data-mcp:/data
+    ports:
+      - "127.0.0.1:9320:9320"
+    networks:
+      - monitoring
+      - app
+    depends_on:
+      - grafana-mcp
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
   # ---------- 自研采集服务（SQLite） ----------
   observation:
     build:

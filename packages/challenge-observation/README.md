@@ -13,6 +13,7 @@
 | cadvisor | Docker 容器资源指标 | - |
 | Grafana | 可视化、Dashboard、统一告警（webhook → SQLite） | Grafana 自身 SQLite |
 | observation | 前端 SDK 上报聚合为 Prometheus 指标、错误转发 Loki、业务配置 KV、告警记录（SQLite） | 永久，随备份保留 |
+| data-mcp | 统一只读查数 MCP：数据库安全视图 + Grafana 指标/日志工具 | 审计 SQLite |
 
 监控栈接入业务网络 `quanta-challenge_quanta-challenge-network` 抓取后端 `/metrics`。
 
@@ -33,6 +34,8 @@ flowchart LR
             ALLOY[Alloy]
             GRAF[Grafana]
             OBS[observation Hono+SQLite]
+            DMCP[data-mcp]
+            GMCP[Grafana MCP]
             NODE[node-exporter]
             CAD[cadvisor]
         end
@@ -47,6 +50,8 @@ flowchart LR
         CAD --> PROM
         PROM --> GRAF
         LOKI --> GRAF
+        DMCP --> GMCP
+        GMCP --> GRAF
         ALLOY -- "容器 stdout/stderr" --> LOKI
         GRAF -- "告警 webhook" --> OBS
     end
@@ -97,6 +102,8 @@ cd packages/challenge-observation
 cp deploy/.env.example deploy/.env
 # 将 OBS_API_TOKEN 同步写入 deploy/grafana/provisioning/alerting/contact-points.yml
 # 的 authorization_credentials，否则告警无法落库
+# 启用查数 MCP 前，还需按 ../challenge-data-mcp/README.md 创建数据库只读角色、
+# Grafana Service Account，并填写 DATA_MCP_* / GRAFANA_MCP_* 变量。
 
 # 2. 初始化数据目录（Linux 必须执行）
 bash scripts/init-data-dirs.sh
@@ -171,6 +178,7 @@ bind mount 到 `deploy/data/`：
 | `data/grafana` | Grafana SQLite | 472 |
 | `data/alloy` | 采集游标 | root |
 | `data/observation` | `observation.sqlite3`（配置 + 告警记录，WAL） | 1000 |
+| `data/data-mcp` | 查数 MCP 调用审计 `audit.sqlite3`（WAL） | 1000 |
 
 保留期：Prometheus `15d` / `5GB`，Loki `336h`（14 天），SQLite 中 `alert_events` 按需手动清理。
 

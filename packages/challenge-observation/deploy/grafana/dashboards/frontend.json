@@ -4,17 +4,17 @@
   "tags": ["observation"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 3,
   "refresh": "1m",
   "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
       "id": 1,
-      "title": "JS 异常速率",
+      "title": "JS / Sentry 异常速率",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [ { "refId": "A", "expr": "sum(rate(frontend_errors_total{type=~\"js|promise\"}[5m]))" } ],
+      "targets": [ { "refId": "A", "expr": "sum(rate(frontend_errors_total{type=~\"js|promise|sentry\"}[5m]))" } ],
       "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 2 } ] } }, "overrides": [] },
       "options": { "colorMode": "value", "graphMode": "area", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
     },
@@ -93,6 +93,7 @@
     {
       "id": 8,
       "title": "前端 API 请求 (按状态分类)",
+      "description": "Sentry 请求指标来自采样 Span，不代表全量请求；采样率由 tracesSampleRate 控制。",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -100,6 +101,91 @@
         { "refId": "A", "expr": "sum by (status) (rate(frontend_api_requests_total[10m]))", "legendFormat": "{{status}}" }
       ],
       "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 15, "lineWidth": 1 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Sentry 接收结果",
+      "description": "accepted 已消费指标或日志入队，不保证 Loki 已持久化；invalid 载荷无效；dropped 纯日志事件因队列满丢弃；unsupported 仅记录元数据，未保存附件、回放、剖析等内容。",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (type, outcome) (rate(sentry_envelope_items_total[5m]))", "legendFormat": "{{type}} / {{outcome}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 10,
+      "title": "Sentry SDK 丢弃原因",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (reason, category) (rate(sentry_client_discarded_total[5m]))", "legendFormat": "{{category}} / {{reason}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 11,
+      "title": "Sentry Span 延迟 P95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, app, op) (rate(sentry_span_duration_seconds_bucket[5m])))", "legendFormat": "{{app}} / {{op}}" } ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 12,
+      "title": "Loki 日志丢弃",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (reason) (rate(observation_log_dropped_total[5m]))", "legendFormat": "{{reason}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 13,
+      "title": "设备分布（页面访问量）",
+      "description": "pc 为桌面设备，mobile 包含手机和平板；根据设备信息而非窗口宽度判断。展示所选时间内的访问事件，不是独立用户数。导航采用 Sentry event 的 sampleRate（默认 100%），不受性能 tracesSampleRate 的 10% 采样影响。",
+      "type": "piechart",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (device) (increase(frontend_page_views_total[$__range]))", "legendFormat": "{{device}}", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "pieType": "donut", "displayLabels": ["name", "percent"], "legend": { "displayMode": "table", "placement": "bottom", "values": ["value", "percent"] }, "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "tooltip": { "mode": "single" } }
+    },
+    {
+      "id": 14,
+      "title": "页面来源去向 Top20",
+      "description": "包含首屏和成功的站内跳转。direct 表示浏览器未提供来源，external 为站外来源；站外站点 origin 见 Loki 的 sentry_navigation 日志。路径使用路由模板隐藏用户名和 ID；仅 query/hash 变化及被守卫取消的导航不计数。",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 16, "x": 8, "y": 36 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "topk(20, sum by (from, to, device) (increase(frontend_navigation_total[$__range])))", "format": "table", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0 }, "overrides": [] },
+      "options": { "showHeader": true, "sortBy": [ { "displayName": "Value", "desc": true } ] }
+    },
+    {
+      "id": 15,
+      "title": "页面访问 Top20",
+      "description": "首屏及站内访问事件总数；动态参数页归并到同一路由模板，编辑器与记录页分别统计。不是独立用户数。",
+      "type": "bargauge",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 44 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "topk(20, sum by (page) (increase(frontend_page_views_total[$__range])))", "legendFormat": "{{page}}", "instant": true } ],
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "min": 0 }, "overrides": [] },
+      "options": { "orientation": "horizontal", "displayMode": "gradient", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 16,
+      "title": "首屏访问速率（按设备）",
+      "description": "每次页面加载或刷新后记录一次；SPA 页面跳转另外统计，不作为新的首屏。",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 44 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (device) (rate(frontend_page_views_total{kind=\"entry\"}[5m]))", "legendFormat": "{{device}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
     }
   ]
