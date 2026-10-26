@@ -63,6 +63,27 @@ jobs:
         run: |
           test -f dist/server.js
           ls -l dist/server.js
+          # 回归防护：esbuild 会把 node:sqlite 改写成裸包名 sqlite，容器里直接 ERR_MODULE_NOT_FOUND
+          if grep -q 'from "sqlite"' dist/server.js; then
+            echo "::error::dist/server.js 出现裸包名 sqlite，node:sqlite 被 esbuild 重写了"
+            exit 1
+          fi
+
+      - name: Smoke test bundle
+        run: |
+          set -euo pipefail
+          DATA_MCP_BEARER_TOKENS=smoke:smoke \
+          DATA_MCP_DATABASE_URL=postgres://user:pass@127.0.0.1:1/db \
+          DATA_MCP_AUDIT_DB_PATH="$RUNNER_TEMP/audit.sqlite3" \
+          DATA_MCP_PORT=19320 \
+          node dist/server.js > "$RUNNER_TEMP/server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          if ! curl -fsS --retry 20 --retry-delay 1 --retry-connrefused http://127.0.0.1:19320/healthz; then
+            echo "::error::打包产物未能通过 /healthz"
+            cat "$RUNNER_TEMP/server.log"
+            exit 1
+          fi
 
       - name: Summary
         if: always()
