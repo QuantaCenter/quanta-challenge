@@ -3,8 +3,9 @@ import type { Context } from 'hono'
 import { config } from '../config.ts'
 import { pushFrontendLog } from '../loki.ts'
 import { frontendErrorsTotal } from '../metrics.ts'
+import { consumePerformance, isRecord } from '../sentry/performance.ts'
 
-/** Sentry Envelope 接收端点：浏览器经 tunnel 代理、服务端按 DSN 直连两个入口都汇到这里；DSN 的 publicKey 即 app 标识；只消费 type=event，其余忽略。 */
+/** Sentry Envelope 接收端点：浏览器经 tunnel 代理、服务端按 DSN 直连；DSN 的 publicKey 即 app 标识。 */
 
 interface EnvelopeItem {
    type: string
@@ -102,21 +103,25 @@ async function handleEnvelope(c: Context) {
    if (!envelope)
       return c.text('invalid envelope', 400)
 
+   const app = appFromDsn(envelope.dsn) ?? c.req.param('projectId') ?? 'unknown'
    for (const item of envelope.items) {
-      // 只处理错误事件；transaction/session/client_report 等暂不消费
-      if (item.type !== 'event' || !item.payload)
+      if (!['event', 'transaction', 'span'].includes(item.type) || !item.payload)
          continue
 
-      let event: Record<string, unknown>
+      let payload: unknown
       try {
-         event = JSON.parse(item.payload)
+         payload = JSON.parse(item.payload)
       }
       catch {
          continue
       }
-
-      const dsnApp = appFromDsn(envelope.dsn)
-      const app = dsnApp ?? c.req.param('projectId') ?? 'unknown'
+      if (item.type !== 'event') {
+         consumePerformance(app, item.type, payload)
+         continue
+      }
+      if (!isRecord(payload))
+         continue
+      const event = payload
 
       const values = (event.exception as { values?: Array<Record<string, unknown>> } | undefined)?.values
       const exc = values?.[0]

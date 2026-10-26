@@ -1,5 +1,12 @@
 import client from 'prom-client'
 
+export const sentrySpanDurationSeconds = new client.Histogram({
+   name: 'sentry_span_duration_seconds',
+   help: 'Sentry Span 耗时分布（前后端，操作类型归一化）',
+   labelNames: ['app', 'op'] as const,
+   buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10],
+})
+
 // 前端上报指标（由 Prometheus 抓取）
 export const register = client.register
 client.collectDefaultMetrics({ register, prefix: 'observation_' })
