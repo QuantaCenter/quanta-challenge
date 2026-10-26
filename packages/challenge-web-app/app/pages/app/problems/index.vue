@@ -278,6 +278,11 @@ const {
                         "
                         title="高级筛选">
                         <Filter
+                           :class="
+                              filterButtonActive
+                                 ? 'text-black'
+                                 : 'text-accent-300'
+                           "
                            theme="outline"
                            size="1.25rem"
                            fill="currentColor" />
