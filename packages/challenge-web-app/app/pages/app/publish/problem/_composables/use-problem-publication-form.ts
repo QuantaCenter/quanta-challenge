@@ -73,6 +73,9 @@ export const useProblemPublicationForm = (storageName: string) => {
       ) as number,
       /** 快照镜像 id，空串表示不使用 */
       snapshotImageId: '',
+      taskStartAt: '' as string,
+      taskEndAt: '' as string,
+      scheduledPublishAt: '' as string,
    });
    const draft = useDebounce(formdata, 200);
 
@@ -256,6 +259,12 @@ export const useProblemPublicationForm = (storageName: string) => {
                draft.value.problemType !== 'backend_service' ||
                (typeof value === 'number' && value > 0 && value <= 65535)
             );
+         },
+      },
+      {
+         field: 'scheduledPublishAt',
+         validator(value) {
+            return !value || new Date(value).getTime() > Date.now();
          },
       },
    ]);

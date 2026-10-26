@@ -10,6 +10,10 @@ import {
 import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
 import type { IFile } from '../../services/project';
+import {
+   cancelPublishScheduledTask,
+   dispatchPublishScheduledTask,
+} from '../../../services/publish-scheduled-problem';
 import { projectService } from '../../services/project';
 import z from 'zod';
 import { Prisma, PrismaClient } from '@prisma/client';
@@ -120,6 +124,9 @@ const handleCreateVersion = async (options: {
          coverImageId: input.coverImageId,
          snapshotImageId: input.snapshotImageId ?? null,
          ...resolveVersionRuntime(input),
+         taskStartAt: input.taskStartAt,
+         taskEndAt: input.taskEndAt,
+         scheduledPublishAt: input.scheduledPublishAt,
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,
@@ -309,6 +316,9 @@ const getAuditDetailProcedure = protectedAdminProcedure
             status: true,
             difficulty: true,
             createdAt: true,
+            taskStartAt: true,
+            taskEndAt: true,
+            scheduledPublishAt: true,
             tags: {
                select: {
                   name: true,
@@ -424,10 +434,84 @@ const setStatusProcedure = protectedAdminProcedure
          },
          data: {
             status: newStatus,
+            // 立即发布/取消发布即放弃定时
+            scheduledPublishAt: null,
+         },
+      });
+      await cancelPublishScheduledTask(problemId);
+
+      return { message: `Problem is now ${newStatus}` };
+   });
+
+// 设置/取消定时发布，到点由定时器模块自动发布
+const SchedulePublishSchema = z.object({
+   problemId: z.number('Problem ID must be a number').int(),
+   scheduledPublishAt: z.coerce.date().nullish(),
+});
+
+const schedulePublishProcedure = protectedAdminProcedure
+   .input(SchedulePublishSchema)
+   .mutation(async ({ ctx, input }) => {
+      const { userId } = ctx.user;
+      const { problemId, scheduledPublishAt } = input;
+
+      const problem = await prisma.problems.findUniqueOrThrow({
+         where: {
+            pid: problemId,
+            BaseProblem: {
+               authorId: userId,
+            },
+         },
+         select: {
+            status: true,
+            BaseProblem: {
+               select: {
+                  currentPid: true,
+               },
+            },
          },
       });
 
-      return { message: `Problem is now ${newStatus}` };
+      if (
+         problem.BaseProblem.currentPid &&
+         problem.BaseProblem.currentPid !== problemId
+      ) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+               'Cannot change publish status of a problem that is not the current version',
+         });
+      }
+      if (problem.status !== 'ready') {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '只有审核通过且未发布的题目才能定时发布',
+         });
+      }
+      if (scheduledPublishAt && scheduledPublishAt.getTime() <= Date.now()) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '定时发布时间必须晚于当前时间',
+         });
+      }
+
+      await prisma.problems.update({
+         where: { pid: problemId },
+         data: { scheduledPublishAt: scheduledPublishAt ?? null },
+      });
+
+      // 设定时则投递任务，取消定时则清除旧任务
+      if (scheduledPublishAt) {
+         await dispatchPublishScheduledTask(problemId);
+      } else {
+         await cancelPublishScheduledTask(problemId);
+      }
+
+      return {
+         message: scheduledPublishAt
+            ? `Problem will be published at ${scheduledPublishAt.toISOString()}`
+            : 'Scheduled publish cancelled',
+      };
    });
 
 // 获取当前用户上传的所有问题。
@@ -563,6 +647,9 @@ const getDetailProcedure = protectedAdminProcedure
             serviceImage: true,
             servicePort: true,
             snapshotImageId: true,
+            taskStartAt: true,
+            taskEndAt: true,
+            scheduledPublishAt: true,
             tags: {
                select: {
                   tid: true,
@@ -743,6 +830,13 @@ const reuploadProcedure = protectedAdminProcedure
                   detail: input.detail,
                   difficulty: input.difficulty,
                   tags: { set: input.tagIds.map((tid) => ({ tid })) },
+                  taskStartAt: input.taskStartAt,
+                  taskEndAt: input.taskEndAt,
+                  // 已发布的题目无需定时发布
+                  scheduledPublishAt:
+                     current.status === 'published'
+                        ? null
+                        : input.scheduledPublishAt,
                   CoverImage:
                      input.coverMode === 'custom' && input.coverImageId
                         ? { connect: { id: input.coverImageId } }
@@ -758,6 +852,8 @@ const reuploadProcedure = protectedAdminProcedure
                data: { updatedAt: new Date() },
             }),
          ]);
+         // 重新投递定时发布任务
+         await dispatchPublishScheduledTask(current.pid);
          return {
             message: 'Problem info updated without audit',
             problemId: current.pid,
@@ -925,6 +1021,7 @@ export const problemRouter = router({
    getDetail: getDetailProcedure,
    getVersions: getVersionsProcedure,
    setStatus: setStatusProcedure,
+   schedulePublish: schedulePublishProcedure,
    setCurrentProblem: setCurrentProblemProcedure,
    list: listProcedure,
    search: searchProcedure,
