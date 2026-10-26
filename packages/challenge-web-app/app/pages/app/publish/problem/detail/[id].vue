@@ -368,6 +368,12 @@ const handlerViewVersion = () => {
                   outer-class="w-full" />
                <StSpace gap="0.5rem" fill-x>
                   <button
+                     class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer disabled:opacity-40"
+                     :disabled="onSchedulePublish"
+                     @click="scheduleModalOpened = false">
+                     取消
+                  </button>
+                  <button
                      v-if="scheduledPublishText"
                      class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer"
                      :disabled="onSchedulePublish"

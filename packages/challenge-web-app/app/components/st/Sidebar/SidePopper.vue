@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { MINI_SIDEBAR_TOOLTIP_HIDDEN_KEY } from '~/components/st/MiniSidebar/type';
 
-defineProps<{
+const props = defineProps<{
    content: string;
 }>();
 

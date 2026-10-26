@@ -2,18 +2,6 @@ import tailwindcss from '@tailwindcss/vite';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
-/**
- * 开发环境的 HTTPS（可选）。
- *
- * WebContainer 需要「安全上下文 + 跨源隔离」，COOP/COEP 响应头已对
- * /challenge/** 下发，dev server 须以 HTTPS 启动：
- * 用 mkcert 给 localhost + 局域网 IP 签发证书放到 .dev-certs/（不入库），
- * 本配置检测到证书后自动以 HTTPS 启动：
- *   pnpm exec mkcert -install
- *   pnpm exec mkcert -cert-file .dev-certs/cert.pem -key-file .dev-certs/key.pem \
- *     localhost 127.0.0.1 ::1 $(ipconfig getifaddr en0)
- * 手机端还须安装并信任 mkcert 根证书（`mkcert -CAROOT` 目录下的 rootCA.pem）。
- */
 const devCertPath = fileURLToPath(
    new URL('./.dev-certs/cert.pem', import.meta.url),
 );
@@ -25,18 +13,15 @@ const devServerHttps =
       ? { cert: devCertPath, key: devKeyPath }
       : undefined;
 
-/** 统一的运行时环境变量读取：import.meta.env 会被构建期静态替换、runtimeConfig 又强制 NUXT_ 前缀，故显式读 process.env 并显式声明 runtimeEnvKey。 */
 const env = (key: string, fallback: string) => process.env[key] || fallback;
 const envInt = (key: string, fallback: number) =>
    process.env[key] ? parseInt(process.env[key] as string) : fallback;
 
-/** 快照镜像压缩体上限：routeRules 的 requestSizeLimiter 与 runtimeConfig.public.imageBuild 共用同一值，避免两处手工对齐。 */
 const imageBuildMaxCompressedBytes = envInt(
    'IMAGE_BUILD_MAX_COMPRESSED_BYTES',
    160 * 1024 * 1024,
 );
 
-/** 读取必须显式提供的密钥：生产期一律返回空串、不静默降级，校验挪到启动时（validate-secrets.ts）——构建期抛错会拦死所有镜像构建且密钥不该进镜像；开发保留兜底值。 */
 const envSecret = (key: string) => {
    const value = process.env[key];
    if (value) return value;
@@ -50,10 +35,8 @@ const envSecret = (key: string) => {
 export default defineNuxtConfig({
    compatibilityDate: '2025-07-15',
 
-   // .dev-certs/ 存在 mkcert 证书时自动以 HTTPS 启动
    devServer: devServerHttps ? { https: devServerHttps } : {},
 
-   // 关闭 DevTools 面板。 原因：/challenge/** 为了 WebContainer 必须下发 COOP/COEP（跨源隔离）， 而 DevTools 是通过 iframe 注入的，在跨源隔离下会被浏览器拦截，控制台持续报 "Blocked a frame with origin http://localhost:3000 from accessing a cross-origin frame" 既污染日志，也可能触发额外的重载/重挂载——而重挂载正是编辑器侧 WebContainer 被误 teardown 的诱因之一。
    devtools: { enabled: false },
 
    experimental: {
@@ -129,7 +112,6 @@ export default defineNuxtConfig({
 
       corsHandler: false,
 
-      // /<style([^>]*?)>/gi、/<script([^>]*?)>/gi、/<link([^>]*?)>/gi 对**整段 HTML 字符串**做盲替换，把 nonce="…" 插进去——属性值内部也照插。 而题面 markdown 里出现 `<style>` 是常态（CSS 题尤甚），于是： <meta property="og:description" content="…补全 `<style>` 里的样式…"> ↓ 被正则改成 <meta property="og:description" content="…补全 `<style nonce="XXXX">` 里的样式…"> 凭空多出的那个 `"` 提前闭合了 content 属性，剩下的文本成了 <head> 里的 非空白文本，浏览器会把它搬进 <body> —— 做题页顶部因此多出一段乱码文本 （description 与 og:description 各断一次，所以出现两遍）。 关掉它没有安全损失： · 本项目的 CSP 已经允许 'unsafe-inline'（见下面 routeRules['/**']）， nonce / 'strict-dynamic' 本来就形同虚设； · 生效的 CSP 里不存在 'nonce-{{nonce}}' 占位符，关掉后不会留下残缺的 'nonce-{{nonce}}' 源（updateCspVariables 会把占位符替换成空串并丢弃）； · 应用侧没有任何地方读 useNonce() / csp-nonce。 根因侧也已在 app/utils/seo-text.ts 修掉（不再把裸标签喂进 head）。 这里是纵深防御：以后哪怕别的字段又把 markdown / HTML 带进 head， 也不会再被这个 HTML 改写环节撕开属性。 注意：同一批插件里的 20-subresourceIntegrity 仍是字符串正则改写， 但它只认 src/href 能命中构建产物清单的 <script>/<link>，影响面窄得多。
       nonce: false,
    },
 

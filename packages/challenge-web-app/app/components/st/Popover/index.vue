@@ -1,3 +1,16 @@
+<script lang="ts">
+let lastPointerMoveAt = -Infinity;
+if (import.meta.client) {
+   window.addEventListener(
+      'pointermove',
+      () => {
+         lastPointerMoveAt = performance.now();
+      },
+      { passive: true },
+   );
+}
+</script>
+
 <script setup lang="ts">
 import { usePopper, type IUsePopperOptions } from '~/composables/use-popper';
 
@@ -15,6 +28,7 @@ const { containerKey, popperKey, container, popper, popperInstance } = usePopper
 
 const triggered = ref(false);
 const onMouseEnter = () => {
+   if (performance.now() - lastPointerMoveAt > 100) return;
    popperInstance.value?.update();
    triggered.value = true;
 };
