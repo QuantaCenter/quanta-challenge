@@ -61,7 +61,8 @@ export const cancelPublishScheduledTask = async (problemId: number) => {
       where: {
          handlerId: HANDLER_ID,
          status: 'pending',
-         payload: { equals: { problemId } },
+         // 按 problemId 字段过滤而非全量 equals，避免载荷其它字段（如 problemTitle）变化后匹配失败
+         payload: { path: ['problemId'], equals: problemId },
       },
    });
 };
@@ -70,7 +71,7 @@ export const cancelPublishScheduledTask = async (problemId: number) => {
 export const dispatchPublishScheduledTask = async (problemId: number) => {
    const problem = await prisma.problems.findUnique({
       where: { pid: problemId },
-      select: { status: true, scheduledPublishAt: true },
+      select: { status: true, scheduledPublishAt: true, title: true },
    });
    await cancelPublishScheduledTask(problemId);
    if (problem?.status !== 'ready' || problem.scheduledPublishAt == null) {
@@ -78,7 +79,8 @@ export const dispatchPublishScheduledTask = async (problemId: number) => {
    }
    await dispatchTimerTask(
       HANDLER_ID,
-      { problemId },
+      // problemTitle 供定时任务管理页展示
+      { problemId, problemTitle: problem.title },
       { runAt: problem.scheduledPublishAt },
    );
 };
