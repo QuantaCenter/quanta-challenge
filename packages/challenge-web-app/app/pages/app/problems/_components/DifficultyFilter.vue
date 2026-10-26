@@ -6,6 +6,14 @@ const selected = defineModel<$Enums.Difficulty | ''>('value', {
    default: '',
 });
 
+const props = withDefaults(
+   defineProps<{
+      /** 抽屉等纵向布局内使用时占满整行 */
+      fullWidth?: boolean;
+   }>(),
+   { fullWidth: false }
+);
+
 const difficultyOptions: ISelectOption[] = [
    { label: '全部难度', value: '' },
    { label: '简单', value: 'easy' },
@@ -48,8 +56,16 @@ onMounted(() => {
       ref="selectRef"
       placeholder="难度"
       attach-to-body
-      outer-class="bg-accent-600 !py-2.5 !pr-4 !pl-4 h-[3.5rem] w-[9rem] shrink-0 !rounded-xl"
-      options-container-class="!w-[9rem] overflow-hidden border-accent-500">
+      :outer-class="
+         props.fullWidth
+            ? 'bg-accent-600 !py-2.5 !px-4 h-[3.5rem] w-full !rounded-xl'
+            : 'bg-accent-600 !py-2.5 !pr-4 !pl-4 h-[3.5rem] w-[9rem] shrink-0 !rounded-xl'
+      "
+      :options-container-class="
+         props.fullWidth
+            ? 'overflow-hidden border-accent-500'
+            : '!w-[9rem] overflow-hidden border-accent-500'
+      ">
       <template #selected-preview>
          <span :class="['font-medium', selectedColor]">
             {{ selectedLabel }}

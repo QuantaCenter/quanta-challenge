@@ -7,6 +7,7 @@ import {
 import DataItem from './_components/DataItem.vue';
 import FixedButton from './_components/FixedButton.vue';
 import dayjs from 'dayjs';
+import { useIntervalFn } from '@vueuse/core';
 import { useMessage } from '~/components/st/Message/use-message';
 import { NotPassed, Published, Unpublished } from './_components/PublishStatus';
 import VersionPreviewDrawer from './_drawers/VersionPreviewDrawer.vue';
@@ -175,8 +176,22 @@ const showSwitchButton = computed(() => {
 
 // 定时发布：仅审核通过且未发布的当前版本可设置
 const scheduleModalOpened = ref(false);
+/** StDatePicker 的值，格式 YYYY-MM-DD HH:mm */
 const scheduledPublishAtInput = ref('');
 const onSchedulePublish = ref(false);
+/** 可选时间下限：弹窗打开期间每秒刷新，保证不早于当前时间 */
+const minDateTime = ref(dayjs().format('YYYY-MM-DD HH:mm'));
+useIntervalFn(() => {
+   if (!scheduleModalOpened.value) return;
+   minDateTime.value = dayjs().format('YYYY-MM-DD HH:mm');
+   // 已选时间若落入禁选范围，自动修正为当前最早可选时间
+   if (
+      scheduledPublishAtInput.value &&
+      scheduledPublishAtInput.value < minDateTime.value
+   ) {
+      scheduledPublishAtInput.value = minDateTime.value;
+   }
+}, 1_000);
 const showScheduleButton = computed(() => {
    return showSwitchButton.value && detail.value?.status === 'ready';
 });
@@ -188,8 +203,9 @@ const scheduledPublishText = computed(() => {
 
 const openScheduleModal = () => {
    scheduledPublishAtInput.value = detail.value?.scheduledPublishAt
-      ? dayjs(detail.value.scheduledPublishAt).format('YYYY-MM-DDTHH:mm')
+      ? dayjs(detail.value.scheduledPublishAt).format('YYYY-MM-DD HH:mm')
       : '';
+   minDateTime.value = dayjs().format('YYYY-MM-DD HH:mm');
    scheduleModalOpened.value = true;
 };
 
@@ -199,7 +215,7 @@ const handleSchedulePublish = async () => {
    try {
       const result = $trpc.admin.problem.schedulePublish.mutate({
          problemId: Number(id),
-         scheduledPublishAt: new Date(scheduledPublishAtInput.value),
+         scheduledPublishAt: dayjs(scheduledPublishAtInput.value).toDate(),
       });
       await atLeastTime(500, result);
       scheduleModalOpened.value = false;
@@ -342,10 +358,12 @@ const handlerViewVersion = () => {
                <span class="text-accent-100 text-sm">
                   到达设定时间后题目将自动发布；立即发布会清除定时。
                </span>
-               <input
-                  type="datetime-local"
-                  v-model="scheduledPublishAtInput"
-                  class="border !py-4 !px-4 !rounded-[0.5rem] w-full bg-transparent border-accent-300 focus-within:!border-primary outline-none" />
+               <StDatePicker
+                  v-model:value="scheduledPublishAtInput"
+                  show-time
+                  placeholder="选择发布日期与时间"
+                  :min-date-time="minDateTime"
+                  outer-class="w-full" />
                <StSpace gap="0.5rem" fill-x>
                   <button
                      v-if="scheduledPublishText"
@@ -462,12 +480,14 @@ const handlerViewVersion = () => {
                      </template>
                      <span class="font-family-manrope">
                         {{
-                           dayjs(detail.taskStartAt).format('YYYY-MM-DD')
+                           dayjs(detail.taskStartAt).format('YYYY-MM-DD HH:mm')
                         }}
                         ~
                         {{
                            detail.taskEndAt
-                              ? dayjs(detail.taskEndAt).format('YYYY-MM-DD')
+                              ? dayjs(detail.taskEndAt).format(
+                                   'YYYY-MM-DD HH:mm'
+                                )
                               : '未设置'
                         }}
                      </span>

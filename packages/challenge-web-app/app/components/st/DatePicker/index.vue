@@ -391,8 +391,8 @@ const selectDate = (dateStr: string) => {
       } else {
          endValue.value = withTime(dateStr, '23:59');
       }
-      // 开启时间选择时保持弹层打开，便于继续选择具体时间
-      if (!props.showTime) opened.value = false;
+      // 仅在选完终点（形成完整区间）后关闭；开启时间选择时保持弹层打开，便于继续选择具体时间
+      if (!props.showTime && endValue.value) opened.value = false;
       return;
    }
    value.value = withTime(dateStr, defaultTimeFor(dateStr));

@@ -24,7 +24,7 @@ const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
 let storageName = 'publishFormdata';
 let fromId: number | undefined = undefined;
-let baseId: number | undefined = undefined;
+const baseId = ref<number | undefined>(undefined);
 
 const route = useRoute();
 if (route.query.fromId) {
@@ -198,7 +198,7 @@ const fetchProblemDetail = async () => {
       const problem = await $trpc.admin.problem.getDetail.query({
          problemId: fromId,
       });
-      baseId = problem.BaseProblem.id;
+      baseId.value = problem.BaseProblem.id;
 
       imageName.value = problem.CoverImage?.name ?? '';
       draft.value.title = problem.title;
@@ -222,13 +222,13 @@ const fetchProblemDetail = async () => {
       draft.value.servicePort = problem.servicePort ?? 3000;
       draft.value.snapshotImageId = problem.snapshotImageId ?? '';
       draft.value.taskStartAt = problem.taskStartAt
-         ? dayjs(problem.taskStartAt).format('YYYY-MM-DD')
+         ? dayjs(problem.taskStartAt).format('YYYY-MM-DD HH:mm')
          : '';
       draft.value.taskEndAt = problem.taskEndAt
-         ? dayjs(problem.taskEndAt).format('YYYY-MM-DD')
+         ? dayjs(problem.taskEndAt).format('YYYY-MM-DD HH:mm')
          : '';
       draft.value.scheduledPublishAt = problem.scheduledPublishAt
-         ? dayjs(problem.scheduledPublishAt).format('YYYY-MM-DDTHH:mm')
+         ? dayjs(problem.scheduledPublishAt).format('YYYY-MM-DD HH:mm')
          : '';
       applyProblemTypeConstraints(draft.value.problemType);
 
@@ -283,10 +283,14 @@ const markdownEditing = ref(false);
 // 提交
 const submitLoading = ref(false);
 const handleSubmit = async () => {
+   if (fromId && baseId.value === undefined) {
+      message.error('题目详情加载中', '请稍候再提交');
+      return;
+   }
    const upload = async () => {
       const uploadMethod = fromId ? 'reupload' : 'upload';
       return await $trpc.admin.problem[uploadMethod].mutate({
-         baseId: baseId!,
+         baseId: baseId.value!,
          title: draft.value.title,
          detail: draft.value.detail,
          totalScore: draft.value.score ?? 0,
@@ -311,9 +315,9 @@ const handleSubmit = async () => {
          snapshotImageId: draft.value.snapshotImageId || null,
          taskStartAt: draft.value.taskStartAt || undefined,
          taskEndAt: draft.value.taskEndAt || undefined,
-         // datetime-local 按浏览器时区解析后转为 ISO，避免服务端按自身时区误读
+         // DatePicker 的值按浏览器本地时区用 dayjs 解析后转为 ISO，避免服务端按自身时区误读
          scheduledPublishAt: draft.value.scheduledPublishAt
-            ? new Date(draft.value.scheduledPublishAt).toISOString()
+            ? dayjs(draft.value.scheduledPublishAt).toISOString()
             : undefined,
       });
    };
@@ -549,9 +553,10 @@ const handleSubmit = async () => {
                <StFormItem name="taskRange" label="任务日期范围">
                   <StDatePicker
                      range
+                     show-time
                      v-model:start-value="draft.taskStartAt"
                      v-model:end-value="draft.taskEndAt"
-                     placeholder="选择任务生效的日期区间（可选）"
+                     placeholder="选择任务生效的日期与时间区间（可选）"
                      :outer-class />
                </StFormItem>
                <StFormItem
@@ -562,9 +567,9 @@ const handleSubmit = async () => {
                         : '定时发布时间'
                   "
                   error-message="定时发布时间必须晚于当前时间">
-                  <StInput
-                     type="datetime-local"
+                  <StDatePicker
                      v-model:value="draft.scheduledPublishAt"
+                     show-time
                      placeholder="到点自动发布，留空则手动发布"
                      :outer-class />
                </StFormItem>
@@ -606,6 +611,7 @@ const handleSubmit = async () => {
                <div class="text-accent-300">已经自动保存</div>
                <StButton
                   :loading="submitLoading"
+                  :disabled="!!fromId && baseId === undefined"
                   @click="handleSubmit"
                   class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]">
                   <div class="flex gap-2 items-center">
