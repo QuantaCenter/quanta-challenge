@@ -6,6 +6,11 @@ const dsn = process.env.SENTRY_DSN || '';
 if (dsn) {
    Sentry.init({
       dsn,
+      transportOptions: {
+         headers: process.env.OBSERVATION_REPORT_TOKEN
+            ? { 'x-obs-token': process.env.OBSERVATION_REPORT_TOKEN }
+            : undefined,
+      },
       release: process.env.RELEASE_VERSION || undefined,
       environment: process.env.SENTRY_ENVIRONMENT || undefined,
       tracesSampleRate: Number(process.env.SENTRY_TRACES_SAMPLE_RATE ?? '0.1'),

@@ -1,5 +1,17 @@
 import client from 'prom-client'
 
+export const sentryEnvelopeItemsTotal = new client.Counter({
+   name: 'sentry_envelope_items_total',
+   help: 'Sentry Envelope 处理结果（accepted/invalid/unsupported/dropped）',
+   labelNames: ['app', 'type', 'outcome'] as const,
+})
+
+export const observationLogDroppedTotal = new client.Counter({
+   name: 'observation_log_dropped_total',
+   help: 'Loki 转发丢弃数量（queue_overflow/send_error）',
+   labelNames: ['reason'] as const,
+})
+
 export const sentrySpanDurationSeconds = new client.Histogram({
    name: 'sentry_span_duration_seconds',
    help: 'Sentry Span 耗时分布（前后端，操作类型归一化）',

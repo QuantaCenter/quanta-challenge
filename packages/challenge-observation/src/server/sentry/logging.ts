@@ -46,6 +46,6 @@ export function sanitizeLog(value: unknown): unknown {
    return visit(value, 0)
 }
 
-export function writeSentryLog(app: string, type: string, event: Record<string, unknown>): void {
-   pushFrontendLog(app, type, JSON.stringify(sanitizeLog({ ...event, ts: new Date().toISOString() })))
+export function writeSentryLog(app: string, type: string, event: Record<string, unknown>): boolean {
+   return pushFrontendLog(app, type, JSON.stringify(sanitizeLog({ ...event, ts: new Date().toISOString() })))
 }

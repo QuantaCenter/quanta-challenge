@@ -54,7 +54,7 @@ const categories = new Set(['default', 'error', 'transaction', 'replay', 'securi
 
 export const telemetryTypes = new Set(['client_report', 'session', 'sessions', 'log', 'trace_metric', 'feedback', 'user_report', 'check_in', 'raw_security'])
 
-export function consumeTelemetry(app: string, type: string, payload: unknown): boolean {
+export function consumeTelemetry(app: string, type: string, payload: unknown): boolean | 'dropped' {
    switch (type) {
       case 'client_report': {
          const parsed = clientReportSchema.safeParse(payload)
@@ -121,22 +121,19 @@ export function consumeTelemetry(app: string, type: string, payload: unknown): b
          const parsed = feedbackSchema.safeParse(payload)
          if (!parsed.success)
             return false
-         writeSentryLog(app, 'sentry_feedback', { kind: type, event_id: parsed.data.event_id, ...parsed.data.contexts.feedback })
-         return true
+         return writeSentryLog(app, 'sentry_feedback', { kind: type, event_id: parsed.data.event_id, ...parsed.data.contexts.feedback }) ? true : 'dropped'
       }
       case 'user_report': {
          const parsed = userReportSchema.safeParse(payload)
          if (!parsed.success)
             return false
-         writeSentryLog(app, 'sentry_feedback', { kind: type, ...parsed.data })
-         return true
+         return writeSentryLog(app, 'sentry_feedback', { kind: type, ...parsed.data }) ? true : 'dropped'
       }
       case 'raw_security': {
          const parsed = securitySchema.safeParse(payload)
          if (!parsed.success)
             return false
-         writeSentryLog(app, 'sentry_security', { kind: type, ...parsed.data })
-         return true
+         return writeSentryLog(app, 'sentry_security', { kind: type, ...parsed.data }) ? true : 'dropped'
       }
       default: return false
    }

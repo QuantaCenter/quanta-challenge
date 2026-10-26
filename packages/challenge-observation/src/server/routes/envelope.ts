@@ -1,129 +1,101 @@
+import { timingSafeEqual } from 'node:crypto'
+import { gunzipSync } from 'node:zlib'
 import { Hono } from 'hono'
-import type { Context } from 'hono'
+import type { Context, Next } from 'hono'
+import { bodyLimit } from 'hono/body-limit'
 import { config } from '../config.ts'
+import { sentryEnvelopeItemsTotal } from '../metrics.ts'
+import { appFromDsn, boundedApp, maxEnvelopeBytes, parseEnvelope } from '../sentry/envelope.ts'
+import { writeSentryLog } from '../sentry/logging.ts'
 import { consumeEvent } from '../sentry/events.ts'
 import { consumePerformance } from '../sentry/performance.ts'
 import { consumeTelemetry, telemetryTypes } from '../sentry/telemetry.ts'
 
 /** Sentry Envelope 接收端点：浏览器经 tunnel 代理、服务端按 DSN 直连；DSN 的 publicKey 即 app 标识。 */
 
-interface EnvelopeItem {
-   type: string
-   payload: string
-}
-
-function readLine(buf: Buffer, start: number): { line: string; next: number } | null {
-   if (start >= buf.length)
-      return null
-   const idx = buf.indexOf(0x0a, start)
-   const end = idx === -1 ? buf.length : idx
-   return { line: buf.subarray(start, end).toString('utf8').replace(/\r$/, ''), next: end + 1 }
-}
-
-/** 从 DSN（http://key@host:port/projectId）提取 publicKey 作为 app 标识 */
-function appFromDsn(dsn: unknown): string | undefined {
-   if (typeof dsn !== 'string')
-      return undefined
-   const match = /^[a-z+]+:\/\/([^@]+)@/i.exec(dsn)
-   return match?.[1] || undefined
-}
-
-function parseEnvelope(buf: Buffer): { dsn?: unknown; items: EnvelopeItem[] } | null {
-   const first = readLine(buf, 0)
-   if (!first)
-      return null
-   let header: { dsn?: unknown }
-   try {
-      header = JSON.parse(first.line)
-   }
-   catch {
-      return null
-   }
-
-   const items: EnvelopeItem[] = []
-   let offset = first.next
-
-   while (offset < buf.length) {
-      const itemHeaderLine = readLine(buf, offset)
-      if (!itemHeaderLine)
-         break
-      offset = itemHeaderLine.next
-      if (!itemHeaderLine.line)
-         continue
-
-      let itemHeader: { type?: string; length?: number }
-      try {
-         itemHeader = JSON.parse(itemHeaderLine.line)
-      }
-      catch {
-         continue
-      }
-
-      let payload: Buffer
-      if (typeof itemHeader.length === 'number' && itemHeader.length >= 0) {
-         payload = buf.subarray(offset, offset + itemHeader.length)
-         offset += itemHeader.length
-         // 定长载荷后如紧跟换行则跳过
-         if (buf[offset] === 0x0a)
-            offset += 1
-      }
-      else {
-         const payloadLine = readLine(buf, offset)
-         if (!payloadLine)
-            break
-         payload = Buffer.from(payloadLine.line, 'utf8')
-         offset = payloadLine.next
-      }
-
-      if (itemHeader.type)
-         items.push({ type: itemHeader.type, payload: payload.toString('utf8') })
-   }
-
-   return { dsn: header.dsn, items }
-}
+const supportedTypes = new Set(['event', 'transaction', 'span', ...telemetryTypes])
+const knownTypes = new Set([...supportedTypes, 'attachment', 'profile', 'profile_chunk', 'replay_event', 'replay_recording', 'metric'])
 
 export const envelopeRoutes = new Hono()
 
-// 鉴权：设置 OBS_REPORT_TOKEN 时要求 x-obs-token 匹配；内网 Sentry SDK 直连带 X-Sentry-Auth 头的请求放行。
-envelopeRoutes.use('*', async (c, next) => {
-   if (config.reportToken && !c.req.header('x-sentry-auth')) {
-      const provided = c.req.header('x-obs-token') ?? ''
-      if (provided !== config.reportToken)
+async function requireReportToken(c: Context, next: Next) {
+   if (config.reportToken) {
+      const provided = Buffer.from(c.req.header('x-obs-token') ?? '')
+      const expected = Buffer.from(config.reportToken)
+      if (provided.length !== expected.length || !timingSafeEqual(provided, expected))
          return c.text('unauthorized', 401)
    }
    await next()
-})
+}
+const limit = bodyLimit({ maxSize: maxEnvelopeBytes, onError: c => c.text('envelope too large', 413) })
+envelopeRoutes.use('/api/:projectId/envelope', requireReportToken, limit)
+envelopeRoutes.use('/api/:projectId/envelope/', requireReportToken, limit)
 
 async function handleEnvelope(c: Context) {
-   const raw = Buffer.from(await c.req.arrayBuffer())
+   let raw: Buffer
+   try {
+      raw = Buffer.from(await c.req.arrayBuffer())
+   }
+   catch (error) {
+      if (error instanceof Error && error.name === 'BodyLimitError')
+         return c.text('envelope too large', 413)
+      throw error
+   }
+   if (raw.length > maxEnvelopeBytes)
+      return c.text('envelope too large', 413)
    if (raw.length === 0)
       return c.text('empty envelope', 400)
-
+   const encoding = c.req.header('content-encoding')?.toLowerCase()
+   if (encoding && encoding !== 'identity' && encoding !== 'gzip')
+      return c.text('unsupported content encoding', 415)
+   if (encoding === 'gzip') {
+      try {
+         raw = gunzipSync(raw, { maxOutputLength: maxEnvelopeBytes })
+      }
+      catch (error) {
+         return c.text('invalid or oversized gzip envelope', (error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE' ? 413 : 400)
+      }
+   }
    const envelope = parseEnvelope(raw)
    if (!envelope)
       return c.text('invalid envelope', 400)
 
-   const app = appFromDsn(envelope.dsn) ?? c.req.param('projectId') ?? 'unknown'
+   const app = boundedApp(appFromDsn(envelope.dsn) ?? c.req.query('sentry_key') ?? c.req.param('projectId'))
+   const results = { accepted: 0, invalid: 0, unsupported: 0, dropped: 0 }
    for (const item of envelope.items) {
-      if ((!['event', 'transaction', 'span'].includes(item.type) && !telemetryTypes.has(item.type)) || !item.payload)
-         continue
-
-      let payload: unknown
-      try {
-         payload = JSON.parse(item.payload)
+      const type = item.header.type
+      const labelType = knownTypes.has(type) ? type : 'unknown'
+      let outcome: keyof typeof results = 'unsupported'
+      if (supportedTypes.has(type)) {
+         outcome = 'invalid'
+         try {
+            const payload: unknown = JSON.parse(item.payload.toString('utf8'))
+            const countMatches = item.header.item_count === undefined
+               || (typeof payload === 'object' && payload !== null && 'items' in payload && Array.isArray(payload.items) && payload.items.length === item.header.item_count)
+            if (countMatches) {
+               const accepted = type === 'event' ? consumeEvent(app, payload, c.req.header('user-agent') ?? '')
+                  : type === 'transaction' || type === 'span' ? consumePerformance(app, type, payload)
+                     : consumeTelemetry(app, type, payload)
+               if (accepted === 'dropped')
+                  outcome = 'dropped'
+               else if (accepted)
+                  outcome = 'accepted'
+            }
+         }
+         catch {
+            outcome = 'invalid'
+         }
       }
-      catch {
-         continue
-      }
-      if (item.type === 'event')
-         consumeEvent(app, payload, c.req.header('user-agent') ?? '')
-      else if (item.type === 'transaction' || item.type === 'span')
-         consumePerformance(app, item.type, payload)
-      else
-         consumeTelemetry(app, item.type, payload)
+      results[outcome]++
+      sentryEnvelopeItemsTotal.inc({ app, type: labelType, outcome })
+      if (outcome !== 'accepted')
+         writeSentryLog(app, 'sentry_ingest', { kind: 'ingest', type: labelType, outcome, bytes: item.payload.length })
    }
-
-   // SDK 对 2xx 一律认为成功
+   for (const [outcome, count] of Object.entries(results))
+      c.header(`x-observation-${outcome}`, String(count))
+   // 部分成功不触发整包重发；未支持的二进制载荷只记录元数据，不伪装成已存储。
+   if (!results.accepted && results.invalid)
+      return c.text('invalid envelope items', 400)
    return c.body(null, 204)
 }
 

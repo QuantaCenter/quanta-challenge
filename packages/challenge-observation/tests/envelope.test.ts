@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { after, beforeEach, mock, test } from 'node:test'
+import { gzipSync } from 'node:zlib'
+import { Hono } from 'hono'
 
 mock.timers.enable({ apis: ['setInterval'] })
 const logs: Array<Record<string, unknown>> = []
@@ -119,9 +121,9 @@ test('errors preserve exception chain and tracing context, but redact sensitive 
       assert.ok(!serialized.includes(secret))
 })
 
-test('malformed events are ignored without crashing or adding error counts', async () => {
+test('malformed events return explicit rejection without adding error counts', async () => {
    for (const value of [null, [], {}, { exception: { values: 'wrong' } }, { level: 'custom', message: 'invalid' }])
-      assert.equal((await report('event', value)).status, 204)
+      assert.equal((await report('event', value)).status, 400)
    assert.equal(await sample('frontend_errors_total', { app: 'test_app', type: 'sentry' }), 0)
 })
 
@@ -187,4 +189,120 @@ test('feedback, check-ins, and CSP reports are recorded without contact details'
    assert.ok(logs.some(log => log.kind === 'raw_security'))
    assert.ok(!JSON.stringify(logs).includes('secret'))
    assert.ok(!JSON.stringify(logs).includes('Private Name'))
+})
+
+function rawReport(body: Buffer | string, headers: Record<string, string> = {}, path = '/api/1/envelope/') {
+   return envelopeRoutes.request(path, { method: 'POST', headers: { 'x-obs-token': 'test-token', ...headers }, body })
+}
+
+test('binary attachments and unsupported types are acknowledged explicitly without storing their content', async () => {
+   const secret = Buffer.from([0xff, 0x0a, 0x00, 0xfe])
+   const body = Buffer.concat([
+      Buffer.from('{}\n' + JSON.stringify({ type: 'attachment', length: secret.length }) + '\n'), secret,
+      Buffer.from('\n{"type":"event"}\n{"message":"kept"}'),
+   ])
+   const response = await rawReport(body)
+   assert.equal(response.status, 204)
+   assert.equal(response.headers.get('x-observation-accepted'), '1')
+   assert.equal(response.headers.get('x-observation-unsupported'), '1')
+   assert.equal(await sample('sentry_envelope_items_total', { app: '1', type: 'attachment', outcome: 'unsupported' }), 1)
+   mock.timers.tick(2000)
+   assert.ok(logs.some(log => log.kind === 'ingest' && log.bytes === 4 && log.outcome === 'unsupported'))
+   for (const type of ['profile', 'profile_chunk', 'replay_event', 'replay_recording', 'metric', 'future_type']) {
+      const res = await report(type, {})
+      assert.equal(res.status, 204)
+      assert.equal(res.headers.get('x-observation-unsupported'), '1')
+   }
+})
+
+test('mixed valid and invalid items preserve valid data without requesting a whole-envelope retry', async () => {
+   const response = await rawReport('{}\n{"type":"event"}\n{"message":"valid"}\n{"type":"event"}\nnull')
+   assert.equal(response.status, 204)
+   assert.equal(response.headers.get('x-observation-accepted'), '1')
+   assert.equal(response.headers.get('x-observation-invalid'), '1')
+   const invalid = await report('event', null)
+   assert.equal(invalid.status, 400)
+   assert.equal(invalid.headers.get('x-observation-invalid'), '1')
+})
+
+test('malformed framing is rejected before consuming any events', async () => {
+   for (const body of [
+      'null', '[]', '{}', '{}\nnull\n{}',
+      '{}\n{"type":"event","length":100}\n{}',
+      '{}\n{"type":"event","length":-1}\n{}',
+      '{}\n{"type":"event","length":1.5}\n{}',
+      '{}\n{"type":"event","length":2}\n{}garbage',
+      '{}\n{"type":"event"}\n{"message":"valid"}\ninvalid-header\n{}',
+      '{}\n' + Array.from({ length: 101 }, () => '{"type":"event"}\n{"message":"valid"}').join('\n'),
+   ])
+      assert.equal((await rawReport(body)).status, 400)
+   assert.equal(await sample('sentry_events_total', { app: '1', kind: 'message', level: 'info' }), 0)
+})
+
+test('item_count mismatch rejects a span container before aggregation', async () => {
+   const body = '{}\n{"type":"span","item_count":2}\n' + JSON.stringify({ version: 2, items: [span()] })
+   const response = await rawReport(body)
+   assert.equal(response.status, 400)
+   assert.equal(await sample('sentry_span_duration_seconds_count', { app: '1', op: 'other' }), 0)
+})
+
+test('Node gzip envelopes and query DSN public keys are supported', async () => {
+   const body = gzipSync(Buffer.from('{}\n{"type":"event"}\n{"message":"服务器消息"}'))
+   const response = await rawReport(body, { 'content-encoding': 'gzip' }, '/api/1/envelope/?sentry_key=server_app')
+   assert.equal(response.status, 204)
+   assert.equal(await sample('sentry_events_total', { app: 'server_app', kind: 'message', level: 'info' }), 1)
+})
+
+test('body limits apply to raw bytes and decompressed gzip, and unknown encodings are rejected', async () => {
+   assert.equal((await rawReport(Buffer.alloc(1024 * 1024 + 1))).status, 413)
+   assert.equal((await rawReport(gzipSync(Buffer.alloc(1024 * 1024 + 1)), { 'content-encoding': 'gzip' })).status, 413)
+   assert.equal((await rawReport('invalid-gzip', { 'content-encoding': 'gzip' })).status, 400)
+   assert.equal((await rawReport('{}', { 'content-encoding': 'br' })).status, 415)
+})
+
+test('Sentry auth headers cannot bypass the report token, and both envelope paths are protected', async () => {
+   for (const path of ['/api/1/envelope', '/api/1/envelope/']) {
+      const request = { method: 'POST', body: '{}\n{"type":"event"}\n{"message":"hello"}' }
+      assert.equal((await envelopeRoutes.request(path, request)).status, 401)
+      assert.equal((await envelopeRoutes.request(path, { ...request, headers: { 'x-sentry-auth': 'anything' } })).status, 401)
+      assert.equal((await rawReport(request.body, {}, path)).status, 204)
+   }
+})
+
+test('envelope authentication does not accidentally protect health or metrics routes', async () => {
+   const app = new Hono().route('/', envelopeRoutes)
+   app.get('/healthz', c => c.text('ok'))
+   assert.equal((await app.request('/healthz')).status, 200)
+})
+
+test('application labels are bounded for unknown applications', async () => {
+   const { boundedApp } = await import('../src/server/sentry/envelope.ts')
+   assert.equal(boundedApp('bad app'), 'unknown')
+   for (let i = 0; i < 110; i++)
+      boundedApp(`app_${i}`)
+   assert.equal(boundedApp('new-unbounded-app'), 'other')
+   assert.equal(boundedApp('test_app'), 'test_app')
+})
+
+test('Loki queue overflow and send failures are observable', async () => {
+   const { pushFrontendLog } = await import('../src/server/loki.ts')
+   mock.timers.tick(2000)
+   await Promise.resolve()
+   for (let i = 0; i < 5001; i++)
+      pushFrontendLog('test_app', 'sentry', '{}')
+   assert.equal(await sample('observation_log_dropped_total', { reason: 'queue_overflow' }), 1)
+   const response = await report('user_report', { event_id: 'error1', comments: 'not queued' })
+   assert.equal(response.headers.get('x-observation-accepted'), '0')
+   assert.equal(response.headers.get('x-observation-dropped'), '1')
+   assert.equal(await sample('sentry_envelope_items_total', { app: 'test_app', type: 'user_report', outcome: 'dropped' }), 1)
+   const originalFetch = globalThis.fetch
+   mock.method(globalThis, 'fetch', async () => new Response(null, { status: 503 }))
+   try {
+      mock.timers.tick(2000)
+      await Promise.resolve()
+      assert.equal(await sample('observation_log_dropped_total', { reason: 'send_error' }), 5000)
+   }
+   finally {
+      globalThis.fetch = originalFetch
+   }
 })

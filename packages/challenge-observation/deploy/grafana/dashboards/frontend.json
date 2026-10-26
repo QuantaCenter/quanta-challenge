@@ -4,17 +4,17 @@
   "tags": ["observation"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "1m",
   "time": { "from": "now-24h", "to": "now" },
   "panels": [
     {
       "id": 1,
-      "title": "JS 异常速率",
+      "title": "JS / Sentry 异常速率",
       "type": "stat",
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
-      "targets": [ { "refId": "A", "expr": "sum(rate(frontend_errors_total{type=~\"js|promise\"}[5m]))" } ],
+      "targets": [ { "refId": "A", "expr": "sum(rate(frontend_errors_total{type=~\"js|promise|sentry\"}[5m]))" } ],
       "fieldConfig": { "defaults": { "unit": "ops", "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.5 }, { "color": "red", "value": 2 } ] } }, "overrides": [] },
       "options": { "colorMode": "value", "graphMode": "area", "textMode": "auto", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
     },
@@ -93,6 +93,7 @@
     {
       "id": 8,
       "title": "前端 API 请求 (按状态分类)",
+      "description": "Sentry 请求指标来自采样 Span，不代表全量请求；采样率由 tracesSampleRate 控制。",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
       "datasource": { "type": "prometheus", "uid": "prometheus" },
@@ -100,6 +101,47 @@
         { "refId": "A", "expr": "sum by (status) (rate(frontend_api_requests_total[10m]))", "legendFormat": "{{status}}" }
       ],
       "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "fillOpacity": 15, "lineWidth": 1 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 9,
+      "title": "Sentry 接收结果",
+      "description": "accepted 已消费指标或日志入队，不保证 Loki 已持久化；invalid 载荷无效；dropped 纯日志事件因队列满丢弃；unsupported 仅记录元数据，未保存附件、回放、剖析等内容。",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (type, outcome) (rate(sentry_envelope_items_total[5m]))", "legendFormat": "{{type}} / {{outcome}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 10,
+      "title": "Sentry SDK 丢弃原因",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 20 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (reason, category) (rate(sentry_client_discarded_total[5m]))", "legendFormat": "{{category}} / {{reason}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 11,
+      "title": "Sentry Span 延迟 P95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, app, op) (rate(sentry_span_duration_seconds_bucket[5m])))", "legendFormat": "{{app}} / {{op}}" } ],
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
+    },
+    {
+      "id": 12,
+      "title": "Loki 日志丢弃",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 28 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [ { "refId": "A", "expr": "sum by (reason) (rate(observation_log_dropped_total[5m]))", "legendFormat": "{{reason}}" } ],
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi" } }
     }
   ]
