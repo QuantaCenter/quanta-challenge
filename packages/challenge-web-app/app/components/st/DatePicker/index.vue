@@ -550,6 +550,7 @@ watch(
    },
    { flush: 'post' }
 );
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -572,7 +573,7 @@ watch(
          <Calendar :size="20" :strokeWidth="3" />
       </div>
 
-      <Teleport to="body" class="absolute z-[10001]">
+      <Teleport to="body" :disabled="!teleported" class="absolute z-[10001]">
          <div
             v-if="rendered && isMobile"
             @click="opened = false"

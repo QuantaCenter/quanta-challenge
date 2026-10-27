@@ -308,6 +308,7 @@ defineExpose({
    addExtraLibs,
    onEditorInstanceReady,
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -351,7 +352,7 @@ defineExpose({
                <MoreOne />
             </div>
 
-            <Teleport to="body">
+            <Teleport to="body" :disabled="!teleported">
                <div
                   :ref="popperKey"
                   class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"

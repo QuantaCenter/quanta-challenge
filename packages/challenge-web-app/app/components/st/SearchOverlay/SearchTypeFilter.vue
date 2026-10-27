@@ -150,6 +150,7 @@ onClickOutside(
    },
    { ignore: [container] }
 );
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -186,7 +187,7 @@ onClickOutside(
    </div>
 
    <!-- 下拉菜单 (绑定到 body) -->
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <Transition name="dropdown">
          <div
             :ref="popperKey"

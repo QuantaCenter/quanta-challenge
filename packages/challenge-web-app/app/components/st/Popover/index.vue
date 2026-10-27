@@ -1,16 +1,3 @@
-<script lang="ts">
-let lastPointerMoveAt = -Infinity;
-if (import.meta.client) {
-   window.addEventListener(
-      'pointermove',
-      () => {
-         lastPointerMoveAt = performance.now();
-      },
-      { passive: true },
-   );
-}
-</script>
-
 <script setup lang="ts">
 import { usePopper, type IUsePopperOptions } from '~/composables/use-popper';
 
@@ -26,9 +13,15 @@ const { containerKey, popperKey, container, popper, popperInstance } = usePopper
    },
 });
 
+defineOptions({ inheritAttrs: false });
+const attrs = useAttrs();
+
 const triggered = ref(false);
+
+// 服务端与水合期间内联渲染，挂载后再传送到 body（规避 teleport 水合错位）
+const teleported = useClientTeleport();
+
 const onMouseEnter = () => {
-   if (performance.now() - lastPointerMoveAt > 100) return;
    popperInstance.value?.update();
    triggered.value = true;
 };
@@ -66,7 +59,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <div
          :ref="popperKey"
          class="absolute z-[10001] transition-opacity !w-fit"
@@ -79,7 +72,7 @@ onUnmounted(() => {
          </slot>
       </div>
    </Teleport>
-   <div :ref="containerKey">
+   <div :ref="containerKey" v-bind="attrs">
       <slot></slot>
    </div>
 </template>

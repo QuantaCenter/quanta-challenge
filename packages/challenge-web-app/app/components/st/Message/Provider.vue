@@ -82,15 +82,14 @@ onUnmounted(() => {
       delete globalThis[ADD_MESSAGE_OUTSIDE_VUE_KEY];
    }
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <div
          id="st-message-portal"
          class="fixed inset-0 pointer-events-none z-[10000]">
-         <!-- 容器本身不接鼠标事件（继承外层的 pointer-events-none），只有每条消息自己接，
-              否则这条通屏高的盒子会把右侧一整列的点击全吃掉 -->
          <div
              class="absolute bottom-0 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 max-md:top-0 max-md:bottom-auto max-md:right-0 max-md:left-0 max-md:items-center max-md:justify-start max-md:pt-4 max-md:pb-0">
             <TransitionGroup name="message" appear>

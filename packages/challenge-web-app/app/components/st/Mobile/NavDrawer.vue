@@ -93,10 +93,11 @@ watch(
    () => route.path,
    () => close()
 );
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <Transition name="st-mobile-drawer">
          <div v-if="open" class="fixed inset-0 z-[10000] md:hidden">
             <div class="absolute inset-0 bg-black/60" @click="close"></div>

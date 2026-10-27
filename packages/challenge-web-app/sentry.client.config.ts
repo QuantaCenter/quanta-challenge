@@ -15,7 +15,7 @@ if (dsn) {
       // 性能事务采样率（默认 10%，生产可按流量调低）
       tracesSampleRate,
       // 只静默登录流程的高频性能事务；错误事件照常上报，保证登录故障可观测。
-      ignoreTransactions: [
+      ignoreSpans: [
          /\/api\/auth\/quanta/,
          /\/api\/trpc\/auth\.quanta\./,
          /\/auth\/quanta/,

@@ -180,6 +180,7 @@ onUnmounted(() => {
    clearZeroTimer();
    window.removeEventListener('scroll', hideZeroTip, true);
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -226,7 +227,7 @@ onUnmounted(() => {
       </tbody>
    </table>
 
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <div
          v-if="zeroTipPos"
          class="pointer-events-none fixed z-[9998] -translate-x-1/2 -translate-y-full pb-2 transition-opacity"

@@ -38,10 +38,11 @@ const { width, height, isResizing } = useResizable(resizeHandle, {
 const isActive = defineModel<boolean>('isActive', {
    default: true,
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <StSpace
          class="w-screen h-screen fixed left-0 top-0 z-[9999] overflow-hidden"
          :class="{

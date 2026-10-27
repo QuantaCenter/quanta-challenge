@@ -290,10 +290,11 @@ const handleQuickAccessNavigate = (url: string) => {
 const isWindows = computed(() => {
    return navigator ? navigator.userAgent.includes('Windows') : false;
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <Transition name="search-overlay">
          <div
             v-if="isSearchOpen"

@@ -271,6 +271,7 @@ watch(
 );
 
 defineExpose({ refresh, toggleConsole });
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -419,7 +420,7 @@ defineExpose({ refresh, toggleConsole });
             </div>
          </template>
       </div>
-      <Teleport to="body">
+      <Teleport to="body" :disabled="!teleported">
          <div
             v-show="fullScreenMode"
             class="fixed z-[10000] overflow-hidden bg-[#1F1F1F] border border-accent-500 max-md:border-0"

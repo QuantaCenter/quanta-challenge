@@ -403,12 +403,13 @@ onBeforeUnmount(() => {
    window.removeEventListener('resize', onResize);
    document.documentElement.style.overflow = '';
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <div
-         v-if="visible"
+         v-show="visible"
          data-st-image-viewer
          class="fixed inset-0 z-[10000] touch-none select-none"
          @wheel.prevent="onWheel"

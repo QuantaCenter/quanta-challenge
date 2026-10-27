@@ -62,11 +62,12 @@ onMounted(() => {
       document.removeEventListener('click', onClickGlobal);
    });
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
    <div ref="area">
-      <Teleport to="body">
+      <Teleport to="body" :disabled="!teleported">
          <slot name="menu" :status="menuStatus" :position="menuPosition" />
       </Teleport>
       <slot></slot>
