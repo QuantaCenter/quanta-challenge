@@ -10,7 +10,7 @@ on:
       - 'packages/database/**'
       - 'packages/shared/**'
       - 'e2e/**'
-      - '.github/workflows/e2e.yml'
+      - '.github/workflows/e2e-frontend.yml'
 
 concurrency:
   group: e2e-${{ github.ref }}
