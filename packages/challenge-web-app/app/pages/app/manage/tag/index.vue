@@ -32,8 +32,6 @@ const columns: ITableColumn[] = [
 
 const { $trpc } = useNuxtApp();
 const message = useMessage();
-const runtimeConfig = useRuntimeConfig();
-const appBaseUrl = runtimeConfig.public.appBaseUrl;
 
 const {
    data: rawTags,
@@ -64,7 +62,8 @@ const tagOptions = computed(() => {
          description: tag.description,
          color: tag.color ?? '#FA7C0E',
          imageId: tag.imageId,
-         imageUrl: tag.url ? `${appBaseUrl}${tag.url}` : undefined,
+         // url 已是根相对路径（/api/static/xxx），不需要再拼 base
+         imageUrl: tag.url ?? undefined,
       }))
       .toSorted((a, b) => a.label.localeCompare(b.label));
 });

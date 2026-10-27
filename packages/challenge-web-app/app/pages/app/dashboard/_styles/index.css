@@ -2,6 +2,10 @@
    background: linear-gradient(180deg, rgba(39, 39, 39, 0) 0%, #272727 94.71%);
 }
 
+.top-mask {
+   background: linear-gradient(180deg, #272727 0%, rgba(39, 39, 39, 0) 94.71%);
+}
+
 .hide-scrollbar::-webkit-scrollbar {
    display: none;
 }

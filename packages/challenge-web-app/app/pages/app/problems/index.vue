@@ -370,8 +370,7 @@ const {
                class="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 md:grid-cols-4 md:gap-[1.25rem]">
                <a
                   v-for="(problem, idx) in problems"
-                  class="h-fit"
-                  target="_blank"
+                  class="group relative h-fit"
                   :style="{ viewTransitionName: `card-${problem.pid}` }"
                   :key="idx"
                   :href="`/challenge/editor/${problem.pid}`">
