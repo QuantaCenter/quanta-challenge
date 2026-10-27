@@ -127,9 +127,13 @@ async function ensureProblems(adminId: string) {
          if (!firstPid) firstPid = existing.pid;
          continue;
       }
+      // Problems.baseId 外键指向 BaseProblems：先建基础题记录，再把版本题挂上去
+      const base = await prisma.baseProblems.create({
+         data: { authorId: adminId },
+      });
       const created = await prisma.problems.create({
          data: {
-            baseId: 0,
+            baseId: base.id,
             title: p.title,
             detail: p.detail,
             difficulty: p.difficulty,
@@ -139,6 +143,10 @@ async function ensureProblems(adminId: string) {
             judgeUploadPath: 'e2e/placeholder',
             tags: { connect: tagNames.map((t) => ({ tid: t.tid })) },
          },
+      });
+      await prisma.baseProblems.update({
+         where: { id: base.id },
+         data: { currentPid: created.pid },
       });
       if (!firstPid) firstPid = created.pid;
    }
