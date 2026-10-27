@@ -22,8 +22,8 @@ setup('登录并保存会话', async ({ page }) => {
    await shot('02-登录页');
 
    // 3. 填写表单
-   await page.getByPlaceholder('请输入邮箱').fill(E2E_ADMIN_EMAIL);
-   await page.getByPlaceholder('请输入密码').fill(E2E_ADMIN_PASSWORD);
+   await page.locator('input[placeholder="请输入邮箱"]').fill(E2E_ADMIN_EMAIL);
+   await page.locator('input[type="password"]').fill(E2E_ADMIN_PASSWORD);
    await shot('03-登录表单-已填写');
 
    // 4. 提交并等待跳转主界面
