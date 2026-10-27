@@ -67,7 +67,7 @@ onMounted(() => {
       Object.defineProperty(globalThis, ADD_MESSAGE_OUTSIDE_VUE_KEY, {
          value: addMessage,
          writable: false,
-         configurable: false,
+         configurable: true,
          enumerable: false,
       });
    }
