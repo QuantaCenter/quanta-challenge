@@ -84,11 +84,6 @@ export const usePopper = (options?: IUsePopperOptions) => {
    // 挂载创建 Popper 实例
    onMounted(() => {
       if (createInstance()) return;
-      logger.warn({
-         container: container.value,
-         popper: popper.value,
-         message: 'Popper elements not ready on mounted, waiting for them',
-      });
       const stop = watch([container, popper], () => {
          if (createInstance()) stop();
       });
