@@ -1,7 +1,10 @@
 import fs from 'node:fs';
+import fsp from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import prisma from '@challenge/database';
+import { createPng } from '../helpers/png';
 
 const SALT_ROUNDS = 10;
 
@@ -10,34 +13,79 @@ const ADMIN_EMAIL = process.env.E2E_ADMIN_EMAIL ?? 'e2e-admin@quanta.test';
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'e2e-admin-password';
 
 const TAGS = ['动态规划', 'WebContainer', 'HTTP 服务', '入门'];
-const PROBLEMS = [
+/** 封面图类型：real = 写入真实 PNG 文件（正常显示）；broken = 只有数据库记录、无文件（裂图）。 */
+type CoverKind = 'real' | 'broken';
+const PROBLEMS: {
+   title: string;
+   difficulty: 'easy' | 'medium' | 'hard';
+   totalScore: number;
+   detail: string;
+   problemType?: 'frontend' | 'backend_service';
+   cover: CoverKind;
+   coverColor?: [number, number, number];
+}[] = [
    {
       title: 'E2E - 两数之和',
-      difficulty: 'easy' as const,
+      difficulty: 'easy',
       totalScore: 100,
       detail:
          '给定一个整数数组与目标值，返回数组中两个数之和等于目标值的下标。\n\n这是端到端测试注入的示例题目。',
+      cover: 'real',
+      coverColor: [91, 141, 239],
    },
    {
       title: 'E2E - 最长递增子序列',
-      difficulty: 'medium' as const,
+      difficulty: 'medium',
       totalScore: 150,
       detail: '求序列的最长严格递增子序列长度。\n\n这是端到端测试注入的示例题目。',
+      cover: 'real',
+      coverColor: [245, 166, 35],
    },
    {
       title: 'E2E - 编辑距离',
-      difficulty: 'hard' as const,
+      difficulty: 'hard',
       totalScore: 200,
       detail: '计算两个字符串的最小编辑距离。\n\n这是端到端测试注入的示例题目。',
+      cover: 'broken',
    },
    {
       title: 'E2E - Hello REST API',
-      difficulty: 'easy' as const,
+      difficulty: 'easy',
       totalScore: 80,
       detail: '实现一个返回 `{"message":"hello"}` 的 HTTP 接口。\n\n这是端到端测试注入的后端服务示例题目。',
-      problemType: 'backend_service' as const,
+      problemType: 'backend_service',
+      cover: 'broken',
    },
 ];
+
+/** Web 应用静态图片目录：/api/static/<文件名> 从这里读（见 resolveLocalStorePath）。 */
+const LOCAL_STORE_DIR = path.resolve(
+   import.meta.dirname,
+   '../../packages/challenge-web-app/local_store',
+);
+
+/**
+ * 创建封面图 Image 记录。
+ * real：生成 PNG 写入 local_store，文件名与 Image.name 一致（<uuid>.png），可正常显示；
+ * broken：只建记录不写文件，前端访问 /api/static/ 404，展示裂图效果。
+ */
+async function createCover(kind: CoverKind, label: string, color?: [number, number, number]) {
+   if (kind === 'broken') {
+      return prisma.image.create({
+         data: { name: `e2e-cover-missing-${label}.png` },
+      });
+   }
+   const fileId = crypto.randomUUID();
+   const fileName = `${fileId}.png`;
+   await fsp.mkdir(LOCAL_STORE_DIR, { recursive: true });
+   await fsp.writeFile(
+      path.join(LOCAL_STORE_DIR, fileName),
+      createPng(640, 360, color ?? [120, 120, 120]),
+   );
+   return prisma.image.create({
+      data: { id: fileId, name: fileName },
+   });
+}
 
 async function ensureAdmin() {
    const passwordHash = await bcrypt.hash(ADMIN_PASSWORD, SALT_ROUNDS);
@@ -121,7 +169,7 @@ async function ensureTags(adminId: string) {
 async function ensureProblems(adminId: string) {
    const tagNames = await prisma.tags.findMany({ where: { name: { in: TAGS } } });
    let firstPid = 0;
-   for (const p of PROBLEMS) {
+   for (const [i, p] of PROBLEMS.entries()) {
       const existing = await prisma.problems.findFirst({ where: { title: p.title } });
       if (existing) {
          if (!firstPid) firstPid = existing.pid;
@@ -131,6 +179,8 @@ async function ensureProblems(adminId: string) {
       const base = await prisma.baseProblems.create({
          data: { authorId: adminId },
       });
+      // 封面图：real 写真实 PNG 文件正常显示，broken 只建记录制造裂图
+      const cover = await createCover(p.cover, `problem-${i}`, p.coverColor);
       const created = await prisma.problems.create({
          data: {
             baseId: base.id,
@@ -141,6 +191,7 @@ async function ensureProblems(adminId: string) {
             status: 'published',
             problemType: p.problemType ?? 'frontend',
             judgeUploadPath: 'e2e/placeholder',
+            coverImageId: cover.id,
             tags: { connect: tagNames.map((t) => ({ tid: t.tid })) },
          },
       });
