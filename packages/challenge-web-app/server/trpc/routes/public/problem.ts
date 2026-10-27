@@ -80,7 +80,7 @@ const getAllPublicProblems = publicProcedure
          },
          // 多取一条用于判断是否还有下一页
          take: limit + 1,
-         // 游标是上一页被 pop 出来的那一条，下一轮从它开始（包含它）
+         // 游标是上一页最后一条，下一轮从它开始
          cursor: cursor == null ? undefined : { id: cursor },
          orderBy: { id: 'asc' },
          select: {
@@ -127,7 +127,9 @@ const getAllPublicProblems = publicProcedure
          const passRate = (passRates.get(p.id) ?? 0) * 100;
          return {
             ...p.CurrentProblem,
-            // 没有封面时必须返回 null，而不是字符串 'unknown'： 前端会拼成 /api/static/unknown，该请求因无扩展名被 403， 于是仍然是一张坏图；返回 null 才能让 StImage 走设计好的占位图标。
+            // CurrentProblem 只有 pid，正文按题号引用，这里补上 baseId
+            baseId: p.id,
+            // 无封面时返回 null，让前端走占位图
             imageName:
                p.CurrentProblem?.CoverImage?.name ||
                p.CurrentProblem?.ProblemDefaultCover?.[0]?.image?.name ||
@@ -142,8 +144,7 @@ const getAllPublicProblems = publicProcedure
          };
       });
 
-      // 在服务端把 thumbhash 解码为 data URL（带 Redis 缓存），
-      // 这样 SSR 首帧就能直接拿到占位图，无需客户端再次解码。
+      // 在服务端把 thumbhash 解码为 data URL
       const imageThumbhashUrls = await renderThumbhashDataUrls(
          rawItems.map((item) => item.imageHash),
       );

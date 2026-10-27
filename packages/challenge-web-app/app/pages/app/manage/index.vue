@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import {
+   Audit,
    Box,
    Code,
+   FileCollection,
    GoldMedalTwo,
    Help,
    History,
@@ -23,6 +25,20 @@ type ProcessOption = {
 };
 
 const options: ProcessOption[] = [
+   {
+      title: '内容管理',
+      description: '查看与编辑课程 / 专题 / 文章',
+      url: '/app/manage/content',
+      icon: FileCollection,
+      iconColor: '#38BDF8',
+   },
+   {
+      title: '内容审核',
+      description: '审核送审的课程，处理通过与驳回',
+      url: '/app/manage/course',
+      icon: Audit,
+      iconColor: '#34D399',
+   },
    {
       title: '题目管理',
       description: '管理已发布的题目，查看与编辑题目信息',
