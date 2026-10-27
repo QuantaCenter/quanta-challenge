@@ -12,7 +12,7 @@
    },
    "devDependencies": {
       "@challenge/database": "workspace:^",
-      "@playwright/test": "^1.55.0",
+      "@playwright/test": "1.64.1",
       "@types/bcryptjs": "^2.4.6",
       "@types/node": "^22.10.0",
       "bcryptjs": "^3.0.2",

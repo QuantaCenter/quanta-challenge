@@ -37,10 +37,14 @@ pnpm --filter @challenge/e2e show-report
 
 ## CI
 
-见 `.github/workflows/e2e.yml`：服务容器起 PostgreSQL 16 / Redis 7 →
+见 `.github/workflows/e2e-frontend.yml`：整个 job 跑在 Playwright 官方镜像容器中
+（浏览器与系统依赖内置，免安装），服务容器起 PostgreSQL 16 / Redis 7 →
 `prisma migrate deploy` → seed 注入 → 构建并以非 production 模式启动 Web 应用
 （避免登录 cookie 带 `secure`）→ Playwright 漫游 → 截图上传为 artifact
 `e2e-screenshots`，并在 Job Summary 列出截图清单供人工确认。
+
+> 注意：镜像 tag（如 `v1.64.1-noble`）必须与 `@playwright/test` 的钉死版本严格一致，
+> 升级 Playwright 时两处要同步修改。
 
 ## 环境变量
 

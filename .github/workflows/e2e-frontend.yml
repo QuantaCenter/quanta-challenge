@@ -21,6 +21,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
+    container:
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
+
     services:
       postgres:
         image: postgres:16-alpine
@@ -46,8 +49,8 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgres://quanta:quanta@localhost:5432/quanta_db
-      REDIS_HOST: localhost
+      DATABASE_URL: postgres://quanta:quanta@postgres:5432/quanta_db
+      REDIS_HOST: redis
 
     steps:
       - uses: actions/checkout@v4
@@ -86,19 +89,22 @@ jobs:
           # 不设 NODE_ENV=production：生产模式下登录 cookie 会带 secure 属性，
           # 与 CI 的 http 地址不匹配导致登录会话丢失
           node .output/server/index.mjs > web-app.log 2>&1 &
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:3000/ > /dev/null; then
-              echo "Web 应用已就绪"
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Web 应用未在 120s 内就绪"
-          tail -n 100 web-app.log
-          exit 1
-
-      - name: 安装 Playwright 浏览器
-        run: pnpm --filter @challenge/e2e exec playwright install --with-deps chromium
+          # 镜像内不保证有 curl，用 Node 内置 fetch 探测就绪
+          node -e '
+            const start = Date.now();
+            const probe = async () => {
+              try {
+                const res = await fetch("http://localhost:3000/");
+                if (res.ok) { console.log("Web 应用已就绪"); process.exit(0); }
+              } catch {}
+              if (Date.now() - start > 120000) {
+                console.error("Web 应用未在 120s 内就绪");
+                process.exit(1);
+              }
+              setTimeout(probe, 2000);
+            };
+            probe();
+          ' || { tail -n 100 web-app.log; exit 1; }
 
       - name: 运行 E2E 漫游测试
         run: pnpm --filter @challenge/e2e test:e2e

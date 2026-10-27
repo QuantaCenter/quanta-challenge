@@ -23,7 +23,8 @@
          "@prisma/client",
          "prisma",
          "sharp",
-         "esbuild"
+         "esbuild",
+         "bcrypt"
       ]
    }
 }
