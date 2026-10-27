@@ -60,21 +60,12 @@ export const usePopper = (options?: IUsePopperOptions) => {
       !firstUpdateWatchers.has(fn) && firstUpdateWatchers.add(fn);
    };
 
-   // 挂载创建 Popper 实例
-   onMounted(() => {
-      if (!container.value || !popper.value) {
-         logger.info({
-            container: container.value,
-            popper: popper.value,
-         });
-         throw new Error('Container or Popper element is not defined');
-      }
-
+   const createInstance = () => {
+      if (!container.value || !popper.value) return false;
       if (typeof options?.fillWidth === 'undefined' || options.fillWidth) {
          const containerWidth = container.value.getBoundingClientRect().width;
          popper.value.style.width = `${containerWidth}px`;
       }
-
       popperInstance.value = createPopper(container.value, popper.value, {
          placement: 'bottom-start',
          ...options?.options,
@@ -86,6 +77,15 @@ export const usePopper = (options?: IUsePopperOptions) => {
          onFirstUpdate(arg0) {
             firstUpdateWatchers.forEach((fn) => fn && fn(arg0));
          },
+      });
+      return true;
+   };
+
+   // 挂载创建 Popper 实例
+   onMounted(() => {
+      if (createInstance()) return;
+      const stop = watch([container, popper], () => {
+         if (createInstance()) stop();
       });
    });
 

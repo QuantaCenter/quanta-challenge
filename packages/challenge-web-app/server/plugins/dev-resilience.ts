@@ -17,11 +17,8 @@ const isIgnorableSocketError = (e: unknown): boolean => {
 const DEDUP_WINDOW_MS = 30_000;
 
 export default defineNitroPlugin(() => {
-   // 只在开发环境启用；生产环境的连接错误应由正式日志/监控处理
    if (process.env.NODE_ENV === 'production') return;
 
-   // ---- 第 1 层：源头消化 ----
-   // Nitro 开发服务器会把 http server 暴露在 globalThis 上时优先使用它
    const candidates = [
       (globalThis as any).__nitro_http_server,
       (globalThis as any).httpServer,
@@ -40,7 +37,6 @@ export default defineNitroPlugin(() => {
       attached++;
    }
 
-   // ---- 第 2 层：进程级兜底（只记录，不抛出、不退出） ----
    process.on('unhandledRejection', (reason) => {
       if (isIgnorableSocketError(reason)) return; // 连接噪声，无需刷屏
       console.error('[dev] 未处理的 Promise 拒绝（已忽略，服务继续运行）:', reason);

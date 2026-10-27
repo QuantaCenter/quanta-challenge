@@ -187,53 +187,55 @@ const teleported = useClientTeleport();
    </div>
 
    <!-- 下拉菜单 (绑定到 body) -->
-   <Teleport to="body" :disabled="!teleported">
-      <Transition name="dropdown">
-         <div
-            :ref="popperKey"
-            class="min-w-[10rem] bg-accent-700 rounded-lg border border-accent-500 shadow-xl z-[10002] overflow-hidden absolute transition-all"
-            :class="{
-               'opacity-0 pointer-events-none -translate-y-2': !isDropdownOpen,
-            }">
-            <div class="py-1">
-               <button
-                  v-for="tag in searchTypeOptions"
-                  :key="tag.value"
-                  class="w-full px-4 py-2 text-left text-sm text-white hover:bg-accent-600 transition-colors flex items-center justify-between gap-2 cursor-pointer"
-                  :class="{
-                     'bg-accent-600': modelValue.includes(tag.value),
-                  }"
-                  @click="toggleTag(tag.value)">
-                  <StSpace gap="0.5rem" align="center">
-                     <span v-if="tag.icon" class="text-base">
-                        <component :is="tag.icon" size="1rem" />
-                     </span>
-                     <span>{{ tag.label }}</span>
-                  </StSpace>
-                  <div
-                     class="size-4 rounded border transition-all"
-                     :class="
-                        modelValue.includes(tag.value)
-                           ? 'bg-primary border-primary'
-                           : 'border-accent-400'
-                     ">
-                     <svg
-                        v-if="modelValue.includes(tag.value)"
-                        class="size-full text-white"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        stroke-width="3">
-                        <path
-                           stroke-linecap="round"
-                           stroke-linejoin="round"
-                           d="M5 13l4 4L19 7" />
-                     </svg>
-                  </div>
-               </button>
+   <Teleport to="body">
+      <template v-if="teleported">
+         <Transition name="dropdown">
+            <div
+               :ref="popperKey"
+               class="min-w-[10rem] bg-accent-700 rounded-lg border border-accent-500 shadow-xl z-[10002] overflow-hidden absolute transition-all"
+               :class="{
+                  'opacity-0 pointer-events-none -translate-y-2': !isDropdownOpen,
+               }">
+               <div class="py-1">
+                  <button
+                     v-for="tag in searchTypeOptions"
+                     :key="tag.value"
+                     class="w-full px-4 py-2 text-left text-sm text-white hover:bg-accent-600 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                     :class="{
+                        'bg-accent-600': modelValue.includes(tag.value),
+                     }"
+                     @click="toggleTag(tag.value)">
+                     <StSpace gap="0.5rem" align="center">
+                        <span v-if="tag.icon" class="text-base">
+                           <component :is="tag.icon" size="1rem" />
+                        </span>
+                        <span>{{ tag.label }}</span>
+                     </StSpace>
+                     <div
+                        class="size-4 rounded border transition-all"
+                        :class="
+                           modelValue.includes(tag.value)
+                              ? 'bg-primary border-primary'
+                              : 'border-accent-400'
+                        ">
+                        <svg
+                           v-if="modelValue.includes(tag.value)"
+                           class="size-full text-white"
+                           fill="none"
+                           viewBox="0 0 24 24"
+                           stroke="currentColor"
+                           stroke-width="3">
+                           <path
+                              stroke-linecap="round"
+                              stroke-linejoin="round"
+                              d="M5 13l4 4L19 7" />
+                        </svg>
+                     </div>
+                  </button>
+               </div>
             </div>
-         </div>
-      </Transition>
+         </Transition>
+      </template>
    </Teleport>
 </template>
 

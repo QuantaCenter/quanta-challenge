@@ -1,0 +1,22 @@
+{
+   "name": "@challenge/e2e",
+   "private": true,
+   "type": "module",
+   "version": "1.0.0",
+   "description": "Playwright 端到端漫游测试：登录 → 漫游主界面所有页面 → 每步截图，交由人工确认",
+   "scripts": {
+      "seed": "tsx seed/seed.ts",
+      "test:e2e": "playwright test",
+      "test:e2e:headed": "playwright test --headed",
+      "show-report": "playwright show-report"
+   },
+   "devDependencies": {
+      "@challenge/database": "workspace:^",
+      "@playwright/test": "1.64.1",
+      "@types/bcryptjs": "^2.4.6",
+      "@types/node": "^22.10.0",
+      "bcryptjs": "^3.0.2",
+      "tsx": "^4.19.2",
+      "typescript": "^5.8.3"
+   }
+}

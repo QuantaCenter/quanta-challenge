@@ -294,213 +294,215 @@ const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body" :disabled="!teleported">
-      <Transition name="search-overlay">
-         <div
-            v-if="isSearchOpen"
-            class="fixed inset-0 z-[10001] bg-background/50 backdrop-blur-md flex items-start justify-center pt-[20vh]"
-            @click="handleBackdropClick"
-            @keydown="handleKeydown">
-            <div class="w-full max-w-[42rem] mx-4" @click="handleContentClick">
-               <!-- 搜索框 -->
-               <div class="flex flex-col gap-3">
-                  <!-- 搜索输入区 -->
-                  <div
-                     class="flex items-center gap-3 p-4 bg-accent-700 rounded-xl border border-secondary ring-4 ring-secondary/10">
-                     <LoadingFour
-                        v-if="isSearching"
-                        class="text-xl text-accent-300 animate-spin shrink-0" />
-                     <Search v-else class="text-xl text-accent-300 shrink-0" />
-                     <input
-                        ref="inputRef"
-                        v-model="localQuery"
-                        type="text"
-                        placeholder="搜索题目、标签、用户、页面..."
-                        class="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-accent-300"
-                        @keydown.esc="closeSearch" />
-                     <button
-                        v-if="localQuery.trim()"
-                        class="text-accent-300 hover:text-white transition-colors p-1"
-                        @click="localQuery = ''">
-                        <Close class="text-base cursor-pointer" />
-                     </button>
-                     <!-- cmd+k -->
+   <Teleport to="body">
+      <template v-if="teleported">
+         <Transition name="search-overlay">
+            <div
+               v-if="isSearchOpen"
+               class="fixed inset-0 z-[10001] bg-background/50 backdrop-blur-md flex items-start justify-center pt-[20vh]"
+               @click="handleBackdropClick"
+               @keydown="handleKeydown">
+               <div class="w-full max-w-[42rem] mx-4" @click="handleContentClick">
+                  <!-- 搜索框 -->
+                  <div class="flex flex-col gap-3">
+                     <!-- 搜索输入区 -->
                      <div
-                        v-else
-                        class="hidden md:flex items-center gap-2 text-accent-300 rounded text-xs">
-                        <kbd
-                           v-if="isWindows"
-                           class="bg-accent-600 rounded border border-accent-500 text-[0.75rem] leading-[0.5rem] h-6 px-1.5 flex items-center justify-center font-family-fira-code">
-                           Ctrl
-                        </kbd>
-                        <kbd
+                        class="flex items-center gap-3 p-4 bg-accent-700 rounded-xl border border-secondary ring-4 ring-secondary/10">
+                        <LoadingFour
+                           v-if="isSearching"
+                           class="text-xl text-accent-300 animate-spin shrink-0" />
+                        <Search v-else class="text-xl text-accent-300 shrink-0" />
+                        <input
+                           ref="inputRef"
+                           v-model="localQuery"
+                           type="text"
+                           placeholder="搜索题目、标签、用户、页面..."
+                           class="flex-1 bg-transparent border-none outline-none text-white text-sm placeholder:text-accent-300"
+                           @keydown.esc="closeSearch" />
+                        <button
+                           v-if="localQuery.trim()"
+                           class="text-accent-300 hover:text-white transition-colors p-1"
+                           @click="localQuery = ''">
+                           <Close class="text-base cursor-pointer" />
+                        </button>
+                        <!-- cmd+k -->
+                        <div
                            v-else
-                           class="bg-accent-600 rounded border border-accent-500 text-base leading-[0.5rem] size-6 flex items-center justify-center">
-                           ⌘
-                        </kbd>
-                        <kbd
-                           class="bg-accent-600 rounded border border-accent-500 text-[0.75rem] leading-[0.5rem] size-6 font-family-fira-code flex items-center justify-center">
-                           K
-                        </kbd>
-                     </div>
-                  </div>
-
-                  <!-- 搜索结果区域 - 外层容器：动态高度+动画 -->
-                  <div
-                     class="bg-accent-700 rounded-xl border border-accent-600 relative overflow-hidden transition-all duration-300 ease-in-out"
-                     :style="{ height: containerHeight + 'px' }">
-                     <!-- 内层容器：绝对定位+滚动 -->
-                     <div
-                        ref="resultsContainerRef"
-                        class="absolute inset-0 overflow-y-auto"
-                        :style="{
-                           paddingBottom: BOTTOM_FIXED_HEIGHT + 'px',
-                        }">
-                        <!-- 内容区域 -->
-                        <div ref="contentRef">
-                           <!-- 搜索类型过滤 -->
-                           <StSearchOverlaySearchTypeFilter
-                              v-model="searchTypes" />
-
-                           <!-- 加载中 - 骨架屏 -->
-                           <div v-if="isSearching">
-                              <!-- 显示 3 组骨架屏，每组 2 个结果项 -->
-                              <div v-for="groupIndex in 3" :key="groupIndex">
-                                 <hr
-                                    class="border-0 border-t border-accent-500 mx-4 my-1" />
-                                 <!-- 分组标题骨架 -->
-                                 <div class="px-4 pt-4 pb-2">
-                                    <StSkeletonItem class="h-5 w-20" />
-                                 </div>
-                                 <!-- 结果项骨架 -->
-                                 <div class="mx-2 mb-2">
-                                    <StSearchOverlaySearchResultSkeleton
-                                       v-for="index in 2"
-                                       :key="index" />
-                                 </div>
-                              </div>
-                           </div>
-
-                           <!-- 无搜索内容 - 显示最近搜索和快速访问 -->
-                           <StSearchOverlayRecentAndQuickAccess
-                              v-if="!localQuery.trim()"
-                              ref="recentAccessRef"
-                              @search="handleRecentSearch"
-                              @navigate="handleQuickAccessNavigate"
-                              @height-change="updateHeight" />
-
-                           <!-- 无结果 -->
-                           <div
-                              v-else-if="
-                                 !isSearching && searchResults.length === 0
-                              "
-                              class="px-6 py-12 text-center">
-                              <StEmptyStatus content="未找到相关结果" />
-                           </div>
-
-                           <!-- 搜索结果列表 - 按类型分组 -->
-                           <div v-else-if="!isSearching">
-                              <div
-                                 v-for="(group, groupIndex) in groupedResults"
-                                 :key="group.type">
-                                 <hr
-                                    class="border-0 border-t border-accent-500 mx-4 my-1" />
-
-                                 <!-- 分组标题 -->
-                                 <div
-                                    class="px-4 pt-4 pb-2 border-accent-500 flex items-center gap-2">
-                                    <span
-                                       class="st-font-caption text-accent-200">
-                                       {{ group.label }}
-                                    </span>
-                                    <span
-                                       class="text-xs text-accent-400 font-family-manrope">
-                                       ({{ group.results.length }})
-                                    </span>
-                                 </div>
-
-                                 <!-- 该分组的搜索结果 -->
-                                 <div
-                                    class="divide-y divide-accent-500 mx-2 mb-2">
-                                    <StSearchOverlaySearchResultItem
-                                       v-for="(
-                                          result, resultIndex
-                                       ) in group.results"
-                                       :key="result.id"
-                                       :result="result"
-                                       :is-selected="
-                                          selectedIndex ===
-                                          getGlobalIndex(
-                                             groupIndex,
-                                             resultIndex
-                                          )
-                                       "
-                                       data-result-item
-                                       @click="handleResultClick" />
-                                 </div>
-                              </div>
-
-                              <!-- 加载更多 -->
-                              <div
-                                 v-if="hasMoreResults"
-                                 class="flex justify-center py-3">
-                                 <button
-                                    class="px-4 py-1.5 text-xs rounded-lg bg-accent-600 hover:bg-accent-500 text-accent-200 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
-                                    :disabled="isLoadingMore"
-                                    @click="loadMore">
-                                    {{
-                                       isLoadingMore
-                                          ? '加载中...'
-                                          : '加载更多'
-                                    }}
-                                 </button>
-                              </div>
-                           </div>
+                           class="hidden md:flex items-center gap-2 text-accent-300 rounded text-xs">
+                           <kbd
+                              v-if="isWindows"
+                              class="bg-accent-600 rounded border border-accent-500 text-[0.75rem] leading-[0.5rem] h-6 px-1.5 flex items-center justify-center font-family-fira-code">
+                              Ctrl
+                           </kbd>
+                           <kbd
+                              v-else
+                              class="bg-accent-600 rounded border border-accent-500 text-base leading-[0.5rem] size-6 flex items-center justify-center">
+                              ⌘
+                           </kbd>
+                           <kbd
+                              class="bg-accent-600 rounded border border-accent-500 text-[0.75rem] leading-[0.5rem] size-6 font-family-fira-code flex items-center justify-center">
+                              K
+                           </kbd>
                         </div>
                      </div>
 
-                     <!-- 底部提示 - 固定在底部 -->
+                     <!-- 搜索结果区域 - 外层容器：动态高度+动画 -->
                      <div
-                        class="absolute bottom-0 left-0 right-0 px-5 py-4 bg-accent-700 flex items-center justify-between text-xs text-accent-300 border-t border-accent-600"
-                        :style="{ height: BOTTOM_FIXED_HEIGHT + 'px' }">
-                        <StSpace gap="1rem" align="center">
-                           <StSpace gap="0.25rem" align="center">
-                              <kbd
-                                 class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
-                                 ↑
-                              </kbd>
-                              <kbd
-                                 class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
-                                 ↓
-                              </kbd>
-                              <span>导航</span>
-                           </StSpace>
-                           <StSpace gap="0.25rem" align="center">
-                              <kbd
-                                 class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
-                                 Enter
-                              </kbd>
-                              <span>选择</span>
-                           </StSpace>
-                           <StSpace gap="0.25rem" align="center">
-                              <kbd
-                                 class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
-                                 Esc
-                              </kbd>
-                              <span>关闭</span>
-                           </StSpace>
-                        </StSpace>
+                        class="bg-accent-700 rounded-xl border border-accent-600 relative overflow-hidden transition-all duration-300 ease-in-out"
+                        :style="{ height: containerHeight + 'px' }">
+                        <!-- 内层容器：绝对定位+滚动 -->
                         <div
-                           v-if="searchResults.length > 0"
-                           class="text-accent-400">
-                           共 {{ searchResults.length }} 条
+                           ref="resultsContainerRef"
+                           class="absolute inset-0 overflow-y-auto"
+                           :style="{
+                              paddingBottom: BOTTOM_FIXED_HEIGHT + 'px',
+                           }">
+                           <!-- 内容区域 -->
+                           <div ref="contentRef">
+                              <!-- 搜索类型过滤 -->
+                              <StSearchOverlaySearchTypeFilter
+                                 v-model="searchTypes" />
+
+                              <!-- 加载中 - 骨架屏 -->
+                              <div v-if="isSearching">
+                                 <!-- 显示 3 组骨架屏，每组 2 个结果项 -->
+                                 <div v-for="groupIndex in 3" :key="groupIndex">
+                                    <hr
+                                       class="border-0 border-t border-accent-500 mx-4 my-1" />
+                                    <!-- 分组标题骨架 -->
+                                    <div class="px-4 pt-4 pb-2">
+                                       <StSkeletonItem class="h-5 w-20" />
+                                    </div>
+                                    <!-- 结果项骨架 -->
+                                    <div class="mx-2 mb-2">
+                                       <StSearchOverlaySearchResultSkeleton
+                                          v-for="index in 2"
+                                          :key="index" />
+                                    </div>
+                                 </div>
+                              </div>
+
+                              <!-- 无搜索内容 - 显示最近搜索和快速访问 -->
+                              <StSearchOverlayRecentAndQuickAccess
+                                 v-if="!localQuery.trim()"
+                                 ref="recentAccessRef"
+                                 @search="handleRecentSearch"
+                                 @navigate="handleQuickAccessNavigate"
+                                 @height-change="updateHeight" />
+
+                              <!-- 无结果 -->
+                              <div
+                                 v-else-if="
+                                    !isSearching && searchResults.length === 0
+                                 "
+                                 class="px-6 py-12 text-center">
+                                 <StEmptyStatus content="未找到相关结果" />
+                              </div>
+
+                              <!-- 搜索结果列表 - 按类型分组 -->
+                              <div v-else-if="!isSearching">
+                                 <div
+                                    v-for="(group, groupIndex) in groupedResults"
+                                    :key="group.type">
+                                    <hr
+                                       class="border-0 border-t border-accent-500 mx-4 my-1" />
+
+                                    <!-- 分组标题 -->
+                                    <div
+                                       class="px-4 pt-4 pb-2 border-accent-500 flex items-center gap-2">
+                                       <span
+                                          class="st-font-caption text-accent-200">
+                                          {{ group.label }}
+                                       </span>
+                                       <span
+                                          class="text-xs text-accent-400 font-family-manrope">
+                                          ({{ group.results.length }})
+                                       </span>
+                                    </div>
+
+                                    <!-- 该分组的搜索结果 -->
+                                    <div
+                                       class="divide-y divide-accent-500 mx-2 mb-2">
+                                       <StSearchOverlaySearchResultItem
+                                          v-for="(
+                                             result, resultIndex
+                                          ) in group.results"
+                                          :key="result.id"
+                                          :result="result"
+                                          :is-selected="
+                                             selectedIndex ===
+                                             getGlobalIndex(
+                                                groupIndex,
+                                                resultIndex
+                                             )
+                                          "
+                                          data-result-item
+                                          @click="handleResultClick" />
+                                    </div>
+                                 </div>
+
+                                 <!-- 加载更多 -->
+                                 <div
+                                    v-if="hasMoreResults"
+                                    class="flex justify-center py-3">
+                                    <button
+                                       class="px-4 py-1.5 text-xs rounded-lg bg-accent-600 hover:bg-accent-500 text-accent-200 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                       :disabled="isLoadingMore"
+                                       @click="loadMore">
+                                       {{
+                                          isLoadingMore
+                                             ? '加载中...'
+                                             : '加载更多'
+                                       }}
+                                    </button>
+                                 </div>
+                              </div>
+                           </div>
+                        </div>
+
+                        <!-- 底部提示 - 固定在底部 -->
+                        <div
+                           class="absolute bottom-0 left-0 right-0 px-5 py-4 bg-accent-700 flex items-center justify-between text-xs text-accent-300 border-t border-accent-600"
+                           :style="{ height: BOTTOM_FIXED_HEIGHT + 'px' }">
+                           <StSpace gap="1rem" align="center">
+                              <StSpace gap="0.25rem" align="center">
+                                 <kbd
+                                    class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
+                                    ↑
+                                 </kbd>
+                                 <kbd
+                                    class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
+                                    ↓
+                                 </kbd>
+                                 <span>导航</span>
+                              </StSpace>
+                              <StSpace gap="0.25rem" align="center">
+                                 <kbd
+                                    class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
+                                    Enter
+                                 </kbd>
+                                 <span>选择</span>
+                              </StSpace>
+                              <StSpace gap="0.25rem" align="center">
+                                 <kbd
+                                    class="px-1.5 py-0.5 bg-accent-600 rounded border border-accent-500 text-[0.625rem]">
+                                    Esc
+                                 </kbd>
+                                 <span>关闭</span>
+                              </StSpace>
+                           </StSpace>
+                           <div
+                              v-if="searchResults.length > 0"
+                              class="text-accent-400">
+                              共 {{ searchResults.length }} 条
+                           </div>
                         </div>
                      </div>
                   </div>
                </div>
             </div>
-         </div>
-      </Transition>
+         </Transition>
+      </template>
    </Teleport>
 </template>
 

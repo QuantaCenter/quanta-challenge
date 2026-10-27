@@ -59,18 +59,20 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <Teleport to="body" :disabled="!teleported">
-      <div
-         :ref="popperKey"
-         class="absolute z-[10001] transition-opacity !w-fit"
-         :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
-         :style="{ zIndex: props.zIndex ?? 9998 }">
-         <slot name="popper" :triggered>
-            <div class="px-2 py-1 rounded-lg bg-accent-600 text-white">
-               {{ content }}
-            </div>
-         </slot>
-      </div>
+   <Teleport to="body">
+      <template v-if="teleported">
+         <div
+            :ref="popperKey"
+            class="absolute z-[10001] transition-opacity !w-fit"
+            :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
+            :style="{ zIndex: props.zIndex ?? 9998 }">
+            <slot name="popper" :triggered>
+               <div class="px-2 py-1 rounded-lg bg-accent-600 text-white">
+                  {{ content }}
+               </div>
+            </slot>
+         </div>
+      </template>
    </Teleport>
    <div :ref="containerKey" v-bind="attrs">
       <slot></slot>

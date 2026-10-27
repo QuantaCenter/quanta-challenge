@@ -352,22 +352,24 @@ const teleported = useClientTeleport();
                <MoreOne />
             </div>
 
-            <Teleport to="body" :disabled="!teleported">
-               <div
-                  :ref="popperKey"
-                  class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
-                  :class="isDropdownOpen ? 'visible' : 'hidden'">
-                  <template v-if="hasOpenedDropdown">
-                     <StSpace
-                        align="center"
-                        gap="0.5rem"
-                        class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
-                        @click="openSettingsModal">
-                        <Setting />
-                        编辑器设置
-                     </StSpace>
-                  </template>
-               </div>
+            <Teleport to="body">
+               <template v-if="teleported">
+                  <div
+                     :ref="popperKey"
+                     class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
+                     :class="isDropdownOpen ? 'visible' : 'hidden'">
+                     <template v-if="hasOpenedDropdown">
+                        <StSpace
+                           align="center"
+                           gap="0.5rem"
+                           class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
+                           @click="openSettingsModal">
+                           <Setting />
+                           编辑器设置
+                        </StSpace>
+                     </template>
+                  </div>
+               </template>
             </Teleport>
          </div>
       </StSpace>

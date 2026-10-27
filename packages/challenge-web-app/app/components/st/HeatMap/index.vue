@@ -227,30 +227,32 @@ const teleported = useClientTeleport();
       </tbody>
    </table>
 
-   <Teleport to="body" :disabled="!teleported">
-      <div
-         v-if="zeroTipPos"
-         class="pointer-events-none fixed z-[9998] -translate-x-1/2 -translate-y-full pb-2 transition-opacity"
-         :class="zeroTipVisible ? 'opacity-100' : 'opacity-0'"
-         :style="{ left: `${zeroTipPos.x}px`, top: `${zeroTipPos.y}px` }">
+   <Teleport to="body">
+      <template v-if="teleported">
          <div
-            class="bg-accent-700 p-2 text-white rounded-md transition-all"
-            :class="
-               zeroTipVisible
-                  ? 'translate-0 scale-100 opacity-100'
-                  : 'translate-y-2 scale-90 opacity-0'
-            ">
+            v-if="zeroTipPos"
+            class="pointer-events-none fixed z-[9998] -translate-x-1/2 -translate-y-full pb-2 transition-opacity"
+            :class="zeroTipVisible ? 'opacity-100' : 'opacity-0'"
+            :style="{ left: `${zeroTipPos.x}px`, top: `${zeroTipPos.y}px` }">
             <div
-               class="st-font-body-normal mb-1 flex items-center gap-1 text-white/60">
-               <Calendar />
-               {{ zeroTipPos.date }}
-            </div>
-            <div
-               class="st-font-body-small flex items-center gap-1 text-white/60">
-               <UploadOne />
-               本日没有提交记录
+               class="bg-accent-700 p-2 text-white rounded-md transition-all"
+               :class="
+                  zeroTipVisible
+                     ? 'translate-0 scale-100 opacity-100'
+                     : 'translate-y-2 scale-90 opacity-0'
+               ">
+               <div
+                  class="st-font-body-normal mb-1 flex items-center gap-1 text-white/60">
+                  <Calendar />
+                  {{ zeroTipPos.date }}
+               </div>
+               <div
+                  class="st-font-body-small flex items-center gap-1 text-white/60">
+                  <UploadOne />
+                  本日没有提交记录
+               </div>
             </div>
          </div>
-      </div>
+      </template>
    </Teleport>
 </template>

@@ -23,38 +23,40 @@ const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body" :disabled="!teleported">
-      <TransitionGroup name="dialog">
-         <div
-            v-for="dialog in dialogs"
-            :key="dialog.id"
-            class="fixed inset-0 z-[10003] flex items-center justify-center p-4">
-            <!-- Backdrop -->
+   <Teleport to="body">
+      <template v-if="teleported">
+         <TransitionGroup name="dialog">
             <div
-               class="absolute inset-0 bg-background/70 backdrop-blur-sm"
-               @click="
-                  handleBackdropClick(dialog.id, dialog.options.cancelable)
-               " />
+               v-for="dialog in dialogs"
+               :key="dialog.id"
+               class="fixed inset-0 z-[10003] flex items-center justify-center p-4">
+               <!-- Backdrop -->
+               <div
+                  class="absolute inset-0 bg-background/70 backdrop-blur-sm"
+                  @click="
+                     handleBackdropClick(dialog.id, dialog.options.cancelable)
+                  " />
 
-            <!-- Dialog Content -->
-            <div
-               class="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
-               <ConfirmDialog
-                  v-if="dialog.type === 'confirm'"
-                  :id="dialog.id"
-                  :options="dialog.options"
-                  @confirm="handleConfirm(dialog.id, true)"
-                  @cancel="handleCancel(dialog.id)" />
+               <!-- Dialog Content -->
+               <div
+                  class="relative z-10 w-full max-w-md animate-in fade-in zoom-in-95 duration-200">
+                  <ConfirmDialog
+                     v-if="dialog.type === 'confirm'"
+                     :id="dialog.id"
+                     :options="dialog.options"
+                     @confirm="handleConfirm(dialog.id, true)"
+                     @cancel="handleCancel(dialog.id)" />
 
-               <PromptDialog
-                  v-else-if="dialog.type === 'prompt'"
-                  :id="dialog.id"
-                  :options="dialog.options"
-                  @confirm="(value) => handleConfirm(dialog.id, value)"
-                  @cancel="handleCancel(dialog.id)" />
+                  <PromptDialog
+                     v-else-if="dialog.type === 'prompt'"
+                     :id="dialog.id"
+                     :options="dialog.options"
+                     @confirm="(value) => handleConfirm(dialog.id, value)"
+                     @cancel="handleCancel(dialog.id)" />
+               </div>
             </div>
-         </div>
-      </TransitionGroup>
+         </TransitionGroup>
+      </template>
    </Teleport>
 </template>
 
