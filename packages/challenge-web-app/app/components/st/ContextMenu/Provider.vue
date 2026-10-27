@@ -67,8 +67,10 @@ const teleported = useClientTeleport();
 
 <template>
    <div ref="area">
-      <Teleport to="body" :disabled="!teleported">
-         <slot name="menu" :status="menuStatus" :position="menuPosition" />
+      <Teleport to="body">
+         <template v-if="teleported">
+            <slot name="menu" :status="menuStatus" :position="menuPosition" />
+         </template>
       </Teleport>
       <slot></slot>
    </div>

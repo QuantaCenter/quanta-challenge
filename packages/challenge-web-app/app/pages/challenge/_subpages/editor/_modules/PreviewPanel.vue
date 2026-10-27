@@ -420,20 +420,22 @@ const teleported = useClientTeleport();
             </div>
          </template>
       </div>
-      <Teleport to="body" :disabled="!teleported">
-         <div
-            v-show="fullScreenMode"
-            class="fixed z-[10000] overflow-hidden bg-[#1F1F1F] border border-accent-500 max-md:border-0"
-            :style="fullscreenStyle">
-            <StSpace
-               @click="leaveFullScreenMode"
-               center
-               no-shrink
-               class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
-               <OffScreen />
-            </StSpace>
-            <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full bg-white"></iframe>
-         </div>
+      <Teleport to="body">
+         <template v-if="teleported">
+            <div
+               v-show="fullScreenMode"
+               class="fixed z-[10000] overflow-hidden bg-[#1F1F1F] border border-accent-500 max-md:border-0"
+               :style="fullscreenStyle">
+               <StSpace
+                  @click="leaveFullScreenMode"
+                  center
+                  no-shrink
+                  class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
+                  <OffScreen />
+               </StSpace>
+               <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full bg-white"></iframe>
+            </div>
+         </template>
       </Teleport>
    </StSpace>
 </template>

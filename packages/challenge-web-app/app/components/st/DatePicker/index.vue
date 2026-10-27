@@ -573,73 +573,190 @@ const teleported = useClientTeleport();
          <Calendar :size="20" :strokeWidth="3" />
       </div>
 
-      <Teleport to="body" :disabled="!teleported" class="absolute z-[10001]">
-         <div
-            v-if="rendered && isMobile"
-            @click="opened = false"
-            class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
-            :class="shown ? 'opacity-100' : 'opacity-0'"></div>
-         <div
-            :ref="popperKey"
-            :style="popperStyle"
-            :class="[
-               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
-               'max-sm:fixed! max-sm:left-0! max-sm:right-0! max-sm:top-auto! max-sm:bottom-0! max-sm:transform-none! max-sm:min-w-0 max-sm:max-w-none max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-h-[85dvh] max-sm:overflow-y-auto max-sm:flex max-sm:flex-col max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-accent-600',
-               { 'opacity-0 pointer-events-none': !opened },
-               { hidden: !rendered },
-               !opened &&
-                  !isMobile && {
-                     '-mb-4!': upside,
-                     '-mt-4!': !upside,
-                  },
-               shown
-                  ? 'max-sm:translate-y-0'
-                  : 'max-sm:translate-y-full',
-            ]">
+      <Teleport to="body" class="absolute z-[10001]">
+         <template v-if="teleported">
             <div
-               v-if="showTime && range && (startValue || endValue)"
-               class="contents max-sm:order-last max-sm:mt-3 max-sm:flex max-sm:flex-row max-sm:gap-3 max-sm:w-full">
+               v-if="rendered && isMobile"
+               @click="opened = false"
+               class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
+               :class="shown ? 'opacity-100' : 'opacity-0'"></div>
+            <div
+               :ref="popperKey"
+               :style="popperStyle"
+               :class="[
+                  'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
+                  'max-sm:fixed! max-sm:left-0! max-sm:right-0! max-sm:top-auto! max-sm:bottom-0! max-sm:transform-none! max-sm:min-w-0 max-sm:max-w-none max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-h-[85dvh] max-sm:overflow-y-auto max-sm:flex max-sm:flex-col max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-accent-600',
+                  { 'opacity-0 pointer-events-none': !opened },
+                  { hidden: !rendered },
+                  !opened &&
+                     !isMobile && {
+                        '-mb-4!': upside,
+                        '-mt-4!': !upside,
+                     },
+                  shown
+                     ? 'max-sm:translate-y-0'
+                     : 'max-sm:translate-y-full',
+               ]">
                <div
-                  v-if="startValue"
-                  class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+                  v-if="showTime && range && (startValue || endValue)"
+                  class="contents max-sm:order-last max-sm:mt-3 max-sm:flex max-sm:flex-row max-sm:gap-3 max-sm:w-full">
+                  <div
+                     v-if="startValue"
+                     class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+                     <div
+                        class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                        开始时间
+                     </div>
+                     <div class="flex flex-1 min-h-0">
+                        <div
+                           ref="startHourCol"
+                           class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                           <button
+                              v-for="hour in hourOptions"
+                              :key="hour"
+                              @click.stop="setStartTime(hour)"
+                              :class="[
+                                 'w-full h-7 text-xs transition-colors',
+                                 {
+                                    'bg-primary text-black font-bold':
+                                       isHourSelected(startTime, hour),
+                                    'text-white hover:bg-accent-600':
+                                       !isHourSelected(startTime, hour),
+                                 },
+                              ]">
+                              {{ pad(hour) }} 时
+                           </button>
+                        </div>
+                        <div
+                           ref="startMinuteCol"
+                           class="flex-1 overflow-y-auto py-1">
+                           <button
+                              v-for="minute in minuteOptions"
+                              :key="minute"
+                              @click.stop="setStartTime(undefined, minute)"
+                              :class="[
+                                 'w-full h-7 text-xs transition-colors',
+                                 {
+                                    'bg-primary text-black font-bold':
+                                       isMinuteSelected(startTime, minute),
+                                    'text-white hover:bg-accent-600':
+                                       !isMinuteSelected(startTime, minute),
+                                 },
+                              ]">
+                              {{ pad(minute) }} 分
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+
+                  <div
+                     v-if="endValue"
+                     class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+                     <div
+                        class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                        结束时间
+                     </div>
+                     <div class="flex flex-1 min-h-0">
+                        <div
+                           ref="endHourCol"
+                           class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                           <button
+                              v-for="hour in hourOptions"
+                              :key="hour"
+                              :disabled="isEndHourDisabled(hour)"
+                              @click.stop="setEndTime(hour)"
+                              :class="[
+                                 'w-full h-7 text-xs transition-colors',
+                                 {
+                                    'bg-primary text-black font-bold':
+                                       isHourSelected(endTime, hour),
+                                    'text-white hover:bg-accent-600':
+                                       !isHourSelected(endTime, hour) &&
+                                       !isEndHourDisabled(hour),
+                                    'text-accent-500 cursor-not-allowed':
+                                       isEndHourDisabled(hour),
+                                 },
+                              ]">
+                              {{ pad(hour) }} 时
+                           </button>
+                        </div>
+                        <div
+                           ref="endMinuteCol"
+                           class="flex-1 overflow-y-auto py-1">
+                           <button
+                              v-for="minute in minuteOptions"
+                              :key="minute"
+                              :disabled="isEndMinuteDisabled(minute)"
+                              @click.stop="setEndTime(undefined, minute)"
+                              :class="[
+                                 'w-full h-7 text-xs transition-colors',
+                                 {
+                                    'bg-primary text-black font-bold':
+                                       isMinuteSelected(endTime, minute),
+                                    'text-white hover:bg-accent-600':
+                                       !isMinuteSelected(endTime, minute) &&
+                                       !isEndMinuteDisabled(minute),
+                                    'text-accent-500 cursor-not-allowed':
+                                       isEndMinuteDisabled(minute),
+                                 },
+                              ]">
+                              {{ pad(minute) }} 分
+                           </button>
+                        </div>
+                     </div>
+                  </div>
+               </div>
+
+               <!-- 单选模式：时间面板（浮于日期面板右侧，高度与日期面板一致） -->
+               <div
+                  v-if="showTime && !range && value"
+                  class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
                   <div
                      class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
-                     开始时间
+                     时间
                   </div>
                   <div class="flex flex-1 min-h-0">
                      <div
-                        ref="startHourCol"
+                        ref="singleHourCol"
                         class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
                         <button
                            v-for="hour in hourOptions"
                            :key="hour"
-                           @click.stop="setStartTime(hour)"
+                           :disabled="isSingleHourDisabled(hour)"
+                           @click.stop="setSingleTime(hour)"
                            :class="[
                               'w-full h-7 text-xs transition-colors',
                               {
                                  'bg-primary text-black font-bold':
-                                    isHourSelected(startTime, hour),
+                                    isHourSelected(singleTime, hour),
                                  'text-white hover:bg-accent-600':
-                                    !isHourSelected(startTime, hour),
+                                    !isHourSelected(singleTime, hour) &&
+                                    !isSingleHourDisabled(hour),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isSingleHourDisabled(hour),
                               },
                            ]">
                            {{ pad(hour) }} 时
                         </button>
                      </div>
                      <div
-                        ref="startMinuteCol"
+                        ref="singleMinuteCol"
                         class="flex-1 overflow-y-auto py-1">
                         <button
                            v-for="minute in minuteOptions"
                            :key="minute"
-                           @click.stop="setStartTime(undefined, minute)"
+                           :disabled="isSingleMinuteDisabled(minute)"
+                           @click.stop="setSingleTime(undefined, minute)"
                            :class="[
                               'w-full h-7 text-xs transition-colors',
                               {
                                  'bg-primary text-black font-bold':
-                                    isMinuteSelected(startTime, minute),
+                                    isMinuteSelected(singleTime, minute),
                                  'text-white hover:bg-accent-600':
-                                    !isMinuteSelected(startTime, minute),
+                                    !isMinuteSelected(singleTime, minute) &&
+                                    !isSingleMinuteDisabled(minute),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isSingleMinuteDisabled(minute),
                               },
                            ]">
                            {{ pad(minute) }} 分
@@ -648,281 +765,166 @@ const teleported = useClientTeleport();
                   </div>
                </div>
 
-               <div
-                  v-if="endValue"
-                  class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+               <!-- 头部：年月选择 -->
+               <div class="flex items-center justify-between mb-4 text-white">
+                  <button
+                     @click.stop="
+                        viewMode === 'date'
+                           ? prevMonth()
+                           : viewMode === 'month'
+                           ? prevYear()
+                           : prevDecade()
+                     "
+                     class="p-2 hover:bg-accent-600 rounded-md transition-colors">
+                     <Left :size="16" />
+                  </button>
+                  <!-- 日视图：年、月分别可点，进入对应面板 -->
                   <div
-                     class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
-                     结束时间
-                  </div>
-                  <div class="flex flex-1 min-h-0">
-                     <div
-                        ref="endHourCol"
-                        class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
-                        <button
-                           v-for="hour in hourOptions"
-                           :key="hour"
-                           :disabled="isEndHourDisabled(hour)"
-                           @click.stop="setEndTime(hour)"
-                           :class="[
-                              'w-full h-7 text-xs transition-colors',
-                              {
-                                 'bg-primary text-black font-bold':
-                                    isHourSelected(endTime, hour),
-                                 'text-white hover:bg-accent-600':
-                                    !isHourSelected(endTime, hour) &&
-                                    !isEndHourDisabled(hour),
-                                 'text-accent-500 cursor-not-allowed':
-                                    isEndHourDisabled(hour),
-                              },
-                           ]">
-                           {{ pad(hour) }} 时
-                        </button>
-                     </div>
-                     <div
-                        ref="endMinuteCol"
-                        class="flex-1 overflow-y-auto py-1">
-                        <button
-                           v-for="minute in minuteOptions"
-                           :key="minute"
-                           :disabled="isEndMinuteDisabled(minute)"
-                           @click.stop="setEndTime(undefined, minute)"
-                           :class="[
-                              'w-full h-7 text-xs transition-colors',
-                              {
-                                 'bg-primary text-black font-bold':
-                                    isMinuteSelected(endTime, minute),
-                                 'text-white hover:bg-accent-600':
-                                    !isMinuteSelected(endTime, minute) &&
-                                    !isEndMinuteDisabled(minute),
-                                 'text-accent-500 cursor-not-allowed':
-                                    isEndMinuteDisabled(minute),
-                              },
-                           ]">
-                           {{ pad(minute) }} 分
-                        </button>
-                     </div>
-                  </div>
-               </div>
-            </div>
-
-            <!-- 单选模式：时间面板（浮于日期面板右侧，高度与日期面板一致） -->
-            <div
-               v-if="showTime && !range && value"
-               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
-               <div
-                  class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
-                  时间
-               </div>
-               <div class="flex flex-1 min-h-0">
-                  <div
-                     ref="singleHourCol"
-                     class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                     v-if="viewMode === 'date'"
+                     class="st-font-body-bold flex gap-1">
                      <button
-                        v-for="hour in hourOptions"
-                        :key="hour"
-                        :disabled="isSingleHourDisabled(hour)"
-                        @click.stop="setSingleTime(hour)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isHourSelected(singleTime, hour),
-                              'text-white hover:bg-accent-600':
-                                 !isHourSelected(singleTime, hour) &&
-                                 !isSingleHourDisabled(hour),
-                              'text-accent-500 cursor-not-allowed':
-                                 isSingleHourDisabled(hour),
-                           },
-                        ]">
-                        {{ pad(hour) }} 时
+                        @click.stop="viewMode = 'year'"
+                        class="hover:text-primary transition-colors">
+                        {{ viewYear }} 年
+                     </button>
+                     <button
+                        @click.stop="viewMode = 'month'"
+                        class="hover:text-primary transition-colors">
+                        {{ monthNames[viewMonth] }}
                      </button>
                   </div>
+                  <!-- 月 / 年视图：点击标题返回日视图 -->
+                  <button
+                     v-else
+                     @click.stop="viewMode = 'date'"
+                     class="st-font-body-bold hover:text-primary transition-colors">
+                     {{
+                        viewMode === 'month'
+                           ? `${viewYear} 年`
+                           : `${decadeStart} - ${decadeStart + 11}`
+                     }}
+                  </button>
+                  <button
+                     @click.stop="
+                        viewMode === 'date'
+                           ? nextMonth()
+                           : viewMode === 'month'
+                           ? nextYear()
+                           : nextDecade()
+                     "
+                     class="p-2 hover:bg-accent-600 rounded-md transition-colors">
+                     <Right :size="16" />
+                  </button>
+               </div>
+
+               <!-- 年视图：12 年一屏，快速跳转 -->
+               <div v-if="viewMode === 'year'" class="grid grid-cols-4 gap-1">
+                  <button
+                     v-for="year in yearGrid"
+                     :key="year"
+                     @click.stop="selectYear(year)"
+                     :class="[
+                        'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
+                        {
+                           'bg-primary text-black font-bold': isSelectedYear(year),
+                           'border border-primary':
+                              isCurrentYear(year) && !isSelectedYear(year),
+                           'text-white hover:bg-accent-600': !isSelectedYear(year),
+                        },
+                     ]">
+                     {{ year }}
+                  </button>
+               </div>
+
+               <!-- 月视图：12 月一屏，快速跳转 -->
+               <div
+                  v-else-if="viewMode === 'month'"
+                  class="grid grid-cols-3 gap-1">
+                  <button
+                     v-for="(name, month) in monthNames"
+                     :key="name"
+                     @click.stop="selectMonth(month)"
+                     :class="[
+                        'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
+                        {
+                           'bg-primary text-black font-bold':
+                              isSelectedMonth(month),
+                           'border border-primary':
+                              isCurrentMonth(month) && !isSelectedMonth(month),
+                           'text-white hover:bg-accent-600':
+                              !isSelectedMonth(month),
+                        },
+                     ]">
+                     {{ name }}
+                  </button>
+               </div>
+
+               <template v-else>
+
+               <!-- 星期标题 -->
+               <div class="grid grid-cols-7 mb-2">
                   <div
-                     ref="singleMinuteCol"
-                     class="flex-1 overflow-y-auto py-1">
-                     <button
-                        v-for="minute in minuteOptions"
-                        :key="minute"
-                        :disabled="isSingleMinuteDisabled(minute)"
-                        @click.stop="setSingleTime(undefined, minute)"
-                        :class="[
-                           'w-full h-7 text-xs transition-colors',
-                           {
-                              'bg-primary text-black font-bold':
-                                 isMinuteSelected(singleTime, minute),
-                              'text-white hover:bg-accent-600':
-                                 !isMinuteSelected(singleTime, minute) &&
-                                 !isSingleMinuteDisabled(minute),
-                              'text-accent-500 cursor-not-allowed':
-                                 isSingleMinuteDisabled(minute),
-                           },
-                        ]">
-                        {{ pad(minute) }} 分
-                     </button>
+                     v-for="day in weekDays"
+                     :key="day"
+                     class="text-center text-accent-300 text-sm py-2">
+                     {{ day }}
                   </div>
                </div>
-            </div>
 
-            <!-- 头部：年月选择 -->
-            <div class="flex items-center justify-between mb-4 text-white">
-               <button
-                  @click.stop="
-                     viewMode === 'date'
-                        ? prevMonth()
-                        : viewMode === 'month'
-                        ? prevYear()
-                        : prevDecade()
-                  "
-                  class="p-2 hover:bg-accent-600 rounded-md transition-colors">
-                  <Left :size="16" />
-               </button>
-               <!-- 日视图：年、月分别可点，进入对应面板 -->
-               <div
-                  v-if="viewMode === 'date'"
-                  class="st-font-body-bold flex gap-1">
+               <!-- 日期网格 -->
+               <div class="grid grid-cols-7">
                   <button
-                     @click.stop="viewMode = 'year'"
-                     class="hover:text-primary transition-colors">
-                     {{ viewYear }} 年
-                  </button>
-                  <button
-                     @click.stop="viewMode = 'month'"
-                     class="hover:text-primary transition-colors">
-                     {{ monthNames[viewMonth] }}
+                     v-for="(day, index) in calendarDays"
+                     :key="index"
+                     :disabled="isDisabled(day.fullDate)"
+                     @click.stop="selectDate(day.fullDate)"
+                     @mouseenter="
+                        hoverDate = isDisabled(day.fullDate)
+                           ? hoverDate
+                           : day.fullDate
+                     "
+                     :class="[
+                        'aspect-square flex items-center justify-center text-sm transition-colors',
+                        selectedRoundClass(day.fullDate),
+                        {
+                           'text-accent-400': !day.isCurrentMonth,
+                           'text-white': day.isCurrentMonth,
+                           'bg-primary text-black font-bold': isSelected(
+                              day.fullDate
+                           ),
+                           'bg-primary/20 text-white':
+                              isInRange(day.fullDate) && !isSelected(day.fullDate),
+                           'border border-primary':
+                              isToday(day.fullDate) && !isSelected(day.fullDate),
+                           '!text-accent-500 cursor-not-allowed':
+                              isDisabled(day.fullDate),
+                           'hover:bg-accent-600':
+                              day.isCurrentMonth &&
+                              !isSelected(day.fullDate) &&
+                              !isInRange(day.fullDate) &&
+                              !isDisabled(day.fullDate),
+                        },
+                     ]">
+                     {{ day.date }}
                   </button>
                </div>
-               <!-- 月 / 年视图：点击标题返回日视图 -->
-               <button
-                  v-else
-                  @click.stop="viewMode = 'date'"
-                  class="st-font-body-bold hover:text-primary transition-colors">
-                  {{
-                     viewMode === 'month'
-                        ? `${viewYear} 年`
-                        : `${decadeStart} - ${decadeStart + 11}`
-                  }}
-               </button>
-               <button
-                  @click.stop="
-                     viewMode === 'date'
-                        ? nextMonth()
-                        : viewMode === 'month'
-                        ? nextYear()
-                        : nextDecade()
-                  "
-                  class="p-2 hover:bg-accent-600 rounded-md transition-colors">
-                  <Right :size="16" />
-               </button>
-            </div>
+               </template>
 
-            <!-- 年视图：12 年一屏，快速跳转 -->
-            <div v-if="viewMode === 'year'" class="grid grid-cols-4 gap-1">
-               <button
-                  v-for="year in yearGrid"
-                  :key="year"
-                  @click.stop="selectYear(year)"
-                  :class="[
-                     'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
-                     {
-                        'bg-primary text-black font-bold': isSelectedYear(year),
-                        'border border-primary':
-                           isCurrentYear(year) && !isSelectedYear(year),
-                        'text-white hover:bg-accent-600': !isSelectedYear(year),
-                     },
-                  ]">
-                  {{ year }}
-               </button>
-            </div>
-
-            <!-- 月视图：12 月一屏，快速跳转 -->
-            <div
-               v-else-if="viewMode === 'month'"
-               class="grid grid-cols-3 gap-1">
-               <button
-                  v-for="(name, month) in monthNames"
-                  :key="name"
-                  @click.stop="selectMonth(month)"
-                  :class="[
-                     'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
-                     {
-                        'bg-primary text-black font-bold':
-                           isSelectedMonth(month),
-                        'border border-primary':
-                           isCurrentMonth(month) && !isSelectedMonth(month),
-                        'text-white hover:bg-accent-600':
-                           !isSelectedMonth(month),
-                     },
-                  ]">
-                  {{ name }}
-               </button>
-            </div>
-
-            <template v-else>
-
-            <!-- 星期标题 -->
-            <div class="grid grid-cols-7 mb-2">
-               <div
-                  v-for="day in weekDays"
-                  :key="day"
-                  class="text-center text-accent-300 text-sm py-2">
-                  {{ day }}
+               <!-- 快捷按钮 -->
+               <div class="mt-4 pt-4 border-t border-accent-500 flex gap-2">
+                  <button
+                     @click.stop="selectToday()"
+                     class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
+                     今天
+                  </button>
+                  <button
+                     @click.stop="clearValue()"
+                     class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
+                     清空
+                  </button>
                </div>
             </div>
-
-            <!-- 日期网格 -->
-            <div class="grid grid-cols-7">
-               <button
-                  v-for="(day, index) in calendarDays"
-                  :key="index"
-                  :disabled="isDisabled(day.fullDate)"
-                  @click.stop="selectDate(day.fullDate)"
-                  @mouseenter="
-                     hoverDate = isDisabled(day.fullDate)
-                        ? hoverDate
-                        : day.fullDate
-                  "
-                  :class="[
-                     'aspect-square flex items-center justify-center text-sm transition-colors',
-                     selectedRoundClass(day.fullDate),
-                     {
-                        'text-accent-400': !day.isCurrentMonth,
-                        'text-white': day.isCurrentMonth,
-                        'bg-primary text-black font-bold': isSelected(
-                           day.fullDate
-                        ),
-                        'bg-primary/20 text-white':
-                           isInRange(day.fullDate) && !isSelected(day.fullDate),
-                        'border border-primary':
-                           isToday(day.fullDate) && !isSelected(day.fullDate),
-                        '!text-accent-500 cursor-not-allowed':
-                           isDisabled(day.fullDate),
-                        'hover:bg-accent-600':
-                           day.isCurrentMonth &&
-                           !isSelected(day.fullDate) &&
-                           !isInRange(day.fullDate) &&
-                           !isDisabled(day.fullDate),
-                     },
-                  ]">
-                  {{ day.date }}
-               </button>
-            </div>
-            </template>
-
-            <!-- 快捷按钮 -->
-            <div class="mt-4 pt-4 border-t border-accent-500 flex gap-2">
-               <button
-                  @click.stop="selectToday()"
-                  class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
-                  今天
-               </button>
-               <button
-                  @click.stop="clearValue()"
-                  class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
-                  清空
-               </button>
-            </div>
-         </div>
+         </template>
       </Teleport>
    </div>
 </template>

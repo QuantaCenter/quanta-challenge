@@ -86,42 +86,44 @@ const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body" :disabled="!teleported">
-      <div
-         id="st-message-portal"
-         class="fixed inset-0 pointer-events-none z-[10000]">
+   <Teleport to="body">
+      <template v-if="teleported">
          <div
-             class="absolute bottom-0 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 max-md:top-0 max-md:bottom-auto max-md:right-0 max-md:left-0 max-md:items-center max-md:justify-start max-md:pt-4 max-md:pb-0">
-            <TransitionGroup name="message" appear>
-               <div v-for="msg in messages" :key="msg.id" class="pointer-events-auto">
-                  <Component
-                     v-if="isCustomMessage(msg)"
-                     :is="msg.render"
-                     :message="msg"
-                     @close="
-                        () => {
-                           messages = messages.filter((m) => m.id !== msg.id);
-                        }
-                     ">
-                  </Component>
-                  <StMessageItem
-                     v-else
-                     :type="msg.type ?? 'info'"
-                     :title="msg.title"
-                     :closable="msg.closable ?? true"
-                     :loading="msg.loading ?? false"
-                     :close-text="msg.closeText"
-                     :content="msg.content"
-                     @close="
-                        () => {
-                           messages = messages.filter((m) => m.id !== msg.id);
-                        }
-                     ">
-                  </StMessageItem>
-               </div>
-            </TransitionGroup>
+            id="st-message-portal"
+            class="fixed inset-0 pointer-events-none z-[10000]">
+            <div
+               class="absolute bottom-0 right-4 flex max-h-[calc(100vh-2rem)] flex-col justify-end items-end gap-2 overflow-x-hidden overflow-y-auto overscroll-contain pb-4 max-md:top-0 max-md:bottom-auto max-md:right-0 max-md:left-0 max-md:items-center max-md:justify-start max-md:pt-4 max-md:pb-0">
+               <TransitionGroup name="message" appear>
+                  <div v-for="msg in messages" :key="msg.id" class="pointer-events-auto">
+                     <Component
+                        v-if="isCustomMessage(msg)"
+                        :is="msg.render"
+                        :message="msg"
+                        @close="
+                           () => {
+                              messages = messages.filter((m) => m.id !== msg.id);
+                           }
+                        ">
+                     </Component>
+                     <StMessageItem
+                        v-else
+                        :type="msg.type ?? 'info'"
+                        :title="msg.title"
+                        :closable="msg.closable ?? true"
+                        :loading="msg.loading ?? false"
+                        :close-text="msg.closeText"
+                        :content="msg.content"
+                        @close="
+                           () => {
+                              messages = messages.filter((m) => m.id !== msg.id);
+                           }
+                        ">
+                     </StMessageItem>
+                  </div>
+               </TransitionGroup>
+            </div>
          </div>
-      </div>
+      </template>
    </Teleport>
    <slot></slot>
 </template>

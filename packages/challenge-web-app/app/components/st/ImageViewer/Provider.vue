@@ -407,59 +407,61 @@ const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body" :disabled="!teleported">
-      <div
-         v-show="visible"
-         data-st-image-viewer
-         class="fixed inset-0 z-[10000] touch-none select-none"
-         @wheel.prevent="onWheel"
-      >
+   <Teleport to="body">
+      <template v-if="teleported">
          <div
-            class="absolute inset-0 bg-black/80 transition-opacity duration-300"
-            :class="overlayOn ? 'opacity-100' : 'opacity-0'"
-            @click="onBackdropClick"
-         />
-
-         <img
-            v-show="imgReady && !imgError"
-            :src="state.src"
-            :alt="state.alt"
-            draggable="false"
-            class="fixed max-w-none will-change-transform"
-            :class="panning ? 'hover:cursor-grabbing' : 'hover:cursor-grab'"
-            :style="imgStyle"
-            @load="onImgLoad"
-            @error="onImgError"
-            @pointerdown="onPointerDown"
-            @pointermove="onPointerMove"
-            @pointerup="onPointerUp"
-            @pointercancel="onPointerUp"
-            @dblclick.prevent="onDblClick"
-         />
-
-         <div
-            v-if="!imgReady && !imgError"
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            v-show="visible"
+            data-st-image-viewer
+            class="fixed inset-0 z-[10000] touch-none select-none"
+            @wheel.prevent="onWheel"
          >
             <div
-               class="size-8 rounded-full border-2 border-white/25 border-t-white/85 animate-spin"
+               class="absolute inset-0 bg-black/80 transition-opacity duration-300"
+               :class="overlayOn ? 'opacity-100' : 'opacity-0'"
+               @click="onBackdropClick"
             />
-         </div>
-         <div
-            v-else-if="imgError"
-            class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-white/70"
-         >
-            图片加载失败
-         </div>
 
-         <button
-            class="absolute top-4 right-4 hidden md:flex items-center justify-center size-10 rounded-full text-white/80 bg-white/30 hover:bg-white/50 transition-all duration-300 hover:cursor-pointer"
-            :class="overlayOn ? 'opacity-100' : 'opacity-0'"
-            title="关闭 (Esc)"
-            @click="close"
-         >
-            <X :size="20" />
-         </button>
-      </div>
+            <img
+               v-show="imgReady && !imgError"
+               :src="state.src"
+               :alt="state.alt"
+               draggable="false"
+               class="fixed max-w-none will-change-transform"
+               :class="panning ? 'hover:cursor-grabbing' : 'hover:cursor-grab'"
+               :style="imgStyle"
+               @load="onImgLoad"
+               @error="onImgError"
+               @pointerdown="onPointerDown"
+               @pointermove="onPointerMove"
+               @pointerup="onPointerUp"
+               @pointercancel="onPointerUp"
+               @dblclick.prevent="onDblClick"
+            />
+
+            <div
+               v-if="!imgReady && !imgError"
+               class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+            >
+               <div
+                  class="size-8 rounded-full border-2 border-white/25 border-t-white/85 animate-spin"
+               />
+            </div>
+            <div
+               v-else-if="imgError"
+               class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-sm text-white/70"
+            >
+               图片加载失败
+            </div>
+
+            <button
+               class="absolute top-4 right-4 hidden md:flex items-center justify-center size-10 rounded-full text-white/80 bg-white/30 hover:bg-white/50 transition-all duration-300 hover:cursor-pointer"
+               :class="overlayOn ? 'opacity-100' : 'opacity-0'"
+               title="关闭 (Esc)"
+               @click="close"
+            >
+               <X :size="20" />
+            </button>
+         </div>
+      </template>
    </Teleport>
 </template>
