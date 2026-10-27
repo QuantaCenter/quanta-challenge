@@ -226,13 +226,6 @@ const handleSendCode = async () => {
             </StFormItem>
             <StButton :loading @click.prevent="handleRegister"> 注册 </StButton>
          </StForm>
-         <StDivider>或者</StDivider>
-         <StButton class="!bg-accent-600 !text-accent-200 w-full">
-            <div class="flex items-center gap-2">
-               <IconQQ />
-               使用 QQ 登录
-            </div>
-         </StButton>
       </div>
    </div>
 </template>

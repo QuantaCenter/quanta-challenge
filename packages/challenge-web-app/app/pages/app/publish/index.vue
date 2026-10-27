@@ -2,16 +2,26 @@
 import {
    Box,
    Code,
+   DocDetail,
    GoldMedalTwo,
+   School,
    TableReport,
    Tag,
    Timer,
    VolumeNotice,
 } from '@icon-park/vue-next';
+import PublishOptionCard from './_components/PublishOptionCard.vue';
 
 useSeoMeta({ title: '发布流程 - Quanta Challenge' });
 
 const options = [
+   {
+      title: '创建标签',
+      description: '创建新的题目标签，并为标签配置颜色与图标',
+      url: '/app/publish/create-tag',
+      icon: Tag,
+      iconColor: '#FE4E4E',
+   },
    {
       title: '发布题目',
       description: '创建一个新的判题流程，并配置题目的基本信息',
@@ -28,19 +38,15 @@ const options = [
       // 依赖跨源隔离响应头，需整页加载
       needFullLoad: true,
    },
+];
+
+const tailOptions = [
    {
       title: '创建成就',
       description: '创建一个新的成就，并配置成就的基本信息',
       url: '/app/publish/achievement',
       icon: GoldMedalTwo,
       iconColor: '#F59E0B',
-   },
-   {
-      title: '创建标签',
-      description: '创建新的题目标签，并为标签配置颜色与图标',
-      url: '/app/publish/create-tag',
-      icon: Tag,
-      iconColor: '#FE4E4E',
    },
    {
       title: '发布云函数',
@@ -64,6 +70,25 @@ const options = [
       iconColor: '#F97316',
    },
 ];
+
+/** 学习内容相关入口：文章是一等实体，专题引用文章，课程集合专题 */
+const contentOptions = [
+   {
+      title: '发布文章',
+      description: '创建一篇新文章，并可在正文中插入题库中的题目',
+      url: '/app/publish/article/new',
+      icon: DocDetail,
+      iconColor: '#4ADE80',
+   },
+   {
+      title: '创建课程',
+      description: '创建一门新课程，编排专题并组织文章，构成完整的学习路径',
+      url: '/app/publish/course',
+      icon: School,
+      iconColor: '#F472B6',
+   },
+];
+
 </script>
 
 <template>
@@ -78,37 +103,17 @@ const options = [
          </h1>
 
          <StSpace direction="vertical" gap="1.5rem" fill-x class="max-md:gap-4!">
-            <NuxtLink
-               v-for="option in options"
-               :key="option.title"
-               :to="option.url"
-               :external="option.needFullLoad === true"
-               class="w-full">
-               <StSpace
-                  fill-x
-                  :to="option.url"
-                  justify="between"
-                  align="center"
-                  class="p-6 max-md:p-5 border border-accent-300 rounded-xl group overflow-hidden relative hover:border-secondary/70 transition-colors cursor-pointer">
-                  <StSpace direction="vertical" gap="0.5rem">
-                     <h2
-                        class="st-font-capture text-[1.25rem] max-md:text-[1.125rem] text-white">
-                        {{ option.title }}
-                     </h2>
-                     <p
-                        class="st-font-body-normal max-md:text-sm text-accent-300 line-clamp-2">
-                        {{ option.description }}
-                     </p>
-                  </StSpace>
-                  <Component
-                     :is="option.icon"
-                     :fill="option.iconColor"
-                     :strokeWidth="3"
-                     size="7rem"
-                     class="max-md:w-[4.5rem]! max-md:h-[4.5rem]! absolute -right-5 -bottom-6 max-md:-right-1 max-md:-bottom-2 rotate-12 opacity-50 group-hover:opacity-90 group-hover:scale-125 transition-all duration-300" />
-               </StSpace>
-            </NuxtLink>
+            <PublishOptionCard v-for="option in options" :key="option.title" v-bind="option" />
+
+            <PublishOptionCard v-for="option in tailOptions" :key="option.title" v-bind="option" />
          </StSpace>
+
+         <h2 class="st-font-third-bold text-white">内容创作</h2>
+
+         <StSpace direction="vertical" gap="1.5rem" fill-x>
+            <PublishOptionCard v-for="option in contentOptions" :key="option.title" v-bind="option" />
+         </StSpace>
+
       </StSpace>
    </StSpace>
 </template>

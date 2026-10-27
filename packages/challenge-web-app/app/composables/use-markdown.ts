@@ -81,7 +81,7 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
                lang: language as any,
                theme: themeName as any,
             });
-         } catch (e) {
+         } catch {
             body = `<pre><code>${escapeHtml(text)}</code></pre>`;
          }
       }
@@ -97,13 +97,15 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
 
    let lastContent = '';
 
-   const update = async (content: string) => {
+   const update = (content: string) => {
+      // 同步渲染：SSR 阶段（在 setup 里调用）也要立刻拿到 HTML；
+      // 代码高亮依赖 shiki，服务端没有，退回纯 <pre><code>。
       lastContent = content;
-      html.value = await marked.parse(content, {
+      html.value = marked.parse(content, {
          gfm: true,
          breaks: true,
          renderer: renderer,
-      });
+      }) as string;
       if (hasMounted && container.value) {
          container.value.innerHTML = html.value;
       }

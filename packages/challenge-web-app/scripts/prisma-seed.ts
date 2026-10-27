@@ -1,5 +1,6 @@
 import prisma from '@challenge/database';
 import { hashPassword } from '../server/utils/password.ts';
+import { seedLearningContent } from './learning-seed.ts';
 
 /** 写入超级管理员账号（首次部署用）；独立函数避免"已存在时 return"阻塞后续种子。 */
 async function seedAdminUser() {
@@ -53,6 +54,8 @@ async function main() {
    await prisma.$connect();
 
    await seedAdminUser();
+   // 学习内容（课程 / 专题 / 文章）也落库；依赖管理员账号已存在
+   await seedLearningContent();
 }
 
 main()

@@ -3,6 +3,8 @@ import type { DefineComponent } from 'vue';
 
 const props = defineProps<{
    options: { label: string; value: string; icon?: DefineComponent }[];
+   /** 页签等分占满一行、文字在页签内居中（默认内容自适应、左对齐） */
+   centered?: boolean;
 }>();
 
 const value = defineModel<string>();
@@ -93,6 +95,8 @@ onUnmounted(() => {
          }"
          class="px-6 py-2 cursor-pointer transition-all"
          align="center"
+         :justify="props.centered ? 'center' : 'start'"
+         :style="props.centered ? { flex: '1 1 0%', width: 0 } : undefined"
          @click="value = tab.value">
          <Component v-if="tab.icon" :is="tab.icon" class="text-lg mr-2" />
          {{ tab.label }}
