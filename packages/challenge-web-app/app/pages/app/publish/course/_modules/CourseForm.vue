@@ -4,7 +4,10 @@ import {
    useAllCourses,
    courseTopics,
    useAllTopics,
+   type CourseInput,
    type LearningCourse,
+   type LearningTopic,
+   type TopicInput,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
 import { useMessage } from '~/components/st/Message/use-message';
@@ -32,7 +35,6 @@ useSeoMeta({
 });
 
 const message = useMessage();
-const { addCourse, editCourse, addTopic, editTopic } = useLearningContentStore();
 
 const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
@@ -43,6 +45,99 @@ const editing = computed(
 const content = useLearningContentStore();
 const allCourses = useAllCourses(content);
 const allTopics = useAllTopics(content);
+
+/* ----- 课程 / 专题写请求：服务端 cuid 与前端数字 id 的转换在这里完成 ----- */
+
+/** 把数字 id 翻回服务端 cuid */
+const articleCuids = (ids: number[]): string[] => {
+   const byId = new Map(
+      content.articles.value.map((item) => [item.id, item.cuid]),
+   );
+   return ids
+      .map((id) => byId.get(id))
+      .filter((cuid): cuid is string => Boolean(cuid));
+};
+
+const topicCuids = (ids: number[]): string[] => {
+   const byId = new Map(content.topics.value.map((item) => [item.id, item.cuid]));
+   return ids
+      .map((id) => byId.get(id))
+      .filter((cuid): cuid is string => Boolean(cuid));
+};
+
+const addCourse = async (input: CourseInput): Promise<LearningCourse> => {
+   const { $trpc } = useNuxtApp();
+   const created = (await $trpc.admin.learning.createCourse.mutate({
+      name: input.name,
+      description: input.description,
+      coverPreset: input.coverPreset ?? 'slate',
+      topicIds: topicCuids(input.topicIds),
+   })) as { id: string };
+   const state = await content.refresh();
+   const course = state?.courses.find((item) => item.cuid === created.id);
+   if (!course) throw new Error('课程已创建但读取失败');
+   return course;
+};
+
+const editCourse = async (
+   id: number,
+   input: CourseInput,
+): Promise<LearningCourse | undefined> => {
+   const current = content.courses.value.find((item) => item.id === id);
+   if (!current?.cuid) return undefined;
+   const { $trpc } = useNuxtApp();
+   await $trpc.admin.learning.updateCourse.mutate({
+      id: current.cuid,
+      name: input.name,
+      description: input.description,
+      coverPreset: input.coverPreset ?? 'slate',
+      topicIds: topicCuids(input.topicIds),
+   });
+   const state = await content.refresh();
+   return state?.courses.find((item) => item.id === id);
+};
+
+const addTopic = async (input: TopicInput): Promise<LearningTopic> => {
+   const course = content.courses.value.find(
+      (item) => item.id === input.courseId,
+   );
+   if (!course?.cuid) throw new Error('归属课程没有对应的服务端 id');
+   const { $trpc } = useNuxtApp();
+   const created = (await $trpc.admin.learning.createTopic.mutate({
+      courseId: course.cuid,
+      name: input.name,
+      description: input.description,
+      coverPreset: input.coverPreset ?? 'slate',
+      articleIds: articleCuids(input.articleIds),
+   })) as { id: string };
+   const state = await content.refresh();
+   const topic = state?.topics.find((item) => item.cuid === created.id);
+   if (!topic) throw new Error('专题已创建但读取失败');
+   return topic;
+};
+
+const editTopic = async (
+   id: number,
+   input: TopicInput,
+): Promise<LearningTopic | undefined> => {
+   const current = content.topics.value.find((item) => item.id === id);
+   if (!current?.cuid) return undefined;
+   const course = content.courses.value.find(
+      (item) => item.id === input.courseId,
+   );
+   if (!course?.cuid) throw new Error('归属课程没有对应的服务端 id');
+   const { $trpc } = useNuxtApp();
+   await $trpc.admin.learning.updateTopic.mutate({
+      id: current.cuid,
+      courseId: course.cuid,
+      name: input.name,
+      description: input.description,
+      coverPreset: input.coverPreset ?? 'slate',
+      articleIds: articleCuids(input.articleIds),
+   });
+   const state = await content.refresh();
+   return state?.topics.find((item) => item.id === id);
+};
 const course = computed<LearningCourse | undefined>(() =>
    editing.value
       ? allCourses.find((item) => item.id === Number(props.courseId))

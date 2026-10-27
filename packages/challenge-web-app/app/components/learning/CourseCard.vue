@@ -27,8 +27,8 @@ const state = computed(() =>
    courseProgress(
       props.course,
       visits.slice.value,
-      courseTopics(props.course.id, content.slice.value),
-      articlesOfCourse(props.course.id, content.slice.value),
+      courseTopics(props.course.id, content),
+      articlesOfCourse(props.course.id, content),
    ),
 );
 const badge = computed(() => {

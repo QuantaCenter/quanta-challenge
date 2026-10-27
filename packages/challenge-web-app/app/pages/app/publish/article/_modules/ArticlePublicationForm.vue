@@ -5,9 +5,11 @@ import {
    articleMarkdown,
    useLearningArticle,
    useLearningArticles,
-   useLearningProblemBank,
+   type ArticleInput,
+   type LearningArticle,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
+import { useProblemBank } from '~/components/learning/ContentPicker.vue';
 import useAuthStore from '~/stores/auth-store';
 import { useMessage } from '~/components/st/Message/use-message';
 import {
@@ -28,8 +30,7 @@ const props = withDefaults(
 );
 
 const message = useMessage();
-const bank = useLearningProblemBank();
-const { addArticle, editArticle } = useLearningContentStore();
+const { problems: bank } = useProblemBank();
 const authStore = useAuthStore();
 
 const outerClass =
@@ -117,6 +118,42 @@ if (props.mode === 'create') {
 
 // 文章不需要审核，保存即可见
 const submitting = ref(false);
+
+/* ----- 文章写请求：服务端 cuid 与前端数字 id 的转换在这里完成 ----- */
+
+const addArticle = async (input: ArticleInput): Promise<LearningArticle> => {
+   const { $trpc } = useNuxtApp();
+   const created = (await $trpc.admin.learning.createArticle.mutate({
+      title: input.title,
+      summary: input.summary,
+      source: input.body,
+      coverPreset: input.coverPreset ?? 'slate',
+      coverUrl: input.coverUrl || null,
+   })) as { id: string };
+   const state = await content.refresh();
+   const article = state?.articles.find((item) => item.cuid === created.id);
+   if (!article) throw new Error('文章已创建但读取失败');
+   return article;
+};
+
+const editArticle = async (
+   id: number,
+   input: ArticleInput,
+): Promise<LearningArticle | undefined> => {
+   const current = content.articles.value.find((item) => item.id === id);
+   if (!current?.cuid) return undefined;
+   const { $trpc } = useNuxtApp();
+   await $trpc.admin.learning.updateArticle.mutate({
+      id: current.cuid,
+      title: input.title,
+      summary: input.summary,
+      source: input.body,
+      coverPreset: input.coverPreset ?? 'slate',
+      coverUrl: input.coverUrl || null,
+   });
+   const state = await content.refresh();
+   return state?.articles.find((item) => item.id === id);
+};
 
 const submitArticle = async () => {
    if (!form.value || submitting.value) return;

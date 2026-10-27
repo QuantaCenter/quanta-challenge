@@ -20,8 +20,8 @@ const progress = computed(() =>
       ? courseProgress(
            course.value,
            visits.slice.value,
-           courseTopics(course.value.id, content.slice.value),
-           articlesOfCourse(course.value.id, content.slice.value),
+           courseTopics(course.value.id, content),
+           articlesOfCourse(course.value.id, content),
         )
       : undefined,
 );

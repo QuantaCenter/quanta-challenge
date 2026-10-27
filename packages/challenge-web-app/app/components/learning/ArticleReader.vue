@@ -95,7 +95,7 @@ useMarkContentDone({
       const progress = topicProgress(
          item,
          visits.slice.value,
-         articlesOfTopic(item, content.slice.value),
+         articlesOfTopic(item, content),
       );
       return progress.problemCount > 0 && progress.completed;
    },

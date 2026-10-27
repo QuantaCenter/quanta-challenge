@@ -2,12 +2,21 @@
 import { BookmarkThree, Box, CheckOne } from '@icon-park/vue-next';
 import { useRecentLearning } from '~/composables/use-learning';
 import { useLearningVisits } from '~/composables/use-learning-visits';
+import type { RecentLearningItem } from '~/utils/learning-progress';
 
 // 访问记录在这里取一次，传进纯读函数
 const visits = useLearningVisits();
 const items = computed(() => useRecentLearning(5, undefined, visits.slice.value));
 
 const loading = ref(false);
+
+// 纯阅读专题没有题目，进度按已读文章比例计算
+const itemPercent = (item: RecentLearningItem): number =>
+   item.isReadingOnly
+      ? item.articleCount > 0
+         ? Math.floor((item.finishedArticles / item.articleCount) * 100)
+         : 0
+      : item.percent;
 
 // 列表到两端或不足一屏时隐藏对应渐隐
 const listRef = ref<HTMLElement | null>(null);
@@ -85,10 +94,10 @@ onBeforeUnmount(() => window.removeEventListener('resize', updateListEdges));
 
                   <StSpace align="center" gap="0.75rem" fill-x>
                      <LearningProgressBar
-                        :progress="item.percent / 100"
-                        :percent="item.percent"
+                        :progress="itemPercent(item) / 100"
+                        :percent="itemPercent(item)"
                         :completed="item.completed"
-                        :is-reading-only="item.isReadingOnly"
+                        :is-reading-only="false"
                         :read="item.read" />
                      <NuxtLink
                         :to="`/app/learning/${item.topicId}`"

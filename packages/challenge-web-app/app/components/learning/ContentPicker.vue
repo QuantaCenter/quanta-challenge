@@ -1,3 +1,108 @@
+<script lang="ts">
+import { computed } from 'vue';
+import { useNuxtApp, useState } from '#imports';
+// LearningProblemRef 与 useLearningContentStore 由下方 setup 块的 import 提供
+
+/** listPublicProblems 返回的一条，只列用到的字段 */
+interface ApiProblem {
+   baseId?: number;
+   pid: number;
+   title: string;
+   difficulty: LearningProblemRef['difficulty'];
+   totalScore: number;
+   imageName?: string | null;
+   imageHash?: string | null;
+   imageThumbhashUrl?: string | null;
+   tags?: Array<{ name: string; color: string }>;
+}
+
+const API_PAGE_SIZE = 48;
+
+/** 翻页拉全部已发布题目，按 baseId 去重 */
+const fetchPublishedProblems = async (): Promise<LearningProblemRef[]> => {
+   const { $trpc } = useNuxtApp();
+   const collected = new Map<number, LearningProblemRef>();
+   let cursor: number | null | undefined;
+
+   // 游标分页，最多翻 20 页
+   for (let page = 0; page < 20; page += 1) {
+      const result = await $trpc.public.problem.listPublicProblems.query({
+         limit: API_PAGE_SIZE,
+         ...(cursor == null ? {} : { cursor }),
+      });
+      for (const item of (result.items ?? []) as ApiProblem[]) {
+         // 没有 baseId 的题无法写进正文，跳过
+         if (typeof item.baseId !== 'number') continue;
+         if (collected.has(item.baseId)) continue;
+         collected.set(item.baseId, {
+            baseId: item.baseId,
+            pid: item.pid,
+            title: item.title,
+            difficulty: item.difficulty,
+            totalScore: item.totalScore,
+            imageName: item.imageName ?? null,
+            imageHash: item.imageHash ?? null,
+            imageThumbhashUrl: item.imageThumbhashUrl ?? null,
+            tags: item.tags ?? [],
+         });
+      }
+      cursor = result.nextCursor ?? null;
+      if (cursor == null) break;
+   }
+
+   return [...collected.values()].sort((a, b) => a.baseId - b.baseId);
+};
+
+/**
+ * 题库的请求与共享状态：本组件负责拉取与刷新，
+ * 发布表单（正文题号解析、整页预览）从这里读同一份数据。
+ */
+export const useProblemBank = () => {
+   const bank = useState<LearningProblemRef[]>(
+      'learning-problem-bank',
+      () => [],
+   );
+   const loading = useState('learning-problem-bank-loading', () => false);
+   const failed = useState('learning-problem-bank-failed', () => false);
+   const loaded = useState('learning-problem-bank-loaded', () => false);
+
+   const load = async (force = false) => {
+      if (loading.value) return;
+      if (loaded.value && !force) return;
+      loading.value = true;
+      failed.value = false;
+      try {
+         bank.value = await fetchPublishedProblems();
+         loaded.value = true;
+      } catch (error) {
+         failed.value = true;
+         console.warn('[learning] 题库加载失败：', error);
+      } finally {
+         loading.value = false;
+      }
+   };
+
+   const content = useLearningContentStore();
+
+   /** 展示用列表；题库未就绪时兜底用文章已有的题目引用 */
+   const problems = computed<LearningProblemRef[]>(() => {
+      if (bank.value.length > 0) return bank.value;
+      const byBaseId = new Map<number, LearningProblemRef>();
+      for (const article of content.articles.value) {
+         for (const problem of article.problems) {
+            if (problem.unavailable) continue;
+            if (!byBaseId.has(problem.baseId)) {
+               byBaseId.set(problem.baseId, problem);
+            }
+         }
+      }
+      return [...byBaseId.values()].sort((a, b) => a.baseId - b.baseId);
+   });
+
+   return { bank, problems, loading, failed, load };
+};
+</script>
+
 <script setup lang="ts">
 import {
    BookOne,
@@ -10,7 +115,6 @@ import {
 import {
    articlesOfTopic,
    useLearningArticles,
-   useLearningProblemBank,
    useAllTopics,
    type Difficulty,
    type LearningArticle,
@@ -72,8 +176,13 @@ const DIFFICULTY_COLOR: Record<Difficulty, string> = {
 const content = useLearningContentStore();
 const articles = useLearningArticles(content);
 const topics = useAllTopics();
-const problemBank = useLearningProblemBank();
-const bankStatus = useLearningProblemBankStatus();
+const { problems: problemBank, loading: bankLoading, failed: bankFailed, load: reloadBank } =
+   useProblemBank();
+
+// 挂载后拉一次题库；只有题目选择用得上，文章/专题选择不预取
+if (props.kind === 'problem' && import.meta.client) {
+   onMounted(() => void reloadBank());
+}
 
 const tab = ref('library');
 const keyword = ref('');
@@ -112,7 +221,7 @@ const tabs = computed(() => [
 
 const libraryItems = computed<PickerItem[]>(() => {
    if (isProblem.value) {
-      return problemBank.map((problem) => ({
+      return problemBank.value.map((problem) => ({
          id: problem.baseId,
          title: problem.title,
          summary: `base ${problem.baseId}`,
@@ -208,7 +317,7 @@ watch(opened, (value) => {
    keywordInput.value = '';
    tab.value = 'library';
    // 题库每次打开都重新拉
-   if (isProblem.value) void bankStatus.reload();
+   if (isProblem.value) void reloadBank(true);
    if (isArticle.value) void reloadArticles();
 });
 </script>
@@ -355,9 +464,9 @@ watch(opened, (value) => {
                v-if="items.length === 0"
                :content="
                   isProblem
-                     ? bankStatus.loading.value
+                     ? bankLoading
                         ? '正在加载题库…'
-                        : bankStatus.failed.value
+                        : bankFailed
                           ? '题库加载失败，重新打开会再试一次'
                           : '题库里还没有已发布的题目'
                      : isTopic

@@ -1,5 +1,7 @@
-import type { LearningProblemRef } from '~/composables/use-learning';
-import type { LearningContentState } from '~/utils/learning-content-ops';
+import type {
+   LearningContentState,
+   LearningProblemRef,
+} from '~/composables/use-learning';
 import { parseArticleBody } from '~/utils/learning-markdown';
 
 /** 学习内容的数据层：服务端 DTO 与前端模型互转 */

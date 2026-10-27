@@ -4,6 +4,7 @@ import {
    courseTopics,
    useAllCourses,
    useLearningArticles,
+   type LearningCourse,
 } from '~/composables/use-learning';
 import { useLearningContentStore } from '~/composables/use-learning-store';
 import { useMessage } from '~/components/st/Message/use-message';
@@ -13,7 +14,7 @@ import type { ITableColumn } from '~/components/st/Table/type';
 useSeoMeta({ title: '课程审核 - Quanta Challenge' });
 
 const message = useMessage();
-const { courses, reviewCourseSubmission } = useLearningContentStore();
+const { courses } = useLearningContentStore();
 
 const pendingColumns: ITableColumn[] = [
    { key: 'name', title: '课程', skeletonClass: 'h-5 w-[5.5rem] rounded-md' },
@@ -96,6 +97,24 @@ const published = computed(() => rows.value.filter((row) => row.status === 'publ
 
 const statusText = (status: string) =>
    status === 'published' ? '已上架' : status === 'pending' ? '待审核' : '草稿';
+
+/** 课程审核写请求：通过 / 驳回走同一条接口，服务端要 cuid */
+const reviewCourseSubmission = async (
+   id: number,
+   approve: boolean,
+   reason?: string,
+): Promise<LearningCourse | undefined> => {
+   const current = courses.value.find((item) => item.id === id);
+   if (!current?.cuid) return undefined;
+   const { $trpc } = useNuxtApp();
+   await $trpc.admin.learning.reviewCourse.mutate({
+      id: current.cuid,
+      approve,
+      reason: reason ?? null,
+   });
+   const state = await content.refresh();
+   return state?.courses.find((item) => item.id === id);
+};
 
 /** 通过＝把 status 改成 published；驳回＝退回草稿 */
 const review = async (id: number, approve: boolean) => {

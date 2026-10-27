@@ -147,6 +147,38 @@ export interface LearningCourse {
    topicIds: number[];
 }
 
+/** 学习内容全量状态：store 与数据层共用的形状 */
+export interface LearningContentState {
+   articles: LearningArticle[];
+   topics: LearningTopic[];
+   courses: LearningCourse[];
+}
+
+/** 写接口的表单输入 */
+export interface ArticleInput {
+   title: string;
+   summary: string;
+   body: string;
+   coverPreset?: LearningArticle['coverPreset'];
+   coverUrl?: string;
+}
+
+export interface TopicInput {
+   name: string;
+   description: string;
+   courseId: number;
+   articleIds: number[];
+   coverPreset?: LearningTopic['coverPreset'];
+}
+
+export interface CourseInput {
+   name: string;
+   description: string;
+   topicIds: number[];
+   status?: LearningCourse['status'];
+   coverPreset?: LearningCourse['coverPreset'];
+}
+
 export function canPublishCourse(course: LearningCourse): boolean {
    return courseTopics(course.id).length > 0;
 }
@@ -366,124 +398,6 @@ export function useRecentLearning(
       .filter((item) => item.lastOpenedAt !== null)
       .sort((a, b) => (b.lastOpenedAt! < a.lastOpenedAt! ? -1 : 1))
       .slice(0, limit);
-}
-
-/* 创作侧（发布页）的读取接口 */
-
-/* 题库：正文只能引用已发布的题 */
-
-/** listPublicProblems 返回的一条，只列用到的字段 */
-interface ApiProblem {
-   baseId?: number;
-   pid: number;
-   title: string;
-   difficulty: Difficulty;
-   totalScore: number;
-   imageName?: string | null;
-   imageHash?: string | null;
-   imageThumbhashUrl?: string | null;
-   tags?: Array<{ name: string; color: string }>;
-}
-
-const API_PAGE_SIZE = 48;
-
-/** 翻页拉全部已发布题目，按 baseId 去重 */
-const fetchPublishedProblems = async (): Promise<LearningProblemRef[]> => {
-   const { $trpc } = useNuxtApp();
-   const collected = new Map<number, LearningProblemRef>();
-   let cursor: number | null | undefined;
-
-   // 游标分页，最多翻 20 页
-   for (let page = 0; page < 20; page += 1) {
-      const result = await $trpc.public.problem.listPublicProblems.query({
-         limit: API_PAGE_SIZE,
-         ...(cursor == null ? {} : { cursor }),
-      });
-      for (const item of (result.items ?? []) as ApiProblem[]) {
-         // 没有 baseId 的题无法写进正文，跳过
-         if (typeof item.baseId !== 'number') continue;
-         if (collected.has(item.baseId)) continue;
-         collected.set(item.baseId, {
-            baseId: item.baseId,
-            pid: item.pid,
-            title: item.title,
-            difficulty: item.difficulty,
-            totalScore: item.totalScore,
-            imageName: item.imageName ?? null,
-            imageHash: item.imageHash ?? null,
-            imageThumbhashUrl: item.imageThumbhashUrl ?? null,
-            tags: item.tags ?? [],
-         });
-      }
-      cursor = result.nextCursor ?? null;
-      if (cursor == null) break;
-   }
-
-   return [...collected.values()].sort((a, b) => a.baseId - b.baseId);
-};
-
-/** 题库共享状态，必须在 setup 里调用一次 */
-const useProblemBankState = () => {
-   const bank = useState<LearningProblemRef[]>(
-      'learning-problem-bank',
-      () => [],
-   );
-   const loaded = useState<boolean>('learning-problem-bank-loaded', () => false);
-   const loading = useState<boolean>('learning-problem-bank-loading', () => false);
-   const failed = useState<boolean>('learning-problem-bank-failed', () => false);
-
-   const load = async (force = false) => {
-      if (loading.value) return;
-      if (loaded.value && !force) return;
-      loading.value = true;
-      failed.value = false;
-      try {
-         bank.value = await fetchPublishedProblems();
-         loaded.value = true;
-      } catch (error) {
-         failed.value = true;
-         console.warn('[learning] 题库加载失败：', error);
-      } finally {
-         loading.value = false;
-      }
-   };
-
-   return { bank, loaded, loading, failed, load };
-};
-
-/** 已发布题目的题库，供正文插入题目引用；未登录时静默失败 */
-export function useLearningProblemBank(
-   content?: LearningContentSlice,
-): LearningProblemRef[] {
-   const { bank, load } = useProblemBankState();
-
-   // 挂载后再拉，SSR 首帧不发请求
-   if (import.meta.client) onMounted(() => void load());
-
-   if (bank.value.length > 0) return bank.value;
-
-   // 接口未就绪时，用文章已有引用兜底
-   const articles = list(resolveContent(content).articles, []);
-   const byBaseId = new Map<number, LearningProblemRef>();
-   for (const article of articles) {
-      for (const problem of article.problems) {
-         if (problem.unavailable) continue;
-         if (!byBaseId.has(problem.baseId)) byBaseId.set(problem.baseId, problem);
-      }
-   }
-   return [...byBaseId.values()].sort((a, b) => a.baseId - b.baseId);
-}
-
-/** 题库状态与手动刷新，给选题浮窗用 */
-export function useLearningProblemBankStatus() {
-   const { loaded, loading, failed, load } = useProblemBankState();
-
-   return {
-      loading,
-      failed,
-      loaded,
-      reload: () => load(true),
-   };
 }
 
 /** 文章正文还原为 Markdown 源码，优先用存下的源码 */

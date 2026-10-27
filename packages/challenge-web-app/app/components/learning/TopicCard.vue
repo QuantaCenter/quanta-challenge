@@ -30,7 +30,7 @@ const state = computed(() =>
    topicProgress(
       props.topic,
       visits.slice.value,
-      articlesOfTopic(props.topic, content.slice.value),
+      articlesOfTopic(props.topic, content),
    ),
 );
 const courseName = computed(

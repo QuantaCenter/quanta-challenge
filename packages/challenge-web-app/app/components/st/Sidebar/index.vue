@@ -8,7 +8,7 @@ import {
    TableReport,
    Trophy,
    UploadTwo,
-   BookOne,
+   BookOpen,
 } from '@icon-park/vue-next';
 import Logo from '~/components/icon/Logo.vue';
 import useAuthStore from '~/stores/auth-store';
@@ -38,7 +38,7 @@ const role = computed(() => authStore.user?.role ?? 'USER');
             </StSidebarSidePopper>
             <StSidebarSidePopper content="学习">
                <StSidebarNavigationButton to="/app/learning">
-                  <BookOne />
+                  <BookOpen />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
             <StSidebarSidePopper content="排行榜">
