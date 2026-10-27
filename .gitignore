@@ -197,3 +197,10 @@ tmp/
 
 # Local OAuth certificates, private keys and test-only environment.
 /.local/
+
+# Playwright E2E（e2e/）
+e2e/screenshots/
+e2e/test-results/
+e2e/playwright-report/
+e2e/.auth/
+e2e/.e2e-ids.json

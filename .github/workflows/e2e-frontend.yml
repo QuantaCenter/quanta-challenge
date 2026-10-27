@@ -1,0 +1,135 @@
+name: E2E 前端测试
+
+# 仅在 test 分支推送时触发；workflow_dispatch 保留用于手动触发
+on:
+  workflow_dispatch:
+  push:
+    branches: [test]
+    paths:
+      - 'packages/challenge-web-app/**'
+      - 'packages/database/**'
+      - 'packages/shared/**'
+      - 'e2e/**'
+      - '.github/workflows/e2e.yml'
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: quanta
+          POSTGRES_PASSWORD: quanta
+          POSTGRES_DB: quanta_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U quanta"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgres://quanta:quanta@localhost:5432/quanta_db
+      REDIS_HOST: localhost
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 数据库迁移
+        run: pnpm --filter @challenge/database prisma:migrate:deploy
+
+      - name: 生成 Prisma 客户端
+        run: pnpm --filter @challenge/database prisma:generate
+
+      - name: 注入 E2E 测试数据
+        run: pnpm --filter @challenge/e2e seed
+
+      - name: 构建 Web 应用
+        run: pnpm --filter @challenge/app build
+        env:
+          ACCESS_TOKEN_SECRET: e2e-only-access-token-secret
+          REFRESH_TOKEN_SECRET: e2e-only-refresh-token-secret
+          APP_SERVER: http://localhost:3000
+
+      - name: 启动 Web 应用
+        run: |
+          cd packages/challenge-web-app
+          # 不设 NODE_ENV=production：生产模式下登录 cookie 会带 secure 属性，
+          # 与 CI 的 http 地址不匹配导致登录会话丢失
+          node .output/server/index.mjs > web-app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:3000/ > /dev/null; then
+              echo "Web 应用已就绪"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Web 应用未在 120s 内就绪"
+          tail -n 100 web-app.log
+          exit 1
+
+      - name: 安装 Playwright 浏览器
+        run: pnpm --filter @challenge/e2e exec playwright install --with-deps chromium
+
+      - name: 运行 E2E 漫游测试
+        run: pnpm --filter @challenge/e2e test:e2e
+        env:
+          E2E_BASE_URL: http://localhost:3000
+          E2E_ADMIN_EMAIL: e2e-admin@quanta.test
+          E2E_ADMIN_PASSWORD: e2e-admin-password
+
+      - name: 生成截图清单
+        if: always()
+        run: |
+          {
+            echo "## E2E 截图清单（人工确认）"
+            echo ""
+            find e2e/screenshots -name '*.png' | sort | sed 's/^/- /'
+          } >> "$GITHUB_STEP_SUMMARY" || true
+
+      - name: 上传截图
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: e2e/screenshots/
+          retention-days: 14
+          if-no-files-found: warn
+
+      - name: 上传 Playwright 报告
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
