@@ -53,13 +53,11 @@ useSeoMeta({
          <LazyEditor
             v-if="componentLoaded.editor"
             v-show="currentComponent === 'editor'"
-            hydrate-on-visible
             :id="id"
             :key="id" />
          <LazyRecord
             v-if="componentLoaded.record"
             v-show="currentComponent === 'record'"
-            hydrate-on-visible
             :id="id" />
       </TransitionGroup>
    </StSpace>
