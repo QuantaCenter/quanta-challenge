@@ -17,6 +17,10 @@ import JudgeResultSkeleton from '../_skeletons/JudgeResultSkeleton.vue';
 
 const props = defineProps<{
    problemId: number;
+   // 初始展示的记录 id，由父组件通过 prop 传入
+   initialRecordId?: number | null;
+   // passive：实例被 CSS 隐藏（移动端下桌面分栏不可见），不发起请求
+   passive?: boolean;
 }>();
 
 const loading = ref(false);
@@ -25,7 +29,18 @@ const detail = ref<CommitDetailType | null>(null);
 const lastRecordId = ref<number | null>(null);
 const recordCache = new Map<number, CommitDetailType>();
 const aheadCache = new Map<number, string>();
-const recordId = ref<number | null>(null);
+const recordId = ref<number | null>(props.initialRecordId ?? null);
+
+watch(
+   () => props.initialRecordId,
+   (id) => {
+      if (id !== null && id !== undefined && id !== recordId.value) {
+         recordId.value = id;
+         getDetail();
+         getRank();
+      }
+   }
+);
 
 const commitEmitter = useEventBus<number>('challenge-commit');
 commitEmitter.on((id) => {
@@ -43,6 +58,8 @@ const commitRecordSelectEmitter = useEventBus<CommitRecordType, boolean>(
 );
 commitRecordSelectEmitter.on((record, init) => {
    if (!record) return;
+   // 已由 initialRecordId（URL ?id=）指定记录时，忽略列表的初始选中同步
+   if (init && recordId.value !== null) return;
    recordId.value = record.id;
    if (!init) {
       getDetail();
@@ -51,6 +68,7 @@ commitRecordSelectEmitter.on((record, init) => {
 });
 
 const getDetail = async () => {
+   if (props.passive) return;
    if (recordId.value === null) {
       detail.value = null;
       return;
@@ -99,6 +117,7 @@ const getDetail = async () => {
 const rank = ref<IRank[]>([]);
 const ahead = ref('--%');
 const getRank = async () => {
+   if (props.passive) return;
    if (recordId.value === null || detail.value?.result !== 'success') {
       rank.value = [];
       return;
@@ -186,14 +205,19 @@ const StatusIcon = () => {
       direction="vertical"
       fill
       align="center"
-      class="bg-[#1C1C1C] rounded-xl p-4">
-      <div class="w-[38rem] h-full relative overflow-auto hide-scrollbar">
-         <StSkeleton :loading="loading || !detail">
+      class="bg-[#1C1C1C] rounded-xl p-4 max-md:bg-transparent max-md:rounded-none">
+      <div class="w-[38rem] max-w-full h-full relative overflow-auto hide-scrollbar max-md:pt-10">
+         <StSkeleton :loading="loading">
             <template #loading>
                <CommitDetailSkeleton />
             </template>
+            <StEmptyStatus
+               v-if="!detail"
+               content="你还没有任何提交"
+               class="opacity-50" />
             <StSpace
-               class="w-[38rem] min-h-full absolute top-0 left-0 mt-1"
+               v-else
+               class="w-[38rem] max-w-full min-h-full absolute top-0 left-0 mt-1"
                gap="1rem"
                direction="vertical">
                <StSpace

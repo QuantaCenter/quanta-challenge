@@ -100,7 +100,9 @@ const infoFieldLabels = {
       <StSpace direction="vertical" gap="0" fill class="text-white">
          <StSpace direction="vertical" gap="1.5rem" fill class="p-6">
             <!-- Header -->
-            <h1 class="st-font-secondary-bold">空间展示配置</h1>
+            <h1 class="st-font-secondary-bold max-md:text-[1.25rem]">
+               空间展示配置
+            </h1>
 
             <StSpace fill class="relative overflow-auto">
                <StSpace

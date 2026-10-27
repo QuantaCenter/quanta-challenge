@@ -64,7 +64,7 @@ onEditorContentChanged((value) => {
          <StSpace direction="vertical" gap="1.5rem" class="p-6 w-full h-full">
             <!-- Header -->
             <StSpace justify="between" align="end" class="w-full">
-               <h1 class="st-font-secondary-bold">编辑判题脚本</h1>
+               <h1 class="st-font-secondary-bold max-md:text-[1.25rem]">编辑判题脚本</h1>
                <StButton
                   class="py-[0.375rem] px-[0.75rem] text-accent-100 !bg-accent-600">
                   <div class="flex gap-2 items-center">

@@ -48,7 +48,9 @@ defineExpose({ refresh });
 <template>
    <StDrawer global v-model:opened="opened" width="34rem">
       <StSpace direction="vertical" gap="1.5rem" class="p-6 text-white" fill>
-         <h1 class="st-font-secondary-bold">审核记录</h1>
+         <h1 class="st-font-secondary-bold max-md:text-[1.25rem]!">
+            审核记录
+         </h1>
          <StSkeleton :loading="!versions?.length">
             <template #loading>
                <StSpace direction="vertical" gap="0.75rem">

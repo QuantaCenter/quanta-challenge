@@ -21,6 +21,17 @@ WITH
     GROUP BY
       "userId"
   ),
+  penalties AS (
+    SELECT
+      "userId",
+      SUM(score) AS score
+    FROM
+      score_penalties
+    WHERE
+      "revokedAt" IS NULL
+    GROUP BY
+      "userId"
+  ),
   passProblemIds AS (
     SELECT
       "userId",
@@ -63,7 +74,7 @@ INSERT INTO
   user_statistics ("userId", score, "correctRate", "passCount", "createdAt", "updatedAt")
 SELECT
   scores."userId",
-  scores.score,
+  GREATEST(scores.score - COALESCE(penalties.score, 0), 0),
   CASE
     WHEN allRecords.totalCount = 0 THEN 0
     ELSE ROUND(passRecords.passCount::decimal / allRecords.totalCount * 100, 2)
@@ -75,7 +86,8 @@ FROM
   scores
   JOIN passProblemIds USING ("userId")
   JOIN passRecords USING ("userId")
-  JOIN allRecords USING ("userId") ON CONFLICT ("userId")
+  JOIN allRecords USING ("userId")
+  LEFT JOIN penalties USING ("userId") ON CONFLICT ("userId")
 DO
 UPDATE
 SET

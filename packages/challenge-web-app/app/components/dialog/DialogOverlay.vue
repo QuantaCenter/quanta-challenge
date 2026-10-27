@@ -17,10 +17,13 @@ const handleConfirm = (id: string, value?: any) => {
 const handleCancel = (id: string) => {
    cancel(id);
 };
+
+// 对话框仅客户端产生，SSR 内容恒为空；挂载后再传送到 body（规避 teleport 水合错位）
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <TransitionGroup name="dialog">
          <div
             v-for="dialog in dialogs"

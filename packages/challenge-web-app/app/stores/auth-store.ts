@@ -1,6 +1,6 @@
 import type { User } from '@prisma/client';
 import type { TRPCClient } from '@trpc/client';
-import { defineStore } from 'pinia';
+import { defineStore, skipHydrate } from 'pinia';
 import type { AppRouter } from '~~/server/trpc/routes';
 
 const useAuthStore = defineStore('auth', () => {
@@ -39,9 +39,7 @@ const useAuthStore = defineStore('auth', () => {
                   ['createdAt', 'updatedAt', 'lastLogin'],
                   (value: any) => new Date(value)
                ),
-               // lastActiveAt 允许为空（迁移前的老用户从没记录过），不能跟着上面
-               // 一起批量转换——transformObjectFields 会把 null 交给 new Date()
-               // 变成 1970，"从未活跃"会显示成 1970-01-01。
+               // lastActiveAt 允许为空（迁移前的老用户从没记录过），不能跟着上面 一起批量转换——transformObjectFields 会把 null 交给 new Date() 变成 1970，"从未活跃"会显示成 1970-01-01。
                lastActiveAt: rawUser.lastActiveAt
                   ? new Date(rawUser.lastActiveAt)
                   : null,
@@ -57,7 +55,8 @@ const useAuthStore = defineStore('auth', () => {
 
    return {
       user,
-      csrfToken,
+      // SSR 读不到 localStorage，序列化的 null 注水时会覆盖客户端已读到的值，导致首屏客户端请求缺 x-csrf-token
+      csrfToken: skipHydrate(csrfToken),
       setCsrfToken,
       initToken,
       fetchUserInfo,

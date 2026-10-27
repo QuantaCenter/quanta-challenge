@@ -1,4 +1,5 @@
 import type { StForm } from '#components';
+import dayjs from 'dayjs';
 import {
    BACKEND_SERVICE_IMAGES,
    buildBackendBootCommand,
@@ -71,6 +72,11 @@ export const useProblemPublicationForm = (storageName: string) => {
       servicePort: getBackendServiceDefaultPort(
          DEFAULT_BACKEND_SERVICE_IMAGE_ID
       ) as number,
+      /** 快照镜像 id，空串表示不使用 */
+      snapshotImageId: '',
+      taskStartAt: '' as string,
+      taskEndAt: '' as string,
+      scheduledPublishAt: '' as string,
    });
    const draft = useDebounce(formdata, 200);
 
@@ -254,6 +260,13 @@ export const useProblemPublicationForm = (storageName: string) => {
                draft.value.problemType !== 'backend_service' ||
                (typeof value === 'number' && value > 0 && value <= 65535)
             );
+         },
+      },
+      {
+         field: 'scheduledPublishAt',
+         // DatePicker 的值格式为 YYYY-MM-DD HH:mm，用 dayjs 按本地时区解析
+         validator(value) {
+            return !value || dayjs(value).valueOf() > Date.now();
          },
       },
    ]);

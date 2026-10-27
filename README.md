@@ -1,6 +1,6 @@
-# Quanta 前端挑战
+# Quanta Challenge
 
-**Quanta 前端挑战** 是一个全栈在线编程挑战平台，专注于前端开发技能的实践与评测。平台提供基于浏览器的代码编辑环境、实时预览功能，以及自动化的 Playwright 评测系统。
+Quanta Challenge 是一个在线编程挑战平台，支持前端与后端服务两类题型。用户在浏览器中编写代码并提交，由容器化的评测系统自动判分。
 
 ## 目录
 
@@ -11,162 +11,161 @@
 - [开发指南](#开发指南)
 - [部署说明](#部署说明)
 - [环境变量](#环境变量)
-- [许可证](#许可证)
+- [文档索引](#文档索引)
 
 ## 项目概述
 
-Quanta 前端挑战平台为开发者提供了一个交互式的编程练习环境。用户可以在浏览器中编写代码，实时预览效果，并通过自动化评测系统验证解决方案的正确性。
+平台由 Web 应用、评测调度器、云函数服务、判题容器镜像和监控栈组成，pnpm workspace 管理，全部使用 TypeScript。
 
-### 核心特性
+### 功能
 
-- **在线代码编辑器**：基于 Monaco Editor 的专业级代码编辑体验
-- **WebContainer 运行时**：浏览器内置 Node.js 运行时，支持实时预览
-- **自动化评测**：基于 Playwright 的视觉回归测试和功能验证
-- **题目管理系统**：支持多版本题目、难度分级、标签分类
-- **用户系统**：完整的用户认证、成就系统、排行榜功能
-- **每日挑战**：定期推送编程挑战，促进持续学习
+- **在线代码编辑器**：基于 Monaco Editor，前端题型通过 WebContainer 在浏览器内实时预览
+- **自动化评测**：前端题型由 Playwright 判题机执行视觉回归与功能检查；后端服务题型由 HTTP 判题机对用户服务发请求断言
+- **题目管理**：多版本题目、难度分级、标签分类；`qpc` CLI 覆盖出题到发布的完整流程
+- **用户系统**：账号认证、成就、排行榜、通知
+- **云函数服务**：函数注册 / 调用 / KV 存储，供 Web 应用与调度器通过内部密钥调用
+- **监控栈**：Prometheus / Loki / Grafana 采集指标与日志，自研采集服务接收前端 SDK 上报
 
-### 数据流
+### 架构与判题数据流
 
-1. 用户在浏览器中编写代码并提交
-2. Web 应用将代码快照发送至评测调度器
-3. 调度器创建 Live Server 容器运行用户代码
-4. Judge Machine 使用 Playwright 访问并评测页面
-5. 评测结果通过 WebSocket 返回并更新数据库
-6. 用户收到评测反馈
+```mermaid
+flowchart LR
+    U[浏览器] --> W[challenge-web-app<br/>Nuxt 4]
+    W -- "提交代码快照" --> S[challenge-judge-scheduler<br/>Hono + BullMQ]
+    S --> R[(Redis)]
+    W --> P[(PostgreSQL)]
+    S --> P
+
+    subgraph agents [调度器按需创建的容器]
+        LS[live-server<br/>运行用户静态站点]
+        JM[judge-machine<br/>Playwright 判题机]
+        BS[backend-service<br/>运行用户后端服务]
+        BJ[backend-judge-machine<br/>HTTP 判题机]
+    end
+
+    S -- "Docker API" --> LS
+    S -- "Docker API" --> JM
+    S -- "Docker API" --> BS
+    S -- "Docker API" --> BJ
+    JM -- "访问页面评测" --> LS
+    JM -- "WebSocket :1889 回传结果" --> S
+    BJ -- "HTTP 请求断言" --> BS
+    BJ -- "WebSocket :1891 回传结果" --> S
+    S -- "回调同步排行榜与通知" --> W
+
+    W -- "内部密钥调用 :1890" --> CF[challenge-cloud-function]
+    S -- "内部密钥调用 :1890" --> CF
+
+    W & S & CF -- "指标 / 日志上报" --> OBS[challenge-observation]
+```
+
+前端题型与后端题型使用不同链路：前端题型走 `live-server` + `judge-machine`（Playwright），后端题型走 `backend-service` + `backend-judge-machine`（无 Playwright）。两者任务信封与回包格式一致。判题机镜像不在 Compose 编排内，由调度器在运行期通过 Docker API 创建，因此需要预先构建。
 
 ## 技术栈
 
-### 前端
+### 前端与 Web 应用
 
 | 技术 | 用途 |
 |------|------|
-| [Nuxt 4](https://nuxt.com/) | Vue 全栈框架，支持 SSR |
-| [Vue 3](https://vuejs.org/) | 响应式 UI 框架 |
-| [Monaco Editor](https://microsoft.github.io/monaco-editor/) | VS Code 同款代码编辑器 |
-| [WebContainer](https://webcontainers.io/) | 浏览器内 Node.js 运行时 |
-| [Tailwind CSS](https://tailwindcss.com/) | 原子化 CSS 框架 |
+| [Nuxt 4](https://nuxt.com/) / Vue 3 | Web 应用框架 |
+| [Monaco Editor](https://microsoft.github.io/monaco-editor/) | 代码编辑器 |
+| [WebContainer](https://webcontainers.io/) | 浏览器内 Node.js 运行时（前端题型预览） |
+| [Tailwind CSS](https://tailwindcss.com/) | CSS 框架 |
 | [tRPC](https://trpc.io/) | 端到端类型安全 API |
+| Pinia | 状态管理 |
 
-### 后端
-
-| 技术 | 用途 |
-|------|------|
-| [Hono](https://hono.dev/) | 轻量级 Web 框架 |
-| [Prisma](https://www.prisma.io/) | 类型安全 ORM |
-| [BullMQ](https://docs.bullmq.io/) | Redis 任务队列 |
-| [Playwright](https://playwright.dev/) | 浏览器自动化测试 |
-| [Docker](https://www.docker.com/) | 容器化部署 |
-
-### 数据存储
+### 服务端
 
 | 技术 | 用途 |
 |------|------|
-| [PostgreSQL](https://www.postgresql.org/) | 关系型数据库 |
-| [Redis](https://redis.io/) | 缓存与消息队列 |
+| [Hono](https://hono.dev/) | 调度器、云函数、采集服务的 Web 框架 |
+| [Prisma](https://www.prisma.io/) | ORM（PostgreSQL） |
+| [BullMQ](https://docs.bullmq.io/) | Redis 任务队列（判题任务调度） |
+| [Playwright](https://playwright.dev/) | 前端题型判题 |
+| prom-client | 指标暴露 |
+
+### 基础设施
+
+| 技术 | 用途 |
+|------|------|
+| [PostgreSQL](https://www.postgresql.org/) 16 | 主数据库 |
+| [Redis](https://redis.io/) 7 | 队列与缓存 |
+| [Docker](https://www.docker.com/) / Compose | 容器化部署，判题沙箱 |
+| Prometheus / Loki / Grafana / Alloy | 监控栈（见 `packages/challenge-observation`） |
 
 ## 项目结构
 
 ```
 quanta-challenge/
-├── docker/                          # Docker 编排配置
-│   ├── docker-compose.yaml          # 生产环境配置
-│   └── docker-compose.development.yaml  # 开发环境配置
+├── ci/                              # 部署机侧：镜像发布 webhook（拉 GHCR 镜像、重启容器、失败回滚）
+├── docs/                            # 部署、题目编写、镜像 webhook 等文档
+├── scripts/                         # 仓库级脚本（CI 发布通知、本地开发辅助）
+├── docker/
+│   ├── docker-compose.yaml          # 生产环境编排
+│   └── docker-compose.development.yaml
 ├── packages/
-│   ├── challenge-web-app/           # Web 应用 (Nuxt 4)
-│   │   ├── app/                     # 前端源码
-│   │   │   ├── components/          # Vue 组件
-│   │   │   ├── composables/         # 组合式函数
-│   │   │   ├── pages/               # 页面路由
-│   │   │   └── stores/              # Pinia 状态管理
-│   │   ├── server/                  # 服务端源码
-│   │   │   ├── api/                 # API 端点
-│   │   │   └── trpc/                # tRPC 路由
+│   ├── challenge-web-app/           # Web 应用（Nuxt 4）
+│   │   ├── app/                     # 前端源码（components / composables / pages / stores）
+│   │   ├── server/                  # Nitro 服务端（API 路由 + tRPC 路由）
 │   │   └── lib/                     # 工具库
-│   ├── challenge-judge-scheduler/   # 评测调度服务 (Hono)
-│   │   ├── src/
-│   │   │   ├── controllers/         # HTTP 控制器
-│   │   │   ├── mq/                  # 消息队列处理
-│   │   │   └── services/            # 业务服务
-│   │   └── README.md
-│   ├── challenge-agents/            # 评测代理服务
-│   │   ├── judge-machine/           # Playwright 评测机（前端题型）
-│   │   │   ├── protocol/            # JRTP 传输协议
-│   │   │   ├── src/                 # 评测逻辑
-│   │   │   └── README.md
+│   ├── challenge-judge-scheduler/   # 评测调度服务（Hono + BullMQ，端口 1888）
+│   ├── challenge-cloud-function/    # 云函数服务（Hono，端口 1890，仅容器网络内 / 回环）
+│   ├── challenge-observation/       # 监控栈与自研采集服务（采集端口 9310，独立 Compose 部署）
+│   ├── challenge-agents/            # 判题相关容器镜像
+│   │   ├── judge-machine/           # 前端题型判题机（Playwright）
 │   │   ├── live-server/             # 前端题型：用户静态站点运行容器
-│   │   ├── backend-service/         # 后端服务题型：用户服务运行容器（离线安装 + 启动）
-│   │   └── backend-judge-machine/   # 后端服务题型：HTTP 判题机（无 Playwright）
-│   ├── database/                    # 数据库层
-│   │   ├── prisma/                  # Prisma Schema
-│   │   └── index.ts                 # 数据库客户端导出
+│   │   ├── backend-service/         # 后端题型：题目容器镜像（Node 24）
+│   │   └── backend-judge-machine/   # 后端题型：HTTP 判题机
+│   ├── database/                    # Prisma Schema 与数据库客户端
 │   ├── problem-creator-cli/         # 出题工具链 CLI（qpc）
-│   │   ├── src/
-│   │   │   ├── commands/            # init / check / upload / status / publish / login / doctor
-│   │   │   ├── domain/              # 配置 schema、判题脚本静态分析、快照、预检规则
-│   │   │   └── services/            # admin tRPC、judge API、凭据
-│   │   ├── examples/hello-total/    # 示例题目（也是 e2e fixture）
-│   │   └── README.md                # 用法与规则说明
 │   └── shared/                      # 共享工具库
-│       ├── configs/                 # 共享配置
-│       ├── service/                 # 共享服务
-│       └── utils/                   # 工具函数
-├── package.json                     # 工作区配置
-└── pnpm-workspace.yaml              # pnpm 工作区定义
+├── package.json
+└── pnpm-workspace.yaml
 ```
 
 ## 快速开始
 
 ### 前置条件
 
-- [Node.js](https://nodejs.org/) >= 20.0.0
-- [pnpm](https://pnpm.io/) >= 9.0.0
-- [Docker](https://www.docker.com/) >= 24.0.0
-- [Docker Compose](https://docs.docker.com/compose/) >= 2.0.0
+- [Node.js](https://nodejs.org/) >= 20
+- [pnpm](https://pnpm.io/) >= 9
+- [Docker](https://www.docker.com/) >= 24 与 Docker Compose v2
 
-### 安装依赖
+### 安装
 
 ```bash
-# 克隆仓库
 git clone https://github.com/still-soda/quanta-challenge.git
 cd quanta-challenge
-
-# 安装依赖
 pnpm install
 ```
 
-### 启动开发环境
+### 方式一：Docker Compose（开发环境）
 
-#### 方式一：Docker Compose
-
-> ⚠️ **必须先构建判题机镜像**（见下方第 0 步）。
->
-> `docker/docker-compose*.yaml` 里的 `challenge-judge-machine-agent` 与
-> `challenge-live-server-agent` 都带有 `profiles: [ignore]`，**Compose 不会构建它们**。
-> 而调度器启动时会通过 Docker API 拉起 `challenge-judge-machine-agent` 容器，
-> 镜像不存在则调度器初始化直接失败（所有判题停在 pending）。
-> 这两个镜像由调度器在运行期按需创建，所以无法用 Compose 管理，只能预先构建。
+> ⚠️ 必须先构建判题相关镜像。`docker/docker-compose*.yaml` 里的
+> `challenge-judge-machine-agent` 与 `challenge-live-server-agent` 都带有
+> `profiles: [ignore]`，Compose 不会构建它们；而调度器启动时会通过 Docker API
+> 拉起这些容器，镜像不存在则调度器初始化直接失败（所有判题停在 pending）。
 
 ```bash
-# 0. 先构建两个判题相关镜像（只需在新环境首次部署，或这两处代码变更后执行）
+# 0. 构建判题相关镜像（新环境首次部署，或对应代码变更后）
 pnpm --filter @challenge/judge-machine-agent docker:build
 pnpm --filter @challenge/live-server-agent docker:build
 
-# 0.5 （可选）后端服务题型需要额外两个镜像；只有存在后端题目时才需要构建
+# 0.5 可选：后端题型需要额外两个镜像；只有存在后端题目时才需要
 pnpm --filter @challenge/backend-service-agent docker:build
 pnpm --filter @challenge/backend-judge-machine-agent docker:build
 
-# 1. 构建并启动 Web 应用、调度器、PostgreSQL、Redis
+# 1. 启动 Web 应用、调度器、云函数、PostgreSQL、Redis
 pnpm docker:up:dev
 
-# 2. 查看服务日志
+# 2. 查看日志
 docker-compose -f docker/docker-compose.development.yaml logs -f
 ```
 
-#### 方式二：本地开发
+### 方式二：本地开发
 
 ```bash
-# 1. 启动 PostgreSQL 和 Redis（需要本地安装或使用 Docker）
+# 1. 启动 PostgreSQL 和 Redis（本地安装或 Docker）
 docker run -d --name postgres -p 5432:5432 \
   -e POSTGRES_USER=quanta \
   -e POSTGRES_PASSWORD=quanta \
@@ -179,14 +178,11 @@ docker run -d --name redis -p 6379:6379 redis:7-alpine
 cd packages/database
 pnpm prisma:update
 
-# 3. 构建评测机镜像
-cd ../challenge-agents/judge-machine
-pnpm docker:build
+# 3. 构建评测相关镜像
+cd ../challenge-agents/judge-machine && pnpm docker:build
+cd ../live-server && pnpm docker:build
 
-cd ../live-server
-pnpm docker:build
-
-# （可选）后端服务题型所需镜像，见 docs/BACKEND_SERVICE_PROBLEM.md
+# 可选：后端题型所需镜像，见 docs/BACKEND_SERVICE_PROBLEM.md
 cd ../backend-service && pnpm docker:build
 cd ../backend-judge-machine && pnpm docker:build
 
@@ -199,32 +195,32 @@ cd ../challenge-judge-scheduler
 pnpm dev
 ```
 
-> **只开发后端服务题型？** 上面第 3 步里的 `judge-machine`（带 Playwright，体积大、构建慢）
-> 可以跳过：调度器在镜像不存在时会**降级运行**（启动只打 WARN，`/health` 返回
-> `status: degraded`），前端题型提交会以 `Judge machine WebSocket is not connected`
-> 明确失败，后端服务题型不受影响。
-> 需要前端判题时再补上 `pnpm --filter @challenge/judge-machine-agent docker:build`。
-> 若镜像在但 1889 端口被占、容器起不来，可用 `JUDGE_MACHINE_OPTIONAL=1` 同样降级。
+> **只开发后端题型？** `judge-machine` 镜像（带 Playwright，体积大、构建慢）可以跳过：
+> 调度器在镜像不存在时会降级运行（启动只打 WARN，`/health` 返回 `status: degraded`），
+> 前端题型提交会以 `Judge machine WebSocket is not connected` 明确失败，后端题型不受影响。
+> 需要前端判题时再补 `pnpm --filter @challenge/judge-machine-agent docker:build`。
+> 若镜像存在但 1889 端口被占、容器起不来，可设 `JUDGE_MACHINE_OPTIONAL=1` 同样降级。
 
-### 访问应用
+### 访问
 
-- **Web 应用**: <http://localhost:3000>
-- **评测调度器**: <http://localhost:1888>
+- Web 应用：<http://localhost:3000>
+- 评测调度器：本地开发 <http://localhost:1888>（Compose 编排内为内部服务，不发布宿主机端口）
+- 云函数服务：端口 1890，仅绑定回环 / 容器网络
 
 ## 开发指南
 
 ### 数据库迁移
 
-修改 Prisma Schema 后，执行以下命令：
+修改 Prisma Schema 后：
 
 ```bash
 cd packages/database
 pnpm prisma:update  # 执行迁移 + 生成客户端 + 更新映射
 ```
 
-> ⚠️ **重要**: 切勿直接运行 `prisma migrate`，必须使用 `prisma:update` 以确保类型映射同步更新。
-
-> 部署时不需要手工迁移：web 容器与判题调度器容器启动时都会先执行
+> ⚠️ 切勿直接运行 `prisma migrate`，必须使用 `prisma:update` 以确保类型映射同步更新。
+>
+> 部署时不需要手工迁移：web 容器与调度器容器启动时都会先执行
 > `prisma migrate deploy`（幂等、带 advisory lock，同时跑也安全），
 > 详见 `packages/challenge-web-app/scripts/docker-entrypoint.sh`。
 
@@ -241,37 +237,35 @@ const result = await $trpc.protected.myEndpoint.query();
 
 ### 代码规范
 
-- 使用 TypeScript 严格模式
-- 遵循 ESLint 和 Prettier 配置（`problem-creator-cli` 使用 Biome，配置见包内 `biome.json`）
-- 组件命名采用 PascalCase
-- 组合式函数以 `use` 前缀命名
+- TypeScript 严格模式
+- ESLint + Prettier（`problem-creator-cli` 使用 Biome，配置见包内 `biome.json`）
+- 组件命名 PascalCase，组合式函数以 `use` 前缀命名
+- 类型检查：仓库根目录 `pnpm typecheck`
 
 ### 出题（problem-creator-cli）
 
-出题流程已工具化为 `qpc`（脚手架 → 离线预检 → 上传 → 等审计 → 发布）。
-在仓库根目录直接调用（`pnpm qpc` 等价于包内 `pnpm dev`，相对路径按仓库根解析）：
+出题流程工具化为 `qpc`（脚手架 → 离线预检 → 上传 → 等审计 → 发布）。
+在仓库根目录调用（`pnpm qpc` 等价于包内 `pnpm dev`，相对路径按仓库根解析）：
 
 ```bash
 pnpm qpc init my-problem --name "购物车合计"   # 生成前端题骨架（默认）
-pnpm qpc init my-api --type backend_service   # 生成后端服务题骨架（含封面图）
+pnpm qpc init my-api --type backend_service   # 生成后端服务题骨架
 pnpm qpc check my-problem                      # 毫秒级预检（判题脚本/快照/分值）
-pnpm qpc login                                 # 默认设备码授权（浏览器里确认）
-pnpm qpc upload my-problem --wait              # 上传并打印审计的检查点明细
+pnpm qpc login                                 # OAuth 2.0 设备码授权（RFC 8628）
+pnpm qpc upload my-problem --wait              # 上传并打印审计检查点明细
 pnpm qpc publish <pid>                         # 审计通过后发布
 ```
 
-登录用 OAuth 2.0 设备授权流程（RFC 8628）：CLI 打印验证码并打开
-`/auth/device`，你在页面上核对验证码、确认授权范围后点“同意”，
-终端即完成登录。密码不经过 CLI。无浏览器环境加 `--no-browser` 手动完成。
-协议细节与排查步骤见 `packages/problem-creator-cli/docs/OAUTH_DEVICE_FLOW.md`。
+登录用设备授权流程：CLI 打印验证码并打开 `/auth/device`，在页面上确认授权后终端完成登录，
+密码不经过 CLI。细节见 `packages/problem-creator-cli/docs/OAUTH_DEVICE_FLOW.md`。
 
-预检覆盖 `docs/PROBLEM_AUTHORING.md` 里所有可静态判定的坑（例如检查点忘记 `return`
-分数会判 0 分、`page.click` 打到 disabled 按钮会卡 30 秒）。
-用法与规则编号见 `packages/problem-creator-cli/README.md` 与其中的 `docs/RULES.md`。
+预检覆盖 `docs/PROBLEM_AUTHORING.md` 中所有可静态判定的问题（例如检查点忘记 `return`
+分数会判 0 分、`page.click` 打到 disabled 按钮会卡 30 秒）。规则编号见
+`packages/problem-creator-cli/docs/RULES.md`。
 
 ## 部署说明
 
-### 生产环境部署
+### 单机 Compose 部署
 
 ```bash
 # 构建所有镜像
@@ -284,42 +278,79 @@ pnpm docker:up
 pnpm docker:down
 ```
 
-### 端口映射
+生产 Compose 中的 `${...:?}` 变量（管理员账号、JWT 密钥、云函数内部密钥、webhook 签名密钥等）
+必须通过 `.env` 提供。容量规划见 `docs/DEPLOY_SIZING.md`，核心流程见 `docs/CORE_DEPLOY.md`。
 
-| 服务 | 内部端口 | 外部端口 |
-|------|----------|----------|
-| Web 应用 | 3000 | 3000 |
-| 评测调度器 | 1888 | - |
-| PostgreSQL | 5432 | 25432 |
-| Redis | 6379 | 26379 |
+### CI/CD
+
+CI 构建镜像推送到 GHCR 后回调部署机的 webhook（`ci/deploy-webhook.mjs`），
+由其按 digest 拉取镜像、重打标签、`docker compose up -d` 只重启变化的服务，
+失败自动回滚。契约见 `docs/IMAGE_WEBHOOK.md`，部署与运维见 `ci/README.md`。
+
+### 端口
+
+| 服务 | 容器端口 | 宿主机端口 | 说明 |
+|------|----------|------------|------|
+| Web 应用 | 3000 | 3000 | |
+| 评测调度器 | 1888 | 未发布 | 仅 Compose 网络内可达 |
+| 云函数服务 | 1890 | 127.0.0.1:1890 | 只绑回环，供 webhook 健康探测 |
+| PostgreSQL | 5432 | 25432 | |
+| Redis | 6379 | 26379 | |
+| 前端判题机 | 1889 | 宿主机 1889 | 调度器运行期创建，经 `host.docker.internal` 连接 |
+| 后端判题机 | 1891 | 宿主机 1891 | 同上 |
+| 采集服务（observation） | 9310 | 127.0.0.1:9310 | 独立 Compose（`packages/challenge-observation/deploy`） |
 
 ## 环境变量
 
-### Web 应用 (challenge-web-app)
+变量名以 `docker/docker-compose.yaml` 为准。
+
+### challenge-web-app
 
 | 变量名 | 说明 | 示例值 |
 |--------|------|--------|
 | `DATABASE_URL` | PostgreSQL 连接字符串 | `postgres://user:pass@host:5432/db` |
-| `NUXT_REDIS_HOST` | Redis 主机地址 | `localhost` |
-| `NUXT_JUDGE_SERVER_URL` | 评测服务地址 | `http://localhost:1888` |
-| `SUPER_ACCOUNT` | 超级管理员账号 | `admin` |
-| `SUPER_PASSWORD` | 超级管理员密码 | `admin123` |
-| `SUPER_EMAIL` | 超级管理员邮箱 | `admin@example.com` |
+| `REDIS_HOST` | Redis 主机 | `redis` |
+| `APP_SERVER` | 站点对外地址（影响 cookie 等） | `https://your-domain.example` |
+| `JUDGE_SERVER` | 调度器地址 | `http://challenge-judge-scheduler:1888` |
+| `ACCESS_TOKEN_SECRET` / `REFRESH_TOKEN_SECRET` | JWT 签名密钥（运行时注入） | - |
+| `SUPER_ACCOUNT` / `SUPER_PASSWORD` / `SUPER_EMAIL` | 超级管理员账号 | - |
+| `CF_SERVER` / `CF_INTERNAL_KEY_ID` / `CF_INTERNAL_SECRET` | 云函数服务地址与内部密钥 | - |
+| `OBSERVATION_SERVER_URL` | 采集服务地址（前端上报转发用） | `http://observation:9310` |
+| `OBSERVATION_REPORT_TOKEN` | 上报令牌（与监控栈 `OBS_REPORT_TOKEN` 一致，可选） | - |
+| `RELEASE_VERSION` | 发布版本标识（前端监控打标用） | - |
 
-### 评测调度器 (challenge-judge-scheduler)
+> Nuxt build 会把 `runtimeConfig` 烘焙为字面量，运行时只有 `NUXT_` 前缀的变量能覆盖
+> （如 `NUXT_OBSERVATION_SERVER_URL`），Compose 文件中已同时注入对应键。
+
+### challenge-judge-scheduler
 
 | 变量名 | 说明 | 示例值 |
 |--------|------|--------|
 | `DATABASE_URL` | PostgreSQL 连接字符串 | `postgres://user:pass@host:5432/db` |
-| `REDIS_HOST` | Redis 主机地址 | `localhost` |
+| `REDIS_HOST` | Redis 主机 | `redis` |
 | `PORT` | 服务端口 | `1888` |
+| `APP_SERVER_URL` | Web 应用地址（判题后回调同步排行榜与通知） | `http://challenge-web-app:3000` |
+| `OPENAPI_WEBHOOK_SECRET` | 回调签名密钥（与 Web 应用共享） | - |
+| `JUDGE_MACHINE_WS_URL` | 前端判题机 WebSocket 地址 | `ws://host.docker.internal:1889/link` |
+| `BACKEND_JUDGE_MACHINE_WS_URL` | 后端判题机 WebSocket 地址 | `ws://host.docker.internal:1891/link` |
+| `CF_SERVER` / `CF_INTERNAL_KEY_ID` / `CF_INTERNAL_SECRET` | 云函数服务地址与内部密钥 | - |
+| `TEMP_DIR` | 判题快照目录（须与宿主机共享同一 bind mount 路径） | `/app/tmp` |
+| `PNPM_CACHE_DIR` | 共享 pnpm 缓存目录 | `/app/pnpm-cache` |
+| `PNPM_CACHE_PROBLEM_IMAGE` | 缓存预热/门禁用的题目容器镜像（可选） | - |
+| `JUDGE_MACHINE_OPTIONAL` | 置 `1` 时前端判题机不可用也允许启动（降级） | - |
 
-## 许可证
+## 文档索引
 
-本项目采用 [MIT 许可证](LICENSE)。
-
----
-
-<p align="center">
-  <b>Quanta 前端挑战</b> - 让编程学习更高效
-</p>
+| 文档 | 内容 |
+|------|------|
+| [`docs/PROBLEM_AUTHORING.md`](docs/PROBLEM_AUTHORING.md) | 题目编写规范 |
+| [`docs/BACKEND_SERVICE_PROBLEM.md`](docs/BACKEND_SERVICE_PROBLEM.md) | 后端服务题型：沙箱能力、判题协议 |
+| [`docs/CORE_DEPLOY.md`](docs/CORE_DEPLOY.md) | 核心部署流程 |
+| [`docs/DEPLOY_SIZING.md`](docs/DEPLOY_SIZING.md) | 部署资源规划 |
+| [`docs/IMAGE_WEBHOOK.md`](docs/IMAGE_WEBHOOK.md) | 镜像发布 webhook 报文契约与签名 |
+| [`docs/PNPM_CACHE.md`](docs/PNPM_CACHE.md) | 判题共享 pnpm 缓存 |
+| [`ci/README.md`](ci/README.md) | 部署机 webhook 的部署与运维 |
+| [`packages/challenge-judge-scheduler/README.md`](packages/challenge-judge-scheduler/README.md) | 调度器细节 |
+| [`packages/challenge-agents/judge-machine/README.md`](packages/challenge-agents/judge-machine/README.md) | 判题机与 JRTP 协议 |
+| [`packages/problem-creator-cli/README.md`](packages/problem-creator-cli/README.md) | 出题工具链用法与规则 |
+| [`packages/challenge-observation/README.md`](packages/challenge-observation/README.md) | 监控栈架构与接入 |

@@ -15,6 +15,8 @@ export const IGNORE_FILE_PATTERNS = [
    '**/.git',
    '**/dist/',
    '**/.cache/',
+   '**/.vite/',
+   '**/.vite',
    '**/*.lock',
    'dist',
    '**/.quanta/**',

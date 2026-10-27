@@ -2,12 +2,27 @@
 import { useMessage } from '~/components/st/Message/use-message';
 
 /** 文章正文（Markdown 已渲染成 HTML）：只负责排版，不参与解析。 */
-defineProps<{ html?: string }>();
+defineProps<{ html?: string; dense?: boolean }>();
 
 const message = useMessage();
 const resetTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
 
-// 正文是 v-html 注入的，复制按钮用事件委托接
+const onImageClick = (event: MouseEvent) => {
+   const target = event.target as HTMLElement;
+   if (target.tagName !== 'IMG') return;
+   const img = target as HTMLImageElement;
+   const src = img.currentSrc || img.src;
+   if (!src) return;
+   event.preventDefault();
+   event.stopPropagation();
+   globalImage.open(src, { source: img, alt: img.alt || '' });
+};
+
+const onContentClick = (event: MouseEvent) => {
+   onImageClick(event);
+   void onCopy(event);
+};
+
 const onCopy = async (event: MouseEvent) => {
    const button = (event.target as Element | null)?.closest<HTMLElement>(
       '.article-code__copy',
@@ -36,7 +51,11 @@ const onCopy = async (event: MouseEvent) => {
 </script>
 
 <template>
-   <div v-html="html" class="article-body st-selectable" @click="onCopy" />
+   <div
+      v-html="html"
+      class="article-body st-selectable"
+      :class="{ 'article-body--dense': dense }"
+      @click="onContentClick" />
 </template>
 
 <style src="./article-body.css" />

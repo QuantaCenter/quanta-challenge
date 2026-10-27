@@ -105,11 +105,15 @@ watch(projectFs, restoreFileSystemItem, { immediate: true, deep: true });
          :placeholder="props.placeholder"
          type="folder"
          @update:directory="directory = $event" />
-      <StSpace v-else fill gap="0.75rem" class="p-2">
+      <StSpace
+         v-else
+         fill
+         gap="0.75rem"
+         class="p-2 max-md:flex-col max-md:gap-2!">
          <StSpace
             direction="vertical"
             gap="0.5rem"
-            class="w-[12.56rem] h-full shrink-0 pt-1">
+            class="w-[12.56rem] h-full shrink-0 pt-1 max-md:w-full max-md:h-[10rem] max-md:shrink">
             <StScrollable fill scroll-y class="overflow-x-hidden">
                <StSpace direction="vertical">
                   <StFileSystemTree
@@ -138,7 +142,7 @@ watch(projectFs, restoreFileSystemItem, { immediate: true, deep: true });
             <StSpace v-if="previewImageBase64" fill center>
                <img
                   :src="previewImageBase64"
-                  class="max-h-[20rem] max-w-[20rem] object-contain" />
+                  class="max-h-[20rem] max-w-[20rem] object-contain max-md:max-w-full" />
             </StSpace>
          </StScrollable>
       </StSpace>

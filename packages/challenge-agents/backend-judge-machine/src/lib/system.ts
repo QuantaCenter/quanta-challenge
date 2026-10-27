@@ -1,3 +1,5 @@
+/** 后端服务题型的判题脚本运行时：与前端判题机的 system.ts 平行实现，这里暴露受约束的 http 客户端，共用「检查点 => 结果」聚合约定。 */
+
 export interface HttpResult {
    status: number;
    headers: Record<string, string>;
@@ -22,6 +24,7 @@ export interface HttpClientConfig {
    maxBytes: number;
 }
 
+/** 受限 HTTP 客户端，安全边界：同源白名单（防 SSRF）、单请求 10s 超时、响应体 2MB 上限。 */
 export class HttpClient {
    constructor(private readonly config: HttpClientConfig) {}
 

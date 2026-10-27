@@ -1,15 +1,9 @@
-import type { DirectoryNode, FileSystemTree } from '@WebContainer/api';
+import type { DirectoryNode, FileSystemTree } from '@webcontainer/api';
+import {
+   decodeSnapshotContent,
+   hasBinarySnapshotExtension,
+} from '@challenge/shared/snapshot-content';
 import { normalizePath, splitPath } from '~/utils/path-utils';
-
-const base64ToUint8Array = (base64: string) => {
-   const binaryString = atob(base64);
-   const len = binaryString.length;
-   const bytes = new Uint8Array(len);
-   for (let i = 0; i < len; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
-   }
-   return bytes;
-};
 
 const writeFile = (
    fs: FileSystemTree,
@@ -18,13 +12,17 @@ const writeFile = (
    contents: string | Uint8Array
 ) => {
    if (pathSegments.length === 0) {
-      if (typeof contents === 'string' && contents.startsWith('data:image')) {
-         const b64 = contents.split(',')[1] || '';
-         contents = base64ToUint8Array(b64);
+      const decoded =
+         typeof contents === 'string'
+            ? decodeSnapshotContent(fileName, contents)
+            : contents;
+      if (typeof decoded === 'string' && hasBinarySnapshotExtension(fileName)) {
+         console.warn(
+            `[webcontainer] ${fileName} 不是合法的 base64，按文本写入：`,
+            decoded.slice(0, 64)
+         );
       }
-      fs[fileName] = {
-         file: { contents },
-      };
+      fs[fileName] = { file: { contents: decoded } };
       return;
    }
    const dir = pathSegments.shift()!;
@@ -41,10 +39,7 @@ const writeFile = (
    );
 };
 
-/**
- * 将路径内容映射转换为 WebContainer 的 FileSystemTree
- * 输入的路径可以是任意格式，会自动规范化
- */
+/** 将路径内容映射转换为 FileSystemTree，路径会自动规范化。 */
 export const convertToFsTree = (pathContentMap: Record<string, string>) => {
    const fsTree: FileSystemTree = {};
    Object.entries(pathContentMap).forEach(([path, content]) => {

@@ -141,9 +141,9 @@ const handleSendCode = async () => {
 </script>
 
 <template>
-   <div class="w-screen h-screen flex items-center justify-center">
+   <div class="w-full h-dvh overflow-hidden flex items-center justify-center">
       <div
-         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-r5 gap-6 w-[28.5rem]">
+         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-none gap-6 w-full h-full overflow-y-auto sm:rounded-r5 sm:w-[28.5rem] sm:h-auto">
          <IconLogo />
          <div class="flex flex-col items-center gap-r6">
             <h1 class="text-2xl font-bold">开启你的旅程</h1>

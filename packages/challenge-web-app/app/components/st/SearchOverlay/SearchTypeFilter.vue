@@ -7,11 +7,18 @@ import {
    User,
    WebPage,
    Plus,
+   GoldMedalTwo,
+   VolumeNotice,
+   History,
+   Help,
+   Code,
 } from '@icon-park/vue-next';
 import type { DefineComponent } from 'vue';
 import type { SearchType } from '~/types/search';
+import useAuthStore from '~/stores/auth-store';
 import {
    SEARCH_TYPE_CONFIGS,
+   ADMIN_ONLY_SEARCH_TYPES,
    getSortedSearchTypes,
 } from '@challenge/shared/config';
 
@@ -36,11 +43,23 @@ const ICON_MAP = {
    User,
    TagOne,
    WebPage,
+   GoldMedalTwo,
+   VolumeNotice,
+   History,
+   Help,
+   Code,
 } as const;
 
-// 所有可选的搜索类型 - 从统一配置生成
-const searchTypeOptions: SearchTypeOption[] = getSortedSearchTypes().map(
-   (type: SearchType) => {
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role !== 'USER');
+
+// 所有可选的搜索类型 - 从统一配置生成（管理类类型仅对管理员展示）
+const searchTypeOptions: SearchTypeOption[] = getSortedSearchTypes()
+   .filter(
+      (type: SearchType) =>
+         isAdmin.value || !ADMIN_ONLY_SEARCH_TYPES.includes(type)
+   )
+   .map((type: SearchType) => {
       const config =
          SEARCH_TYPE_CONFIGS[type as keyof typeof SEARCH_TYPE_CONFIGS];
       return {
@@ -48,8 +67,7 @@ const searchTypeOptions: SearchTypeOption[] = getSortedSearchTypes().map(
          label: config.label,
          icon: ICON_MAP[config.icon as keyof typeof ICON_MAP],
       };
-   }
-);
+   });
 
 // 下拉菜单状态
 const isDropdownOpen = ref(false);
@@ -132,6 +150,7 @@ onClickOutside(
    },
    { ignore: [container] }
 );
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -168,7 +187,7 @@ onClickOutside(
    </div>
 
    <!-- 下拉菜单 (绑定到 body) -->
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <Transition name="dropdown">
          <div
             :ref="popperKey"

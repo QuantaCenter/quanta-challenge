@@ -60,10 +60,17 @@ jobs:
 
       # 构建产物的冒烟测试：npm bin 与 jiti 加载 .ts 配置这两条路径
       # 在 tsup 改变输出布局时最容易悄悄坏掉，必须在 CI 里真的跑一次。
+      # 脚手架必须能通过自己的预检；agent 手册与 .d.ts 必须随构建产物分发。
       - name: Smoke test built CLI
         run: |
           node dist/index.js --version
-          node dist/index.js check examples/hello-total
+          node dist/index.js check examples/hello-total --no-run
+          for type in frontend backend_service; do
+            node dist/index.js init "$RUNNER_TEMP/qpc-$type" --type "$type" --yes
+          done
+          node dist/index.js check "$RUNNER_TEMP/qpc-frontend" --no-run
+          node dist/index.js agent --list
+          node dist/index.js agent dts --type backend > /dev/null
 
       - name: Summary
         if: always()

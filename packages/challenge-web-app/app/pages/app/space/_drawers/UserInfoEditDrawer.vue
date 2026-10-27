@@ -13,6 +13,7 @@ const outerClass = 'border !py-4 !px-4 !rounded-[0.5rem] w-full';
 const { $trpc } = useNuxtApp();
 
 const formdata = reactive({
+   displayName: '',
    bio: '',
    email: '',
    major: '',
@@ -22,7 +23,17 @@ const formdata = reactive({
    avatarImageId: '',
 });
 
+// 当前已保存的头像/背景图地址，用于回显图片
+const avatarImageUrl = ref('');
+const bannerImageUrl = ref('');
+
 const rules: IRule[] = [
+   {
+      field: 'displayName',
+      validator(value) {
+         return ((value as string) || '').trim().length <= 30;
+      },
+   },
    {
       field: 'email',
       validator(value) {
@@ -40,6 +51,7 @@ const loadUserInfo = async () => {
    try {
       const data = await $trpc.protected.user.getUserInfo.query();
       if (data) {
+         formdata.displayName = data.displayName || '';
          formdata.bio = data.bio || '';
          formdata.email = data.email || '';
          formdata.major = data.major || '';
@@ -52,6 +64,8 @@ const loadUserInfo = async () => {
          }
          formdata.bannerImageId = data.bannerImageId || '';
          formdata.avatarImageId = data.avatarImageId || '';
+         bannerImageUrl.value = data.bannerImageUrl || '';
+         avatarImageUrl.value = data.avatarUrl || '';
       }
    } catch (e) {
       console.error('加载用户信息失败:', e);
@@ -74,6 +88,7 @@ const handleUpdate = async () => {
 
    const updateUserInfo = async () => {
       await $trpc.protected.user.updateUserInfo.mutate({
+         displayName: formdata.displayName,
          bio: formdata.bio || undefined,
          email: formdata.email || undefined,
          major: formdata.major || undefined,
@@ -110,7 +125,9 @@ const enableSubmit = computed(() => {
       <StSpace direction="vertical" gap="0" fill class="text-white">
          <StSpace direction="vertical" gap="1.5rem" fill class="p-6">
             <!-- Header -->
-            <h1 class="st-font-secondary-bold">编辑个人资料</h1>
+            <h1 class="st-font-secondary-bold max-md:text-[1.25rem]">
+               编辑个人资料
+            </h1>
             <StSpace fill class="relative overflow-auto">
                <StForm
                   ref="form"
@@ -121,11 +138,18 @@ const enableSubmit = computed(() => {
                      <StFormItem name="avatarImageId" label="头像">
                         <StUploadImage
                            v-model:image-id="formdata.avatarImageId"
+                           v-model:image-url="avatarImageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="8rem"
                            placeholder="请选择头像"
                            aspect-ratio="1/1"
                            upload-level="USER" />
+                     </StFormItem>
+                     <StFormItem name="displayName" label="昵称">
+                        <StInput
+                           v-model:value="formdata.displayName"
+                           placeholder="请输入昵称（留空则显示用户名）"
+                           :outer-class />
                      </StFormItem>
                      <StFormItem name="bio" label="个性签名">
                         <StTextarea
@@ -160,6 +184,7 @@ const enableSubmit = computed(() => {
                      <StFormItem name="bannerImageId" label="背景图">
                         <StUploadImage
                            v-model:image-id="formdata.bannerImageId"
+                           v-model:image-url="bannerImageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="8rem"
                            placeholder="请选择背景图"

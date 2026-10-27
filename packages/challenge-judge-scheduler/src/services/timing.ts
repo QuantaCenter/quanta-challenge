@@ -1,4 +1,5 @@
 import { Singleton } from '../utils/singleton';
+import { logger } from '../utils/logger';
 
 export type TimingType = 'start' | 'end';
 
@@ -79,7 +80,9 @@ export class TimingService extends Singleton {
    private finish(id: string, description: string): ITimingRecord | undefined {
       const nodes = this.pending.get(id);
       if (!nodes?.length) {
-         console.warn(`[Timing] 缺少 start 记录，无法计时：id=${id} node=${description}`);
+         logger.warn(
+            `缺少 start 记录，无法计时：id=${id} node=${description}`
+         );
          return undefined;
       }
 
@@ -100,8 +103,9 @@ export class TimingService extends Singleton {
       };
 
       // 目前仅打日志；后续需要上报时在 report 里接入即可。
-      console.log(
-         `[Timing] ${record.description} (id=${id}) 耗时 ${record.duration}ms ` +
+      logger.info(
+         { duration: record.duration },
+         `${record.description} (id=${id}) 耗时 ${record.duration}ms ` +
             `[${new Date(record.startedAt).toISOString()} -> ${new Date(endedAt).toISOString()}]`
       );
       this.report(record);

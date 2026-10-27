@@ -20,7 +20,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | JUD005 | warn | 检查点分值 ≤ 0 | 通常是笔误；0 分检查点没有判分意义 |
 | JUD006 | warn | 检查点分值不是数字字面量 | 本地无法累加校验，线上 `totalScore` 很可能对不上 |
 | JUD007 | warn | 检查点名称重复 | 判题详情里无法区分同名检查点 |
-| JUD008 | warn | `xxx.click(...)` 未设置 `timeout` | 目标是 disabled 按钮时 Playwright 会重试到 30 秒超时 |
+| JUD008 | warn | `xxx.click(...)` 未设置 `timeout`（`evaluate` / `$eval` 回调里的 DOM `click()` 不算） | 目标是 disabled 按钮时 Playwright 会重试到 30 秒超时 |
 | JUD009 | info | `$.expect` 的消息里既没有实际值也没有"期望/实际" | 消息会原样展示给学生，看不懂等于没提示 |
 | JUD010 | warn | 脚本里没有任何 `$.expect` | 没有断言的判题等于白送分 |
 | JUD011 | warn | 存在 `default` 之外的导出 | 模块替换后残留绑定，行为不可预期 |
@@ -42,6 +42,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | RUN004 | warn | 没有配置 `buildCommand` | 在线编辑器点「提交」时会先跑它；为空时编辑器侧直接 return，表现是「点了提交什么都没发生」。静态题也写 `echo built` |
 | IMG001 | error | `cover.mode = 'custom'` 但没给 `imageId` | 服务端 schema 会拒绝，属于"提交前就能发现"的错误。配置了 `cover.generate` 时用 `qpc cover --upload --write` 消除 |
 | IMG002 | error | 后端题型用了默认封面（首屏截图） | 后端没有页面可截，封面永远生成不出来。用 `cover: { mode: 'custom', generate: {...} }` + `qpc cover --upload --write` |
+| IMG003 | error | 题面引用了本地图片（Markdown `![](相对路径)` 或 `<img src="相对路径">`） | 上传后学生看不到。`qpc image --write` 上传并把地址回写成 `/api/static/<名字>` |
 
 ## 工程快照（TPL / ANS / SNAP）
 
@@ -55,6 +56,19 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | SNAP001 | error | 快照体积超过上限（默认 5 MiB，`QUANTA_MAX_UPLOAD_BYTES`） | 多半把 `dist/`、`node_modules/` 或大图打进去了 |
 | SNAP002 | error | 快照文件数超过 500 | 同上 |
 | SNAP003 | info | 跳过了 `node_modules/` / `dist/` 等条目 | 让"我明明放了文件却没上传"变可见 |
+| SNAP004 | warn | 图片扩展名的文件内容是 `data:...;base64,` 文本 | 上传时已还原成真实字节；否则平台只能解开一层，学生环境里拿到的是 data URL 文本 |
+
+## 本地微判题（LOC）
+
+`qpc check` 静态规则全部通过后，在与线上判题机同构的沙箱里对 `answer/` 与 `template/` 各跑一遍判题脚本（`--no-run` 跳过）。
+
+| 规则 | 级别 | 触发条件 | 为什么 |
+|---|---|---|---|
+| LOC001 | error | 参考解运行时判题脚本整体失败 | 线上会让所有检查点作废（超时、页面/服务没起来、用了沙箱没有的 `setTimeout` / `fetch`） |
+| LOC002 | error | 参考解本地得分 ≠ 总分 | 线上审计要求参考解满分 |
+| LOC003 | warn | 答案模板也拿满分 | 判题脚本抓不到错误 |
+| LOC004 | warn | 参考解判题耗时超过 15 秒 | 线上预算 20 秒且机器更慢，超时全部作废 |
+| LOC005 | warn | 环境不满足而跳过（无可用无头浏览器 / 后端依赖未安装） | 让"没验证"可见；按提示安装后重跑 |
 
 ## 加一条规则要改什么
 

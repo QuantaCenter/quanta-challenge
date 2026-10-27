@@ -1,0 +1,55 @@
+// 采集所有 Docker 容器日志并发送到 Loki
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+// 发现运行中的容器
+discovery.docker "containers" {
+	host             = "unix:///var/run/docker.sock"
+	refresh_interval = "5s"
+}
+
+// 容器名 -> container 标签
+discovery.relabel "containers" {
+	targets = discovery.docker.containers.targets
+
+	rule {
+		source_labels = ["__meta_docker_container_name"]
+		regex         = "/(.*)"
+		target_label  = "container"
+	}
+
+	rule {
+		source_labels = ["__meta_docker_network_ip"]
+		target_label  = "instance"
+	}
+}
+
+loki.source.docker "containers" {
+	host       = "unix:///var/run/docker.sock"
+	targets    = discovery.relabel.containers.output
+	forward_to = [loki.process.containers.receiver]
+	labels     = { source = "docker" }
+}
+
+// 丢弃健康检查刷屏日志
+loki.process "containers" {
+	stage.match {
+		selector = "{container=~\"quanta-challenge-web-app|quanta-challenge-judge-scheduler\"}"
+		stage.drop {
+			expression = ".*(GET /healthz|GET /health).*"
+			drop_counter_reason = "healthcheck-noise"
+		}
+	}
+
+	forward_to = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+	endpoint {
+		url        = "http://loki:3100/loki/api/v1/push"
+		batch_wait = "1s"
+		batch_size = "1MB"
+	}
+}

@@ -7,6 +7,11 @@ import {
    TagOne,
    User,
    WebPage,
+   GoldMedalTwo,
+   VolumeNotice,
+   History,
+   Help,
+   Code,
 } from '@icon-park/vue-next';
 import type { SearchResult, SearchResultType } from '~/types/search';
 import {
@@ -22,8 +27,15 @@ const {
    searchTypes,
    searchResults,
    isSearching,
+   isLoadingMore,
+   hasMoreResults,
    performSearch,
 } = useSearch();
+
+// 加载更多结果
+const loadMore = () => {
+   performSearch(localQuery.value, { append: true });
+};
 
 // 图标映射
 const ICON_MAP = {
@@ -32,6 +44,11 @@ const ICON_MAP = {
    User,
    TagOne,
    WebPage,
+   GoldMedalTwo,
+   VolumeNotice,
+   History,
+   Help,
+   Code,
 } as const;
 
 // 类型标签配置 - 从统一配置生成
@@ -273,10 +290,11 @@ const handleQuickAccessNavigate = (url: string) => {
 const isWindows = computed(() => {
    return navigator ? navigator.userAgent.includes('Windows') : false;
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <Transition name="search-overlay">
          <div
             v-if="isSearchOpen"
@@ -420,6 +438,22 @@ const isWindows = computed(() => {
                                        data-result-item
                                        @click="handleResultClick" />
                                  </div>
+                              </div>
+
+                              <!-- 加载更多 -->
+                              <div
+                                 v-if="hasMoreResults"
+                                 class="flex justify-center py-3">
+                                 <button
+                                    class="px-4 py-1.5 text-xs rounded-lg bg-accent-600 hover:bg-accent-500 text-accent-200 transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed"
+                                    :disabled="isLoadingMore"
+                                    @click="loadMore">
+                                    {{
+                                       isLoadingMore
+                                          ? '加载中...'
+                                          : '加载更多'
+                                    }}
+                                 </button>
                               </div>
                            </div>
                         </div>

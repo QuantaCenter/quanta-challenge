@@ -1,52 +1,117 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import {
+   hasEntries,
+   REFERENCE_ANSWER_REQUIRED_MESSAGE,
    ReuploadSchema,
    resolveBackendServiceRuntime,
    UploadSchema,
 } from '../../schemas/publish-schema';
+import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
-import { IFile, projectService } from '../../services/project';
+import type { IFile } from '../../services/project';
+import {
+   cancelPublishScheduledTask,
+   dispatchPublishScheduledTask,
+} from '../../../services/publish-scheduled-problem';
+import { projectService } from '../../services/project';
 import z from 'zod';
 import { Prisma, PrismaClient } from '@prisma/client';
-import { DefaultArgs } from '@prisma/client/runtime/library';
+import type { DefaultArgs } from '@prisma/client/runtime/library';
 import { useStore } from '../../store';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
+import { ensureSnapshotImageReady } from '../../../services/image-build';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
    '$connect' | '$disconnect' | '$on' | '$transaction' | '$use' | '$extends'
 >;
 
+type UploadInput = z.infer<typeof UploadSchema>;
+
+/** 编辑题目时需要重新审核的原因 */
+type AuditReason =
+   | 'status'
+   | 'judgeScript'
+   | 'answerTemplate'
+   | 'totalScore'
+   | 'runtime'
+   | 'cover';
+
+/** 版本的运行时配置。后端题的 bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样） */
+const resolveVersionRuntime = (input: UploadInput) => {
+   const backendRuntime =
+      input.problemType === 'backend_service'
+         ? resolveBackendServiceRuntime({
+              serviceImage: input.serviceImage,
+              servicePort: input.servicePort,
+              judgeUploadPath: input.judgeUploadPath,
+           })
+         : undefined;
+   return {
+      bootCommand: backendRuntime?.bootCommand ?? input.bootCommand,
+      initCommand: input.initCommand,
+      buildCommand: input.buildCommand,
+      judgeUploadPath: input.judgeUploadPath,
+      // 后端题：云函数在判题容器里调不通（不签发令牌），强制关掉
+      enableCloudFunction:
+         backendRuntime?.enableCloudFunction ??
+         (input.enableCloudFunction ?? false),
+      problemType: input.problemType ?? 'frontend',
+      serviceImage: backendRuntime?.serviceImage ?? input.serviceImage,
+      servicePort: backendRuntime?.servicePort ?? input.servicePort ?? 3000,
+   };
+};
+
+/** 提取判题脚本的 default export；同一份脚本多次提取结果一致，可用于比较脚本是否变化 */
+const extractJudgeScript = async (options: {
+   judgeServerUrl: string;
+   traceId: string;
+   code: string;
+}) => {
+   const { code } = await fetch(`${options.judgeServerUrl}/code/extract`, {
+      method: 'POST',
+      headers: {
+         'Content-Type': 'application/json',
+         'x-trace-id': options.traceId,
+      },
+      body: JSON.stringify({ code: options.code }),
+   }).then((res) => res.json());
+   return typeof code === 'string' && code ? code : null;
+};
+
+/** 自定义封面需要预先计算 thumbhash */
+const ensureCoverThumbhash = async (coverImageId?: string) => {
+   if (!coverImageId) return;
+   const { name } = await prisma.image.findUniqueOrThrow({
+      where: { id: coverImageId },
+      select: { name: true },
+   });
+   const store = useStore();
+   const buffer = await store.getBuffer(name);
+   if (!buffer) {
+      throw new TRPCError({
+         code: 'BAD_REQUEST',
+         message: 'Cover image not found in storage',
+      });
+   }
+   const hash = await generateThumbhashFromBuffer(buffer);
+   await prisma.image.update({
+      where: { id: coverImageId },
+      data: { thumbhash: hash },
+   });
+};
+
 const handleCreateVersion = async (options: {
    tx: TX;
-   input: z.infer<typeof UploadSchema>;
+   input: UploadInput;
    userId: string;
    baseProblemId: number;
    judgeScript: string;
-   judgeServerUrl: string;
-   traceId: string;
 }) => {
-   const {
-      tx,
-      input,
-      userId,
-      baseProblemId,
-      judgeScript,
-      judgeServerUrl,
-      traceId,
-   } = options;
-   // 后端题：bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样）
-   const isBackendService = input.problemType === 'backend_service';
-   const backendRuntime = isBackendService
-      ? resolveBackendServiceRuntime({
-           serviceImage: input.serviceImage,
-           servicePort: input.servicePort,
-           judgeUploadPath: input.judgeUploadPath,
-        })
-      : undefined;
+   const { tx, input, userId, baseProblemId, judgeScript } = options;
    // 创建问题版本
    const problem = await tx.problems.create({
       data: {
@@ -57,17 +122,11 @@ const handleCreateVersion = async (options: {
          totalScore: input.totalScore,
          status: 'draft',
          coverImageId: input.coverImageId,
-         bootCommand: backendRuntime?.bootCommand ?? input.bootCommand,
-         initCommand: input.initCommand,
-         buildCommand: input.buildCommand,
-         judgeUploadPath: input.judgeUploadPath,
-         // 后端题：云函数在判题容器里调不通（不签发令牌），强制关掉
-         enableCloudFunction:
-            backendRuntime?.enableCloudFunction ??
-            (input.enableCloudFunction ?? false),
-         problemType: input.problemType ?? 'frontend',
-         serviceImage: backendRuntime?.serviceImage ?? input.serviceImage,
-         servicePort: backendRuntime?.servicePort ?? input.servicePort ?? 3000,
+         snapshotImageId: input.snapshotImageId ?? null,
+         ...resolveVersionRuntime(input),
+         taskStartAt: input.taskStartAt,
+         taskEndAt: input.taskEndAt,
+         scheduledPublishAt: input.scheduledPublishAt,
          tags: {
             connect: input.tagIds.map((id) => ({
                tid: id,
@@ -133,7 +192,28 @@ const handleCreateVersion = async (options: {
       },
    });
 
-   // 发送任务到任务处理服务
+   return { problemId, judgeRecordId: templateJudgeRecord.judgeRecordId };
+};
+
+// 审计任务必须在事务提交后派发：调度器收到任务会立刻查库，事务未提交时会因查不到题目行直接失败
+const createAuditTask = async (options: {
+   judgeServerUrl: string;
+   traceId: string;
+   userId: string;
+   problemId: number;
+   judgeRecordId: number;
+   judgeScript: string;
+   fsSnapshot: UploadInput['referenceAnswerSnapshot'];
+}) => {
+   const {
+      judgeServerUrl,
+      traceId,
+      userId,
+      problemId,
+      judgeRecordId,
+      judgeScript,
+      fsSnapshot,
+   } = options;
    await fetch(`${judgeServerUrl}/task/create`, {
       method: 'POST',
       headers: {
@@ -141,11 +221,11 @@ const handleCreateVersion = async (options: {
          'x-trace-id': traceId,
       },
       body: JSON.stringify({
-         userId: userId,
-         problemId: problemId,
-         judgeRecordId: templateJudgeRecord.judgeRecordId,
-         judgeScript: judgeScript,
-         fsSnapshot: input.referenceAnswerSnapshot,
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot,
          mode: 'audit',
       }),
    }).then((res: any) => {
@@ -156,74 +236,56 @@ const handleCreateVersion = async (options: {
          });
       }
    });
-
-   return problemId;
 };
 
 // 上传新问题及其详细信息、判题脚本和答题模板。
 const uploadProcedure = protectedAdminProcedure
+   .use(requireCliVersion)
    .input(UploadSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
       const { judge } = useRuntimeConfig();
 
-      const { code: judgeScript } = await fetch(
-         `${judge.serverUrl}/code/extract`,
-         {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'x-trace-id': ctx.traceId ?? '',
-            },
-            body: JSON.stringify({
-               code: input.judgeScript,
-            }),
-         },
-      ).then((res) => res.json());
-      if (!judgeScript || typeof judgeScript !== 'string') {
+      const judgeScript = await extractJudgeScript({
+         judgeServerUrl: judge.serverUrl,
+         traceId: ctx.traceId ?? '',
+         code: input.judgeScript,
+      });
+      if (!judgeScript) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'Judge script must export a default function',
          });
       }
 
-      // 如果有封面图片，计算其 thumbhash
-      if (input.coverImageId) {
-         const { name } = await prisma.image.findUniqueOrThrow({
-            where: { id: input.coverImageId },
-            select: { name: true },
-         });
-         const store = useStore();
-         const buffer = await store.getBuffer(name);
-         if (!buffer) {
-            throw new TRPCError({
-               code: 'BAD_REQUEST',
-               message: 'Cover image not found in storage',
-            });
-         }
-         const hash = await generateThumbhashFromBuffer(buffer);
-         await prisma.image.update({
-            where: { id: input.coverImageId },
-            data: { thumbhash: hash },
-         });
-      }
+      await ensureCoverThumbhash(input.coverImageId);
+      await ensureSnapshotImageReady(input.snapshotImageId);
 
-      let problemId: number | undefined;
-      await prisma.$transaction(async (tx) => {
-         // 创建问题
-         const baseProblem = await tx.baseProblems.create({
-            data: { authorId: userId },
-         });
-         // 创建问题版本
-         problemId = await handleCreateVersion({
-            tx,
-            input,
-            userId,
-            baseProblemId: baseProblem.id,
-            judgeScript,
-            judgeServerUrl: judge.serverUrl,
-            traceId: ctx.traceId ?? '',
-         });
+      const { problemId, judgeRecordId } = await prisma.$transaction(
+         async (tx) => {
+            // 创建问题
+            const baseProblem = await tx.baseProblems.create({
+               data: { authorId: userId },
+            });
+            // 创建问题版本
+            return handleCreateVersion({
+               tx,
+               input,
+               userId,
+               baseProblemId: baseProblem.id,
+               judgeScript,
+            });
+         },
+      );
+
+      await createAuditTask({
+         judgeServerUrl: judge.serverUrl,
+         traceId: ctx.traceId ?? '',
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot: input.referenceAnswerSnapshot,
       });
 
       return {
@@ -254,6 +316,9 @@ const getAuditDetailProcedure = protectedAdminProcedure
             status: true,
             difficulty: true,
             createdAt: true,
+            taskStartAt: true,
+            taskEndAt: true,
+            scheduledPublishAt: true,
             tags: {
                select: {
                   name: true,
@@ -369,10 +434,84 @@ const setStatusProcedure = protectedAdminProcedure
          },
          data: {
             status: newStatus,
+            // 立即发布/取消发布即放弃定时
+            scheduledPublishAt: null,
+         },
+      });
+      await cancelPublishScheduledTask(problemId);
+
+      return { message: `Problem is now ${newStatus}` };
+   });
+
+// 设置/取消定时发布，到点由定时器模块自动发布
+const SchedulePublishSchema = z.object({
+   problemId: z.number('Problem ID must be a number').int(),
+   scheduledPublishAt: z.coerce.date().nullish(),
+});
+
+const schedulePublishProcedure = protectedAdminProcedure
+   .input(SchedulePublishSchema)
+   .mutation(async ({ ctx, input }) => {
+      const { userId } = ctx.user;
+      const { problemId, scheduledPublishAt } = input;
+
+      const problem = await prisma.problems.findUniqueOrThrow({
+         where: {
+            pid: problemId,
+            BaseProblem: {
+               authorId: userId,
+            },
+         },
+         select: {
+            status: true,
+            BaseProblem: {
+               select: {
+                  currentPid: true,
+               },
+            },
          },
       });
 
-      return { message: `Problem is now ${newStatus}` };
+      if (
+         problem.BaseProblem.currentPid &&
+         problem.BaseProblem.currentPid !== problemId
+      ) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message:
+               'Cannot change publish status of a problem that is not the current version',
+         });
+      }
+      if (problem.status !== 'ready') {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '只有审核通过且未发布的题目才能定时发布',
+         });
+      }
+      if (scheduledPublishAt && scheduledPublishAt.getTime() <= Date.now()) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: '定时发布时间必须晚于当前时间',
+         });
+      }
+
+      await prisma.problems.update({
+         where: { pid: problemId },
+         data: { scheduledPublishAt: scheduledPublishAt ?? null },
+      });
+
+      // 设定时则投递任务，取消定时则清除旧任务
+      if (scheduledPublishAt) {
+         await dispatchPublishScheduledTask(problemId);
+      } else {
+         await cancelPublishScheduledTask(problemId);
+      }
+
+      return {
+         message: scheduledPublishAt
+            ? `Problem will be published at ${scheduledPublishAt.toISOString()}`
+            : 'Scheduled publish cancelled',
+      };
    });
 
 // 获取当前用户上传的所有问题。
@@ -507,6 +646,10 @@ const getDetailProcedure = protectedAdminProcedure
             problemType: true,
             serviceImage: true,
             servicePort: true,
+            snapshotImageId: true,
+            taskStartAt: true,
+            taskEndAt: true,
+            scheduledPublishAt: true,
             tags: {
                select: {
                   tid: true,
@@ -515,6 +658,7 @@ const getDetailProcedure = protectedAdminProcedure
             BaseProblem: {
                select: {
                   id: true,
+                  currentPid: true,
                },
             },
             CoverImage: {
@@ -522,6 +666,10 @@ const getDetailProcedure = protectedAdminProcedure
                   name: true,
                   id: true,
                },
+            },
+            ProblemDefaultCover: {
+               select: { imageId: true },
+               take: 1,
             },
             Project: {
                where: {
@@ -552,76 +700,218 @@ const getDetailProcedure = protectedAdminProcedure
       return problem;
    });
 
-// 创建一个新的模板工程
-// 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套
-// 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
+// 创建一个新的模板工程 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
 const reuploadProcedure = protectedAdminProcedure
+   .use(requireCliVersion)
    .input(ReuploadSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
       const { baseId } = input;
       const { judge } = useRuntimeConfig();
+      const traceId = ctx.traceId ?? '';
 
       // 检查问题是否存在且属于当前用户
-      const { currentPid } = await prisma.baseProblems.findUniqueOrThrow({
-         where: {
-            id: baseId,
-            authorId: userId,
-         },
-         select: {
-            currentPid: true,
-         },
-      });
-
-      // 转化判题脚本
-      const { code: judgeScript } = await fetch(
-         `${judge.serverUrl}/code/extract`,
-         {
-            method: 'POST',
-            headers: {
-               'Content-Type': 'application/json',
-               'x-trace-id': ctx.traceId ?? '',
+      const { CurrentProblem: current } =
+         await prisma.baseProblems.findUniqueOrThrow({
+            where: {
+               id: baseId,
+               authorId: userId,
             },
-            body: JSON.stringify({
+            select: {
+               CurrentProblem: {
+                  select: {
+                     pid: true,
+                     status: true,
+                     totalScore: true,
+                     bootCommand: true,
+                     initCommand: true,
+                     buildCommand: true,
+                     judgeUploadPath: true,
+                     enableCloudFunction: true,
+                     problemType: true,
+                     serviceImage: true,
+                     servicePort: true,
+                     snapshotImageId: true,
+                     JudgeFile: { select: { judgeScript: true }, take: 1 },
+                     ProblemDefaultCover: { select: { imageId: true }, take: 1 },
+                  },
+               },
+            },
+         });
+      const currentPid = current?.pid ?? null;
+
+      // 转化判题脚本；当前版本的脚本也重新提取一遍，用于判断脚本是否变化
+      const currentScript = current?.JudgeFile[0]?.judgeScript;
+      const [judgeScript, currentJudgeScript, currentTemplateFiles] =
+         await Promise.all([
+            extractJudgeScript({
+               judgeServerUrl: judge.serverUrl,
+               traceId,
                code: input.judgeScript,
             }),
-         },
-      ).then((res) => res.json());
-      if (!judgeScript || typeof judgeScript !== 'string') {
+            currentScript
+               ? extractJudgeScript({
+                    judgeServerUrl: judge.serverUrl,
+                    traceId,
+                    code: currentScript,
+                 })
+               : null,
+            currentPid ? projectService.getTemplateFiles(currentPid) : [],
+         ]);
+      if (!judgeScript) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: 'Judge script must export a default function',
          });
       }
 
-      // 创建新问题版本
-      let problemId: number | undefined;
-      await prisma.$transaction(async (tx) => {
-         problemId = await handleCreateVersion({
-            tx,
-            input,
-            userId,
-            baseProblemId: baseId,
-            judgeScript,
-            judgeServerUrl: judge.serverUrl,
-            traceId: ctx.traceId ?? '',
-         });
-         if (currentPid) {
-            await tx.problemVersionTransitions.create({
-               data: {
-                  baseProblemId: baseId,
-                  fromId: currentPid,
-                  toId: problemId,
-                  changeByType: 'user',
-                  changeByUserId: userId,
-               },
-            });
+      await ensureCoverThumbhash(input.coverImageId);
+      // 未传入时沿用当前版本的值
+      const snapshotImageId =
+         input.snapshotImageId === undefined
+            ? (current?.snapshotImageId ?? null)
+            : input.snapshotImageId;
+      if (snapshotImageId !== current?.snapshotImageId) {
+         await ensureSnapshotImageReady(snapshotImageId);
+      }
+
+      // 只改了标题、描述、标签、难度、封面、快照镜像时原地更新当前版本，不重新审核；
+      // 其余字段会影响判题结果，必须创建新版本并审核
+      const auditReasons: AuditReason[] = [];
+      if (!current) {
+         auditReasons.push('status');
+      } else {
+         const runtime = resolveVersionRuntime(input);
+         const sameText = (a?: string | null, b?: string | null) =>
+            (a?.trim() || null) === (b?.trim() || null);
+         if (!['ready', 'published'].includes(current.status)) {
+            auditReasons.push('status');
          }
+         // CLI 传的是源码（提取后应等于库里的值），Web 回传的是库里已提取的代码（再提取后比较）
+         if (judgeScript !== currentScript && judgeScript !== currentJudgeScript) {
+            auditReasons.push('judgeScript');
+         }
+         const templateFiles = Object.entries(input.answerTemplateSnapshot).map(
+            ([path, content]) => ({ path, content }),
+         );
+         if (!projectService.isSameFiles(templateFiles, currentTemplateFiles)) {
+            auditReasons.push('answerTemplate');
+         }
+         if (input.totalScore !== current.totalScore) {
+            auditReasons.push('totalScore');
+         }
+         if (
+            !sameText(runtime.bootCommand, current.bootCommand) ||
+            !sameText(runtime.initCommand, current.initCommand) ||
+            !sameText(runtime.buildCommand, current.buildCommand) ||
+            !sameText(runtime.judgeUploadPath, current.judgeUploadPath) ||
+            !sameText(runtime.serviceImage, current.serviceImage) ||
+            runtime.enableCloudFunction !== current.enableCloudFunction ||
+            runtime.problemType !== current.problemType ||
+            runtime.servicePort !== current.servicePort
+         ) {
+            auditReasons.push('runtime');
+         }
+         // 首屏截图封面由审核生成，当前版本没有时只能重新审核
+         if (
+            input.coverMode === 'default' &&
+            current.ProblemDefaultCover.length === 0
+         ) {
+            auditReasons.push('cover');
+         }
+      }
+
+      if (current && auditReasons.length === 0) {
+         await prisma.$transaction([
+            prisma.problems.update({
+               where: { pid: current.pid },
+               data: {
+                  title: input.title,
+                  detail: input.detail,
+                  difficulty: input.difficulty,
+                  tags: { set: input.tagIds.map((tid) => ({ tid })) },
+                  taskStartAt: input.taskStartAt,
+                  taskEndAt: input.taskEndAt,
+                  // 已发布的题目无需定时发布
+                  scheduledPublishAt:
+                     current.status === 'published'
+                        ? null
+                        : input.scheduledPublishAt,
+                  CoverImage:
+                     input.coverMode === 'custom' && input.coverImageId
+                        ? { connect: { id: input.coverImageId } }
+                        : { disconnect: true },
+                  SnapshotImage: snapshotImageId
+                     ? { connect: { id: snapshotImageId } }
+                     : { disconnect: true },
+               },
+            }),
+            // 让「我的题目」列表按最近修改排序
+            prisma.baseProblems.update({
+               where: { id: baseId },
+               data: { updatedAt: new Date() },
+            }),
+         ]);
+         // 重新投递定时发布任务
+         await dispatchPublishScheduledTask(current.pid);
+         return {
+            message: 'Problem info updated without audit',
+            problemId: current.pid,
+            mode: 'quick' as const,
+            auditReasons,
+         };
+      }
+
+      if (
+         input.coverMode === 'default' &&
+         !hasEntries(input.referenceAnswerSnapshot)
+      ) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: REFERENCE_ANSWER_REQUIRED_MESSAGE,
+         });
+      }
+
+      // 创建新问题版本
+      const { problemId, judgeRecordId } = await prisma.$transaction(
+         async (tx) => {
+            const version = await handleCreateVersion({
+               tx,
+               input: { ...input, snapshotImageId },
+               userId,
+               baseProblemId: baseId,
+               judgeScript,
+            });
+            if (currentPid) {
+               await tx.problemVersionTransitions.create({
+                  data: {
+                     baseProblemId: baseId,
+                     fromId: currentPid,
+                     toId: version.problemId,
+                     changeByType: 'user',
+                     changeByUserId: userId,
+                  },
+               });
+            }
+            return version;
+         },
+      );
+
+      await createAuditTask({
+         judgeServerUrl: judge.serverUrl,
+         traceId,
+         userId,
+         problemId,
+         judgeRecordId,
+         judgeScript,
+         fsSnapshot: input.referenceAnswerSnapshot,
       });
 
       return {
          message: 'Problem re-uploaded successfully',
          problemId,
+         mode: 'audit' as const,
+         auditReasons,
       };
    });
 
@@ -704,6 +994,26 @@ const setCurrentProblemProcedure = protectedAdminProcedure
       return { message: 'ok' };
    });
 
+/** 按标题关键字搜索已发布题目，供题目选择器等场景使用 */
+const searchProcedure = protectedAdminProcedure
+   .input(
+      z.object({
+         keyword: z.string().trim().max(100).default(''),
+         limit: z.number().int().min(1).max(50).default(8),
+      }),
+   )
+   .query(async ({ input }) => {
+      return prisma.problems.findMany({
+         where: {
+            status: 'published',
+            ...(input.keyword ? { title: { contains: input.keyword } } : {}),
+         },
+         select: { pid: true, title: true, difficulty: true },
+         orderBy: { pid: 'desc' },
+         take: input.limit,
+      });
+   });
+
 export const problemRouter = router({
    upload: uploadProcedure,
    reupload: reuploadProcedure,
@@ -711,6 +1021,8 @@ export const problemRouter = router({
    getDetail: getDetailProcedure,
    getVersions: getVersionsProcedure,
    setStatus: setStatusProcedure,
+   schedulePublish: schedulePublishProcedure,
    setCurrentProblem: setCurrentProblemProcedure,
    list: listProcedure,
+   search: searchProcedure,
 });

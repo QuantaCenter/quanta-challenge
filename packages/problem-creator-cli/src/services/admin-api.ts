@@ -28,6 +28,8 @@ export interface UploadProblemInput {
    serviceImage?: BackendServiceImageId;
    /** 后端服务：服务监听端口 */
    servicePort?: number;
+   /** 快照镜像 id；null 表示不使用，不传时追加版本沿用原值 */
+   snapshotImageId?: string | null;
 }
 
 export interface AuditCheckpointResult {
@@ -79,6 +81,19 @@ export interface Tag {
    description?: string | null;
 }
 
+export interface SnapshotImage {
+   id: string;
+   name: string;
+   description: string;
+   /** building | ready，只有 ready 能被题目引用 */
+   status: string;
+   sizeBytes: number | null;
+   compressedSizeBytes: number | null;
+   updatedAt: string;
+   /** 被多少道题目的当前版本引用 */
+   referenceCount: number;
+}
+
 export interface CurrentUser {
    id: string;
    nickname?: string;
@@ -86,37 +101,38 @@ export interface CurrentUser {
    role?: string;
 }
 
-/**
- * 出题相关的 admin tRPC 接口封装。
- *
- * 只包这一层的目的：命令里不出现 URL 字符串，
- * 接口签名变化时改一处即可（并且能被单元测试用假 fetch 覆盖）。
- */
+/** 出题相关的 admin tRPC 接口封装：命令里不出现 URL 字符串，接口变化改一处即可。 */
 export interface AdminApi {
    login(input: { email: string; password: string }): Promise<{
       user: CurrentUser;
       csrfToken: string;
    }>;
    getCurrentUser(): Promise<CurrentUser>;
-   /** 上传图片（`qpc cover --upload` 用它把生成的封面变成 imageId） */
    uploadImage(input: {
-      fileBase64: string;
+      content: Uint8Array;
       fileName: string;
    }): Promise<UploadedImage>;
    uploadProblem(input: UploadProblemInput): Promise<{
       problemId: number;
       message: string;
    }>;
-   /** 在已有基础题目（baseId）下创建新版本（发布页的"重新发布"） */
+   /**
+    * 更新已有基础题目（baseId）：只改基本信息（标题/描述/标签/难度/封面）时原地生效（mode=quick），
+    * 否则创建新版本并进入审核（mode=audit）。旧版服务端不返回 mode，按 audit 处理。
+    */
    reuploadProblem(input: UploadProblemInput & { baseId: number }): Promise<{
       problemId: number;
       message: string;
+      mode?: 'quick' | 'audit';
+      auditReasons?: string[];
    }>;
    getAuditDetail(problemId: number): Promise<AuditDetail>;
    setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
    /** 平台全部标签（public.tag.list，无需登录） */
    listTags(): Promise<Tag[]>;
+   /** 平台全部快照镜像（admin.imageBuild.list，需管理员登录），按更新时间倒序 */
+   listSnapshotImages(): Promise<SnapshotImage[]>;
 }
 
 export const createAdminApi = (client: HttpClient): AdminApi => ({
@@ -149,19 +165,24 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
       ),
 
    reuploadProblem: (input) =>
-      client.call<{ problemId: number; message: string }>(
-         'admin.problem.reupload',
-         {
-            input,
-            method: 'POST',
-         },
-      ),
-
-   uploadImage: (input) =>
-      client.call<UploadedImage>('admin.image.upload', {
+      client.call<{
+         problemId: number;
+         message: string;
+         mode?: 'quick' | 'audit';
+         auditReasons?: string[];
+      }>('admin.problem.reupload', {
          input,
          method: 'POST',
       }),
+
+   uploadImage: ({ content, fileName }) => {
+      const form = new FormData();
+      form.append('file', new Blob([new Uint8Array(content)]), fileName);
+      return client.call<UploadedImage>('admin.image.upload', {
+         input: form,
+         method: 'POST',
+      });
+   },
 
    getAuditDetail: (problemId) =>
       client.call<AuditDetail>('admin.problem.getAuditDetail', {
@@ -194,6 +215,9 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
          description: tag.description ?? null,
       }));
    },
+
+   listSnapshotImages: () =>
+      client.call<SnapshotImage[]>('admin.imageBuild.list', { method: 'GET' }),
 });
 
 /** `public.tag.list` 原样返回数据库整行，这里只声明用到的字段 */
@@ -208,10 +232,7 @@ interface RawTag {
 export const auditRecordOf = (detail: AuditDetail): AuditRecord | undefined =>
    detail.TemplateJudgeRecord?.[0]?.judgeRecord;
 
-/**
- * 审计是否已到终局。status 离开 draft 即算结束：调度器在任务失败时只改 status、
- * 不补写判题记录，只看记录会让这类失败一直轮询到超时。
- */
+/** 审计是否已到终局：status 离开 draft 即算结束（失败时调度器只改 status 不补判题记录）。 */
 export const isAuditSettled = (detail: AuditDetail): boolean => {
    if (detail.status !== 'draft') return true;
    const record = auditRecordOf(detail);

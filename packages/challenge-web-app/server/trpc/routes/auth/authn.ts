@@ -5,22 +5,10 @@ import z from 'zod';
 import * as serverAuthn from '@simplewebauthn/server';
 import { TRPCError } from '@trpc/server';
 import type { H3Event } from 'h3';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
+import { identityCookieOptions } from '~~/server/utils/auth-cookies';
 
-/**
- * WebAuthn 的 RP ID 与 expectedOrigin 必须和用户实际访问的站点一致，
- * 否则浏览器在 `navigator.credentials.create()` 阶段就会直接抛
- * SecurityError / NotAllowedError（请求根本到不了 verifyRegistration）。
- *
- * 旧实现把两者写死成 `localhost` / `http://localhost:3000`，只在本地开发可用；
- * 线上域名是 challenge.quantacenter.com，因此注册必然失败。
- *
- * 这里改为：
- *   1. 优先取请求的 Origin 头（同源 POST 会带上）；
- *   2. 退回到 runtimeConfig 里的 APP_SERVER；
- *   3. 再退回到 Host + x-forwarded-proto。
- * rpID 取 origin 的 hostname，localStorage/HTTPS 两种环境都自洽。
- */
+/** WebAuthn 的 RP ID 与 expectedOrigin 必须与实际访问站点一致，否则 credentials.create() 直接抛错；按 请求 Origin > APP_SERVER > Host+x-forwarded-proto 解析，rpID 取 hostname。 */
 const resolveWebAuthnContext = (event: H3Event) => {
    const config = useRuntimeConfig();
    const configuredOrigin = String(
@@ -56,7 +44,8 @@ const resolveWebAuthnContext = (event: H3Event) => {
 };
 
 /** 把 options 与本次校验上下文一起放进 Redis，验证时复用同一份 rpID/origin。 */
-const WEB_AUTHN_OPTIONS_TTL_SECONDS = 300;
+const webAuthnOptionsTTLSeconds = () =>
+   useRuntimeConfig().webauthn.optionsTTLSeconds;
 
 // 注册 WebAuthn 验证器
 const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
@@ -87,7 +76,7 @@ const registerAuthnProcedure = protectedProcedure.mutation(async ({ ctx }) => {
       'webauthn:register:' + userId,
       JSON.stringify({ options, rpID, origin }),
       'EX',
-      WEB_AUTHN_OPTIONS_TTL_SECONDS,
+      webAuthnOptionsTTLSeconds(),
    );
 
    return options;
@@ -134,7 +123,7 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
          });
       } catch (error) {
          logger.error(
-            { error, userId, rpID, origin, traceId: ctx.traceId },
+            { error, userId, rpID, origin },
             'WebAuthn registration verification threw',
          );
          throw new TRPCError({
@@ -146,7 +135,7 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       const { registrationInfo } = verification;
       if (!verification.verified || !registrationInfo) {
          logger.warn(
-            { userId, rpID, origin, traceId: ctx.traceId },
+            { userId, rpID, origin },
             'WebAuthn registration verification returned verified=false',
          );
          throw new TRPCError({
@@ -173,14 +162,10 @@ const verifyAuthnRegistrationProcedure = protectedProcedure
       const tokens = generateTokens({ userId, role: 'USER' });
       const csrfToken = crypto.randomUUID();
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return { csrfToken };
    });
@@ -223,7 +208,7 @@ const authenticateAuthnProcedure = publicProcedure
          'webauthn:authenticate:' + email,
          JSON.stringify({ options, rpID, origin }),
          'EX',
-         WEB_AUTHN_OPTIONS_TTL_SECONDS,
+         webAuthnOptionsTTLSeconds(),
       );
 
       return options;
@@ -285,7 +270,7 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
          });
       } catch (error) {
          logger.error(
-            { error, email, rpID, origin, traceId: ctx.traceId },
+            { error, email, rpID, origin },
             'WebAuthn authentication verification threw',
          );
          throw new TRPCError({
@@ -296,7 +281,7 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
 
       if (!verification.verified) {
          logger.warn(
-            { email, rpID, origin, traceId: ctx.traceId },
+            { email, rpID, origin },
             'WebAuthn authentication verification returned verified=false',
          );
          throw new TRPCError({
@@ -325,14 +310,10 @@ const verifyAuthnAuthenticationProcedure = publicProcedure
       });
       const csrfToken = crypto.randomUUID();
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return { csrfToken };
    });

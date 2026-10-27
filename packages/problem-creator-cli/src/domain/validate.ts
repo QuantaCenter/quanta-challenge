@@ -1,5 +1,6 @@
 import { pathExists, readText } from '../utils/fs';
 import { displayPath, formatBytes } from '../utils/paths';
+import { detailBaseDir, findLocalImageRefs } from './detail-images';
 import { analyzeJudgeScript, type JudgeScriptAnalysis } from './judge-script';
 import type { ResolvedProblemConfig } from './problem-config';
 import { collectSnapshot, type SnapshotResult } from './snapshot';
@@ -47,16 +48,7 @@ export interface ValidateOptions {
    maxFileCount?: number;
 }
 
-/**
- * 出题预检（离线）。
- *
- * 覆盖 `docs/PROBLEM_AUTHORING.md` 中「上传前的检查清单」里可以静态判定的部分：
- * 检查点是否 return 分数、点击是否会卡在 disabled 按钮、快照键前缀、
- * initCommand 与 judgeUploadPath 是否自洽、totalScore 与检查点之和是否相等。
- *
- * 审不了的部分（参考解是否真能拿满分、封面好不好看）只能靠线上审计，
- * 所以 `qpc upload` 会把审计结果拉回来，而不是假装本地就能搞定。
- */
+/** 出题预检（离线）：覆盖 PROBLEM_AUTHORING 检查清单中可静态判定的部分；审不了的部分由 `qpc upload --wait` 拉回线上审计结果。 */
 export const validateProblem = async (
    config: ResolvedProblemConfig,
    options: ValidateOptions = {},
@@ -243,6 +235,27 @@ export const validateProblem = async (
       });
    }
 
+   // 题面里的本地图片上传后学生看不到：必须先换成平台地址。
+   for (const image of findLocalImageRefs(
+      config.detail,
+      detailBaseDir(config),
+   )) {
+      const exists = await pathExists(image.file);
+      push({
+         rule: 'IMG003',
+         severity: 'error',
+         message: exists
+            ? `题面引用了本地图片 ${image.ref}，上传后学生看不到`
+            : `题面引用的本地图片不存在：${image.ref}`,
+         file: config.detailFile ?? rel(config.configFile),
+         // 内联题面的行号相对题面正文，对不上配置文件，不报
+         line: config.detailFile ? image.line : undefined,
+         hint: exists
+            ? '运行 `qpc image --write` 上传题面里的本地图片并把地址回写到题面。'
+            : '先用 `qpc gen-img` 生成图片（或修正路径），再 `qpc image --write`。',
+      });
+   }
+
    // 后端服务题型的额外约束（详见 docs/BACKEND_SERVICE_PROBLEM.md）
    if (isBackend) {
       // RUN002：后端题的 bootCommand 由镜像决定，作者写的会被覆盖，因此只提示不报错。
@@ -330,6 +343,15 @@ export const validateProblem = async (
             severity: 'info',
             message: `${relative} 下已跳过 ${ignored}/（构建产物或依赖）`,
             file: relative,
+         });
+      }
+      for (const decoded of snapshot.decodedDataUrls) {
+         push({
+            rule: 'SNAP004',
+            severity: 'warn',
+            message: `${relative}/${decoded} 的内容是 data URL 文本，不是图片二进制；已在上传时还原`,
+            file: `${relative}/${decoded}`,
+            hint: '平台下发的是还原后的图片，但本地预览和本地判题读的仍是这份文本。把逗号后的 base64 解码写回原文件即可。',
          });
       }
    };

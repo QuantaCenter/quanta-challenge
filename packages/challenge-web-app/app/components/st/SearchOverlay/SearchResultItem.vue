@@ -9,6 +9,11 @@ import {
    ListView,
    CalendarThirtyTwo,
    WebPage,
+   GoldMedalTwo,
+   VolumeNotice,
+   History,
+   Help,
+   Code,
 } from '@icon-park/vue-next';
 import type { SearchResult } from '~/types/search';
 
@@ -20,6 +25,13 @@ const props = defineProps<{
 const emit = defineEmits<{
    click: [result: SearchResult];
 }>();
+
+const { searchQuery } = useSearch();
+
+// 标题按搜索关键词切分，用于高亮命中部分
+const titleSegments = computed(() =>
+   highlightSegments(props.result.title, searchQuery.value)
+);
 
 const icon = computed(() => {
    switch (props.result.type) {
@@ -33,6 +45,16 @@ const icon = computed(() => {
          return CalendarThirtyTwo;
       case 'page-section':
          return WebPage;
+      case 'achievement':
+         return GoldMedalTwo;
+      case 'notification':
+         return VolumeNotice;
+      case 'submission':
+         return History;
+      case 'appeal':
+         return Help;
+      case 'cloud-function':
+         return Code;
    }
 });
 
@@ -48,8 +70,31 @@ const typeText = computed(() => {
          return '每日一题';
       case 'page-section':
          return '页面';
+      case 'achievement':
+         return '成就';
+      case 'notification':
+         return '通知';
+      case 'submission':
+         return '提交';
+      case 'appeal':
+         return '申诉';
+      case 'cloud-function':
+         return '云函数';
    }
 });
+
+const appealStatusText = (status: string) => {
+   switch (status) {
+      case 'PENDING':
+         return '待处理';
+      case 'APPROVED':
+         return '已通过';
+      case 'REJECTED':
+         return '已驳回';
+      default:
+         return status;
+   }
+};
 
 const difficultyText = (difficulty: string) => {
    switch (difficulty) {
@@ -93,6 +138,16 @@ const typeColor = computed(() => {
          return 'text-warning';
       case 'page-section':
          return 'text-accent-100';
+      case 'achievement':
+         return 'text-amber-400';
+      case 'notification':
+         return 'text-purple-400';
+      case 'submission':
+         return 'text-orange-400';
+      case 'appeal':
+         return 'text-error';
+      case 'cloud-function':
+         return 'text-purple-400';
       default:
          return 'text-accent-300';
    }
@@ -110,6 +165,16 @@ const typeBgColor = computed(() => {
          return 'bg-warning/20 text-warning';
       case 'page-section':
          return 'bg-accent-500 text-accent-200';
+      case 'achievement':
+         return 'bg-amber-500/20 text-amber-400';
+      case 'notification':
+         return 'bg-purple-500/20 text-purple-400';
+      case 'submission':
+         return 'bg-orange-500/20 text-orange-400';
+      case 'appeal':
+         return 'bg-error/20 text-error';
+      case 'cloud-function':
+         return 'bg-purple-500/20 text-purple-400';
       default:
          return 'bg-accent-500 text-accent-300';
    }
@@ -137,9 +202,18 @@ const handleClick = () => {
          <StSpace direction="vertical" gap="0.25rem" fill-x class="min-w-0">
             <!-- 标题行 -->
             <StSpace gap="0.5rem" align="center" fill-x no-wrap>
-               <!-- 标题 -->
+               <!-- 标题（命中关键词高亮） -->
                <h3 class="text-white text-sm font-medium truncate flex-1">
-                  {{ result.title }}
+                  <template
+                     v-for="(segment, index) in titleSegments"
+                     :key="index">
+                     <mark
+                        v-if="segment.hit"
+                        class="bg-primary/25 text-primary rounded-sm px-0.5 font-medium">
+                        {{ segment.text }}
+                     </mark>
+                     <template v-else>{{ segment.text }}</template>
+                  </template>
                </h3>
 
                <!-- 标签组 -->
@@ -259,6 +333,71 @@ const handleClick = () => {
                         #{{ tag }}
                      </span>
                   </StSpace>
+               </template>
+
+               <!-- 成就元数据 -->
+               <template v-else-if="result.type === 'achievement'">
+                  <span>{{ result.metadata.score }} 分</span>
+                  <span
+                     v-if="result.metadata.unlocked"
+                     class="text-success flex items-center gap-1">
+                     <Check size="12" />
+                     已解锁
+                  </span>
+               </template>
+
+               <!-- 通知元数据 -->
+               <template v-else-if="result.type === 'notification'">
+                  <span>{{
+                     new Date(result.metadata.createdAt).toLocaleDateString(
+                        'zh-CN',
+                        { month: 'long', day: 'numeric' }
+                     )
+                  }}</span>
+                  <span v-if="!result.metadata.read" class="text-warning">
+                     未读
+                  </span>
+               </template>
+
+               <!-- 提交记录元数据（管理员） -->
+               <template v-else-if="result.type === 'submission'">
+                  <span
+                     :class="
+                        result.metadata.result === 'success'
+                           ? 'text-success'
+                           : result.metadata.result === 'failed'
+                             ? 'text-error'
+                             : 'text-accent-300'
+                     ">
+                     {{ result.metadata.score }} 分
+                  </span>
+                  <StSpace gap="0.25rem" align="center" no-wrap>
+                     <Check size="12" class="text-success" />
+                     <span>@{{ result.metadata.userName }}</span>
+                  </StSpace>
+               </template>
+
+               <!-- 申诉元数据（管理员） -->
+               <template v-else-if="result.type === 'appeal'">
+                  <span
+                     :class="
+                        result.metadata.status === 'PENDING'
+                           ? 'text-warning'
+                           : 'text-accent-300'
+                     ">
+                     {{ appealStatusText(result.metadata.status) }}
+                  </span>
+                  <span>@{{ result.metadata.userName }}</span>
+               </template>
+
+               <!-- 云函数元数据（管理员） -->
+               <template v-else-if="result.type === 'cloud-function'">
+                  <span
+                     :class="
+                        result.metadata.enabled ? 'text-success' : 'text-error'
+                     ">
+                     {{ result.metadata.enabled ? '已启用' : '已停用' }}
+                  </span>
                </template>
             </StSpace>
          </StSpace>

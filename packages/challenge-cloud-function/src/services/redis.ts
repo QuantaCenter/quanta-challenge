@@ -3,12 +3,7 @@ import type { Redis } from 'ioredis';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
-/**
- * Redis 连接（单例）。
- *
- * 复用现有 Redis 实例，但所有 key 都以 `cf:` 开头，与 web-app 的业务缓存
- * （`req_limit:*`、排行榜缓存等）互不干扰；也可用 `CF_REDIS_DB` 指定独立逻辑库。
- */
+/** Redis 连接（单例）：所有 key 以 `cf:` 开头与 web-app 业务缓存互不干扰，也可用 CF_REDIS_DB 指定独立逻辑库。 */
 let client: Redis | null = null;
 
 export const getRedis = (): Redis => {

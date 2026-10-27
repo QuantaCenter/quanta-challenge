@@ -31,6 +31,8 @@ const columns: ITableColumn[] = [
       title: '源码指纹',
       width: '9rem',
       skeletonClass: 'h-5 w-[4rem] rounded-md',
+      // 移动端隐藏次要列（参照 RankTable 的做法）
+      class: 'max-md:hidden',
    },
    {
       key: 'createdBy',
@@ -43,6 +45,7 @@ const columns: ITableColumn[] = [
       width: '10rem',
       align: 'center',
       skeletonClass: 'h-5 w-[7rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
    {
       key: 'action',
@@ -55,7 +58,8 @@ const columns: ITableColumn[] = [
 </script>
 
 <template>
-   <section class="w-full rounded-2xl border border-accent-500 p-6">
+   <section
+      class="w-full rounded-2xl border border-accent-500 p-6 max-md:p-4">
       <StSpace align="center" gap="0.625rem" class="mb-5">
          <History class="text-[1.375rem] text-accent-200" />
          <h2 class="st-font-third-bold text-white">版本历史</h2>

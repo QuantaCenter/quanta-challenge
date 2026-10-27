@@ -14,6 +14,22 @@ const isUniqueConstraintError = (error: unknown): boolean =>
    error !== null &&
    (error as { code?: string }).code === 'P2002';
 
+/** 从「未被当日抽取过且当前已发布」的题目里随机挑一道 */
+const pickUnusedPublishedBaseProblemId = async () => {
+   return (
+      await prisma.$queryRaw<{ id: number }[]>`
+         SELECT id FROM base_problems
+         LEFT JOIN problems
+           ON base_problems."currentPid" = problems.pid
+         WHERE id NOT IN (SELECT "baseProblemId" FROM daily_problems)
+           AND problems.pid IS NOT NULL
+           AND problems.status = 'published'
+         ORDER BY RANDOM()
+         LIMIT 1
+      `
+   )[0]?.id;
+};
+
 const selectDailyProblemFallback = async () => {
    const fallbackBaseProblemId = (
       await prisma.$queryRaw<{ id: number }[]>`
@@ -37,14 +53,7 @@ const selectDailyProblemFallback = async () => {
    return fallbackBaseProblemId;
 };
 
-/**
- * 抽取当日的每日一题
- * 1. 检查 Redis 缓存中是否已有今日题目。
- * 2. 若无缓存，从数据库中随机选择一个未被使用过的题目。
- * 3. 用 SET NX EX 原子地抢到当日选举锁，并设置过期时间为**次日**凌晨1点。
- * 4. 将选中的题目记录到数据库的 `daily_problems` 表中。
- * @returns 选中的题目 ID
- */
+/** 抽取当日每日一题：查缓存 → 随机选未用题 → SET NX EX 抢选举锁（过期次日 01:00）→ 记入 daily_problems。 */
 const selectDailyProblem = async () => {
    const dateKey = getDailyDateKey();
    const today = toDailyDate(dateKey);
@@ -56,18 +65,7 @@ const selectDailyProblem = async () => {
       return parseInt(cached, 10);
    }
 
-   let unusedBaseProblemId = (
-      await prisma.$queryRaw<{ id: number }[]>`
-         SELECT id FROM base_problems
-         LEFT JOIN problems
-           ON base_problems."currentPid" = problems.pid
-         WHERE id NOT IN (SELECT "baseProblemId" FROM daily_problems)
-           AND problems.pid IS NOT NULL
-           AND problems.status = 'published'
-         ORDER BY RANDOM()
-         LIMIT 1
-      `
-   )[0]?.id;
+   let unusedBaseProblemId = await pickUnusedPublishedBaseProblemId();
    if (unusedBaseProblemId === void 0) {
       unusedBaseProblemId = await selectDailyProblemFallback();
    }
@@ -127,13 +125,7 @@ const selectDailyProblem = async () => {
    });
 };
 
-/**
- * 计算当月连续签到天数
- * 1. 获取用户当月的所有签到记录，按日期降序排列。
- * 2. 遍历签到记录，计算从最近一次签到开始的连续签到天数。
- * 3. 如果遇到未连续的日期，则停止计数。
- * @param userId 用户 ID
- */
+/** 计算当月连续签到天数（按日期降序遍历，遇到不连续即停止）。 */
 const countContinuesCheckin = async (userId: string) => {
    // 按业务时区确定当月一号；落库值是 UTC 零点，查询也必须用它构造。
    const nowKey = getDailyDateKey();
@@ -159,7 +151,7 @@ const countContinuesCheckin = async (userId: string) => {
          } else {
             break;
          }
-      } else if (checkinKeys[i] === previousDateKey(checkinKeys[i - 1])) {
+      } else if (checkinKeys[i] === previousDateKey(checkinKeys[i - 1]!)) {
          count++;
       } else {
          break;
@@ -169,7 +161,38 @@ const countContinuesCheckin = async (userId: string) => {
    return count;
 };
 
+/**
+ * 当日每日一题被取消发布时换题：清 Redis 缓存 → 重选已发布题 → 覆盖当日记录与缓存。
+ * 必须先清缓存，否则换题后仍会读回旧题目 ID。
+ */
+const replaceUnpublishedDailyProblem = async (dateKey: string) => {
+   const date = toDailyDate(dateKey);
+   const redis = useRedis();
+   const key = `daily_problem:${dateKey.replace(/-/g, '')}`;
+
+   await redis.del(key);
+
+   let newId = await pickUnusedPublishedBaseProblemId();
+   if (newId === void 0) {
+      newId = await selectDailyProblemFallback();
+   }
+
+   await prisma.dailyProblem.update({
+      where: { date },
+      data: { baseProblemId: newId },
+   });
+   await redis.set(
+      key,
+      newId.toString(),
+      'EX',
+      secondsUntilDailyCacheExpiry(dateKey),
+   );
+
+   return newId;
+};
+
 export const dailyService = {
    countContinuesCheckin,
    selectDailyProblem,
+   replaceUnpublishedDailyProblem,
 };

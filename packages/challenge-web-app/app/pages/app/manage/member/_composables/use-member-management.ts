@@ -4,7 +4,7 @@ import { useMessage } from '~/components/st/Message/use-message';
 import type { ISelectOption } from '~/components/st/Select/type';
 import useAuthStore from '~/stores/auth-store';
 import { logger } from '~~/lib/logger';
-import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.png';
+import DEFAULT_AVATAR_URL from '@/assets/images/default-avatar.webp';
 import {
    ROLE_META,
    ROLE_OPTIONS,

@@ -74,11 +74,12 @@ const zoomOut = () => {
          </StSpace>
       </template>
       <StSpace
+         direction="vertical"
          class="size-full overflow-auto p-4 hide-scrollbar transition-all"
          :style="{
             fontSize: `${fontSize}px`,
          }">
-         <LazyStMarkdownPreview :html="html" />
+         <LazyStMarkdownPreview :html="html" class="w-full" />
       </StSpace>
    </StFloatWindow>
 </template>

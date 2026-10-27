@@ -5,11 +5,7 @@ import { CliError } from '../core/errors';
 import { walkFiles } from '../utils/fs';
 import { joinSnapshotKey } from '../utils/paths';
 
-/**
- * 二进制扩展名：与 packages/challenge-web-app/app/configs/accepted-pack-extension.ts
- * 的 `acceptedBinaryExtensions` 对齐。快照里二进制必须以 base64 传输，
- * 按 utf8 读会静默损坏文件（图片变成乱码，判题时表现为封面/资源加载失败）。
- */
+/** 二进制扩展名，与 web-app 的 acceptedBinaryExtensions 对齐；二进制须以 base64 传输，按 utf8 读会静默损坏文件。 */
 export const BINARY_EXTENSIONS = new Set([
    'png',
    'jpg',
@@ -39,7 +35,19 @@ export interface SnapshotResult {
    totalBytes: number;
    /** 被忽略规则跳过的顶层条目，用于在预检里提示"你可能漏传了东西" */
    ignored: string[];
+   /** 二进制扩展名但内容是 data URL 文本、已还原成真实字节的文件（相对路径） */
+   decodedDataUrls: string[];
 }
+
+const DATA_URL_PATTERN = /^data:[^,]*;base64,/i;
+
+/** 内容是 `data:...;base64,` 文本时返回解出的字节，否则返回 undefined */
+const decodeDataUrlBuffer = (buffer: Buffer): Buffer | undefined => {
+   const head = buffer.subarray(0, 128).toString('latin1');
+   if (!DATA_URL_PATTERN.test(head)) return undefined;
+   const text = buffer.toString('latin1').trim();
+   return Buffer.from(text.slice(text.indexOf(',') + 1), 'base64');
+};
 
 export interface SnapshotOptions {
    /** 挂载路径，默认 `project`（等于 judgeUploadPath） */
@@ -47,13 +55,7 @@ export interface SnapshotOptions {
    ignore?: (name: string) => boolean;
 }
 
-/**
- * 把一个目录打包成提交快照。
- *
- * 键格式必须由 `mountPath` 打头（默认 `/project/...`）：
- * 调度器会原样还原到 live-server 容器的 /app 下，而题目的 initCommand
- * 与 live-server 镜像都以 `project` 子目录为站点根（见 PROBLEM_AUTHORING 坑 11）。
- */
+/** 把目录打包成提交快照：键须由 mountPath 打头（默认 `/project/...`），live-server 以 project 子目录为站点根。 */
 export const collectSnapshot = async (
    root: string,
    options: SnapshotOptions = {},
@@ -72,6 +74,7 @@ export const collectSnapshot = async (
    });
 
    const files: Record<string, string> = {};
+   const decodedDataUrls: string[] = [];
    let totalBytes = 0;
 
    for (const relativePath of relativePaths) {
@@ -83,9 +86,15 @@ export const collectSnapshot = async (
          throw new CliError(`快照读取失败：${absolutePath}`, { cause: error });
       }
       const extension = extname(relativePath).slice(1).toLowerCase();
-      files[joinSnapshotKey(mountPath, relativePath)] = BINARY_EXTENSIONS.has(
-         extension,
-      )
+      const isBinary = BINARY_EXTENSIONS.has(extension);
+      if (isBinary) {
+         const decoded = decodeDataUrlBuffer(buffer);
+         if (decoded) {
+            buffer = decoded;
+            decodedDataUrls.push(relativePath);
+         }
+      }
+      files[joinSnapshotKey(mountPath, relativePath)] = isBinary
          ? buffer.toString('base64')
          : buffer.toString('utf8');
       totalBytes += buffer.byteLength;
@@ -96,5 +105,6 @@ export const collectSnapshot = async (
       fileCount: Object.keys(files).length,
       totalBytes,
       ignored: [...ignored].sort(),
+      decodedDataUrls,
    };
 };

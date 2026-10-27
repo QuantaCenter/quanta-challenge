@@ -26,6 +26,9 @@ logs
 .env.*
 !.env.example
 
+# mkcert dev certificates (手机真机调试做题页的 HTTPS 证书，见 nuxt.config.ts)
+.dev-certs
+
 /app/generated/prisma
 
 /generated/prisma

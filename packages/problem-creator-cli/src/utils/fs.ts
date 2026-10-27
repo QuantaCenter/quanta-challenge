@@ -47,10 +47,7 @@ export const writeText = async (
    await writeFile(path, content, 'utf8');
 };
 
-/**
- * 原子写文本：先写同目录临时文件再 rename。中途失败/被中断时原文件保持完整，
- * 不会被截断成半个配置文件。
- */
+/** 原子写文本：先写临时文件再 rename，中断时原文件保持完整。 */
 export const writeTextAtomic = async (
    path: string,
    content: string,
@@ -99,22 +96,11 @@ export const listDir = async (dir: string): Promise<string[]> => {
 };
 
 export interface WalkOptions {
-   /**
-    * 返回 true 表示跳过该条目。
-    * 传入的是**条目名**与相对 root 的 posix 路径，便于同时支持
-    * "按名字跳过（node_modules）"和"按路径跳过（template/dist）"。
-    */
+   /** 返回 true 表示跳过该条目；入参为条目名与相对 root 的 posix 路径，支持按名字或路径跳过。 */
    ignore?: (name: string, relativePath: string) => boolean;
 }
 
-/**
- * 递归列出文件（不含目录、不含符号链接），返回相对 root 的 posix 路径。
- *
- * · 结果按字典序排序：快照要参与哈希与体量统计，顺序不稳定会让"内容没变但
- *   每次结果不同"这种幽灵问题出现。
- * · 符号链接一律跳过：跟随链接可能走出题目目录（甚至死循环），
- *   而快照本身是纯数据，链接语义无法表达。
- */
+/** 递归列出文件（不含目录与符号链接），结果按字典序排序（保证哈希稳定）；符号链接一律跳过。 */
 export const walkFiles = async (
    root: string,
    options: WalkOptions = {},

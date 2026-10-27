@@ -1,9 +1,4 @@
-/**
- * 主线程 ↔ Worker 的消息协议。
- *
- * 类型定义单独放一份，Worker 与 Executor 共享，避免两边字段写歪。
- * 本文件只有类型，编译后不产生运行时代码。
- */
+/** 主线程 ↔ Worker 的消息协议：Worker 与 Executor 共享，避免两边字段写歪。 */
 
 export interface CloudFunctionUser {
    id: string;

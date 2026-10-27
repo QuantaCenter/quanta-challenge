@@ -1,14 +1,14 @@
 import { marked, Renderer } from 'marked';
 import githubDark from 'shiki/themes/github-dark.mjs';
+import { useShiki } from './use-shiki';
 import langBash from 'shiki/langs/bash.mjs';
 import langCss from 'shiki/langs/css.mjs';
 import langHtml from 'shiki/langs/html.mjs';
-import langJavaScript from 'shiki/langs/javascript.mjs';
+import langJavascript from 'shiki/langs/javascript.mjs';
 import langJson from 'shiki/langs/json.mjs';
 import langMarkdown from 'shiki/langs/markdown.mjs';
-import langTypeScript from 'shiki/langs/typescript.mjs';
+import langTypescript from 'shiki/langs/typescript.mjs';
 import langVue from 'shiki/langs/vue.mjs';
-import { useShiki } from './use-shiki';
 
 /** 代码块语言栏右侧的两个图标：默认复制，点完切成对勾 */
 const CODE_COPY_ICON =
@@ -33,8 +33,8 @@ const wrapCodeBlock = (body: string, language: string) =>
 const CODE_LANGUAGES = [
    langHtml,
    langCss,
-   langJavaScript,
-   langTypeScript,
+   langJavascript,
+   langTypescript,
    langJson,
    langBash,
    langMarkdown,
@@ -52,35 +52,55 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
 
    // 主题必须和下面 codeToHtml 用的一致，否则会被当成未注册主题
    const { highlighter } = useShiki({
-      theme: githubDark,
+      theme: withCodeHeader ? (githubDark as any) : undefined,
       languages: CODE_LANGUAGES,
    });
 
+   const themeName = withCodeHeader ? 'github-dark' : 'ayu-dark';
+
    const renderer = new Renderer();
+
+   // HTML 实体转义，防止描述中的原生 HTML 被 v-html 渲染执行
+   const escapeHtml = (text: string) =>
+      text
+         .replace(/&/g, '&amp;')
+         .replace(/</g, '&lt;')
+         .replace(/>/g, '&gt;')
+         .replace(/"/g, '&quot;')
+         .replace(/'/g, '&#39;');
 
    renderer.code = ({ text, lang }) => {
       const language = lang || 'text';
       let body: string;
 
       if (!highlighter.value) {
-         body = `<pre><code>${text}</code></pre>`;
+         body = `<pre><code>${escapeHtml(text)}</code></pre>`;
       } else {
          try {
             body = highlighter.value.codeToHtml(text, {
                lang: language as any,
-               theme: 'github-dark',
+               theme: themeName as any,
             });
          } catch {
-            body = `<pre><code>${text}</code></pre>`;
+            body = `<pre><code>${escapeHtml(text)}</code></pre>`;
          }
       }
 
       return withCodeHeader ? wrapCodeBlock(body, language) : body;
    };
 
+   // 代码块以外的原生 HTML 一律转义为代码展示
+   renderer.html = ({ text, block }) =>
+      block
+         ? `<pre><code>${escapeHtml(text)}</code></pre>`
+         : `<code>${escapeHtml(text)}</code>`;
+
+   let lastContent = '';
+
    const update = (content: string) => {
       // 同步渲染：SSR 阶段（在 setup 里调用）也要立刻拿到 HTML；
       // 代码高亮依赖 shiki，服务端没有，退回纯 <pre><code>。
+      lastContent = content;
       html.value = marked.parse(content, {
          gfm: true,
          breaks: true,
@@ -90,6 +110,11 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
          container.value.innerHTML = html.value;
       }
    };
+
+   // Shiki 初始化完成后重渲染，补上挂载前那次解析缺失的高亮
+   watch(highlighter, (h) => {
+      if (h && lastContent) update(lastContent);
+   });
 
    onMounted(() => {
       if (hasMounted) return;

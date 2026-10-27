@@ -37,10 +37,16 @@ DEPLOY_WEBHOOK_SECRET=<安装时生成的 32 字节 hex>
 2. 幂等：`delivery` 一致，或 `commit` 一致**且本次 `images[]` 里的 digest 都已在记录里** → `200 {"skipped":"already deployed"}`；正在部署中 → `429`。
    不用 `commit` 单独做幂等键：同一个 commit 可以分批发布（`images[]` 只含本次重建的镜像，
    比如先 `-f images=live-server` 再 `-f images=web-app`），只按 commit 判会把后一批错当成已部署。
-3. **同步执行完再回包**：成功 `200`，失败（含已回滚 / 回滚失败）`5xx`，CI 据此判定发布是否真正生效。
-4. 按 `digest` 拉取（内容寻址，镜像源无法投毒）：`ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
-   （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）。
-5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz` 做健康检查。
+3. **异步执行，结果可查**：CI 带 `X-Quanta-Async: 1` 时先回 `202` 再后台部署，CI 轮询
+   `GET /hooks/images?delivery=<delivery>` 拿 `ok` / `failed` 终态。不再同步扛着十几分钟回包——
+   那条长连接会被中间 NAT 在几分钟内静默掐断，CI 只能报超时假失败（2026-10-17 两次发布即是）。
+   旧客户端仍走同步回包（成功 `200`，失败 `5xx`）。
+4. 按 `digest` 拉取（内容寻址，镜像源无法投毒），**4 路并行**（`PULL_CONCURRENCY`），
+   失败按 `ghcr.dockerproxy.net` → `ghcr.nju.edu.cn` 依次回退
+   （ghcr.io 直连实测约 0.01 MiB/s，不可用，见 `DEPLOY_LOCAL.md` 第 12 节）；
+   镜像一多时并行能把总耗时从「串行求和」压到「最慢的那个镜像」附近。
+5. 打标签后 `docker compose up -d` 只动变化的服务，再对 `:3000/`、`:1888/health`、`:1890/healthz`、
+   `:9310/healthz` 做健康检查。
    启动调度器前先移除占用 1889 的残留容器（前端判题机容器由调度器自己创建，不随上一实例退出而消失）。
 6. 任一步失败 → 用回滚点（部署前的 `docker inspect` 结果）重新打标签 + `up -d` + 健康检查；
    回滚也失败则状态记为 `rollback-failed` 并触发 `ALERT_WEBHOOK_URL`（若配置）。
@@ -76,6 +82,19 @@ curl -s 127.0.0.1:1890/healthz   # 期望 {"ok":true,...}
 注意 `challenge-web-app` 与调度器都 `depends_on` 它，这个容器不存在时两者起得来但调云函数会
 DNS 解析失败。
 
+### 监控栈自研服务（`observation`）
+
+它是监控栈（`packages/challenge-observation/deploy/docker-compose.yml`）这个**独立 compose 项目**里的
+服务，webhook 拉取发布镜像后重打为本地标签 `challenge-observation:latest`，再用监控栈自己的
+compose 文件（带项目目录下的 `.env`）`up -d --no-deps observation`，健康检查 `:9310/healthz`。
+监控栈其余组件（Prometheus/Loki/Grafana 等）用上游官方镜像，不随发布更新。
+
+### 查数 MCP（`data-mcp`）
+
+同属监控栈 compose 项目。CI 发布 `data-mcp` 镜像后，webhook 重打为 `challenge-data-mcp:latest`，
+`up -d --no-deps data-mcp`，健康检查 `:9320/healthz`。源码变更走 `.github/workflows/data-mcp.yml`
+（typecheck / test / build）；镜像变更走 `publish-images.yml` 的 `data-mcp` 矩阵项。
+
 状态：`/var/lib/quanta-deploy/state.json`（含最近 20 次记录、回滚点），日志 `/var/log/quanta-deploy-webhook.log`。
 
 ## 运维
@@ -87,7 +106,10 @@ curl -s 127.0.0.1:19000/health                     # 不带密钥也只看得到
 
 服务端超时：`docker pull` 的静默上限为 **8 分钟**（`PULL_IDLE_MS`；judge-machine 这类 2.46GB 镜像
 冷拉时实测会出现 40s+ 完全无输出，按 20s 判会被误杀），其余等待（HTTP 收发、健康探测、compose up）
-上限为 20s。因为回包要等部署结束，nginx 与 CI 客户端超时都放到 8 分钟以上（nginx 900s，CI 15 分钟）。
+上限为 20s。CI 走 202 + 轮询后不再有长静默连接，nginx 的 900s / CI 的 40 分钟只是给同步模式兜底。
+
+同步模式的兜底仍靠 TCP keepalive（`KEEPALIVE_MS=60s`），但它挡不住中间 NAT / 代理对长静默连接的
+静默回收（GitHub 托管 runner 出网实测约 4 分钟）——这正是改用 202 + 轮询的原因。
 
 ## 手动重放
 

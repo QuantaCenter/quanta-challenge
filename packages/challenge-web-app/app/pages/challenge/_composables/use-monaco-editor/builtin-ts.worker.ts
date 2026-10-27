@@ -3,11 +3,7 @@ import {
    TypeScriptWorker,
 } from 'monaco-editor/esm/vs/language/typescript/ts.worker';
 
-/**
- * Monaco 内置 TS 服务的 worker，只服务 simple editor 的 inmemory:// 模型。
- * 答题页的 file:// 模型由 Volar worker 负责，内置服务若也处理会出现重复补全与误报诊断。
- * 空结果沿用内置 worker 对 lib 文件的返回约定，主线程的各个 adapter 都能正确处理。
- */
+/** Monaco 内置 TS 服务的 worker，只服务 simple editor 的 inmemory:// 模型（file:// 由 Volar worker 负责，避免重复补全与误报）。 */
 const isVolarFile = (fileName: unknown) =>
    typeof fileName === 'string' && fileName.startsWith('file:///');
 

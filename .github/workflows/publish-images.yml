@@ -14,7 +14,7 @@ on:
   workflow_dispatch:
     inputs:
       images:
-        description: '要构建的镜像：all 或逗号分隔（web-app,judge-scheduler,judge-machine,live-server,backend-service,backend-judge-machine,cloud-function）'
+        description: '要构建的镜像：all 或逗号分隔（web-app,judge-scheduler,judge-machine,live-server,backend-service,backend-judge-machine,cloud-function,observation,data-mcp）'
         required: false
         default: 'all'
         type: string
@@ -118,7 +118,8 @@ jobs:
     needs: [detect, build]
     if: always() && needs.detect.outputs.any == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # notify 走 202 + 轮询，部署侧总上限 40 分钟（DEPLOY_DEADLINE_MS），这里给足余量
+    timeout-minutes: 45
     permissions:
       contents: read
       packages: write

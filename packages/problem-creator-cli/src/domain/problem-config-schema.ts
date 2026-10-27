@@ -13,6 +13,9 @@ import { COVER_DEFAULTS } from './cover';
 export const DIFFICULTIES = ['easy', 'medium', 'hard', 'very_hard'] as const;
 export type Difficulty = (typeof DIFFICULTIES)[number];
 
+/** 与服务端 publish-schema 的 snapshotImageId 校验一致 */
+export const SNAPSHOT_IMAGE_ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+
 export const DEFAULT_CONFIG_FILES = [
    'problem.config.ts',
    'problem.config.mts',
@@ -29,12 +32,7 @@ export const DEFAULT_INIT_COMMAND = 'npx serve -l 3000 project';
 export const PROBLEM_TYPES = ['frontend', 'backend_service'] as const;
 export type ProblemType = (typeof PROBLEM_TYPES)[number];
 
-/**
- * 本地生成封面的配色与排版。
- *
- * 这几项**不会**随上传发给服务端（服务端只认 imageId），因此可以自由增减：
- * `qpc cover` 读它渲染 PNG，上传拿到 id 后由 `--write` 把 imageId 写回配置。
- */
+/** 本地生成封面的配色与排版：不随上传发给服务端（服务端只认 imageId），`qpc cover` 渲染 PNG 后由 --write 写回 imageId。 */
 export const coverGenerateSchema = z.object({
    /** 背景色（纯色；配合 bgTo 变成对角线渐变） */
    bg: z.string().default(COVER_DEFAULTS.bg),
@@ -80,6 +78,18 @@ export const problemConfigSchema = z.object({
    tagIds: z
       .array(z.number().int().positive())
       .min(1, 'tagIds 至少需要一个标签（用 `qpc tag` 查看可用 id）'),
+   /**
+    * 做题页 WebContainer 挂载的快照镜像 id（`qpc snapshot-image` 查看）。
+    * null = 明确不用；不写 = 新题不用，追加版本时沿用平台上当前版本的值。
+    */
+   snapshotImageId: z
+      .string()
+      .regex(
+         SNAPSHOT_IMAGE_ID_PATTERN,
+         'snapshotImageId 不合法（用 `qpc snapshot-image` 查看可用 id）',
+      )
+      .nullable()
+      .optional(),
    /** 留空表示"以判题脚本里各检查点之和为准"；填写则必须与之和相等 */
    totalScore: z.number().int().positive().optional(),
    cover: coverSchema.default({ mode: 'default' }),
@@ -112,10 +122,7 @@ export const problemConfigSchema = z.object({
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;
 
-/**
- * 后端题的镜像与 bootCommand 由镜像决定（会覆盖作者写的值）；initCommand 只在作者
- * 没写时填镜像默认值。回报被覆盖的字段，供 `qpc check` 提示。前端题型原样返回。
- */
+/** 后端题的镜像与 bootCommand 由镜像决定（覆盖作者写的值），initCommand 仅缺省时填默认值；回报被覆盖字段供 `qpc check` 提示。 */
 export const applyBackendServiceImageDefaults = (
    config: ProblemConfig,
 ): { config: ProblemConfig; overridden: string[] } => {

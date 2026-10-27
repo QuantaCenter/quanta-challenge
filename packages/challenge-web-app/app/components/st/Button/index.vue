@@ -78,7 +78,10 @@ const borderedClass = computed(() => {
             'active:scale-95': !disabled,
          },
       ]">
-      <LoadingFour v-if="props.loading" class="mr-2 animate-spin text-lg" />
+      <slot v-if="$slots.icon" name="icon" :loading="props.loading"></slot>
+      <LoadingFour
+         v-else-if="props.loading"
+         class="mr-2 animate-spin text-lg" />
       <slot></slot>
    </component>
 </template>

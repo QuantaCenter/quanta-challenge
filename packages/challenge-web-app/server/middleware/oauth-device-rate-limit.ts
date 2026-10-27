@@ -1,18 +1,7 @@
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { useRedis } from '~~/server/utils/redis';
 
-/**
- * 设备授权端点的限速。
- *
- * RFC 8628 §3.1 明确要求注意"轮询型协议"对端点容量的压力：CLI 每 interval 秒
- * 打一次 token 端点，一个卡住的终端可能长时间持续请求。这里按 IP 限速，
- * 阈值比单客户端正常轮询（10 分钟 / 5 秒 = 120 次）宽一些，但足以挡住
- * 明显的滥用与脚本扫描。
- *
- * ⚠️ 这只防**滥用**，不替代 user_code 的爆破防护：
- * 爆破防护在 services/device-flow.ts 里按 user_code 维度计数（RFC §5.1），
- * 因为攻击者可以换 IP 来绕过 IP 限速。
- */
+/** 设备授权端点按 IP 限速，阈值宽于正常轮询；只防滥用，user_code 爆破防护在 services/device-flow.ts（按码计数，防换 IP）。 */
 const LIMITS: Record<string, { times: number; windowSeconds: number }> = {
    '/api/oauth/device/authorize': { times: 30, windowSeconds: 60 },
    // 轮询端点给得宽松：正常客户端 10 分钟内约 120 次；
@@ -44,9 +33,7 @@ export default defineEventHandler(async (event) => {
          '设备授权端点触发限速',
       );
       setResponseStatus(event, 429);
-      // h3 的 TypedHeaders 把 retry-after 声明为 number（RFC 9110 里它是
-      // delay-seconds 或 HTTP-date），传字符串会被类型检查拦下，
-      // 而 h3 会自动序列化，这里直接给数字。
+      // h3 的 TypedHeaders 把 retry-after 声明为 number（RFC 9110 里它是 delay-seconds 或 HTTP-date），传字符串会被类型检查拦下， 而 h3 会自动序列化，这里直接给数字。
       setHeader(event, 'retry-after', settings.windowSeconds);
       return {
          error: 'slow_down',

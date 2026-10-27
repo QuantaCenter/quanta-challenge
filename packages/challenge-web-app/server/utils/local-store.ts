@@ -1,5 +1,5 @@
 import path from 'path';
-import { IStore } from './i-store';
+import type { IStore } from './i-store';
 import fs from 'fs/promises';
 import { resolveLocalStorePath } from '@challenge/shared/store';
 

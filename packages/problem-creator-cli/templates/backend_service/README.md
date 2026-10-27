@@ -17,20 +17,15 @@ cover.png           init 已按 cover.generate 渲染好的封面（还没上传
 ## 标准流程
 
 ```bash
-# 0. 后端题必须自定义封面：生成 → 上传 → 把 imageId 写回配置
-qpc cover --upload --write
-
-# 1. 本地预检（毫秒级，先挡掉静态错误）
-qpc check
-
-# 2. 上传并等待审计（生成题目版本，审计约 20 秒）
-qpc upload
-
-# 3. 审计通过后发布
-qpc publish <problemId>
+qpc agent              # 判题脚本编写手册（先读）
+qpc tag --write <ids>  # 指定标签
+qpc cover --write      # 后端题必须自定义封面：生成 → 上传 → 把 imageId 写回配置
+qpc check              # 基础信息检查 + 本地微判题（在 answer/、template/ 里 npm start 后跑判题脚本）
+qpc upload --write     # 上传审核（约 20 秒），成功后写回 problemId
+qpc publish <pid>      # 发布 upload 输出的当前版本
 ```
 
-> 第 0 步之前 `qpc check` 会报 IMG001（custom 封面缺 imageId），这是预期的：
+> `qpc cover --write` 之前 `qpc check` 会报 IMG001（custom 封面缺 imageId），这是预期的：
 > 后端题没有首屏可截图，封面只能先生成再上传。
 
 ## 加依赖

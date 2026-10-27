@@ -11,7 +11,12 @@ export type SearchType =
    | 'user'
    | 'tag'
    | 'page-section'
-   | 'daily-problem';
+   | 'daily-problem'
+   | 'achievement'
+   | 'notification'
+   | 'submission'
+   | 'appeal'
+   | 'cloud-function';
 
 /**
  * 搜索结果类型
@@ -21,7 +26,12 @@ export type SearchResultType =
    | 'user'
    | 'tag'
    | 'page-section'
-   | 'daily-problem';
+   | 'daily-problem'
+   | 'achievement'
+   | 'notification'
+   | 'submission'
+   | 'appeal'
+   | 'cloud-function';
 
 /**
  * 题目难度
@@ -101,6 +111,65 @@ export interface DailyProblemSearchResult extends SearchResultBase {
 }
 
 /**
+ * 成就搜索结果
+ */
+export interface AchievementSearchResult extends SearchResultBase {
+   type: 'achievement';
+   metadata: {
+      score: number;
+      unlocked: boolean; // 当前用户是否已解锁
+   };
+}
+
+/**
+ * 通知搜索结果
+ */
+export interface NotificationSearchResult extends SearchResultBase {
+   type: 'notification';
+   metadata: {
+      notificationType: string;
+      read: boolean;
+      createdAt: string;
+   };
+}
+
+/**
+ * 提交记录搜索结果（管理员）
+ */
+export interface SubmissionSearchResult extends SearchResultBase {
+   type: 'submission';
+   metadata: {
+      result: string;
+      score: number;
+      userName: string;
+      problemTitle: string;
+      createdAt: string;
+   };
+}
+
+/**
+ * 申诉搜索结果（管理员）
+ */
+export interface AppealSearchResult extends SearchResultBase {
+   type: 'appeal';
+   metadata: {
+      status: string;
+      userName: string;
+      createdAt: string;
+   };
+}
+
+/**
+ * 云函数搜索结果（管理员）
+ */
+export interface CloudFunctionSearchResult extends SearchResultBase {
+   type: 'cloud-function';
+   metadata: {
+      enabled: boolean;
+   };
+}
+
+/**
  * 搜索结果联合类型
  */
 export type SearchResult =
@@ -108,14 +177,19 @@ export type SearchResult =
    | UserSearchResult
    | TagSearchResult
    | PageSectionSearchResult
-   | DailyProblemSearchResult;
+   | DailyProblemSearchResult
+   | AchievementSearchResult
+   | NotificationSearchResult
+   | SubmissionSearchResult
+   | AppealSearchResult
+   | CloudFunctionSearchResult;
 
 /**
  * 搜索 API 请求参数
  */
 export interface SearchParams {
    q: string; // 搜索关键词
-   type?: SearchResultType | 'all'; // 搜索类型
+   type?: string; // 搜索类型，多个用逗号分隔，如 "problem,user"
    limit?: number; // 结果数量限制
    offset?: number; // 分页偏移量
 }

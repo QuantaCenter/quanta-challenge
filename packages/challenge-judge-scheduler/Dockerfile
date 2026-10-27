@@ -35,6 +35,7 @@ COPY packages/challenge-agents/judge-machine/package.json ./packages/challenge-a
 COPY packages/challenge-agents/live-server/package.json ./packages/challenge-agents/live-server/package.json
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/challenge-observation/package.json ./packages/challenge-observation/package.json
 
 # 安装 pnpm (固定 v9 版本，避免 v10 默认忽略构建脚本导致安装失败)
 RUN npm config set registry ${NPM_REGISTRY}
@@ -56,6 +57,7 @@ COPY packages/challenge-judge-scheduler ./packages/challenge-judge-scheduler
 COPY packages/challenge-agents/judge-machine ./packages/challenge-agents/judge-machine
 COPY packages/database ./packages/database
 COPY packages/shared ./packages/shared
+COPY packages/challenge-observation ./packages/challenge-observation
 
 # 生成 Prisma 客户端
 WORKDIR /app/packages/database

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import type { DefineComponent } from 'vue';
 
-/** 发布流程页的入口卡片。compact 用于展开后的子项（创建专题 / 创建课程）。 */
+/** 发布流程页的入口卡片。compact 用于展开后的子项（创建专题 / 创建课程）。
+ *  needFullLoad：依赖跨源隔离响应头的入口需整页加载（external 跳转）。 */
 withDefaults(
    defineProps<{
       title: string;
@@ -10,13 +11,14 @@ withDefaults(
       icon: DefineComponent;
       iconColor: string;
       compact?: boolean;
+      needFullLoad?: boolean;
    }>(),
-   { compact: false },
+   { compact: false, needFullLoad: false },
 );
 </script>
 
 <template>
-   <NuxtLink :to="url" class="block w-full">
+   <NuxtLink :to="url" :external="needFullLoad" class="block w-full">
       <StSpace
          fill-x
          justify="between"

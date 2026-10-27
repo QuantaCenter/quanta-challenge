@@ -3,7 +3,7 @@ import type { ISelectOption } from '~/components/st/Select/type';
 import { RobotOne } from '@icon-park/vue-next';
 
 const preAchievements = defineModel<number[]>('preAchievements', {
-   default: [],
+   default: () => [],
 });
 
 const props = defineProps<{
@@ -61,7 +61,7 @@ watch(selectOpened, async (opened) => {
 });
 
 const pickedAchievements = defineModel<IAchievement[]>('pickedAchievements', {
-   default: [],
+   default: () => [],
 });
 watchEffect(() => {
    pickedAchievements.value = allAchievements.value.filter((ach) =>

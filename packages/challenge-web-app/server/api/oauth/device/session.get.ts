@@ -2,14 +2,7 @@ import { verifyToken } from '~~/server/utils/jwt';
 import { createDeviceFlowService } from '~~/server/services/device-flow';
 import { formatUserCode } from '@challenge/shared/oauth';
 
-/**
- * 返回指定 user_code 对应的待确认设备会话。
- *
- * ⚠️ 这是**只读**接口，但仍然要求登录：
- * 确认页需要展示"是哪个账号在授权"，未登录时会话无从谈起；
- * 同时它会对不存在/非法的 user_code 计一次失败尝试（RFC 8628 §5.1 的限速要求），
- * 因此不能让匿名请求随意调用。
- */
+/** 返回指定 user_code 的待确认设备会话：仍要求登录，且对非法 user_code 计失败尝试（RFC §5.1）。 */
 export default defineEventHandler(async (event) => {
    const token = getCookie(event, 'quanta_access_token');
    const user = token ? safeVerify(token) : null;
@@ -48,11 +41,7 @@ export default defineEventHandler(async (event) => {
    }
 
    return {
-      // 返回**展示格式**（带中间横线，如 WDJB-MJHT）：
-      // session.userCode 存的是归一化后的值（WDJBMJHT），直接返回会让确认页
-      // 显示成不带横线的码，而终端上显示的是带横线的 —— 用户要逐字对比
-      // 这两个地方，格式不一致会让人怀疑自己看错了（RFC §5.4 要求用户核对）。
-      // 归一化只用于存储与比较，不应该泄露到展示层。
+      // 返回**展示格式**（带中间横线，如 WDJB-MJHT）： session.userCode 存的是归一化后的值（WDJBMJHT），直接返回会让确认页 显示成不带横线的码，而终端上显示的是带横线的 —— 用户要逐字对比 这两个地方，格式不一致会让人怀疑自己看错了（RFC §5.4 要求用户核对）。 归一化只用于存储与比较，不应该泄露到展示层。
       user_code: formatUserCode(session.userCode),
       client_id: session.clientId,
       scope: session.scope,

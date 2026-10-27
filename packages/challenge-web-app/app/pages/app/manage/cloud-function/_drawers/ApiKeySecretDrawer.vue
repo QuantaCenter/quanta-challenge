@@ -26,7 +26,7 @@ const copy = async (text: string, tip: string) => {
       <StSpace direction="vertical" gap="0" class="h-screen text-white" fill>
          <StSpace direction="vertical" gap="1.5rem" class="w-full flex-1 p-6">
             <StSpace direction="vertical" gap="0.25rem">
-               <h2 class="st-font-secondary-bold">请立即保存 Secret</h2>
+               <h2 class="st-font-secondary-bold max-md:text-[1.25rem]">请立即保存 Secret</h2>
                <p class="st-font-caption text-accent-300">
                   关闭后无法再次查看。Key ID 为
                   <span class="font-mono text-accent-100">

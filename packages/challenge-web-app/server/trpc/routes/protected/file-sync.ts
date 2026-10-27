@@ -4,7 +4,14 @@ import prisma from '~~/lib/prisma';
 import { router } from '../../trpc';
 import { TRPCError } from '@trpc/server';
 import { observer } from '../../services/achievement';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
+
+// 文本列不能存储 NUL 字节，含 \u0000 的内容直接拒绝
+const SyncContentSchema = z
+   .string()
+   .refine((content) => !content.includes('\u0000'), {
+      error: '内容包含非法字符',
+   });
 
 // 定义变更类型的 schema
 const ChangeSchema = z.discriminatedUnion('type', [
@@ -20,30 +27,25 @@ const ChangeSchema = z.discriminatedUnion('type', [
    z.object({
       type: z.literal('change'),
       path: z.string(),
-      content: z.string(),
+      content: SyncContentSchema,
    }),
    z.object({
       type: z.literal('create'),
       path: z.string(),
-      content: z.string(),
+      content: SyncContentSchema,
    }),
 ]);
 
 const SyncFileChangesSchema = z.object({
    problemId: z.number(),
    changes: z.array(ChangeSchema),
+   // 客户端加载项目时的版本号；重置会递增该值，不匹配的旧请求将被拒绝。可选以兼容未升级的调用方
+   revision: z.number().int().optional(),
 });
 
 const PROJECT_ROOT_PATH = '/project';
 
-/**
- * 把数据库里的虚拟文件路径归一化为 `/project/...`。
- *
- * 历史数据同时存在两种写法：相对路径 `index.html` 与已带项目根的
- * `/project/index.html`。同步时客户端只会发 `/project/...`，若不做归一化，
- * 第二种写法会被拼成 `/project//project/...` 而匹配不上，导致每次编辑都
- * 新建一条重复记录（旧记录残留），文件树里出现 project/project 两层。
- */
+/** 把数据库里的虚拟文件路径归一化为 `/project/...`：历史数据含相对路径写法，不归一化会导致每次编辑新建重复记录。 */
 const toProjectPath = (path: string): string => {
    const normalized = `/${path}`.replace(/\/+/g, '/').replace(/\/+$/, '');
    if (
@@ -55,15 +57,12 @@ const toProjectPath = (path: string): string => {
    return `${PROJECT_ROOT_PATH}${normalized}`;
 };
 
-/**
- * 同步文件变更到服务器
- * 处理文件的创建、修改、移动和删除操作
- */
+/** 同步文件变更到服务器（创建、修改、移动、删除）。 */
 const syncFileChangesProcedure = protectedProcedure
    .input(SyncFileChangesSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
-      const { problemId, changes } = input;
+      const { problemId, changes, revision } = input;
 
       if (changes.length === 0) {
          return { success: true, processedCount: 0 };
@@ -75,7 +74,6 @@ const syncFileChangesProcedure = protectedProcedure
             {
                count: changes.length,
                changes,
-               traceId: ctx.traceId ?? 'unknown',
             },
             `Too many changes in one sync`,
          );
@@ -87,11 +85,35 @@ const syncFileChangesProcedure = protectedProcedure
 
       try {
          await prisma.$transaction(async (tx) => {
-            // 获取用户的项目和文件系统
+            // 锁定项目行：与重置事务（同样先锁项目行）互斥，保证 revision 校验和后续写入不会被并发重置穿插
+            const [lockedProject] = await tx.$queryRaw<
+               { pid: string; revision: number }[]
+            >`
+               SELECT pid, revision FROM projects
+               WHERE "ownerId" = ${userId} AND "problemId" = ${problemId} AND "isTemplate" = false
+               FOR UPDATE
+            `;
+
+            if (!lockedProject) {
+               throw new TRPCError({
+                  code: 'NOT_FOUND',
+                  message: 'Project or file system not found',
+               });
+            }
+
+            // 重置会递增 revision；携带旧版本号的请求是重置前发出的，写入会恢复被清空的修改，直接拒绝
+            if (revision !== undefined && lockedProject.revision !== revision) {
+               throw new TRPCError({
+                  code: 'CONFLICT',
+                  message: 'Project has been reset, please reload the page',
+               });
+            }
+
             const project = await tx.projects.findFirst({
                where: {
                   ownerId: userId,
                   problemId: problemId,
+                  isTemplate: false,
                },
                include: {
                   FileSystem: {
@@ -160,7 +182,6 @@ const syncFileChangesProcedure = protectedProcedure
                         logger.debug(
                            {
                               path: change.path,
-                              traceId: ctx.traceId ?? 'unknown',
                            },
                            'Remove folder',
                         );
@@ -189,7 +210,6 @@ const syncFileChangesProcedure = protectedProcedure
                            {
                               oldPath: change.oldPath,
                               newPath: change.newPath,
-                              traceId: ctx.traceId ?? 'unknown',
                            },
                            'Move file',
                         );
@@ -227,7 +247,6 @@ const syncFileChangesProcedure = protectedProcedure
                         {
                            oldPath: change.oldPath,
                            newPath: change.newPath,
-                           traceId: ctx.traceId ?? 'unknown',
                         },
                         'Move folder',
                      );
@@ -293,8 +312,12 @@ const syncFileChangesProcedure = protectedProcedure
             processedCount: changes.length,
          };
       } catch (error) {
+         // NOT_FOUND / CONFLICT 等业务错误码原样抛出，不能被包装成 500
+         if (error instanceof TRPCError) {
+            throw error;
+         }
          logger.error(
-            { error, traceId: ctx.traceId ?? 'unknown' },
+            { error },
             'Failed to sync file changes',
          );
          throw new TRPCError({

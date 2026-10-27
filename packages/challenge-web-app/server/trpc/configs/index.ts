@@ -1,23 +1,16 @@
-import { ValidFieldPath } from '@challenge/database';
+import type { ValidFieldPath } from '@challenge/database';
 
-/**
- * 不合法的字段路径列表，包含正则表达式和具体的字段路径
- */
+/** 不合法的字段路径列表（正则或具体路径） */
 export const invalidFieldsPattern: (ValidFieldPath | RegExp)[] = [
    /^auths.*/,
    /^achievement.*/, // 避免触发成就相关的循环依赖
    /^user_achievements.*/,
 ];
 
-/**
- * 上下文注入 __ctx 的属性
- */
+/** 上下文注入 __ctx 的属性 */
 export const contextVariables = ['userId', 'continuesCheckinCount'];
 
-/**
- * 页面板块配置
- * 这些是可以被搜索到的页面板块
- */
+/** 页面板块配置（可被搜索到的页面板块） */
 export const pageSecions = [
    {
       id: 'dashboard-recent-submission',
@@ -148,5 +141,185 @@ export const pageSecions = [
       sectionName: '高级设置',
       url: '/app/settings/advanced',
       keywords: ['设置', '高级', 'settings', 'advanced', 'shezhi', 'gaoji'],
+   },
+   {
+      id: 'achievements',
+      pageName: '成就',
+      sectionName: '成就墙',
+      url: '/app/achievements',
+      keywords: [
+         '成就',
+         '徽章',
+         '奖章',
+         'achievements',
+         'badge',
+         'medal',
+         'chengjiu',
+      ],
+   },
+   {
+      id: 'notifications',
+      pageName: '通知',
+      sectionName: '通知中心',
+      url: '/app/notifications',
+      keywords: [
+         '通知',
+         '消息',
+         '公告',
+         'notifications',
+         'tongzhi',
+         'xiaoxi',
+         'gonggao',
+      ],
+   },
+   {
+      id: 'manage',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '管理首页',
+      url: '/app/manage',
+      keywords: ['管理', '后台', 'manage', 'guanli', 'houtai'],
+   },
+   {
+      id: 'manage-problem',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '题目管理',
+      url: '/app/publish/problem/mine',
+      keywords: [
+         '题目管理',
+         '我的发布',
+         '已发布',
+         'problem',
+         'timuguanli',
+      ],
+   },
+   {
+      id: 'manage-achievement',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '成就管理',
+      url: '/app/manage/achievement',
+      keywords: ['成就管理', '成就', 'achievement', 'chengjiu'],
+   },
+   {
+      id: 'manage-tag',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '标签管理',
+      url: '/app/manage/tag',
+      keywords: ['标签管理', '标签', 'tag', 'biaoqian'],
+   },
+   {
+      id: 'manage-member',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '成员管理',
+      url: '/app/manage/member',
+      keywords: ['成员管理', '成员', '用户管理', 'member', 'chengyuan'],
+   },
+   {
+      id: 'manage-cloud-function',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '云函数管理',
+      url: '/app/manage/cloud-function',
+      keywords: ['云函数', '函数', 'cloud function', 'yunhanshu'],
+   },
+   {
+      id: 'manage-image',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '快照镜像管理',
+      url: '/app/manage/image',
+      keywords: ['快照', '镜像', 'image', 'snapshot', 'jingxiang'],
+   },
+   {
+      id: 'manage-submission',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '提交记录',
+      url: '/app/manage/submission',
+      keywords: ['提交记录', '提交', '判题', 'submission', 'tijiao'],
+   },
+   {
+      id: 'manage-appeal',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '全部申诉',
+      url: '/app/manage/appeal',
+      keywords: ['申诉', '警告', 'appeal', 'shensu'],
+   },
+   {
+      id: 'manage-scheduled-task',
+      adminOnly: true,
+      pageName: '管理流程',
+      sectionName: '定时任务管理',
+      url: '/app/manage/scheduled-task',
+      keywords: ['定时任务', '任务', 'scheduled task', 'dingshirenwu'],
+   },
+   {
+      id: 'publish',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '发布首页',
+      url: '/app/publish',
+      keywords: ['发布', 'publish', 'fabu'],
+   },
+   {
+      id: 'publish-problem',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '发布题目',
+      url: '/app/publish/problem',
+      keywords: ['发布题目', '出题', '新建题目', 'problem', 'fabutimu'],
+   },
+   {
+      id: 'publish-image',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '构建快照镜像',
+      url: '/app/publish/image',
+      keywords: ['构建镜像', '快照镜像', 'image', 'build', 'goujian'],
+   },
+   {
+      id: 'publish-achievement',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '创建成就',
+      url: '/app/publish/achievement',
+      keywords: ['创建成就', '新建成就', 'achievement', 'chengjiu'],
+   },
+   {
+      id: 'publish-create-tag',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '创建标签',
+      url: '/app/publish/create-tag',
+      keywords: ['创建标签', '新建标签', 'tag', 'biaoqian'],
+   },
+   {
+      id: 'publish-cloud-function',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '发布云函数',
+      url: '/app/publish/cloud-function',
+      keywords: ['发布云函数', '云函数', 'cloud function', 'yunhanshu'],
+   },
+   {
+      id: 'publish-notification',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '发送通知',
+      url: '/app/publish/notification',
+      keywords: ['发送通知', '公告', '警告', 'notification', 'tongzhi'],
+   },
+   {
+      id: 'publish-scheduled-task',
+      adminOnly: true,
+      pageName: '发布流程',
+      sectionName: '创建定时任务',
+      url: '/app/publish/scheduled-task',
+      keywords: ['定时任务', '创建任务', 'scheduled task', 'dingshirenwu'],
    },
 ];

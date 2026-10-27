@@ -7,7 +7,12 @@ import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
+import type { editor } from 'monaco-editor';
 import { onClickOutside } from '@vueuse/core';
+import {
+   hasBinarySnapshotExtension,
+   toSnapshotDataUrl,
+} from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
 
@@ -91,13 +96,26 @@ const hasEditorReady = ref(false);
 
 // 下拉菜单状态
 const isDropdownOpen = ref(false);
+// 菜单内容延迟到首次打开才渲染
+const hasOpenedDropdown = ref(false);
 const dropdownButtonRef = ref<HTMLElement>();
 const dropdownMenuRef = ref<HTMLElement>();
 
 // 配置 Modal 状态
 const isSettingsModalOpen = ref(false);
 
-const { popperKey, containerKey: popperContainerKey } = usePopper({
+// 打开/收起下拉菜单
+const toggleDropdown = async () => {
+   isDropdownOpen.value = !isDropdownOpen.value;
+   if (isDropdownOpen.value) {
+      hasOpenedDropdown.value = true;
+      // 关闭态是 display:none，打开后需等 DOM 恢复显示再让 Popper 重新测量定位
+      await nextTick();
+      popperInstance.value?.update();
+   }
+};
+
+const { popperKey, containerKey: popperContainerKey, popperInstance } = usePopper({
    options: {
       placement: 'bottom-end',
       modifiers: [
@@ -112,6 +130,62 @@ const { popperKey, containerKey: popperContainerKey } = usePopper({
 });
 
 const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
+
+// 移动端顶栏撤回/重做：注册执行能力，供顶栏按钮调用
+const { actions: historyActions, canUndo, canRedo } = useMobileEditorHistory();
+
+const undo = () => {
+   onEditorInstanceReady((instance) => {
+      instance.trigger('mobile-toolbar', 'undo', null);
+      syncHistoryState(instance);
+   });
+};
+
+const redo = () => {
+   onEditorInstanceReady((instance) => {
+      instance.trigger('mobile-toolbar', 'redo', null);
+      syncHistoryState(instance);
+   });
+};
+
+/**
+ * Monaco 0.52 的类型声明移除了 model.undo / model.canUndo / model.canRedo，
+ * 但运行时实现仍在（内部委托全局 IUndoRedoService，与 VS Code 的撤回/重做
+ * 可用态判定同源），可直接调用。
+ * 不能再用版本号近似判断：0.52 下 versionId 在撤回/重做时同样单调递增，
+ * alternativeVersionId 被撤回栈整体覆盖，"alternativeVersionId > versionId"
+ * 的旧近似不再成立，会导致重做按钮始终置灰。
+ */
+type HistoryCapableModel = editor.ITextModel & {
+   canUndo?: () => boolean;
+   canRedo?: () => boolean;
+};
+
+const syncHistoryState = (instance: editor.IStandaloneCodeEditor) => {
+   const model = instance.getModel() as HistoryCapableModel | null;
+   canUndo.value = !!model && (model.canUndo?.() ?? model.getVersionId() > 1);
+   canRedo.value =
+      !!model &&
+      (model.canRedo?.() ??
+         model.getAlternativeVersionId() > model.getVersionId());
+};
+
+onEditorInstanceReady((instance) => {
+   const update = () => syncHistoryState(instance);
+   instance.onDidChangeModelContent(update);
+   instance.onDidChangeModel(update);
+   update();
+});
+
+historyActions.value = { undo, redo };
+
+onUnmounted(() => {
+   if (historyActions.value?.undo === undo) {
+      historyActions.value = null;
+      canUndo.value = false;
+      canRedo.value = false;
+   }
+});
 
 // 打开配置 Modal
 const openSettingsModal = () => {
@@ -134,9 +208,8 @@ onEditorInstanceReady(() => {
       (fs) => {
          if (!fs) return;
          const models = objectMap(fs, ({ value }) => value.content);
-         const excludeExt = ['.svg', '.png', '.jpg'];
          Object.keys(models)
-            .filter((k) => excludeExt.some((ext) => k.endsWith(ext)))
+            .filter((k) => k.endsWith('.svg') || hasBinarySnapshotExtension(k))
             .forEach((key) => delete models[key]);
 
          createModels(models);
@@ -171,6 +244,13 @@ const setModel = (path: string | null, forceRecreate = false) => {
       // 统一规范化路径为前置 / 格式
       const normalizedPath = normalizePath(path);
 
+      // 二进制文件不进 Monaco：编辑会把文本写回 WebContainer，损坏原文件
+      if (hasBinarySnapshotExtension(normalizedPath)) {
+         instance.setModel(null);
+         currentFilePath.value = normalizedPath;
+         return;
+      }
+
       const model = monaco.editor.getModel(monaco.Uri.file(normalizedPath));
 
       // 如果需要强制重新创建 model（例如处理 suspense 文件）
@@ -201,12 +281,34 @@ const setModel = (path: string | null, forceRecreate = false) => {
    });
 };
 
+const isBinaryFile = computed(
+   () =>
+      !!currentFilePath.value &&
+      hasBinarySnapshotExtension(currentFilePath.value)
+);
+
+const imagePreviewSrc = computed(() => {
+   if (!isBinaryFile.value) return undefined;
+   const normalizedPath = normalizePath(currentFilePath.value!);
+   const content = props.defaultFs?.[normalizedPath]?.content;
+   return content ? toSnapshotDataUrl(normalizedPath, content) : undefined;
+});
+
+const closeCurrentTab = () => {
+   const tab = openedTabs.value.find(
+      (item) => item.path === currentFilePath.value
+   );
+   tab && onCloseTab(tab);
+};
+
 defineExpose({
    setModel,
+   closeCurrentTab,
    onModelContentChange,
    addExtraLibs,
    onEditorInstanceReady,
 });
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -214,10 +316,10 @@ defineExpose({
       fill
       direction="vertical"
       gap="0"
-      class="bg-[#1F1F1F] rounded-xl overflow-hidden">
+      class="bg-[#1F1F1F] rounded-xl max-md:rounded-t-none overflow-hidden">
       <StSpace
          fill-x
-         class="p-1 rounded-t-xl bg-accent-600"
+         class="p-1 rounded-t-xl max-md:rounded-t-none bg-accent-600"
          justify="between"
          align="center"
          gap="0">
@@ -246,27 +348,25 @@ defineExpose({
             <div
                :ref="popperContainerKey"
                class="size-[2rem] rounded-[0.5rem] m-0.5 text-accent-200 bg-accent-500 cursor-pointer hover:bg-accent-400 transition-colors flex items-center justify-center"
-               @click="isDropdownOpen = !isDropdownOpen">
+               @click="toggleDropdown">
                <MoreOne />
             </div>
 
-            <!-- 下拉菜单 -->
-            <Teleport to="body">
+            <Teleport to="body" :disabled="!teleported">
                <div
                   :ref="popperKey"
-                  class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem] border border-accent-500"
-                  :class="{
-                     '-translate-y-2 opacity-0 pointer-events-none':
-                        !isDropdownOpen,
-                  }">
-                  <StSpace
-                     align="center"
-                     gap="0.5rem"
-                     class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
-                     @click="openSettingsModal">
-                     <Setting />
-                     编辑器设置
-                  </StSpace>
+                  class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
+                  :class="isDropdownOpen ? 'visible' : 'hidden'">
+                  <template v-if="hasOpenedDropdown">
+                     <StSpace
+                        align="center"
+                        gap="0.5rem"
+                        class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
+                        @click="openSettingsModal">
+                        <Setting />
+                        编辑器设置
+                     </StSpace>
+                  </template>
                </div>
             </Teleport>
          </div>
@@ -278,6 +378,20 @@ defineExpose({
             v-show="hasEditorReady"
             :ref="containerKey"
             class="absolute top-0 left-0 size-full"></main>
+         <StSpace
+            v-if="hasEditorReady && isBinaryFile"
+            fill
+            center
+            class="absolute top-0 left-0 size-full p-4 bg-[#1C1C1C]">
+            <img
+               v-if="imagePreviewSrc"
+               :src="imagePreviewSrc"
+               :alt="currentFilePath"
+               class="max-w-full max-h-full object-contain" />
+            <span v-else class="st-font-body-normal text-accent-400">
+               该文件无法预览
+            </span>
+         </StSpace>
       </StSpace>
    </StSpace>
 

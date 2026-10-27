@@ -1,11 +1,11 @@
 import prisma from '@challenge/database';
 import { TRPCError } from '@trpc/server';
 import pkg from 'node-sql-parser';
-import { ValidPath } from '~~/lib/track-wrapper';
+import type { ValidPath } from '~~/lib/track-wrapper';
 import { LRUMap } from '../../../utils/lru-map';
 import { EventEmitter } from '../../../../app/utils/event-emitter';
 import { VM } from 'vm2';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 const { Parser } = pkg;
 
@@ -93,14 +93,7 @@ export class AchievementObserver {
       achievementId: number,
       injectVars?: Record<string, any>,
    ) {
-      // 优先采用调用方显式传入的 userId。
-      //
-      // 判题完成这类**非用户请求**路径（Nitro webhook，没有 tRPC 中间件建立的
-      // requestContext）里 `_useUserId()` 拿不到人，调用方会用
-      // `manualMarkDirty(paths, { userId })` 把用户带进来。若这里不采用它：
-      //   1) 加载器的 `__ctx.userId` 注入不到值，SQL 直接报
-      //      `missing FROM-clause entry for table "__ctx"`；
-      //   2) 发分监听器收到 userId 为空会立刻 return，成就永远不会落库。
+      // 优先采用调用方显式传入的 userId。 判题完成这类**非用户请求**路径（Nitro webhook，没有 tRPC 中间件建立的 requestContext）里 `_useUserId()` 拿不到人，调用方会用 `manualMarkDirty(paths, { userId })` 把用户带进来。若这里不采用它： 1) 加载器的 `__ctx.userId` 注入不到值，SQL 直接报 `missing FROM-clause entry for table "__ctx"`； 2) 发分监听器收到 userId 为空会立刻 return，成就永远不会落库。
       const userId = injectVars?.userId ?? (await this._useUserId());
       if (this._affectedAchIds.size === 0) {
          const flushJob = () => {
@@ -136,7 +129,7 @@ export class AchievementObserver {
       return target.subscribe(async (paths) => {
          for (const { path, method } of paths) {
             const pathToCheck = /^(create|delete).*/.test(method)
-               ? path.split('.')[0]
+               ? (path.split('.')[0] ?? path)
                : path;
 
             const loaderMap = this._depTree.get(pathToCheck);
@@ -215,11 +208,7 @@ export class AchievementObserver {
             const vars = await injector();
             injectVars ??= {};
             if (vars && typeof vars === 'object') {
-               // 只合并**有值**的键。
-               //
-               // 注入器在无请求上下文时会返回 `{ userId: undefined, ... }`，
-               // 直接 `Object.assign` 会把调用方显式传入的 userId 覆盖掉，
-               // 于是 `__ctx.userId` 又变回缺失 —— 判题完成路径就是这么被绕过去的。
+               // 只合并**有值**的键。 注入器在无请求上下文时会返回 `{ userId: undefined, ... }`， 直接 `Object.assign` 会把调用方显式传入的 userId 覆盖掉， 于是 `__ctx.userId` 又变回缺失 —— 判题完成路径就是这么被绕过去的。
                for (const [key, value] of Object.entries(vars)) {
                   if (value !== undefined) injectVars[key] = value;
                }
@@ -230,7 +219,7 @@ export class AchievementObserver {
 
       if (injectVars) {
          const matchedVars = this._matchedUsedContextVars(sql).filter(
-            (v) => v in injectVars!,
+            (v): v is string => v !== undefined && v in injectVars!,
          );
          if (matchedVars.length > 0) {
             queryId = null;
@@ -265,6 +254,9 @@ export class AchievementObserver {
 
       if (queryId) {
          columnListSegments.forEach(([, table, field]) => {
+            if (table === undefined) {
+               return;
+            }
             const tableSet =
                this._pathToQueries.get(table) ??
                this._pathToQueries.set(table, new Set()).get(table)!;
@@ -288,12 +280,7 @@ export class AchievementObserver {
          result = this._queryCache.get(queryId!);
       } else {
          const sqlWithCtx = this._injectCtxIntoSql(context, sql);
-         // 直接使用 $queryRawUnsafe 返回的行对象。
-         //
-         // 历史注意：6c8abd5 曾把这里改成 `temp.map((item) => item.__data)`，但
-         // _executeQuery 就是原生 prisma.$queryRawUnsafe（@challenge/database 导出的
-         // 是 PrismaClient，全仓库没有任何地方产生 __data 字段），于是每个查询结果都
-         // 变成 [undefined]，成就依赖数据全线失效。这里恢复「原样返回行」的契约。
+         // 直接使用 $queryRawUnsafe 返回的行对象。 历史注意：6c8abd5 曾把这里改成 `temp.map((item) => item.__data)`，但 _executeQuery 就是原生 prisma.$queryRawUnsafe（@challenge/database 导出的 是 PrismaClient，全仓库没有任何地方产生 __data 字段），于是每个查询结果都 变成 [undefined]，成就依赖数据全线失效。这里恢复「原样返回行」的契约。
          result = await this._executeQuery(sqlWithCtx);
          if (queryId) {
             this._queryCache.set(queryId, result);
@@ -341,6 +328,9 @@ export class AchievementObserver {
             }
 
             columnListSegments.forEach(([, table, field]) => {
+               if (table === undefined) {
+                  return;
+               }
                const path = `${table}.${field}`;
 
                // Add to full path (table.field)
@@ -462,16 +452,7 @@ export class AchievementObserver {
             injectVars,
          );
 
-         /**
-          * 依赖数据加载器的 SQL 约定：结果列必须别名为 `value`，且每个加载器只取这一列
-          * （既有加载器、发布页模板与本文件的全部测试都遵循该约定）。
-          *
-          * 空结果的默认值同样是契约的一部分：
-          *   NUMERIC -> 0，BOOLEAN -> false，TEXT -> ''
-          *
-          * 注意不能把整行对象直接交给类型转换函数：Number({ value: 15 }) 是 NaN，
-          * 这正是 6c8abd5 重构后所有成就判定读到 NaN / undefined、进度恒为 0 的原因。
-          */
+         /** 加载器 SQL 约定：结果列别名为 value，空结果默认 0/false/''；不能把整行对象交给类型转换函数（Number({value:15}) 是 NaN）。 */
          const normalize = (raw: unknown) => {
             switch (loader.type) {
                case 'NUMERIC':

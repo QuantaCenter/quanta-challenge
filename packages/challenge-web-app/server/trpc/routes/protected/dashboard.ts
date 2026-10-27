@@ -2,6 +2,7 @@ import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import { rankService } from '../../services/rank';
+import { problemStatService } from '../../services/problem-stat';
 
 const getRecentSubmissions = protectedProcedure.query(async ({ ctx }) => {
    const { userId } = ctx.user;
@@ -19,12 +20,7 @@ const getRecentSubmissions = protectedProcedure.query(async ({ ctx }) => {
             select: {
                pid: true,
                title: true,
-               JudgeStatus: {
-                  select: {
-                     passedCount: true,
-                     totalCount: true,
-                  },
-               },
+               baseId: true,
             },
          },
       },
@@ -34,11 +30,10 @@ const getRecentSubmissions = protectedProcedure.query(async ({ ctx }) => {
    }
 
    const [recordId, problemId] = [recentRecord.id, recentRecord.problem.pid];
-   const rank = await rankService.getSelfProblemRanking(problemId, recordId);
-
-   const passedCount = recentRecord.problem.JudgeStatus?.passedCount || 0;
-   const totalCount = recentRecord.problem.JudgeStatus?.totalCount || 0;
-   const passRate = totalCount === 0 ? 0 : passedCount / totalCount;
+   const [rank, passRate] = await Promise.all([
+      rankService.getSelfProblemRanking(problemId, recordId),
+      problemStatService.getPassRate(recentRecord.problem.baseId),
+   ]);
 
    return {
       judgingTime: recentRecord.judgingTime,
@@ -63,7 +58,7 @@ const getSubmissionStatus = protectedProcedure.query(async ({ ctx }) => {
 
    const statusCount: Record<string, number> = {};
    submissions.forEach((submission) => {
-      const date = submission.createdAt.toISOString().split('T')[0];
+      const date = submission.createdAt.toISOString().slice(0, 10);
       if (!statusCount[date]) {
          statusCount[date] = 0;
       }

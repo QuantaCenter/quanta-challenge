@@ -15,9 +15,7 @@ export class RedisService extends Singleton {
       public readonly host = env('REDIS_HOST', 'localhost'),
       public readonly port = parseInt(env('REDIS_PORT', '6379'), 10),
       public readonly password = env('REDIS_PASSWORD', ''),
-      // 实例类型用 ioredis 导出的 Redis 类型；
-      // 原写法 IORedis.Redis 在运行时可用（默认导出上确实挂了 Redis 构造函数），
-      // 但 ioredis 的类型定义里没有这个命名空间，导致 tsc 报 TS2702/TS2339。
+      // 实例类型用 ioredis 导出的 Redis 类型； 原写法 IORedis.Redis 在运行时可用（默认导出上确实挂了 Redis 构造函数）， 但 ioredis 的类型定义里没有这个命名空间，导致 tsc 报 TS2702/TS2339。
       public readonly redis: Redis
    ) {
       super();

@@ -49,22 +49,25 @@ const getGlobalRankingsProcedure = publicProcedure.query<
    });
    const userMap = new Map(users.map((u) => [u.id, u]));
 
-   const result = rankings.map((r, idx) => {
-      const user = userMap.get(r.userId);
-      return {
-         rank: idx + 1,
-         score: r.score,
-         uid: user?.name,
-         userName: user?.displayName || user?.name || '匿名用户',
-         userId: user?.id || 'unknown',
-         avatarUrl: user?.avatar?.name
-            ? `/api/static/${user?.avatar?.name}`
-            : null,
-         correctRate: user?.UserStatistic?.correctRate || 0,
-         passCount: user?.UserStatistic?.passCount || 0,
-         totalScore: user?.UserStatistic?.score || 0,
-      };
-   });
+   // 同分时按正确率决胜：分数降序，分数相同则正确率降序
+   const result = rankings
+      .map((r) => {
+         const user = userMap.get(r.userId);
+         return {
+            score: r.score,
+            uid: user?.name,
+            userName: user?.displayName || user?.name || '匿名用户',
+            userId: user?.id || 'unknown',
+            avatarUrl: user?.avatar?.name
+               ? `/api/static/${user?.avatar?.name}`
+               : null,
+            correctRate: user?.UserStatistic?.correctRate || 0,
+            passCount: user?.UserStatistic?.passCount || 0,
+            totalScore: user?.UserStatistic?.score || 0,
+         };
+      })
+      .sort((a, b) => b.score - a.score || b.correctRate - a.correctRate)
+      .map((item, idx) => ({ ...item, rank: idx + 1 }));
 
    const globalCacheTTL = useRuntimeConfig().rank.globalCacheTTL;
    await redis.set(cacheKey, JSON.stringify(result), 'EX', globalCacheTTL);

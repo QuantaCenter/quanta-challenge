@@ -17,6 +17,21 @@ export const useEditorStore = defineStore('editor', () => {
 
    const cloudFunctionEnabled = ref(false);
 
+   /**
+    * 移动端「更多」抽屉（PC 侧边栏按钮 + 文件树）是否展开。
+    * 状态放 store 是因为开关入口在 challenge-layout 顶栏，
+    * 而做题页需要在选中文件后主动关闭抽屉。
+    */
+   const mobileFileDrawerOpened = ref(false);
+
+   /**
+    * 移动端板块跳转请求：做题页在文件树选中文件后，
+    * 通知 EditorBoardLayout 滑动到代码板块。at 用于保证重复请求也能触发。
+    */
+   const mobileBoardJump = ref<{ board: 'code' | 'preview'; at: number } | null>(
+      null,
+   );
+
    /** 提交按钮是否可用 */
    const canCommit = computed(() => hasProjectInitialized.value);
 
@@ -29,7 +44,7 @@ export const useEditorStore = defineStore('editor', () => {
       if (initStarted.value) {
          return '在线开发容器仍在启动中，请等启动完成后再提交。';
       }
-      return '在线开发容器尚未启动，请刷新页面，并查看浏览器控制台的 [webcontainer] 日志。';
+      return '在线开发容器尚未启动，请刷新页面后重试。';
    });
 
    return {
@@ -40,5 +55,7 @@ export const useEditorStore = defineStore('editor', () => {
       cloudFunctionEnabled,
       canCommit,
       commitBlockedReason,
+      mobileFileDrawerOpened,
+      mobileBoardJump,
    };
 });

@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { useEmailLogin } from './_composables/use-login';
-import type { IRule } from '~/components/st/Form/type';
+import { Fingerprint, LoadingFour, Lock, Mail } from '@icon-park/vue-next';
 import * as clientAuthn from '@simplewebauthn/browser';
 import z from 'zod';
-import { Fingerprint, Lock, Mail } from '@icon-park/vue-next';
+import type { IRule } from '~/components/st/Form/type';
 import { useMessage } from '~/components/st/Message/use-message';
+import { loginError, parseAuthorizationResult } from '~/utils/quanta-login';
+import { useEmailLogin } from './_composables/use-login';
 
 useSeoMeta({ title: '登录 - Quanta Challenge' });
 
@@ -28,9 +29,18 @@ onBeforeMount(() => {
 });
 
 const redirect = useQuery<string>('redirect');
+// 只跟随站内非 /auth/** 路径：外链会造成开放重定向，指向登录页会自我嵌套回跳
+const safeRedirect = computed(() => {
+   const target = redirect.value;
+   // 只接受单个 / 开头的站内路径：/\ 与 \/ 会被浏览器当作 // 跳外站，必须一并拒绝
+   if (!target || !/^\/[^/\\]/.test(target) || target.startsWith('/auth/')) {
+      return null;
+   }
+   return target;
+});
 onLoginSuccess(() => {
    // navigateTo(redirect.value ?? '/app/dashboard', { replace: true });
-   window.location.href = redirect.value ?? '/app/dashboard';
+   window.location.href = safeRedirect.value ?? '/app/dashboard';
 });
 
 const rules: IRule[] = [
@@ -52,12 +62,37 @@ const gotoWebAuthnLogin = () => {
       : '/auth/login/authn';
    navigateTo(url);
 };
+
+const { $trpc } = useNuxtApp();
+const quantaOAuthIssuer = useRuntimeConfig().public.quantaOAuthIssuer;
+const quantaLoading = ref(false);
+
+const gotoQuantaLogin = async () => {
+   if (quantaLoading.value) {
+      return;
+   }
+   quantaLoading.value = true;
+   try {
+      const result = await $trpc.auth.quanta.start.mutate();
+      const target = parseAuthorizationResult(
+         result,
+         window.location.origin,
+         quantaOAuthIssuer,
+      );
+      window.location.assign(target);
+      // 跳转未完成前保持 loading，避免按钮状态切回造成闪烁
+   } catch (error) {
+      quantaLoading.value = false;
+      message.error(loginError(error).message);
+   }
+};
 </script>
 
 <template>
-   <div class="w-screen h-screen flex items-center justify-center">
+   <div class="w-full h-dvh overflow-hidden flex items-center justify-center">
       <div
-         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-r5 gap-6 w-[28.5rem]">
+         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-none gap-6 w-full h-full overflow-y-auto sm:rounded-r5 sm:w-[28.5rem] sm:h-auto"
+      >
          <IconLogo />
          <div class="flex flex-col items-center gap-r6">
             <h1 class="text-2xl font-bold">欢迎回来</h1>
@@ -65,7 +100,8 @@ const gotoWebAuthnLogin = () => {
                <span class="text-accent-300">还没有账号？ </span>
                <NuxtLink
                   href="/auth/register"
-                  class="text-white underline underline-offset-3 hover:text-primary transition-all">
+                  class="text-white underline underline-offset-3 hover:text-primary transition-all"
+               >
                   注册
                </NuxtLink>
             </p>
@@ -76,13 +112,15 @@ const gotoWebAuthnLogin = () => {
             @keydown.enter.prevent="handleLogin"
             v-model:model-value="formdata"
             :rules="rules"
-            class="flex flex-col gap-4 w-full">
+            class="flex flex-col gap-4 w-full"
+         >
             <StFormItem name="email" error-message="请输入有效的邮箱地址">
                <StInput
                   autocomplete="webauthn"
                   v-model:value="formdata.email"
                   outer-class="bg-accent-700 border border-transparent focus-within:border-primary"
-                  placeholder="请输入邮箱">
+                  placeholder="请输入邮箱"
+               >
                   <template #prefix>
                      <Mail class="text-2xl" />
                   </template>
@@ -94,7 +132,8 @@ const gotoWebAuthnLogin = () => {
                   outer-class="bg-accent-700 border border-transparent focus-within:border-primary"
                   placeholder="请输入密码"
                   name="password"
-                  password>
+                  password
+               >
                   <template #prefix>
                      <Lock class="text-2xl" />
                   </template>
@@ -102,21 +141,42 @@ const gotoWebAuthnLogin = () => {
             </StFormItem>
             <StButton :loading @click.prevent="handleLogin">登录</StButton>
          </StForm>
-         <template v-if="supportWebAuthn">
-            <StDivider>或使用</StDivider>
-            <div class="flex gap-4 w-full text-sm">
-               <StButton
-                  @click.self="gotoWebAuthnLogin"
-                  class="!bg-accent-600 !text-accent-200 w-full">
-                  <NuxtLink
-                     to="/auth/login/authn"
-                     class="flex gap-2 items-center">
-                     <Fingerprint class="text-xl text-[#9D9D9D]" />
-                     生物认证
-                  </NuxtLink>
-               </StButton>
-            </div>
-         </template>
+         <StDivider>或使用</StDivider>
+         <div class="flex gap-4 w-full text-sm">
+            <StButton
+               v-if="supportWebAuthn"
+               @click.self="gotoWebAuthnLogin"
+               class="!bg-accent-600 !text-accent-200 w-full"
+            >
+               <NuxtLink to="/auth/login/authn" class="flex gap-2 items-center">
+                  <Fingerprint class="text-xl text-[#9D9D9D]" />
+                  生物认证
+               </NuxtLink>
+            </StButton>
+            <StButton
+               :loading="quantaLoading"
+               @click="gotoQuantaLogin"
+               class="!bg-accent-600 !text-accent-200 w-full"
+            >
+               <template #icon="{ loading: isLoading }">
+                  <span
+                     class="inline-flex items-center justify-center w-5 h-4 mr-2 shrink-0"
+                  >
+                     <LoadingFour
+                        v-if="isLoading"
+                        class="animate-spin text-lg"
+                     />
+                     <span
+                        v-else
+                        class="inline-flex brightness-0 invert [&_svg]:w-5 [&_svg]:h-4"
+                     >
+                        <IconLogo />
+                     </span>
+                  </span>
+               </template>
+               <span class="whitespace-nowrap">Quanta 登录</span>
+            </StButton>
+         </div>
       </div>
    </div>
 </template>

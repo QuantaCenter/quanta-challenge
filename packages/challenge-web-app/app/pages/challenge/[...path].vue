@@ -216,7 +216,8 @@ useSeoMeta({
             v-if="shouldRenderEditor"
             v-show="currentComponent === 'editor'"
             hydrate-on-visible
-            :id="resolvedPid!" />
+            :id="resolvedPid!"
+            :key="resolvedPid ?? undefined" />
          <LazyRecord
             v-if="componentLoaded.record"
             v-show="currentComponent === 'record'"

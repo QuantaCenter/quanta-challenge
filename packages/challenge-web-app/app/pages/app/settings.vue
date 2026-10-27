@@ -55,8 +55,8 @@ watch(
          <StSpace
             fill-x
             direction="vertical"
-            class="sticky !w-[45rem] top-4 mt-6 bg-background z-[100]">
-            <h1 class="text-[2.5rem] font-bold text-white">设置</h1>
+            class="sticky !w-full !max-w-[45rem] top-14 md:top-4 mt-4 md:mt-6 px-4 md:px-0 bg-background z-[100]">
+            <h1 class="text-3xl md:text-[2.5rem] font-bold text-white">设置</h1>
 
             <StSpace align="center" gap="0.75rem">
                <StTagButton

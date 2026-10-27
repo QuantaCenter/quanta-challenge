@@ -1,23 +1,23 @@
 <script setup lang="ts">
 import { Trophy } from '@icon-park/vue-next';
 
-defineProps<{
-   isListed?: boolean;
-}>();
-
 const { $trpc } = useNuxtApp();
 
 const { data: myRank, pending: loadingMyRank } = useAsyncData('ranking', () =>
    $trpc.protected.rank.getMyGlobalRank.query()
 );
 const diplayedRank = computed(() => (myRank.value === -1 ? '0' : myRank.value));
+// -1 表示未上榜；未加载完成时不展示该状态
+const isListed = computed(
+   () => myRank.value != null && myRank.value !== -1
+);
 </script>
 
 <template>
    <StSpace
       direction="vertical"
       justify="center"
-      class="p-4 bg-accent-600 rounded-xl w-[18.875rem]"
+      class="p-4 bg-accent-600 rounded-xl w-full md:w-[18.875rem]"
       gap="0.625rem">
       <StSpace fill-x justify="between">
          <StSkeletonItem

@@ -2,6 +2,7 @@ import prisma from '~~/lib/prisma';
 import z from 'zod';
 import { publicProcedure, router } from '~~/server/trpc/trpc';
 import { generateTokens } from '~~/server/utils/jwt';
+import { identityCookieOptions } from '~~/server/utils/auth-cookies';
 import { comparePassword } from '~~/server/utils/password';
 import { limitRequest } from '~~/server/trpc/middlewares/limit-request';
 import { protectedProcedure } from '../../protected-trpc';
@@ -45,15 +46,11 @@ const emailLoginProcedure = publicProcedure
       });
       const csrfToken = crypto.randomUUID();
 
-      const opt = {
-         httpOnly: true,
-         secure: process.env.NODE_ENV === 'production',
-         sameSite: 'lax' as any,
-      };
-
-      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, opt);
-      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, opt);
-      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, opt);
+      const refreshOpt = identityCookieOptions(tokens.refreshToken);
+      setCookie(ctx.event, 'quanta_access_token', tokens.accessToken, identityCookieOptions(tokens.accessToken));
+      setCookie(ctx.event, 'quanta_refresh_token', tokens.refreshToken, refreshOpt);
+      // CSRF cookie 的生命周期跟随 refresh token，避免它比会话活得更久
+      setCookie(ctx.event, 'quanta_csrf_token', csrfToken, refreshOpt);
 
       return { user, csrfToken };
    });

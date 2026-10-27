@@ -7,6 +7,8 @@ import {
 import DataItem from './_components/DataItem.vue';
 import FixedButton from './_components/FixedButton.vue';
 import dayjs from 'dayjs';
+import { useIntervalFn } from '@vueuse/core';
+import { useMessage } from '~/components/st/Message/use-message';
 import { NotPassed, Published, Unpublished } from './_components/PublishStatus';
 import VersionPreviewDrawer from './_drawers/VersionPreviewDrawer.vue';
 import SidePopper from './_components/SidePopper.vue';
@@ -16,6 +18,7 @@ import {
    HamburgerButton,
    Lock,
    Return,
+   Time,
    Unlock,
 } from '@icon-park/vue-next';
 
@@ -28,6 +31,7 @@ if (!id) {
 useSeoMeta({ title: computed(() => `发布详情 #${id} - Quanta Challenge`) });
 
 const { $trpc } = useNuxtApp();
+const message = useMessage();
 type DataType = Awaited<
    ReturnType<typeof $trpc.admin.problem.getAuditDetail.query>
 >;
@@ -170,6 +174,82 @@ const showSwitchButton = computed(() => {
    return status === 'published' || status === 'ready';
 });
 
+const scheduleModalOpened = ref(false);
+const scheduledPublishAtInput = ref('');
+const onSchedulePublish = ref(false);
+const minDateTime = ref(dayjs().format('YYYY-MM-DD HH:mm'));
+useIntervalFn(() => {
+   if (!scheduleModalOpened.value) return;
+   minDateTime.value = dayjs().format('YYYY-MM-DD HH:mm');
+   if (
+      scheduledPublishAtInput.value &&
+      scheduledPublishAtInput.value < minDateTime.value
+   ) {
+      scheduledPublishAtInput.value = dayjs()
+         .add(1, 'minute')
+         .format('YYYY-MM-DD HH:mm');
+   }
+}, 1_000);
+const showScheduleButton = computed(() => {
+   return showSwitchButton.value && detail.value?.status === 'ready';
+});
+const scheduledPublishText = computed(() => {
+   const at = detail.value?.scheduledPublishAt;
+   if (!at) return '';
+   return dayjs(at).format('YYYY-MM-DD HH:mm');
+});
+
+const openScheduleModal = () => {
+   scheduledPublishAtInput.value = detail.value?.scheduledPublishAt
+      ? dayjs(detail.value.scheduledPublishAt).format('YYYY-MM-DD HH:mm')
+      : '';
+   minDateTime.value = dayjs().format('YYYY-MM-DD HH:mm');
+   scheduleModalOpened.value = true;
+};
+
+const handleSchedulePublish = async () => {
+   if (!scheduledPublishAtInput.value) return;
+   onSchedulePublish.value = true;
+   try {
+      const target = dayjs(scheduledPublishAtInput.value);
+      const scheduledPublishAt = target.isAfter(dayjs())
+         ? target.toDate()
+         : dayjs().add(1, 'minute').startOf('minute').toDate();
+      const result = $trpc.admin.problem.schedulePublish.mutate({
+         problemId: Number(id),
+         scheduledPublishAt,
+      });
+      await atLeastTime(500, result);
+      scheduleModalOpened.value = false;
+      await fetchPublishDetails();
+   } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      message.error('定时发布设置失败', errorMsg);
+      console.error(e);
+   } finally {
+      onSchedulePublish.value = false;
+   }
+};
+
+const handleCancelSchedule = async () => {
+   onSchedulePublish.value = true;
+   try {
+      const result = $trpc.admin.problem.schedulePublish.mutate({
+         problemId: Number(id),
+         scheduledPublishAt: null,
+      });
+      await atLeastTime(500, result);
+      scheduleModalOpened.value = false;
+      await fetchPublishDetails();
+   } catch (e) {
+      const errorMsg = e instanceof Error ? e.message : String(e);
+      message.error('取消定时失败', errorMsg);
+      console.error(e);
+   } finally {
+      onSchedulePublish.value = false;
+   }
+};
+
 const handleEdit = () => {
    navigateTo(`/app/publish/problem?fromId=${id}`);
 };
@@ -190,7 +270,7 @@ const handlerViewVersion = () => {
          ref="drawer"
          v-model:opened="drawerOpener"
          :problem-id="detail?.pid" />
-      <StFixed right="1.82rem" bottom="1.82rem">
+      <StFixed right="1.82rem" bottom="1.82rem" class="max-md:hidden">
          <StSpace direction="vertical" gap="1.2rem" align="center">
             <SidePopper content="审核记录">
                <FixedButton
@@ -202,6 +282,13 @@ const handlerViewVersion = () => {
                   @click="handleSetCurrentProblem"
                   :loading="onSetCurrentProblem"
                   :icon="Flag" />
+            </SidePopper>
+            <SidePopper
+               v-if="showScheduleButton"
+               :content="scheduledPublishText ? '定时发布（已设置）' : '定时发布'">
+               <FixedButton
+                  @click="openScheduleModal"
+                  :icon="Time" />
             </SidePopper>
             <SidePopper
                v-if="showSwitchButton"
@@ -222,15 +309,96 @@ const handlerViewVersion = () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[48rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布详情</h1>
+         class="w-full max-w-[48rem] pb-[10rem] my-6 max-md:pb-6! max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <StSpace
+            fill-x
+            justify="between"
+            align="center"
+            class="flex-wrap gap-3!">
+            <h1
+               class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+               发布详情
+            </h1>
+            <StSpace gap="1rem" align="center" class="md:hidden max-md:gap-2!">
+               <SidePopper content="审核记录" placement="bottom">
+                  <FixedButton
+                     @click="handlerViewVersion"
+                     :icon="HamburgerButton" />
+               </SidePopper>
+               <SidePopper
+                  v-if="showSetCurrentButton"
+                  content="设为当前版本"
+                  placement="bottom">
+                  <FixedButton
+                     @click="handleSetCurrentProblem"
+                     :loading="onSetCurrentProblem"
+                     :icon="Flag" />
+               </SidePopper>
+               <SidePopper
+                  v-if="showSwitchButton"
+                  placement="bottom"
+                  :content="detail?.status === 'published' ? '取消发布' : '发布'">
+                  <FixedButton
+                     @click="handleSwitchPublishStatus"
+                     :loading="onSwitchPublishStatus"
+                     :icon="switchButtonIcon" />
+               </SidePopper>
+               <SidePopper content="编辑" placement="bottom">
+                  <FixedButton @click="handleEdit" :icon="Edit" />
+               </SidePopper>
+               <SidePopper content="返回" placement="bottom">
+                  <FixedButton @click="handleReturn" :icon="Return" />
+               </SidePopper>
+            </StSpace>
+         </StSpace>
+         <StModal v-model:opened="scheduleModalOpened">
+            <StSpace
+               direction="vertical"
+               gap="1.25rem"
+               class="bg-accent-600 rounded-xl p-6 min-w-[380px] max-w-[460px] border border-accent-500 text-white">
+               <h2 class="text-xl font-semibold text-accent-50">定时发布</h2>
+               <span class="text-accent-100 text-sm">
+                  到达设定时间后题目将自动发布；立即发布会清除定时。
+               </span>
+               <StDatePicker
+                  v-model:value="scheduledPublishAtInput"
+                  show-time
+                  placeholder="选择发布日期与时间"
+                  :min-date-time="minDateTime"
+                  outer-class="w-full" />
+               <StSpace gap="0.5rem" fill-x>
+                  <button
+                     class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer disabled:opacity-40"
+                     :disabled="onSchedulePublish"
+                     @click="scheduleModalOpened = false">
+                     取消
+                  </button>
+                  <button
+                     v-if="scheduledPublishText"
+                     class="flex-1 rounded-md bg-accent-500 hover:bg-accent-400 transition-colors text-accent-100 py-2 cursor-pointer"
+                     :disabled="onSchedulePublish"
+                     @click="handleCancelSchedule">
+                     取消定时
+                  </button>
+                  <button
+                     class="flex-1 rounded-md bg-primary text-white py-2 cursor-pointer disabled:opacity-40"
+                     :disabled="onSchedulePublish || !scheduledPublishAtInput"
+                     @click="handleSchedulePublish">
+                     确认定时
+                  </button>
+               </StSpace>
+            </StSpace>
+         </StModal>
          <StSpace
             direction="vertical"
             gap="2rem"
             fill-x
             class="p-4 rounded-lg border border-secondary">
             <!-- Raw 0 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目 ID">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -253,7 +421,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 1 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目标题">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -274,7 +445,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 2 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="发布状态">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -292,8 +466,47 @@ const handlerViewVersion = () => {
                   </StSkeleton>
                </DataItem>
             </StSpace>
+            <!-- Raw 2.5 -->
+            <StSpace
+               v-if="scheduledPublishText || detail?.taskStartAt"
+               fill-x
+               justify="between">
+               <DataItem v-if="scheduledPublishText" title="定时发布">
+                  <StSkeleton :loading="!detail">
+                     <template #loading>
+                        <StSkeletonItem class="w-32 h-6" />
+                     </template>
+                     <span class="font-family-manrope text-secondary">
+                        {{ scheduledPublishText }} 自动发布
+                     </span>
+                  </StSkeleton>
+               </DataItem>
+               <DataItem v-if="detail?.taskStartAt" title="任务日期">
+                  <StSkeleton :loading="!detail">
+                     <template #loading>
+                        <StSkeletonItem class="w-32 h-6" />
+                     </template>
+                     <span class="font-family-manrope">
+                        {{
+                           dayjs(detail.taskStartAt).format('YYYY-MM-DD HH:mm')
+                        }}
+                        ~
+                        {{
+                           detail.taskEndAt
+                              ? dayjs(detail.taskEndAt).format(
+                                   'YYYY-MM-DD HH:mm'
+                                )
+                              : '未设置'
+                        }}
+                     </span>
+                  </StSkeleton>
+               </DataItem>
+            </StSpace>
             <!-- Raw 3 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="题目难度">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -336,7 +549,10 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 5 -->
-            <StSpace fill-x justify="between">
+            <StSpace
+               fill-x
+               justify="between"
+               class="max-md:flex-col max-md:items-stretch max-md:gap-4!">
                <DataItem title="判题脚本" class="w-full">
                   <StSkeleton :loading="!detail">
                      <template #loading>

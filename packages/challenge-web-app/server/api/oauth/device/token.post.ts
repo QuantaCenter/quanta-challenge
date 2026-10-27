@@ -2,25 +2,15 @@ import {
    DEVICE_CODE_GRANT_TYPE,
    DEVICE_FLOW_CLIENT_ID,
 } from '@challenge/shared/oauth';
+import { getRequestContext } from '@challenge/shared/trace';
 import z from 'zod';
 
 import { createDeviceFlowService, statusToError } from '~~/server/services/device-flow';
 import { generateTokens } from '~~/server/utils/jwt';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import prisma from '~~/lib/prisma';
 
-/**
- * RFC 8628 §3.4 令牌端点：CLI 用 device_code 轮询换取 token。
- *
- * ⚠️ 这个端点**故意不做 cookie / csrf 鉴权**。
- * 它的鉴权凭据就是 `device_code` 本身（高熵随机串，只有发起授权的 CLI 知道），
- * 而调用方是**没有浏览器会话的 CLI**。如果按仓库其它写入接口的惯例给它加上
- * `x-csrf-token` 校验，设备码流程会直接失效 —— 这正是当初设计时要避开的坑，
- * 所以在此显式说明。
- *
- * 换来的 token 直接放在响应体里（不复用 cookie 通道）：CLI 会自己保存到
- * ~/.config 下的 0600 文件，全程不经过浏览器。
- */
+/** RFC 8628 §3.4 令牌端点：鉴权凭据就是 device_code 本身，故意不做 cookie/CSRF 校验（调用方是无浏览器会话的 CLI）；token 放响应体，由 CLI 存入 0600 文件。 */
 const BodySchema = z.object({
    grant_type: z.string().min(1),
    device_code: z.string().min(1),
@@ -40,8 +30,6 @@ const oauthError = (
 };
 
 export default defineEventHandler(async (event) => {
-   const traceId = getHeader(event, 'x-trace-id') ?? 'unknown';
-
    const raw = await readBody<Record<string, unknown>>(event).catch(
       () => ({}) as Record<string, unknown>,
    );
@@ -101,7 +89,7 @@ export default defineEventHandler(async (event) => {
 
    if (!session.userId) {
       // 走到这里说明状态是 approved 但没绑定用户，属于内部不一致
-      logger.error({ traceId, deviceCode: device_code }, '设备会话状态不一致');
+      logger.error({ deviceCode: device_code }, '设备会话状态不一致');
       return oauthError(event, 'server_error', 'inconsistent device session', 500);
    }
 
@@ -115,6 +103,13 @@ export default defineEventHandler(async (event) => {
       return oauthError(event, 'access_denied', 'the authorizing user no longer exists');
    }
 
+   // 认证完成后补写用户身份进请求上下文（日志自动携带 quanta.user.*）。
+   const store = getRequestContext();
+   if (store) {
+      store.userId = user.id;
+      store.role = user.role;
+   }
+
    const tokens = generateTokens({ userId: user.id, role: user.role });
 
    setResponseStatus(event, 200);
@@ -122,7 +117,7 @@ export default defineEventHandler(async (event) => {
    setHeader(event, 'pragma', 'no-cache');
 
    logger.info(
-      { traceId, userId: user.id, role: user.role, scope: session.scope },
+      { scope: session.scope },
       '设备码流程已签发令牌',
    );
 

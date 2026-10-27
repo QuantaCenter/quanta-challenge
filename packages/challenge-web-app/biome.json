@@ -1,0 +1,72 @@
+{
+   "$schema": "https://biomejs.dev/schemas/2.5.15/schema.json",
+   "vcs": {
+      "enabled": true,
+      "clientKind": "git",
+      "useIgnoreFile": true
+   },
+   "files": {
+      "includes": [
+         "biome.json",
+         "package.json",
+         "nuxt.config.ts",
+         "sentry.*.config.ts",
+         "app/app.vue",
+         "app/pages/auth/login/index.vue",
+         "app/pages/auth/quanta/**",
+         "app/plugins/trpc.ts",
+         "app/utils/quanta-login.ts",
+         "server/api/auth/quanta/**",
+         "server/services/quanta-oauth/**",
+         "server/trpc/trpc.ts",
+         "server/trpc/routes/auth/index.ts",
+         "server/trpc/routes/auth/quanta.ts",
+         "tests/quanta-oauth*.test.ts"
+      ]
+   },
+   "formatter": {
+      "enabled": true,
+      "indentStyle": "space",
+      "indentWidth": 3,
+      "lineWidth": 80,
+      "lineEnding": "lf"
+   },
+   "assist": {
+      "actions": {
+         "source": {
+            "organizeImports": "on"
+         }
+      }
+   },
+   "linter": {
+      "enabled": true,
+      "rules": {
+         "preset": "recommended",
+         "suspicious": {
+            "noExplicitAny": "error",
+            "noConsole": "off"
+         },
+         "style": {
+            "useVueMultiWordComponentNames": "off",
+            "noNonNullAssertion": "off",
+            "useConst": "error",
+            "useImportType": "error"
+         }
+      }
+   },
+   "javascript": {
+      "formatter": {
+         "quoteStyle": "single",
+         "jsxQuoteStyle": "double",
+         "semicolons": "always",
+         "trailingCommas": "all",
+         "arrowParentheses": "always"
+      }
+   },
+   "html": {
+      "experimentalFullSupportEnabled": true,
+      "formatter": {
+         "enabled": true
+      }
+   }
+}

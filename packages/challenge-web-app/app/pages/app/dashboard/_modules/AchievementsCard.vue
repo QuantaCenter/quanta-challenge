@@ -51,7 +51,7 @@ onMounted(() => {
    <StCard
       :icon="FiveStarBadge"
       :title="status === 'personal-space' ? '我的成就' : '徽章墙'"
-      class="w-full h-full !pb-0 overflow-hidden relative">
+      class="w-full h-full !pb-0 overflow-hidden relative max-md:h-auto max-md:shrink-0">
       <template #header-right>
          <LinkButton
             v-if="status !== 'personal-space'"
@@ -61,7 +61,7 @@ onMounted(() => {
       <div class="w-full h-5"></div>
       <div
          ref="container"
-         class="w-full h-full relative hide-scrollbar min-h-[16rem]"
+         class="w-full h-full relative hide-scrollbar min-h-[16rem] max-md:min-h-[24rem]"
          :class="{ 'overflow-auto': achievements?.length }">
          <StSkeleton :loading="loading" class="w-full h-full absolute top-0">
             <template #loading>
@@ -105,7 +105,7 @@ onMounted(() => {
                      </div>
                   </StSpace>
                </StSpace>
-               <div class="w-full h-1.5"></div>
+               <div class="w-full h-4 shrink-0 -mt-3"></div>
             </StSpace>
 
             <StSpace
@@ -122,7 +122,7 @@ onMounted(() => {
          </StSkeleton>
       </div>
       <div
-         class="bottom-mask w-full h-[3rem] absolute bottom-0 transition-opacity"
+         class="bottom-mask pointer-events-none w-full h-[3rem] absolute bottom-0 transition-opacity"
          :style="{ opacity: hideMask ? 0 : 1 }"></div>
    </StCard>
 </template>

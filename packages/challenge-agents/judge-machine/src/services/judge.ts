@@ -26,14 +26,7 @@ export class JudgeService extends Singleton {
 
    private resourceBaseUrl: string | undefined;
 
-   /**
-    * 当前活跃的 WebSocket 上下文。
-    *
-    * 历史实现依赖 CLOSE 事件去反注册 MESSAGE 监听，但 CLOSE 携带的 ws 与注册时捕获的
-    * 闭包不是同一个引用，反注册常常失败，于是每次重连都会残留一个旧的监听器。
-    * 结果：断线重连后，旧监听器仍会处理新连接的消息，导致重复判题 / 响应丢给已关闭的连接。
-    * 这里改为显式只保留一个监听器，并按 ws 过滤，确保只处理当前连接的消息。
-    */
+   /** 当前活跃的 WebSocket 上下文；显式只保留一个监听器并按 ws 过滤，避免重连后残留旧监听器导致重复判题。 */
    private activeWs: unknown = null;
    private messageListener: ((msg: IEventMessage['MESSAGE']) => void) | null =
       null;
@@ -121,11 +114,7 @@ export class JudgeService extends Singleton {
          // 见 lib/judge-script.ts：不能直接 String.replace，注释里的 "export default " 会抢先命中。
          const script = replaceDefaultExport(payload.judgeScript);
 
-         // VM2 的 timeout 只能中断「同步」执行，无法打断 await 中的异步操作。
-         // 一旦判题脚本里的 waitForSelector/click 等一直等待，handleTask 会永久挂住，
-         // 既不回结果也不报错，调度器只能等到自己的 30s 超时，
-         // 用户看到的就是"未通过 + 空白判题详情"。
-         // 因此这里在外面再套一层硬超时（小于调度器 30s），确保一定能发出响应。
+         // VM2 的 timeout 打不断 await 中的等待（如 waitForSelector 挂住），故再套一层小于调度器 30s 的硬超时。
          const scriptBudgetMs = 20 * 1000;
          let timer: NodeJS.Timeout | undefined;
          const timeoutGuard = new Promise<never>((_, reject) => {

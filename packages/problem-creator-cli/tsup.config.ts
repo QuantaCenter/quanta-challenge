@@ -1,15 +1,15 @@
+import { cp, mkdir } from 'node:fs/promises';
+
 import { defineConfig } from 'tsup';
 
-/**
- * 构建产物说明
- *
- * · `index.js`  —— bin 入口，带 shebang（写在 src/index.ts 第一行，esbuild 会保留）。
- * · `program.js` —— 纯函数入口，导出 `defineProblemConfig` 与全部类型，
- *                  供 `problem.config.ts` 里的 `import { defineProblemConfig }` 使用。
- *
- * 两个入口必须**分开**：jiti 在加载用户配置文件时会以模块 URL 的方式 import
- * `program.js`，如果它和 bin 入口是同一个文件，加载配置就会顺手把 CLI 跑一遍。
- */
+/** `qpc agent dts` 的真源在 Web 应用（编辑器用同一份），随包分发需拷进 dist。 */
+const DTS_SOURCE = '../challenge-web-app/public';
+const DTS_FILES = [
+   'system.frontend.standalone.dts',
+   'system.backend.standalone.dts',
+];
+
+/** 构建产物：index.js = bin 入口（shebang 在 src/index.ts），program.js = 纯函数入口；两个入口必须分开，否则 jiti 加载配置时会顺手跑一遍 CLI。 */
 export default defineConfig({
    entry: {
       index: 'src/index.ts',
@@ -24,6 +24,12 @@ export default defineConfig({
    sourcemap: true,
    splitting: false,
    treeshake: true,
-   // 依赖全部保持 external：CLI 以 workspace 包形式安装，node_modules 始终可用。
    skipNodeModulesBundle: true,
+   noExternal: [/^@challenge\//],
+   onSuccess: async () => {
+      await mkdir('dist/agent-types', { recursive: true });
+      for (const file of DTS_FILES) {
+         await cp(`${DTS_SOURCE}/${file}`, `dist/agent-types/${file}`);
+      }
+   },
 });

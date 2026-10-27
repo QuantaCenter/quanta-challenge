@@ -29,6 +29,13 @@ services:
       # 本地可写入仓库根目录的 .env，由 docker compose 读取。
       - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET:?请设置 ACCESS_TOKEN_SECRET（可写入仓库根目录 .env）}
       - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET:?请设置 REFRESH_TOKEN_SECRET（可写入仓库根目录 .env）}
+      # OAuth requires a registered HTTPS development origin; HTTP remains disabled.
+      - QUANTA_OAUTH_ENABLED=${QUANTA_OAUTH_ENABLED:-false}
+      - QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
+      - NUXT_PUBLIC_QUANTA_OAUTH_ISSUER=${QUANTA_OAUTH_ISSUER:-https://www.example.com}
+      - QUANTA_OAUTH_APP_ORIGIN=${QUANTA_OAUTH_APP_ORIGIN:-https://challenge.example.com}
+      - QUANTA_OAUTH_CLIENT_ID=${QUANTA_OAUTH_CLIENT_ID:-quanta-challenge}
+      - QUANTA_OAUTH_CLIENT_SECRET=${QUANTA_OAUTH_CLIENT_SECRET:-}
       # 云函数服务：站点以内部密钥自动认证。开发环境默认值与云函数服务的
       # CF_INTERNAL_KEYS.web-app 一致，开箱可用。
       - CF_SERVER=http://challenge-cloud-function:1890

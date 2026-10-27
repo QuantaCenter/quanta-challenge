@@ -51,9 +51,7 @@ const applyPercent = (value: number | null, persist = false) => {
    if (value === null || !Number.isFinite(value)) return;
    const next = clampPercent(value);
 
-   // 有持久化标识时：落盘之后必须**清掉本地覆盖值**。
-   // 本地覆盖的优先级高于持久化值（见 startPercentage），留着它会导致
-   // 「恢复默认布局」清空持久化值后面板纹丝不动 —— 看起来就是按钮没生效。
+   // 有持久化标识时：落盘之后必须**清掉本地覆盖值**。 本地覆盖的优先级高于持久化值（见 startPercentage），留着它会导致 「恢复默认布局」清空持久化值后面板纹丝不动 —— 看起来就是按钮没生效。
    if (persist && props.storageKey) {
       override.value = null;
       layoutStore.setPanelSize(props.storageKey, next);
@@ -72,21 +70,24 @@ watch(
 );
 
 // 处理拖拽事件
-let activeMouseMove: ((event: MouseEvent) => void) | null = null;
-let activeMouseUp: (() => void) | null = null;
+let activePointerMove: ((event: PointerEvent) => void) | null = null;
+let activePointerUp: (() => void) | null = null;
 
 const detachDragListeners = () => {
-   if (activeMouseMove) {
-      document.removeEventListener('mousemove', activeMouseMove);
+   if (activePointerMove) {
+      document.removeEventListener('pointermove', activePointerMove);
    }
-   if (activeMouseUp) {
-      document.removeEventListener('mouseup', activeMouseUp);
+   if (activePointerUp) {
+      document.removeEventListener('pointerup', activePointerUp);
+      document.removeEventListener('pointercancel', activePointerUp);
    }
-   activeMouseMove = null;
-   activeMouseUp = null;
+   activePointerMove = null;
+   activePointerUp = null;
 };
 
-const handleResize = (event: MouseEvent) => {
+const handleResize = (event: PointerEvent) => {
+   // pointerdown 对触摸也会触发，这里仅响应主键（左键 / 触屏）
+   if (event.button !== 0) return;
    if (!container.value || isDragging.value || locked.value) return;
 
    const startEl = container.value.children[0] as HTMLElement | undefined;
@@ -100,10 +101,13 @@ const handleResize = (event: MouseEvent) => {
 
    // 根据方向获取相应的尺寸（拖拽过程中保持不变，用于把鼠标位移换算成比例）
    const startSize = isHorizontal ? startEl.offsetWidth : startEl.offsetHeight;
-   const endSize = isHorizontal ? endEl.offsetWidth : endEl.offsetHeight;
    const origin = isHorizontal ? event.clientX : event.clientY;
 
-   const onMouseMove = (moveEvent: MouseEvent) => {
+   const containerRect = container.value.getBoundingClientRect();
+   const containerSize = isHorizontal ? containerRect.width : containerRect.height;
+   const endSize = Math.max(containerSize - startSize, 0);
+
+   const onPointerMove = (moveEvent: PointerEvent) => {
       const current = isHorizontal ? moveEvent.clientX : moveEvent.clientY;
       const next = percentFromDrag({
          startSize,
@@ -114,20 +118,19 @@ const handleResize = (event: MouseEvent) => {
       if (next !== null) override.value = next;
    };
 
-   const onMouseUp = () => {
+   const onPointerUp = () => {
       isDragging.value = false;
       detachDragListeners();
-      // 拖拽结束才落盘，避免拖动过程中高频写 localStorage；
-      // applyPercent 会顺手清掉本地覆盖值，否则「恢复默认布局」清不掉它
       applyPercent(override.value, true);
    };
 
    // 先清掉可能残留的监听（例如上一次拖拽期间组件被卸载）
    detachDragListeners();
-   activeMouseMove = onMouseMove;
-   activeMouseUp = onMouseUp;
-   document.addEventListener('mousemove', onMouseMove);
-   document.addEventListener('mouseup', onMouseUp);
+   activePointerMove = onPointerMove;
+   activePointerUp = onPointerUp;
+   document.addEventListener('pointermove', onPointerMove);
+   document.addEventListener('pointerup', onPointerUp);
+   document.addEventListener('pointercancel', onPointerUp);
 };
 
 /** 键盘可达：方向键微调（Shift 加速），Home 恢复默认 */
@@ -193,9 +196,7 @@ const restorePanelState = () => {
    applyPercent(savedPercent.value);
 };
 
-// 「恢复默认布局」：把组件内部的临时状态也清掉。
-// 只清持久化值是不够的 —— 拖拽留下的 override 与终端折叠的存档优先级都更高，
-// 清完持久化值后面板不会回到默认比例（这正是"按钮点了没反应"的原因）。
+// 「恢复默认布局」：把组件内部的临时状态也清掉。 只清持久化值是不够的 —— 拖拽留下的 override 与终端折叠的存档优先级都更高， 清完持久化值后面板不会回到默认比例（这正是"按钮点了没反应"的原因）。
 watch(
    () => layoutStore.resetToken,
    () => {
@@ -266,9 +267,10 @@ const methodsToProvide = {
                ? '面板已锁定'
                : '拖动调整面板大小；双击或按 Home 恢复默认'
          "
-         @mousedown.left="handleResize"
+         @pointerdown.left="handleResize"
          @dblclick="applyPercent(defaultPercent(), true)"
          @keydown="handleResizeKeydown"
+         style="touch-action: none"
          class="flex items-center justify-center hover:bg-secondary group transition-colors shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          :class="{
             'w-1 h-full mx-1 hover:cursor-col-resize':

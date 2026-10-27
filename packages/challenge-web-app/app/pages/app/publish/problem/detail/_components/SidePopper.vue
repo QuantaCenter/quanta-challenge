@@ -1,11 +1,15 @@
 <script setup lang="ts">
-defineProps<{
-   content: string;
-}>();
+const props = withDefaults(
+   defineProps<{
+      content: string;
+      placement?: 'left' | 'bottom';
+   }>(),
+   { placement: 'left' }
+);
 </script>
 
 <template>
-   <StPopover placement="left">
+   <StPopover :placement="props.placement">
       <template #popper="{ triggered }">
          <div
             class="px-3 py-2 rounded-lg bg-accent-600 text-white transition-all text-nowrap"

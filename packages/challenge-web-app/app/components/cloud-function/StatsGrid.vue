@@ -17,11 +17,11 @@ defineProps<{
 </script>
 
 <template>
-   <StSpace gap="1rem" class="w-full">
+   <StSpace gap="1rem" class="w-full max-md:flex-wrap!">
       <div
          v-for="item in items"
          :key="item.label"
-         class="flex-1 rounded-2xl bg-accent-600 px-5 py-4">
+         class="flex-1 rounded-2xl bg-accent-600 px-5 py-4 max-md:min-w-[calc(50%-0.5rem)]">
          <div class="st-font-caption tracking-wider text-accent-300">
             {{ item.label }}
          </div>

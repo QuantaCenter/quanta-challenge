@@ -80,9 +80,12 @@ export class TrackWrapper {
          return path;
       }
 
-      const targetModal: string = (nestedModelMapping as any)[segments[0]]?.[
-         segments[1]
-      ];
+      const [table, field] = segments;
+      if (!table || !field) {
+         return path;
+      }
+
+      const targetModal: string = (nestedModelMapping as any)[table]?.[field];
       if (!targetModal) {
          return path;
       }
@@ -103,9 +106,7 @@ export class TrackWrapper {
          const data = Array.isArray(args[0]?.data)
             ? args[0].data[0]
             : args[0]?.data;
-         // createMany({ data: [] }) 时 data[0] 是 undefined。
-         // 这里不能直接传给 _trackAffectedPaths：Object.entries(undefined) 会抛
-         // "Cannot convert undefined or null to object"（空排行榜的定时任务就死在这）。
+         // createMany({ data: [] }) 时 data[0] 是 undefined，不能传给 _trackAffectedPaths（Object.entries(undefined) 会抛）。
          affectedPaths = data
             ? this._trackAffectedPaths(method, table, data)
             : [];
@@ -122,7 +123,10 @@ export class TrackWrapper {
 
       const formattedPaths = affectedPaths.map((item) => {
          const segments = item.path.split('.');
-         segments[0] = (schemaToRealMap as any)[segments[0]] || segments[0];
+         const head = segments[0];
+         if (head !== undefined) {
+            segments[0] = (schemaToRealMap as any)[head] || head;
+         }
          return {
             path: segments.join('.') as ValidPath,
             method: item.method,

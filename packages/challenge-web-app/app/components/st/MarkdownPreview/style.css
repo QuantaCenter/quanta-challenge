@@ -17,6 +17,7 @@
    font-family: 'Inter', 'Segoe UI', 'Helvetica Neue', sans-serif;
    line-height: 1.75;
    margin: 0 auto;
+   overflow-wrap: anywhere;
 }
 
 .markdown-body h1 {
@@ -163,6 +164,7 @@
    max-width: 100%;
    border-radius: 8px;
    margin: 1em 0;
+   cursor: pointer;
 }
 
 .markdown-body hr {

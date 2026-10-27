@@ -16,8 +16,17 @@ const {
 } = useWebAuthnLogin();
 
 const redirect = useQuery<string>('redirect');
+// 与密码登录页同一套净化规则：只跟随站内非 /auth/** 路径，防开放重定向与自我嵌套回跳
+const safeRedirect = computed(() => {
+   const target = redirect.value;
+   // 只接受单个 / 开头的站内路径：/\ 与 \/ 会被浏览器当作 // 跳外站，必须一并拒绝
+   if (!target || !/^\/[^/\\]/.test(target) || target.startsWith('/auth/')) {
+      return null;
+   }
+   return target;
+});
 onAuthenticateSuccess(() => {
-   window.location.href = redirect.value ?? '/app/dashboard';
+   window.location.href = safeRedirect.value ?? '/app/dashboard';
 });
 onAuthenticateError(() => {
    alert('Authentication Failed');
@@ -40,9 +49,9 @@ const gotoPasswordLogin = () => {
 </script>
 
 <template>
-   <div class="w-screen h-screen flex items-center justify-center">
+   <div class="w-full h-dvh overflow-hidden flex items-center justify-center">
       <div
-         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-r5 gap-6 w-[28.5rem]">
+         class="bg-[#1a1a1a] p-6 pt-8 flex flex-col items-center rounded-none gap-6 w-full h-full overflow-y-auto sm:rounded-r5 sm:w-[28.5rem] sm:h-auto">
          <IconLogo />
          <div class="flex flex-col items-center gap-r6">
             <h1 class="text-2xl font-bold">生物认证登录</h1>

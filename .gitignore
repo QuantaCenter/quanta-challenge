@@ -11,6 +11,7 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+.plan
 
 # Caches
 
@@ -195,3 +196,9 @@ tmp/
 # 必须带点号：仓库里既有 `tmp/` 也有 `.tmp/`，只写前者拦不住后者，
 # 而 `.tmp/qpc-config/` 里放的是登录凭据，绝不能进版本库。
 .tmp/
+
+# agent
+.agent/AGENTS.md
+
+# Local OAuth certificates, private keys and test-only environment.
+/.local/

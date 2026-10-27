@@ -22,7 +22,8 @@ const positionName = computed(() => {
       <StSkeleton :loading="pending" class="w-full h-full mt-4">
          <template #loading>
             <StSpace fill align="center" gap="1.5rem">
-               <StSkeletonItem class="!size-32 !rounded-full shrink-0" />
+               <StSkeletonItem
+                  class="!size-32 max-md:!size-24 !rounded-full shrink-0" />
                <StSpace direction="vertical" gap="1rem" class="flex-1">
                   <StSkeletonItem class="h-6 w-32" />
                   <StSkeletonItem class="h-4 w-48" />
@@ -36,20 +37,21 @@ const positionName = computed(() => {
             fill
             align="center"
             gap="1.75rem"
-            class="p-2 pt-4">
+            class="p-2 pt-4 max-md:gap-4">
             <!-- 等级徽章 -->
             <div class="relative shrink-0">
                <!-- 外圈装饰 -->
-               <div class="relative flex items-center justify-center size-32">
+               <div
+                  class="relative flex items-center justify-center size-32 max-md:size-24">
                   <div
-                     class="absolute flex items-center justify-center size-40">
+                     class="absolute flex items-center justify-center size-40 max-md:size-[7.5rem]">
                      <img
-                        class="absolute text-yellow-500 size-40 shrink-0"
-                        src="~/assets/images/level-bg.png"
+                        class="absolute text-yellow-500 size-40 max-md:size-[7.5rem] shrink-0"
+                        src="~/assets/images/level-bg.webp"
                         alt="level-bg" />
                   </div>
                   <span
-                     class="text-5xl font-bold font-family-manrope text-accent-100 text-shadow-lg -translate-y-2.5 translate-x-0.5 select-none mix-blend-overlay">
+                     class="text-5xl max-md:text-3xl font-bold font-family-manrope text-accent-100 text-shadow-lg -translate-y-2.5 translate-x-0.5 select-none mix-blend-overlay">
                      {{ stats.level }}
                   </span>
                </div>
@@ -76,7 +78,7 @@ const positionName = computed(() => {
 
                <!-- 经验进度条 -->
                <StSpace direction="vertical" gap="0.5rem" fill-x>
-                  <StSpace fill-x justify="between" align="end">
+                  <StSpace fill-x justify="between" align="end" gap="0" no-wrap>
                      <div class="st-font-body-normal text-accent-200">
                         当前经验值：
                      </div>

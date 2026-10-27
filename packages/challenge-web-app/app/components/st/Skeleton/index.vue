@@ -2,6 +2,8 @@
 defineProps<{
    loading?: boolean;
 }>();
+
+defineOptions({ inheritAttrs: false });
 </script>
 
 <template>

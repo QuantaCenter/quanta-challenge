@@ -17,14 +17,7 @@ export interface PromptIO {
 const isInteractive = (stdin: NodeJS.ReadStream): boolean =>
    Boolean(stdin.isTTY) && typeof stdin.setRawMode === 'function';
 
-/**
- * 读取密码 / 令牌时不回显。
- *
- * TTY 下走 raw mode 自己收集按键，而不是覆盖 readline 的私有 `_writeToOutput`：
- * 私有 API 在 Node 大版本间改过签名，出问题时表现为"密码被明文打印到终端"，
- * 属于安全缺陷而不是体验问题。
- * 非 TTY（CI、管道、`echo pass | qpc login`）降级为普通读取。
- */
+/** 读取密码 / 令牌时不回显：TTY 下走 raw mode 收集按键（不用 readline 私有 API），非 TTY 降级为普通读取。 */
 export const promptHidden = async (
    question: string,
    io: PromptIO,
@@ -134,23 +127,18 @@ interface ClackOption {
    hint?: string;
 }
 
-/**
- * 方向键单选（@clack/prompts 的 `select`）。
- *
- * 用它而不是让用户敲编号：选项是"题型/模板"这类有语义的选择，
- * 方向键 + 回车的交互更接近 IDE，也不会因为敲错数字来回重问。
- *
- * 非 TTY 无法应答，直接抛用法错误，由调用方决定要不要回落到默认值。
- */
+/** 方向键单选（@clack/prompts 的 select），比敲编号更接近 IDE 交互；非 TTY 直接抛用法错误。 */
 export const select = async <T extends string>(
    message: string,
    choices: SelectChoice<T>[],
    io: PromptIO,
-   options: { initialValue?: T } = {},
+   options: { initialValue?: T; nonInteractiveHint?: string } = {},
 ): Promise<T> => {
    if (!isInteractive(io.stdin)) {
       throw new UsageError('当前不是交互式终端，无法选择', {
-         hint: '请在命令里显式指定，例如 `qpc init --type backend_service`。',
+         hint:
+            options.nonInteractiveHint ??
+            '请在命令里显式指定，例如 `qpc init --type backend_service`。',
       });
    }
 
@@ -191,7 +179,7 @@ export const multiselect = async <T extends string>(
 ): Promise<T[]> => {
    if (!isInteractive(io.stdin)) {
       throw new UsageError('当前不是交互式终端，无法多选', {
-         hint: '请在命令里显式指定，例如 `qpc tag --set 1,2`。',
+         hint: '请在命令里显式指定，例如 `qpc tag --write 1,2`。',
       });
    }
 

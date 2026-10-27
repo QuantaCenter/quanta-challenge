@@ -39,6 +39,10 @@ interface TrpcFailure {
             httpStatus?: number;
             traceId?: string;
             zodError?: unknown;
+            /** 业务错误标记（见服务端 errorFormatter），如 CLI 版本过低 */
+            quantaCode?: string;
+            current?: string;
+            required?: string;
          };
       };
    };
@@ -75,6 +79,7 @@ export class HttpClient {
       const headers: Record<string, string> = {
          accept: 'application/json',
          'user-agent': `qpc/${CLI_VERSION} (quanta-problem-creator)`,
+         'x-quanta-cli-version': CLI_VERSION,
          ...extra,
       };
 
@@ -87,9 +92,7 @@ export class HttpClient {
          .join('; ');
       if (cookie) headers.cookie = cookie;
 
-      // 服务端的 CSRF 校验要求 cookie 与 x-csrf-token 一致（见 server/trpc/context.ts）。
-      // 只拿到 access token（例如 CI 里注入 QUANTA_TOKEN）时没有 csrf 值，
-      // 此时退回 `x-ssr: 1`。
+      // 只有 access token（如 CI 注入 QUANTA_TOKEN）没有 csrf 值时，退回 `x-ssr: 1`。
       if (this.cookies.csrf) {
          headers['x-csrf-token'] = this.cookies.csrf;
       } else {
@@ -143,9 +146,7 @@ export class HttpClient {
          ? AbortSignal.any([init.signal, timeoutSignal])
          : timeoutSignal;
 
-      // 会话头**必须在这里统一注入**，而不是只给写请求加：
-      // GET 查询同样需要 cookie 与 csrf。漏掉的表现是"查询接口全部 401、
-      // 写接口却正常"，非常容易误判成服务端的权限问题。
+      // 会话头须统一注入而非只给写请求加：GET 查询同样需要 cookie 与 csrf，漏掉会表现为"查询全 401 而写接口正常"。
       const headers: Record<string, string> = {
          ...this.headers(),
          ...((init.headers as Record<string, string> | undefined) ?? {}),
@@ -187,12 +188,18 @@ export class HttpClient {
                     `${endpoint}?input=${encodeURIComponent(JSON.stringify(options.input ?? null))}`,
                     { method: 'GET', signal: options.signal },
                  )
-               : await this.request(endpoint, {
-                    method: 'POST',
-                    headers: { 'content-type': 'application/json' },
-                    body: JSON.stringify(options.input ?? null),
-                    signal: options.signal,
-                 });
+               : options.input instanceof FormData
+                 ? await this.request(endpoint, {
+                      method: 'POST',
+                      body: options.input,
+                      signal: options.signal,
+                   })
+                 : await this.request(endpoint, {
+                      method: 'POST',
+                      headers: { 'content-type': 'application/json' },
+                      body: JSON.stringify(options.input ?? null),
+                      signal: options.signal,
+                   });
 
          const text = await response.text();
          const payload = parseJson(text);
@@ -214,11 +221,7 @@ export class HttpClient {
       return send();
    }
 
-   /**
-    * 用 refresh token 换新的 access token（GET /api/refresh）。
-    * access token 只有 15 分钟，长时间轮询审计状态一定会过期，
-    * 所以刷新是必需路径而不是兜底。
-    */
+   /** 用 refresh token 换新的 access token（GET /api/refresh）；token 仅 15 分钟，刷新是必需路径。 */
    async refreshSession(): Promise<boolean> {
       if (this.refreshing) return this.refreshing;
       if (!this.cookies.refresh) return false;
@@ -258,14 +261,17 @@ export class HttpClient {
       const status = json?.data?.httpStatus ?? response.status;
 
       if (status === 401 || status === 403) {
+         // 版本门槛也是 403，与权限不足的提示区分开
+         const tooOld = json?.data?.quantaCode === 'CLI_VERSION_TOO_OLD';
          return new ApiError(message, {
             status,
             path,
             details: { code: json?.data?.code, traceId: json?.data?.traceId },
-            hint:
-               status === 401
-                  ? '登录状态已失效：qpc login --force 重新登录。'
-                  : '当前账号没有管理员权限（出题接口要求 role=ADMIN）。',
+            hint: tooOld
+               ? `升级出题 CLI：npm i -g @quantacenter/quanta-problem-cli@latest（服务端要求 >= ${json?.data?.required}）`
+               : status === 401
+                 ? '登录状态已失效：qpc login --force 重新登录。'
+                 : '当前账号没有管理员权限（出题接口要求 role=ADMIN）。',
          });
       }
 

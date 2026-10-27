@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { History, Ranking, Close } from '@icon-park/vue-next';
 import { CalendarThirtyTwo, ListView } from '@icon-park/vue-next';
+import {
+   GoldMedalTwo,
+   VolumeNotice,
+   CategoryManagement,
+   UploadTwo,
+} from '@icon-park/vue-next';
 import { SEARCH_CONSTANTS } from '@challenge/shared/config';
+import useAuthStore from '~/stores/auth-store';
 
 const emit = defineEmits<{
    search: [query: string];
@@ -57,12 +64,31 @@ const clearAllRecentSearches = () => {
    }
 };
 
-// 快速访问链接
-const quickAccessLinks = [
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role !== 'USER');
+
+// 快速访问链接（管理类入口仅对管理员显示）
+const quickAccessLinks = computed(() => [
    { label: '题库', url: '/app/problems', icon: ListView },
    { label: '每日一题', url: '/app/dashboard', icon: CalendarThirtyTwo },
+   { label: '成就', url: '/app/achievements', icon: GoldMedalTwo },
+   { label: '通知中心', url: '/app/notifications', icon: VolumeNotice },
    { label: '排行榜', url: '/app/rankings', icon: Ranking },
-];
+   ...(isAdmin.value
+      ? [
+           {
+              label: '发布流程',
+              url: '/app/publish',
+              icon: UploadTwo,
+           },
+           {
+              label: '管理流程',
+              url: '/app/manage',
+              icon: CategoryManagement,
+           },
+        ]
+      : []),
+]);
 
 // 点击最近搜索项
 const handleRecentSearchClick = (query: string) => {

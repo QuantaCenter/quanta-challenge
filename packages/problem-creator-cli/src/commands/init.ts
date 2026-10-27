@@ -118,13 +118,17 @@ export const runInit = async (
    const cd = dir === '.' ? 'qpc' : `cd ${displayPath(ctx.cwd, target)} && qpc`;
    ctx.logger.blank();
    ctx.logger.step('下一步');
+   ctx.logger.info(
+      `  ${cd} agent          # 判题脚本编写手册（前端 / 后端 / Type Schema）`,
+   );
+   ctx.logger.info(`  ${cd} tag --write <ids>  # 指定标签`);
    if (type === 'backend_service') {
       ctx.logger.info(
-         `  ${cd} cover --upload --write   # 后端题必须自定义封面：生成 → 上传 → 写回 imageId`,
+         `  ${cd} cover --write  # 后端题必须自定义封面：生成 → 上传 → 写回 imageId`,
       );
    }
-   ctx.logger.info(`  ${cd} check          # 毫秒级静态预检`);
-   ctx.logger.info(`  ${cd} upload         # 上传并等待审计（约 20 秒）`);
+   ctx.logger.info(`  ${cd} check          # 基础信息检查 + 本地微判题`);
+   ctx.logger.info(`  ${cd} upload --write # 上传审核并写回 problemId`);
 
    if (ctx.logger.json) {
       ctx.logger.result({

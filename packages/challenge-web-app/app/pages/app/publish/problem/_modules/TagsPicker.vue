@@ -5,7 +5,7 @@ import { Plus, RobotOne } from '@icon-park/vue-next';
 
 const { $trpc } = useNuxtApp();
 
-const tags = defineModel<number[]>('tags', { default: [] });
+const tags = defineModel<number[]>('tags', { default: () => [] });
 
 const props = defineProps<{
    outerClass?: string;
@@ -58,6 +58,11 @@ watch(tagSelectOpened, async (opened) => {
 
 const tagEditing = ref(false);
 
+const openTagEditing = () => {
+   tagSelectOpened.value = false;
+   tagEditing.value = true;
+};
+
 const onTagSaved = async () => {
    tagEditing.value = false;
    tagSelectOpened.value = true;
@@ -84,7 +89,7 @@ const onTagSaved = async () => {
             <StSpace no-wrap no-shrink gap="0">
                暂时没有题目标签，
                <div
-                  @click="tagEditing = !tagEditing"
+                  @click="openTagEditing"
                   :class="[
                      'st-font-caption text-primary underline underline-offset-3',
                      'cursor-pointer hover:opacity-75 transition-opacity',
@@ -115,7 +120,7 @@ const onTagSaved = async () => {
                   no-shrink
                   gap="0"
                   align="center"
-                  @click="tagEditing = !tagEditing"
+                  @click="openTagEditing"
                   :class="[
                      'st-font-caption text-primary',
                      'cursor-pointer hover:opacity-75 transition-opacity',

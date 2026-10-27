@@ -74,7 +74,7 @@ const sendingCode = computed(
             class="w-full"
             @keydown.enter.prevent="authn.handleRegister">
             <StSpace direction="vertical" gap="0.75rem">
-               <StFormItem name="email" class="!w-96">
+               <StFormItem name="email" class="!w-full sm:!w-96">
                   <Input
                      autocomplete="webauthn"
                      placeholder="请输入您的邮箱地址"
@@ -98,7 +98,7 @@ const sendingCode = computed(
       <Section title="密码设置" desc="修改您的登录密码" :icon="Key">
          <StForm>
             <StSpace direction="vertical" gap="0.75rem">
-               <StFormItem name="verifyCode" class="!w-96">
+               <StFormItem name="verifyCode" class="!w-full sm:!w-96">
                   <StInput
                      placeholder="请输入您的邮箱地址"
                      suffixClass="!text-lg"
@@ -127,7 +127,7 @@ const sendingCode = computed(
                   </StInput>
                </StFormItem>
 
-               <StFormItem name="newPassword" class="!w-96">
+               <StFormItem name="newPassword" class="!w-full sm:!w-96">
                   <Input
                      password
                      v-model:value="changePassword.formdata.newPassword"
@@ -135,7 +135,7 @@ const sendingCode = computed(
                      :icon="Key" />
                </StFormItem>
 
-               <StFormItem name="confirmNewPassword" class="!w-96">
+               <StFormItem name="confirmNewPassword" class="!w-full sm:!w-96">
                   <Input
                      password
                      v-model:value="changePassword.formdata.confirmPassword"

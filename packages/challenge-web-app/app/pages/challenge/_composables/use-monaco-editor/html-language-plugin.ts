@@ -61,11 +61,7 @@ const unquote = (value: string, offset: number) => {
    return { text: value, offset };
 };
 
-/**
- * 把 HTML 拆成虚拟代码：根节点交给 HTML 服务，<style> 与 style="" 交给 CSS 服务，
- * 每个 <script> 作为独立的 JS 文件交给 TypeScript 服务（经典脚本之间共享全局作用域，
- * 与浏览器行为一致）。
- */
+/** 把 HTML 拆成虚拟代码：根节点交给 HTML 服务，style 交给 CSS 服务，每个 <script> 作为独立 JS 交给 TS 服务（经典脚本共享全局作用域）。 */
 const createHtmlVirtualCode = (text: string): VirtualCode => {
    const embeddedCodes: VirtualCode[] = [];
    const inlineStyleMappings: CodeMapping[] = [];

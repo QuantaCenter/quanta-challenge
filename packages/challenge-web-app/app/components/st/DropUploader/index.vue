@@ -46,9 +46,7 @@ const onFolderSelected = async (event: Event) => {
    });
 };
 
-const files = defineModel<FileList>('files', {
-   default: () => null,
-});
+const files = defineModel<FileList>('files');
 const onFileSelected = (event: Event) => {
    const fileList = (event.target as HTMLInputElement).files;
    if (!fileList || fileList.length === 0) return;

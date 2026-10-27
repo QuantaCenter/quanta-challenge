@@ -1,18 +1,7 @@
 import useAuthStore from '~/stores/auth-store';
 
-/**
- * 做题页的「云函数调用令牌」。
- *
- * 令牌是「短时随机 token + 服务端 Redis 映射」，每次签发都是一个新值。做题时用户会把
- * 令牌粘进自己的代码里，所以**只要旧令牌还没过期就复用它**：否则每次打开弹层都换一个，
- * 用户代码里的那个看起来就"失效"了。
- *
- * 状态放在模块作用域（而不是组件里），这样侧边栏组件因为 HMR / 重新挂载时不会重新签发；
- * 同时写进 sessionStorage，刷新页面也还能复用同一个。
- */
+/** 做题页的「云函数调用令牌」。 */
 const STORAGE_KEY = 'quanta.cloud-function-token';
-/** 与服务端 cloud-function-token.ts 的 TTL 保持一致。 */
-const TOKEN_TTL_MS = 2 * 60 * 60 * 1000;
 /** 提前量：别卡在过期瞬间才换。 */
 const REFRESH_MARGIN_MS = 5 * 60 * 1000;
 
@@ -61,6 +50,7 @@ const hydrate = () => {
 export const useCloudFunctionToken = () => {
    const authStore = useAuthStore();
    const currentUserId = computed(() => authStore.user?.id ?? null);
+   const tokenTTLSeconds = useRuntimeConfig().public.cloudFunction.tokenTTLSeconds;
 
    /** 现在是否可以直接复用已有令牌（还没到提前量、且是同一个用户）。 */
    const isUsable = () => {
@@ -81,7 +71,7 @@ export const useCloudFunctionToken = () => {
       )
          .then((response) => {
             state.token = response.data.token;
-            state.expiresAt = Date.now() + TOKEN_TTL_MS;
+            state.expiresAt = Date.now() + tokenTTLSeconds * 1000;
             state.userId = currentUserId.value;
 
             const storage = getStorage();

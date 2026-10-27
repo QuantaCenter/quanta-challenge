@@ -51,7 +51,7 @@ onMounted(() => {
 </script>
 
 <template>
-   <div class="p-1 rounded-lg border border-accent-300">
+   <div class="w-full p-1 rounded-lg border border-accent-300">
       <div ref="container" class="relative flex gap-1">
          <StSlideRadioGroupItem
             v-for="option in options"

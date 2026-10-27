@@ -1,32 +1,15 @@
+import { getRequestContext } from '@challenge/shared/trace';
 import { verifyToken } from '~~/server/utils/jwt';
 import { resolveCloudFunctionToken } from '~~/server/utils/cloud-function-token';
 import {
    CloudFunctionClientError,
    callCloudFunctionService,
 } from '~~/server/utils/cloud-function-client';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
-/**
- * 面向「用户代码」的云函数调用入口。
- *
- * 用户代码直接请求平台的**完整地址**（做题预览页与判题环境里的页面完全一样），
- * 带上做题页「云函数调用凭证」里给出的令牌：
- *   fetch('http://localhost:3000/api/cloud-function/daily-bonus', {
- *     method: 'POST',
- *     headers: {
- *       'content-type': 'application/json',
- *       authorization: 'Bearer <云函数调用令牌>',
- *     },
- *     body: JSON.stringify({ input }),
- *   })
- * 平台页面也可以用登录 cookie 同源调用。
- *
- * 身份最终由服务端代签转发给云函数服务（浏览器永远拿不到内部密钥）。
- * 与平台页面用的 `protected.cloudFunction.invoke`（tRPC）是两个入口。
- */
+/** 面向「用户代码」的云函数调用入口：Bearer 云函数令牌调用（平台页面也可用 cookie 同源调用）；身份由服务端代签转发，与 tRPC 的 invoke 是两个入口。 */
 export default defineEventHandler(async (event) => {
-   // CORS：用户代码在做题预览页 / 判题页面里对平台是**跨源**请求，用 Bearer 令牌
-   // （不用 cookie），因此回显 Origin、但**不允许 credentials**。
+   // CORS：用户代码对平台是跨源请求且用 Bearer 令牌，回显 Origin 但不允许 credentials。
    const origin = getHeader(event, 'origin');
    if (origin) {
       setHeader(event, 'access-control-allow-origin', origin);
@@ -87,6 +70,10 @@ export default defineEventHandler(async (event) => {
       throw createError({ statusCode: 401, message: '未认证' });
    }
 
+   // 补写用户身份进请求上下文（日志自动携带 quanta.user.id）。
+   const requestStore = getRequestContext();
+   if (requestStore) requestStore.userId = userId;
+
    const body = await readBody<{ input?: unknown }>(event).catch(() => null);
    const input =
       body && typeof body === 'object' && 'input' in body
@@ -99,7 +86,6 @@ export default defineEventHandler(async (event) => {
          path: `/v1/invoke/${encodeURIComponent(name)}`,
          body: { input },
          userId,
-         traceId: getHeader(event, 'x-trace-id') ?? undefined,
       });
 
       return { ok: true, data: data ?? null };

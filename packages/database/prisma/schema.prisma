@@ -18,9 +18,7 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   lastLogin    DateTime  @default(now())
-  /// 最近一次「有活动」的时间：登录之外的浏览、提交、做题等都会刷新它。
-  /// 由 tRPC 中间件 server/trpc/middlewares/track-active.ts 写入（按用户节流）。
-  /// 允许为空：迁移前的历史用户没有值。
+  /// 最近一次「有活动」的时间：登录、浏览、提交、做题都会刷新它（tRPC track-active 中间件按用户节流写入）；允许为空（迁移前的历史用户没有值）。
   lastActiveAt DateTime?
   score        Int       @default(0)
 
@@ -42,16 +40,18 @@ model User {
   Achievement               Achievement[]
   UserStatistic             UserStatistic?
   RankingHistory            RankingHistory[]
-  UserSettings              UserSetting?
+  UserSettings              UserSetting[]
   UserInfo                  UserInfo?
   UserSpaceConfig           UserSpaceConfig?
   notifications             Notification[]
-  Course                    Course[]
-  CourseReviewRecord        CourseReviewRecord[]
-  Topic                     Topic[]
-  Article                   Article[]
-  LearningVisit             LearningVisit[]
-  LearningCompletion        LearningCompletion[]
+  appeals                     Appeal[]
+  scorePenalties              ScorePenalty[]
+  Course                      Course[]
+  CourseReviewRecord          CourseReviewRecord[]
+  Topic                       Topic[]
+  Article                     Article[]
+  LearningVisit               LearningVisit[]
+  LearningCompletion          LearningCompletion[]
 
   @@map("users")
 }
@@ -100,6 +100,7 @@ model RoleTransition {
 enum AuthProvider {
   QQ
   EMAIL
+  QUANTA
 }
 
 // 认证表
@@ -159,6 +160,31 @@ model Image {
   @@map("images")
 }
 
+// 快照镜像：做题页 WebContainer 启动时挂载，不参与判题
+model ImageBuild {
+  id                  String   @id @default(cuid())
+  name                String
+  // 发布备注
+  description         String   @default("")
+  buildFile           String
+  // building | ready，只由上传接口切换为 ready
+  status              String   @default("building")
+  // local_store 文件 id / 文件名，由上传接口回填
+  fileId              String?
+  fileName            String?  @unique
+  // 固定为 gzip
+  compression         String   @default("gzip")
+  sizeBytes           Int?
+  compressedSizeBytes Int?
+  createdBy           String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  Problems Problems[]
+
+  @@map("image_builds")
+}
+
 model UserImage {
   id        String   @id @default(cuid())
   userId    String
@@ -211,8 +237,14 @@ model Problems {
   judgeUploadPath String
   enableCloudFunction Boolean @default(false)
   problemType     ProblemType @default(frontend)
+  // 后端题判题容器的初始镜像（注册表 id）
   serviceImage    String?
   servicePort     Int        @default(3000)
+  // 做题页挂载的快照镜像，不参与判题
+  snapshotImageId String?
+  taskStartAt        DateTime?
+  taskEndAt          DateTime?
+  scheduledPublishAt DateTime?
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
@@ -223,12 +255,14 @@ model Problems {
   JudgeRecord                 JudgeRecords[]
   TemplateJudgeRecord         TemplateJudgeRecords[]
   CoverImage                  Image?                      @relation(fields: [coverImageId], references: [id])
+  SnapshotImage               ImageBuild?                 @relation(fields: [snapshotImageId], references: [id], onDelete: SetNull)
   BaseProblem                 BaseProblems                @relation("ProblemVersions", fields: [baseId], references: [id], onDelete: Cascade)
   CurrentOfBase               BaseProblems?               @relation("CurrentProblem")
   ProblemVersionTransitions   ProblemVersionTransitions[] @relation("FromProblemVersions")
   ProblemVersionTransitionsTo ProblemVersionTransitions[] @relation("ToProblemVersions")
   JudgeStatus                 JudgeStatus?
 
+  @@index([snapshotImageId])
   @@map("problems")
 }
 
@@ -432,6 +466,8 @@ model Projects {
   name       String
   ownerId    String
   problemId  Int
+  // 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端校验以拒绝重置前发出的旧请求
+  revision   Int      @default(0)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -653,7 +689,7 @@ model RankingHistory {
 
 model UserSetting {
   id        Int      @id @default(autoincrement())
-  userId    String   @unique
+  userId    String
   key       String
   value     String
   createdAt DateTime @default(now())
@@ -689,6 +725,8 @@ enum NotificationType {
   LIKE
   JUDGE
   ACHIEVEMENT
+  ANNOUNCEMENT
+  WARNING
 }
 
 model Notification {
@@ -701,9 +739,80 @@ model Notification {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appeal       Appeal?
+  scorePenalty ScorePenalty?
 
   @@map("notifications")
+}
+
+enum AppealStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+/// 警告申诉
+model Appeal {
+  id             String       @id @default(cuid())
+  userId         String
+  notificationId String       @unique
+  content        String
+  status         AppealStatus @default(PENDING)
+  /// 处理人用户 ID
+  handledById    String?
+  handledAt      DateTime?
+  createdAt      DateTime     @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([status])
+  @@map("appeals")
+}
+
+/// 排行榜积分扣分
+model ScorePenalty {
+  id             String    @id @default(cuid())
+  userId         String
+  notificationId String    @unique
+  score          Int
+  revokedAt      DateTime?
+  createdAt      DateTime  @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("score_penalties")
+}
+
+enum TimerTaskStatus {
+  pending
+  running
+  done
+  failed
+}
+
+/// 定时任务表：由 web-app 内置的定时器 Worker 每 5s 轮询，到期后执行对应处理器
+model TimerTask {
+  id          String          @id @default(cuid())
+  /// 已注册的处理器 ID
+  handlerId   String
+  payload     Json?
+  status      TimerTaskStatus @default(pending)
+  /// 预定执行时间
+  runAt       DateTime
+  attempts    Int             @default(0)
+  maxAttempts Int             @default(3)
+  error       String?
+  executedAt  DateTime?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([status, runAt])
+  @@map("timer_tasks")
 }
 
 model CloudFunction {

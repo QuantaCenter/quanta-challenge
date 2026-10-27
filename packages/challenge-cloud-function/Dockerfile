@@ -25,6 +25,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/challenge-cloud-function/package.json ./packages/challenge-cloud-function/package.json
 COPY packages/database/package.json ./packages/database/package.json
 COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/challenge-observation/package.json ./packages/challenge-observation/package.json
 
 RUN npm config set registry ${NPM_REGISTRY}
 RUN npm install pnpm@9.15.9 -g --verbose
@@ -38,6 +39,7 @@ RUN pnpm rebuild prisma @prisma/client
 COPY packages/challenge-cloud-function ./packages/challenge-cloud-function
 COPY packages/database ./packages/database
 COPY packages/shared ./packages/shared
+COPY packages/challenge-observation ./packages/challenge-observation
 
 # 生成 Prisma 客户端
 WORKDIR /app/packages/database

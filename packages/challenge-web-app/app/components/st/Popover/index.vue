@@ -7,13 +7,20 @@ const props = defineProps<{
    zIndex?: number;
 }>();
 
-const { containerKey, popperKey, container, popperInstance } = usePopper({
+const { containerKey, popperKey, container, popper, popperInstance } = usePopper({
    options: {
       placement: props.placement ?? 'auto',
    },
 });
 
+defineOptions({ inheritAttrs: false });
+const attrs = useAttrs();
+
 const triggered = ref(false);
+
+// 服务端与水合期间内联渲染，挂载后再传送到 body（规避 teleport 水合错位）
+const teleported = useClientTeleport();
+
 const onMouseEnter = () => {
    popperInstance.value?.update();
    triggered.value = true;
@@ -32,6 +39,13 @@ onMounted(() => {
    observer.observe(container.value.parentNode!, {
       childList: true,
    });
+   // pop content 卸载/重新挂载会改变 wrapper 尺寸，需重新定位
+   if (popper.value) {
+      observer.observe(popper.value, {
+         childList: true,
+         subtree: true,
+      });
+   }
    setTimeout(() => {
       popperInstance.value?.update();
    }, 200);
@@ -45,10 +59,10 @@ onUnmounted(() => {
 </script>
 
 <template>
-   <Teleport to="body">
+   <Teleport to="body" :disabled="!teleported">
       <div
          :ref="popperKey"
-         class="absolute transition-opacity !w-fit"
+         class="absolute z-[10001] transition-opacity !w-fit"
          :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
          :style="{ zIndex: props.zIndex ?? 9998 }">
          <slot name="popper" :triggered>
@@ -58,7 +72,7 @@ onUnmounted(() => {
          </slot>
       </div>
    </Teleport>
-   <div :ref="containerKey">
+   <div :ref="containerKey" v-bind="attrs">
       <slot></slot>
    </div>
 </template>

@@ -12,10 +12,16 @@ import { ignoreError } from '../../utils/ignore-error';
 import prisma from '../../utils/prisma';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { buildBackendInitCommand } from '@challenge/shared/backend-service-image';
+import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import * as db from './db';
 import { JudgeJob } from './types';
 import { $Enums } from '@prisma/client';
 import { TimingService } from '../../services/timing';
+import {
+   judgeResultsTotal,
+   judgeTaskDurationSeconds,
+   judgeTaskPendingSeconds,
+} from '../../metrics';
 
 const firstCommandOf = (raw: string | null | undefined): string => {
    if (!raw) return '';
@@ -151,12 +157,26 @@ const processResult = async (
       : allPass;
 };
 
-export const judgeProcessor: Processor<JobType> = async (job) => {
+export const judgeProcessor: Processor<JobType> = async (job) =>
+   runWithRequestContext(
+      {
+         traceId: job.data.traceId ?? createTraceId(),
+         userId: job.data.userId,
+      },
+      () => runJudgeJob(job),
+   );
+
+const runJudgeJob: Processor<JobType> = async (job) => {
    const pendingTime = Date.now() - job.data.queueTimestamp;
    const startTime = Date.now();
+   const mode = String(job.data.mode);
    let cleanup: (() => Promise<void>) | undefined;
    const timer = TimingService.instance;
    const timingId = String(job.data.judgeRecordId);
+   let outcome: 'pass' | 'fail' | 'error' = 'error';
+
+   // 任务在队列中的等待时长
+   judgeTaskPendingSeconds.observe({ mode }, pendingTime / 1000);
 
    try {
       const runtime = await timer.measure(timingId, '获取题目运行时信息', () =>
@@ -246,6 +266,8 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          cleanup = undefined;
       }
 
+      outcome = pass ? 'pass' : 'fail';
+
       return {
          judgeRecordId: job.data.judgeRecordId,
          jobId: job.id,
@@ -254,10 +276,9 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
       };
    } catch (error: any) {
       // 处理错误
+      outcome = 'error';
       await db.saveErrorRecord({ error, pendingTime, startTime, job });
-      // 必须清理：题目容器与 tmp/<uuid> 快照目录不会自动消失，
-      // 原实现把这行注释掉后，每次失败判题都会永久残留一个容器和一份临时文件，
-      // 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
+      // 必须清理：题目容器与 tmp/<uuid> 快照目录不会自动消失， 原实现把这行注释掉后，每次失败判题都会永久残留一个容器和一份临时文件， 长期运行会把磁盘吃满。cleanup 本身是幂等的（force: true / ignoreError）。
       if (cleanup) {
          const closeContainer = cleanup;
          await timer.measure(timingId, '清理题目容器', () =>
@@ -272,6 +293,11 @@ export const judgeProcessor: Processor<JobType> = async (job) => {
          message: error.message || 'Unknown error occurred',
       };
    } finally {
+      judgeResultsTotal.inc({ mode, outcome });
+      judgeTaskDurationSeconds.observe(
+         { mode, outcome },
+         (Date.now() - startTime) / 1000
+      );
       // 兜底：异常退出时清掉未结算的计时，避免残留。
       timer.clear(timingId);
    }

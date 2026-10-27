@@ -1,5 +1,5 @@
 import Redis from 'ioredis';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 let redis: Redis | null = null;
 

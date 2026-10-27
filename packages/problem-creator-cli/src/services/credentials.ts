@@ -35,11 +35,7 @@ export const emptyCredentials = (): Credentials => ({
    cookies: {},
 });
 
-/**
- * 凭据目录遵循 XDG：显式 QUANTA_CONFIG_DIR > XDG_CONFIG_HOME > ~/.config。
- * 不放在项目目录里，避免"换一个题目目录就要重新登录"
- * 以及误把令牌提交进版本库。
- */
+/** 凭据目录遵循 XDG：QUANTA_CONFIG_DIR > XDG_CONFIG_HOME > ~/.config；不放项目目录，避免换目录重登或误提交令牌。 */
 export const resolveConfigDir = (
    env: NodeJS.ProcessEnv = process.env,
 ): string => {

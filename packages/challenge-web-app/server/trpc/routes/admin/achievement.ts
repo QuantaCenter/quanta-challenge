@@ -81,6 +81,9 @@ const requestDepDataLoaderProcedure = protectedAdminProcedure
          const contextSet = new Set(contextVariables);
          const invalidFields = columnListSegments
             .filter(([, table, field]) => {
+               if (table === undefined || field === undefined) {
+                  return true;
+               }
                const notExist =
                   table === '__ctx'
                      ? !contextSet.has(field)
@@ -294,9 +297,20 @@ const CreateAchievementSchema = z.object({
 const createAchievementProcedure = protectedAdminProcedure
    .input(CreateAchievementSchema)
    .mutation(async ({ ctx, input }) => {
-      const image = await prisma.image.findUnique({
-         where: { id: input.imageId },
-      });
+      const [image, achievementWithSameName, depDataLoaders] =
+         await Promise.all([
+            prisma.image.findUnique({
+               where: { id: input.imageId },
+            }),
+            prisma.achievement.findFirst({
+               where: { name: input.name },
+            }),
+            prisma.achievementDepDataLoader.findMany({
+               where: { id: { in: input.dependencyData } },
+               select: { name: true, type: true },
+            }),
+         ]);
+
       if (!image) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -304,9 +318,6 @@ const createAchievementProcedure = protectedAdminProcedure
          });
       }
 
-      const achievementWithSameName = await prisma.achievement.findFirst({
-         where: { name: input.name },
-      });
       if (achievementWithSameName) {
          throw new TRPCError({
             code: 'BAD_REQUEST',
@@ -314,10 +325,6 @@ const createAchievementProcedure = protectedAdminProcedure
          });
       }
 
-      const depDataLoaders = await prisma.achievementDepDataLoader.findMany({
-         where: { id: { in: input.dependencyData } },
-         select: { name: true, type: true },
-      });
       if (depDataLoaders.length !== input.dependencyData.length) {
          throw new TRPCError({
             code: 'BAD_REQUEST',

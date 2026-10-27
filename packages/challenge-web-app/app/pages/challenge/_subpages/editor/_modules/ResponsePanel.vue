@@ -111,7 +111,7 @@ const copyHeadersAsKv = () =>
       fill
       direction="vertical"
       gap="0"
-      class="bg-[#1F1F1F] rounded-xl border border-accent-600 overflow-hidden">
+      class="bg-[#1F1F1F] rounded-xl max-md:rounded-none border border-accent-600 overflow-hidden">
       <!-- 顶部只有页签（状态码 / 耗时 / 字节数 都在底部状态栏） -->
       <StSpace
          v-if="response"

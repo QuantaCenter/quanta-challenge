@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import {
+   Box,
    Code,
    DocDetail,
    GoldMedalTwo,
    School,
    TableReport,
    Tag,
+   Timer,
+   VolumeNotice,
 } from '@icon-park/vue-next';
 import PublishOptionCard from './_components/PublishOptionCard.vue';
 
@@ -26,6 +29,15 @@ const options = [
       icon: TableReport,
       iconColor: '#C1EF3F',
    },
+   {
+      title: '构建快照镜像',
+      description: '用构建脚本预装依赖，生成做题页 WebContainer 启动时挂载的快照镜像（不影响判题）',
+      url: '/app/publish/image',
+      icon: Box,
+      iconColor: '#4CA7FF',
+      // 依赖跨源隔离响应头，需整页加载
+      needFullLoad: true,
+   },
 ];
 
 const tailOptions = [
@@ -38,10 +50,24 @@ const tailOptions = [
    },
    {
       title: '发布云函数',
-      description: '编写并发布 JS/TS 函数，供题目代码通过 HTTP 凭令牌调用',
+      description: '发布可被成员与内部服务通过 HTTP 调用的 JS/TS 云函数',
       url: '/app/publish/cloud-function',
       icon: Code,
       iconColor: '#C267FF',
+   },
+   {
+      title: '发送通知',
+      description: '向全体或指定用户发送日常公告与严重警告',
+      url: '/app/publish/notification',
+      icon: VolumeNotice,
+      iconColor: '#8B5CF6',
+   },
+   {
+      title: '定时任务',
+      description: '创建定时执行的运营任务',
+      url: '/app/publish/scheduled-task',
+      icon: Timer,
+      iconColor: '#F97316',
    },
 ];
 
@@ -67,10 +93,16 @@ const contentOptions = [
 
 <template>
    <StSpace fill justify="center" class="overflow-auto">
-      <StSpace direction="vertical" gap="1.5rem" class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布流程</h1>
+      <StSpace
+         direction="vertical"
+         gap="1.5rem"
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            发布流程
+         </h1>
 
-         <StSpace direction="vertical" gap="1.5rem" fill-x>
+         <StSpace direction="vertical" gap="1.5rem" fill-x class="max-md:gap-4!">
             <PublishOptionCard v-for="option in options" :key="option.title" v-bind="option" />
 
             <PublishOptionCard v-for="option in tailOptions" :key="option.title" v-bind="option" />

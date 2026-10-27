@@ -1,23 +1,4 @@
-/**
- * dev server 看护进程（watchdog）。
- *
- * ## 为什么需要它
- * `nuxt dev` 在开发期可能被**未处理的连接层错误**（ECONNRESET / ECONNABORTED）终止，
- * 触发时机通常是 Vite 运行中依赖重优化导致的整页重载——浏览器刷新时切断 HMR
- * WebSocket，Node 把这个连接错误升级成进程级异常，dev server 就没了，表现为
- * 浏览器"无法访问"。
- *
- * ## 为什么要退避（backoff）
- * 早期版本固定 1.5 秒重启。当子进程因为**编译错误或内存耗尽（OOM）**反复崩溃时，
- * 1.5 秒一次的重启会让进程堆积、把内存彻底压满，反而放大故障。
- * 因此这里按"连续快速失败次数"做指数退避：
- *   连续快速失败 1 次 → 1.5s，2 次 → 3s，3 次 → 6s …最多 30s。
- * 只要一次运行超过 HEALTHY_RUN_MS（视为正常启动过），计数就清零。
- *
- * ## 使用
- *   pnpm dev:watch     # 带自动重启（日常开发推荐）
- *   pnpm dev           # 原生 nuxt dev（需要看原始行为时用）
- */
+/** dev server 看护进程：nuxt dev 可能被 HMR 断连引发的连接层错误终止，这里自动重启；按连续快速失败次数做指数退避（1.5s→30s），一次健康运行即清零。用法：pnpm dev:watch。 */
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

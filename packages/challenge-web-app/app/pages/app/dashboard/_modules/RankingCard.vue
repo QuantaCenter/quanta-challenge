@@ -1,16 +1,30 @@
 <script setup lang="ts">
-import { Lock, Ranking, TrendingDown, TrendingUp } from '@icon-park/vue-next';
+import {
+   Lock,
+   Ranking,
+   TrendingDown,
+   TrendingUp,
+   UserPositioning,
+} from '@icon-park/vue-next';
 import RankingSkeleton from '../_skeletons/RankingSkeleton.vue';
 import LinkButton from '../_components/LinkButton.vue';
+import useAuthStore from '~/stores/auth-store';
+
+const authStore = useAuthStore();
+const isAdmin = computed(() => authStore.user?.role !== 'USER');
 
 type Ranking = { from: number; to: number; count: number };
 
 const { $trpc } = useNuxtApp();
 
-const { data: globalRankData, error } = await useAsyncData(
-   'global-rank-data',
-   () => $trpc.protected.rank.getMyGlobalRankStatistic.query()
+// 两个请求互不依赖，先注册 trends 再 await，使其并行发出
+const globalRankRequest = useAsyncData('global-rank-data', () =>
+   $trpc.protected.rank.getMyGlobalRankStatistic.query()
 );
+const { data: trends } = useAsyncData('my-ranking-trends', () =>
+   $trpc.protected.rank.getMyRankingTrends.query()
+);
+const { data: globalRankData, error } = await globalRankRequest;
 
 const statistics = computed(() => {
    if (!globalRankData.value) {
@@ -25,10 +39,6 @@ const statistics = computed(() => {
 });
 const rankings = computed(() => globalRankData.value?.rankingIntervals ?? null);
 
-const { data: trends } = useAsyncData('my-ranking-trends', () =>
-   $trpc.protected.rank.getMyRankingTrends.query()
-);
-
 const loading = computed(
    () => !error.value && (!rankings.value || !trends.value)
 );
@@ -38,9 +48,7 @@ const beatRadio = computed(() => {
    return (statistics.value.beatRatio * 100).toFixed(0) + '%';
 });
 
-// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数）。
-// 相比「除以昨天的名次」，以总人数为分母对大小榜单都可比，
-// 也不会因为名次靠前而放大成百分之几百。
+// 名次上升量占榜单总人数的比例（-1 ~ 1 的小数）。 相比「除以昨天的名次」，以总人数为分母对大小榜单都可比， 也不会因为名次靠前而放大成百分之几百。
 const increaseRatio = computed(() => {
    const total = statistics.value.total;
    if (!trends.value || trends.value.trends.length < 2 || total <= 0) return 0;
@@ -63,6 +71,18 @@ const increaseRatioText = computed(() => {
          <LinkButton description="查看排行榜" to="/app/rankings" />
       </template>
       <RankingSkeleton v-if="loading" />
+
+      <StSpace
+         v-else-if="isAdmin"
+         fill
+         direction="vertical"
+         gap="0.75rem"
+         align="center"
+         justify="center"
+         class="text-accent-400">
+         <UserPositioning size="3.625rem" :strokeWidth="2" />
+         <div class="st-font-body-normal">管理员不参与排名</div>
+      </StSpace>
 
       <StSpace
          v-else-if="globalRankData?.selfRanking.rank === -1"
@@ -107,7 +127,7 @@ const increaseRatioText = computed(() => {
             </StSpace>
          </StSpace>
 
-         <StSpace fill class="max-h-[13rem]">
+         <StSpace fill class="max-h-[13rem] max-md:h-[10rem]">
             <StRankingChart
                :rank="rankings ?? []"
                :current-score="statistics.score" />

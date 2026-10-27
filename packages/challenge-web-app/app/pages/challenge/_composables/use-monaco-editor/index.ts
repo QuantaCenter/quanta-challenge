@@ -1,10 +1,15 @@
-import type { editor } from 'monaco-editor';
+import type { IDisposable, editor } from 'monaco-editor';
 import { createHighlighterCoreSync, createJavaScriptRegexEngine } from 'shiki';
 import { shikiToMonaco } from '@shikijs/monaco';
 import { registerLanguageWorkers } from './workers';
 import * as editorActions from './editor-actions';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import { markMonacoThemeActive } from '~/composables/monaco-state';
+import {
+   applyMobileTouchSupport,
+   getMobileEditorOptions,
+   isTouchDevice,
+} from '~/composables/monaco-mobile-support';
 import {
    defaultEditorOptions,
    editorThemeRegistration,
@@ -24,6 +29,39 @@ const registerHighligher = (monaco: MonacoEditor) => {
       monaco.languages.register(lang);
    });
    shikiToMonaco(highlighter, monaco);
+};
+
+/** 切换 model 时保存 / 恢复各文件的视图状态（滚动、光标、折叠等）。 */
+const preserveViewStateOnModelSwitch = (
+   monaco: MonacoEditor,
+   instance: editor.IStandaloneCodeEditor
+) => {
+   const viewStates = new Map<string, editor.ICodeEditorViewState>();
+   const originalSetModel = instance.setModel.bind(instance);
+
+   instance.setModel = (model) => {
+      const currentModel = instance.getModel();
+      if (currentModel === model) return originalSetModel(model);
+
+      if (currentModel) {
+         const state = instance.saveViewState();
+         state && viewStates.set(currentModel.uri.toString(), state);
+      }
+      originalSetModel(model);
+      if (model) {
+         const state = viewStates.get(model.uri.toString());
+         state && instance.restoreViewState(state);
+      }
+   };
+
+   const disposable = monaco.editor.onWillDisposeModel((model) => {
+      viewStates.delete(model.uri.toString());
+   });
+
+   return () => {
+      disposable.dispose();
+      viewStates.clear();
+   };
 };
 
 const autoRemeasureFont = (monaco: MonacoEditor, interval = 2000) => {
@@ -57,6 +95,8 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
    let monaco: MonacoEditor | null = null;
    let editorInstance: editor.IStandaloneCodeEditor | null = null;
    let disposeLanguageWorkers: (() => void) | null = null;
+   let disposeViewStatePreserver: (() => void) | null = null;
+   let mobileTouchSupportDisposable: IDisposable | null = null;
 
    // 编辑器准备回调
    const monacoReadyCallbacks = new Set<MonacoReadyCallback>();
@@ -198,12 +238,21 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       // 自动重新测量字体
       autoRemeasureFont(monaco);
 
-      // 创建编辑器实例
+      // 创建编辑器实例（触屏设备追加移动端默认选项）
+      const isTouch = isTouchDevice();
       const instance = monaco.editor.create(container.value, {
          ...defaultEditorOptions,
+         ...(isTouch && getMobileEditorOptions()),
          ...options?.options,
       });
       editorInstance = instance;
+      if (isTouch) {
+         mobileTouchSupportDisposable = applyMobileTouchSupport(instance);
+      }
+      disposeViewStatePreserver = preserveViewStateOnModelSwitch(
+         monaco,
+         instance
+      );
       markMonacoThemeActive(
          options?.options?.theme ?? defaultEditorOptions.theme ?? 'ayu-dark'
       );
@@ -221,6 +270,8 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          editorBeforeDisposedCallbacks.forEach((callback) =>
             callback(editorInstance!)
          );
+      disposeViewStatePreserver?.();
+      mobileTouchSupportDisposable?.dispose();
       monaco && monaco.editor.getModels().forEach((model) => model.dispose());
       editorInstance?.dispose();
       disposeLanguageWorkers?.();

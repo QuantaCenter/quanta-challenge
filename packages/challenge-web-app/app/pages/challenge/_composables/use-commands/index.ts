@@ -1,6 +1,7 @@
 import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
 import type { CommandData } from '../../_subpages/editor/_components/RightClickMenuProvider.vue';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
+import type { DispatcherFsChange } from './file-system-dispatcher';
 import { useMessage } from '~/components/st/Message/use-message';
 import { normalizePath, getParentPath, getBaseName } from '~/utils/path-utils';
 import { FileSystemOperator } from './file-system-operator';
@@ -10,12 +11,16 @@ export interface IUseCommandsOptions {
    runCommand: (commandLine: string | string[]) => Promise<WebContainerProcess>;
    getWebContainerInstance: () => Promise<WebContainer>;
    fsTree: Ref<IFileSystemItem[] | undefined>;
+   /** 监听 WebContainer 文件系统（含终端操作）产生的变更，用于同步到云端 */
+   onFsChange?: (changes: DispatcherFsChange[]) => void;
 }
 
 export const useCommands = (options: IUseCommandsOptions) => {
    const dispatcher = new FileSystemDispatcher(
       options.getWebContainerInstance,
-      options.fsTree
+      options.fsTree,
+      undefined,
+      options.onFsChange
    );
 
    const commandEmitter = useEventBus<CommandData>('right-click-menu-command');

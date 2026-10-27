@@ -1,0 +1,233 @@
+name: observation
+
+# 单机监控栈：Prometheus + Loki + Alloy + Grafana + node-exporter/cadvisor + observation(SQLite)
+# 数据落盘 ./data/*，备份见 ../scripts/backup.sh
+
+services:
+  # ---------- 指标采集 ----------
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.retention.size=5GB
+      - --web.enable-lifecycle
+    volumes:
+      - ./prometheus:/etc/prometheus:ro
+      - ./data/prometheus:/prometheus
+    networks:
+      - monitoring
+      - app # 抓取业务后端 /metrics
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1024M
+        reservations:
+          memory: 256M
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    restart: unless-stopped
+    pid: host
+    command:
+      - --path.rootfs=/host
+      - --collector.mountstats
+      - --collector.systemd
+      - --collector.processes
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.2"
+          memory: 128M
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    restart: unless-stopped
+    privileged: true
+    devices:
+      - /dev/kmsg
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  # ---------- 日志采集 ----------
+  alloy:
+    image: grafana/alloy:v1.8.3
+    restart: unless-stopped
+    # 读取 docker.sock 需要 root
+    user: root
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/config.alloy
+    volumes:
+      - ./alloy:/etc/alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./data/alloy:/var/lib/alloy
+    networks:
+      - monitoring
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+  loki:
+    image: grafana/loki:3.5.1
+    restart: unless-stopped
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - ./loki:/etc/loki:ro
+      - ./data/loki:/loki
+    networks:
+      - monitoring
+    user: "10001:10001"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 768M
+
+  # ---------- 可视化与告警 ----------
+  grafana:
+    image: grafana/grafana:11.6.3
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_ADMIN_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?请在 deploy/.env 中设置 GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
+      - GF_SERVER_ROOT_URL=${GRAFANA_ROOT_URL:-http://127.0.0.1:13000}
+      - GF_LOG_LEVEL=warn
+    volumes:
+      - ./grafana:/etc/grafana:ro
+      - ./data/grafana:/var/lib/grafana
+    ports:
+      # 只绑回环，公网走反代
+      - "127.0.0.1:13000:3000"
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------- Agent 查数（只读 MCP） ----------
+  # 官方 Grafana MCP 仅在监控内网开放；统一网关代理其 Prometheus/Loki 工具。
+  grafana-mcp:
+    image: grafana/mcp-grafana:2.1.1
+    restart: unless-stopped
+    command:
+      - -t
+      - streamable-http
+      - --enabled-tools
+      - datasource,prometheus,loki
+      - --disable-write
+      - --allowed-hosts=grafana-mcp:8000,grafana-mcp,localhost:8000,127.0.0.1:8000
+    environment:
+      - GRAFANA_URL=http://grafana:3000
+      - GRAFANA_SERVICE_ACCOUNT_TOKEN=${GRAFANA_MCP_SERVICE_ACCOUNT_TOKEN:?请设置只读 Grafana Service Account Token}
+    networks:
+      - monitoring
+    depends_on:
+      - grafana
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+
+  data-mcp:
+    build:
+      context: ../../..
+      dockerfile: packages/challenge-data-mcp/Dockerfile
+    image: challenge-data-mcp:latest
+    restart: unless-stopped
+    environment:
+      - DATA_MCP_HOST=0.0.0.0
+      - DATA_MCP_PORT=9320
+      - DATA_MCP_PUBLIC_URL=${DATA_MCP_PUBLIC_URL:-http://127.0.0.1:9320/mcp}
+      - DATA_MCP_BEARER_TOKENS=${DATA_MCP_BEARER_TOKENS:?请设置 caller:token 格式的 MCP Token}
+      - DATA_MCP_DATABASE_URL=${DATA_MCP_DATABASE_URL:?请设置 data_agent_reader 的只读数据库连接串}
+      - DATA_MCP_AUDIT_DB_PATH=/data/audit.sqlite3
+      - DATA_MCP_ALLOWED_HOSTS=${DATA_MCP_ALLOWED_HOSTS:-localhost,127.0.0.1,data-mcp}
+      - DATA_MCP_ALLOWED_ORIGINS=${DATA_MCP_ALLOWED_ORIGINS:-localhost,127.0.0.1}
+      - DATA_MCP_MAX_LOOKBACK_HOURS=${DATA_MCP_MAX_LOOKBACK_HOURS:-720}
+      - GRAFANA_MCP_URL=http://grafana-mcp:8000/mcp
+    volumes:
+      - ./data/data-mcp:/data
+    ports:
+      - "127.0.0.1:9320:9320"
+    networks:
+      - monitoring
+      - app
+    depends_on:
+      - grafana-mcp
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
+
+  # ---------- 自研采集服务（SQLite） ----------
+  observation:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: challenge-observation:latest
+    restart: unless-stopped
+    environment:
+      - OBS_PORT=9310
+      - OBS_DB_PATH=/data/observation.sqlite3
+      # 管理接口鉴权 Token，必填
+      - OBS_API_TOKEN=${OBS_API_TOKEN:?请在 deploy/.env 中设置 OBS_API_TOKEN}
+      # 前端上报 Token，公网部署建议设置
+      - OBS_REPORT_TOKEN=${OBS_REPORT_TOKEN:-}
+      - LOKI_URL=http://loki:3100
+    volumes:
+      - ./data/observation:/data
+    ports:
+      # 前端 SDK 上报入口
+      - "127.0.0.1:9310:9310"
+    networks:
+      - monitoring
+      - app
+    depends_on:
+      - loki
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3"
+          memory: 256M
+
+networks:
+  # 监控内网，与业务隔离
+  monitoring:
+    driver: bridge
+    internal: true
+  # 复用业务栈网络（docker/docker-compose.yaml），抓取后端 /metrics
+  app:
+    name: ${APP_NETWORK:-quanta-challenge_quanta-challenge-network}
+    external: true

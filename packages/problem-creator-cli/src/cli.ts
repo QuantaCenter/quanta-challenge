@@ -8,13 +8,7 @@ import { createLogger } from './core/logger';
 import { type CliRuntime, createProcessRuntime } from './core/runtime';
 import { CLI_DESCRIPTION, CLI_NAME, CLI_VERSION } from './version';
 
-/**
- * 创建命令树。
- *
- * 注意这里**没有**任何 `process.exit()`：退出码由 runCli 返回给调用方，
- * 这样测试可以在同一个进程里反复跑 CLI（含 --help、参数错误等分支），
- * 而不用 spawn 子进程。
- */
+/** 创建命令树；无 process.exit()，退出码由 runCli 返回给调用方，测试可在同进程反复跑。 */
 export const createProgram = (runtime: CliRuntime): Command => {
    const program = new Command();
 
@@ -39,6 +33,10 @@ export const createProgram = (runtime: CliRuntime): Command => {
       .option('--verbose', '输出调试信息')
       .option('--no-color', '禁用彩色输出')
       .option('-y, --yes', '跳过交互确认（CI 必给）')
+      .addHelpText(
+         'before',
+         'Agent 使用者请先运行 `qpc agent`（使用手册与出题流程，随版本分发）\n',
+      )
       .showHelpAfterError('（用 `qpc --help` 查看全部用法）')
       .configureOutput({
          writeOut: (chunk) => runtime.stdout(chunk),
@@ -46,13 +44,7 @@ export const createProgram = (runtime: CliRuntime): Command => {
       })
       .exitOverride();
 
-   /**
-    * 全局参数解析。
-    *
-    * `--no-color` 在 commander 里的含义是"color 默认 true"，因此不能靠
-    * `options.color !== undefined` 判断用户是否显式指定；必须看选项来源。
-    * 否则在管道/CI（非 TTY）里也会输出 ANSI 转义序列，日志变成乱码。
-    */
+   /** 全局参数解析：--no-color 须看选项来源判断显式指定，否则非 TTY 里会输出 ANSI 乱码。 */
    const globals = (): GlobalOptions => {
       const options = program.opts<Record<string, unknown>>();
       const colorExplicit = program.getOptionValueSource('color') === 'cli';
@@ -114,7 +106,8 @@ export const runCli = async (
          });
       } else {
          logger.error(cliError.message);
-         if (cliError.hint) logger.info(`  ${cliError.hint}`);
+         // 与错误同走 stderr：分属两个流时被管道收集会乱序，提示跑到错误前面。
+         if (cliError.hint) runtime.stderr(`    ${cliError.hint}\n`);
          if (cliError.details && argv.includes('--verbose')) {
             logger.detail(JSON.stringify(cliError.details, null, 3));
          }

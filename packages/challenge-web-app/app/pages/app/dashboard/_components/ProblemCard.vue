@@ -3,6 +3,7 @@ import type { DailyProblem } from '../_modules/DailyChallengeCard.vue';
 
 defineProps<{
    problem: DailyProblem;
+   completed?: boolean;
 }>();
 
 const difficultyTextMap = {
@@ -21,12 +22,11 @@ const difficultyTextMap = {
       class="!bg-accent-500">
       <StSpace
          direction="vertical"
-         justify="between"
-         gap="1rem"
+         gap="0.8rem"
          class="w-full h-full mb-3 px-2">
-         <StProblemCardTitle :title="problem.title" />
+         <StProblemCardTitle :title="problem.title" :completed="completed" />
          <StProblemCardTags :tags="problem.tags" />
-         <StProblemCardDivider />
+         <StProblemCardDivider class="mt-auto" />
          <StProblemCardInfo>
             <StProblemCardInfoItem title="通过率">
                <span

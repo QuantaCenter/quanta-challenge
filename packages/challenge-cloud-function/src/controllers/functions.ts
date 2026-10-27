@@ -276,7 +276,6 @@ functionsRoute.post('/:name/test', requireScope('manage'), async (c) => {
       user: null,
       timeoutMs: fn.timeoutMs,
       kv,
-      traceId: c.get('traceId'),
    });
 
    return c.json({

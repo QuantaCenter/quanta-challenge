@@ -1,6 +1,7 @@
 import { generateCloudFunctionHeaders } from '@challenge/shared/cloud-function';
+import { getRequestContext } from '@challenge/shared/trace';
 import { TRPCError } from '@trpc/server';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 export class CloudFunctionClientError extends Error {
    constructor(
@@ -33,13 +34,7 @@ export const rethrowAsTRPCError = (error: unknown): never => {
    throw error;
 };
 
-/**
- * 云函数服务返回的数据形状。
- *
- * 定义在这里是为了让 `admin.cloudFunction.*` 的 tRPC 过程携带具体返回类型，
- * 前端页面（`app/pages/app/{publish,manage}/cloud-function`）因此能获得完整类型推导。
- * 时间字段在 HTTP/JSON 层是 ISO 字符串。
- */
+/** 云函数服务返回的数据形状：供 admin.cloudFunction.* 的 tRPC 过程携带具体返回类型；时间字段是 ISO 字符串。 */
 export interface CloudFunctionRecord {
    id: string;
    name: string;
@@ -109,12 +104,7 @@ interface CallCloudFunctionServiceOptions {
    traceId?: string | null;
 }
 
-/**
- * 带签名的云函数服务客户端。
- *
- * 内部密钥来自 runtimeConfig（部署环境注入），因此站点对云函数服务是**自动认证**的
- * ——无需管理员在后台签发任何 key。浏览器永远拿不到这个 secret。
- */
+/** 带签名的云函数服务客户端：内部密钥来自 runtimeConfig，站点对云函数服务自动认证，浏览器拿不到 secret。 */
 export const callCloudFunctionService = async <T>(
    options: CallCloudFunctionServiceOptions,
 ): Promise<T> => {
@@ -144,7 +134,9 @@ export const callCloudFunctionService = async <T>(
       userId: options.userId ?? undefined,
    });
 
-   if (options.traceId) headers['x-trace-id'] = options.traceId;
+   // traceId 优先用调用方显式给的，否则取当前请求上下文——跨服务延续同一条 trace。
+   const traceId = options.traceId ?? getRequestContext()?.traceId;
+   if (traceId) headers['x-trace-id'] = traceId;
 
    const url = new URL(options.path, serverUrl);
    for (const [key, value] of Object.entries(options.query ?? {})) {

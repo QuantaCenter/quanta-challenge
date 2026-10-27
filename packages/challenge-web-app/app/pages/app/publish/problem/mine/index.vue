@@ -117,13 +117,23 @@ const showEmptyStatus = computed(() => {
          v-if="showEmptyStatus"
          fill-y
          direction="vertical"
-         class="mt-6 w-[50rem]">
-         <h1 class="text-[2.5rem] font-bold text-white">我的发布</h1>
+         class="mt-6 w-full max-w-[50rem] max-md:mt-4 max-md:px-4">
+         <h1
+            class="text-[2.5rem] max-md:text-[1.5rem] font-bold text-white">
+            我的发布
+         </h1>
          <Divider />
          <StEmptyStatus content="暂无发布内容" class="pb-32 mt-24" />
       </StSpace>
-      <StSpace v-else fill-y direction="vertical" class="mt-6 w-[65rem]">
-         <h1 class="text-[2.5rem] font-bold text-white">我的发布</h1>
+      <StSpace
+         v-else
+         fill-y
+         direction="vertical"
+         class="mt-6 w-full max-w-[65rem] max-md:mt-4 max-md:px-4">
+         <h1
+            class="text-[2.5rem] max-md:text-[1.5rem] font-bold text-white">
+            我的发布
+         </h1>
          <StSkeleton :loading="!tags" class="mt-4">
             <template #loading>
                <StSpace gap="0.75rem">
@@ -136,14 +146,14 @@ const showEmptyStatus = computed(() => {
             <StSpace fill-x class="h-[3.5rem] relative mt-4" gap="0">
                <div
                   :class="[
-                     'absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-r from-background to-transparent pr-4 pl-1 transition-opacity duration-300',
+                     'absolute left-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-r from-background to-transparent pr-4 pl-1 transition-opacity duration-300 max-md:pointer-events-none',
                      arrivedState.left || !isOverflow
                         ? 'opacity-0 pointer-events-none'
                         : 'opacity-100',
                   ]">
                   <button
                      @click="scrollLeft"
-                     class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
+                     class="max-md:hidden w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
                      <Left theme="outline" size="16" fill="#fff" />
                   </button>
                </div>
@@ -169,14 +179,14 @@ const showEmptyStatus = computed(() => {
                </StScrollable>
                <div
                   :class="[
-                     'absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-l from-background to-transparent pl-4 pr-1 transition-opacity duration-300',
+                     'absolute right-0 top-0 bottom-0 z-10 flex items-center justify-center bg-gradient-to-l from-background to-transparent pl-4 pr-1 transition-opacity duration-300 max-md:pointer-events-none',
                      arrivedState.right || !isOverflow
                         ? 'opacity-0 pointer-events-none'
                         : 'opacity-100',
                   ]">
                   <button
                      @click="scrollRight"
-                     class="w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
+                     class="max-md:hidden w-8 h-8 rounded-full bg-[#2C2C2C] flex items-center justify-center hover:bg-[#3C3C3C] transition-colors cursor-pointer">
                      <Right theme="outline" size="16" fill="#fff" />
                   </button>
                </div>
@@ -186,15 +196,23 @@ const showEmptyStatus = computed(() => {
          <Divider />
          <StSkeleton :loading="!problems" class="w-full h-full">
             <template #loading>
-               <StGrid fill :cols="4" gap="1.25rem">
+               <StGrid
+                  fill
+                  :cols="4"
+                  gap="1.25rem"
+                  class="max-md:grid-cols-1! max-md:gap-3!">
                   <StSkeletonItem
                      v-for="i in 12"
                      :key="i"
-                     class="w-[14.5rem] h-[20rem]"
+                     class="w-[14.5rem] max-md:w-full h-[20rem]"
                      rounded="lg" />
                </StGrid>
             </template>
-            <StGrid fill :cols="4" gap="1.25rem">
+            <StGrid
+               fill
+               :cols="4"
+               gap="1.25rem"
+               class="max-md:grid-cols-1! max-md:gap-3!">
                <NuxtLink
                   v-for="(problem, idx) in problems"
                   class="h-fit"
@@ -202,7 +220,7 @@ const showEmptyStatus = computed(() => {
                   :key="idx"
                   :to="`/app/publish/problem/detail/${problem.pid}`">
                   <StProblemCard
-                     class="w-[14.5rem] h-fit"
+                     class="w-[14.5rem] max-md:w-full h-fit"
                      :cover-image-name="problem.imageName"
                      :cover-image-thumbhash="problem.imageHash"
                      :cover-image-thumbhash-url="problem.imageThumbhashUrl">

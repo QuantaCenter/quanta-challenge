@@ -72,7 +72,6 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
          user,
          timeoutMs,
          kv,
-         traceId,
       });
    } catch (error) {
       const code = isCloudFunctionError(error) ? error.code : 'RUNTIME_ERROR';

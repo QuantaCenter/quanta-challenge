@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { createApiInstrumentation } from '@challenge/observation/instrumentation';
 import { signatureMiddleware, traceMiddleware } from '../middlewares';
 import { CloudFunctionError } from '../utils/errors';
 import { logger } from '../utils/logger';
@@ -8,6 +9,10 @@ import invokeRoute from './invoke';
 import keysRoute from './keys';
 
 const app = new Hono();
+
+// API 指标埋点，需先于其他中间件注册
+const apiInstrumentation = createApiInstrumentation({ service: 'challenge-cloud-function' });
+app.use('*', apiInstrumentation.middleware);
 
 app.use('*', traceMiddleware);
 
@@ -34,6 +39,9 @@ app.notFound((c) =>
    ),
 );
 
+// Prometheus 抓取入口
+app.get('/metrics', apiInstrumentation.metricsHandler);
+
 app.onError((error, c) => {
    if (error instanceof CloudFunctionError) {
       return c.json(
@@ -50,10 +58,7 @@ app.onError((error, c) => {
       );
    }
 
-   logger.error(
-      { error, traceId: c.get('traceId') },
-      '云函数服务未处理的错误',
-   );
+   logger.error({ error }, '云函数服务未处理的错误');
 
    return c.json(
       {

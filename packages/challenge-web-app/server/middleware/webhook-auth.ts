@@ -1,6 +1,6 @@
 import { verifyOpenApiSign } from '@challenge/shared/openapi';
 import z from 'zod';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 
 export default defineEventHandler((event) => {
    if (!event.path.startsWith('/api/webhooks/')) return;
@@ -26,11 +26,11 @@ export default defineEventHandler((event) => {
 
    const { openapi } = useRuntimeConfig();
    const query = getQuery(event);
-   const uri = event.path.split('?')[0];
+   const uri = event.path.split('?')[0] ?? event.path;
 
    const verified = verifyOpenApiSign({
       params: query,
-      secret: openapi.webhookSecret,
+      secret: openapi.webhookSecret ?? '',
       path: uri,
       signature: sign,
       timestamp: timestamp,

@@ -1,12 +1,14 @@
 import prisma from '~~/lib/prisma';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
-import { useStore } from '../../store';
 import z from 'zod';
 import path from 'path';
 import { TRPCError } from '@trpc/server';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
+import { problemStatService } from '../../services/problem-stat';
+import { imageFormDataSchema } from '../../schemas/image-upload';
+import { saveUploadedImage } from '~~/server/utils/save-uploaded-image';
 
 // 获取用户信息
 const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
@@ -24,6 +26,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
          },
          user: {
             select: {
+               displayName: true,
                imageId: true,
                avatar: {
                   select: {
@@ -37,6 +40,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
 
    return {
       ...result,
+      displayName: result?.user?.displayName || null,
       bannerImageUrl: result?.bannerImage?.name
          ? `/api/static/${result?.bannerImage?.name}`
          : null,
@@ -49,6 +53,7 @@ const getUserInfoProcedure = protectedProcedure.query(async ({ ctx }) => {
 
 // 更新用户信息
 const UpdateUserInfoSchema = z.object({
+   displayName: z.string().max(30).optional(),
    bio: z.string().max(500).optional(),
    email: z.email().optional().or(z.literal('')),
    major: z.string().max(100).optional(),
@@ -68,13 +73,21 @@ const updateUserInfoProcedure = protectedProcedure
          ? { birthday: new Date(input.birthday) }
          : {};
 
-      // 如果提供了头像，更新 User 表
+      // 如果提供了昵称或头像，更新 User 表
+      const userUpdate: {
+         displayName?: string | null;
+         imageId?: string | null;
+      } = {};
+      if (input.displayName !== undefined) {
+         userUpdate.displayName = input.displayName.trim() || null;
+      }
       if (input.avatarImageId !== undefined) {
+         userUpdate.imageId = input.avatarImageId || null;
+      }
+      if (Object.keys(userUpdate).length > 0) {
          await prisma.user.update({
             where: { id: userId },
-            data: {
-               imageId: input.avatarImageId || null,
-            },
+            data: userUpdate,
          });
       }
 
@@ -115,21 +128,10 @@ const updateUserInfoProcedure = protectedProcedure
    });
 
 // 上传图片
-const UploadImageSchema = z.object({
-   fileBase64: z.base64().refine(
-      (fileb64) => {
-         const size = Buffer.byteLength(fileb64, 'base64');
-         return size <= 5 * 1024 * 1024; // 5MB limit
-      },
-      { message: '文件大小不能超过 5MB' },
-   ),
-   fileName: z.string(),
-});
-
 const uploadImageProcedure = protectedProcedure
-   .input(UploadImageSchema)
+   .input(imageFormDataSchema)
    .mutation(async ({ ctx, input }) => {
-      const { fileBase64, fileName } = input;
+      const { buffer: fileBuffer, fileName } = input;
       const { userId } = ctx.user;
 
       // 验证文件类型
@@ -142,28 +144,58 @@ const uploadImageProcedure = protectedProcedure
          });
       }
 
-      const fileBuffer = Buffer.from(fileBase64, 'base64');
-      const store = useStore();
-      const fileId = await store.save(fileBuffer, fileName);
-
-      return await prisma.image.create({
-         data: {
-            id: fileId,
-            name: `${fileId}${ext}`,
-            UserImage: {
-               create: {
-                  userId,
-               },
-            },
-         },
-         select: {
-            id: true,
-            name: true,
-         },
-      });
+      return saveUploadedImage({ fileBuffer, fileName, userId });
    });
 
-// 获取指定用户的公开信息（用于个人空间展示）
+const userSearchSelect = {
+   id: true,
+   name: true,
+   displayName: true,
+   avatar: { select: { name: true } },
+} as const;
+
+/** 按用户名或昵称搜索用户 */
+const searchUsersProcedure = protectedProcedure
+   .input(
+      z.object({
+         keyword: z.string().trim().min(1).max(50),
+         limit: z.number().int().min(1).max(20).default(8),
+      }),
+   )
+   .query(async ({ input }) => {
+      const { keyword, limit } = input;
+
+      const [exact, fuzzy] = await Promise.all([
+         prisma.user.findUnique({
+            where: { name: keyword },
+            select: userSearchSelect,
+         }),
+         prisma.user.findMany({
+            where: {
+               OR: [
+                  { name: { contains: keyword, mode: 'insensitive' } },
+                  { displayName: { contains: keyword, mode: 'insensitive' } },
+               ],
+            },
+            orderBy: [{ name: 'asc' }],
+            take: limit,
+            select: userSearchSelect,
+         }),
+      ]);
+
+      const users = exact
+         ? [exact, ...fuzzy.filter((user) => user.id !== exact.id)]
+         : fuzzy;
+
+      return users.slice(0, limit).map((user) => ({
+         id: user.id,
+         name: user.name,
+         displayName: user.displayName,
+         avatarUrl: user.avatar?.name ? `/api/static/${user.avatar.name}` : null,
+      }));
+   });
+
+// 用户公开信息
 const getUserByNameProcedure = protectedProcedure
    .input(z.object({ name: z.string() }))
    .query(async ({ input }) => {
@@ -363,70 +395,79 @@ const getRecentProblemsProcedure = protectedProcedure
          });
       }
 
-      const recentSubmissions = await prisma.judgeRecords.findMany({
-         where: { userId: user.id },
-         distinct: ['problemId'],
-         orderBy: { createdAt: 'desc' },
-         take: 5,
-         select: {
-            problem: {
-               select: {
-                  pid: true,
-                  title: true,
-                  difficulty: true,
-                  totalScore: true,
-                  tags: {
-                     select: {
-                        name: true,
-                        color: true,
-                     },
+      // 按基础题汇总最近提交（任一版本的提交都算），展示基础题当前已发布的版本
+      const recentBases = await prisma.$queryRaw<
+         { baseId: number; currentPid: number }[]
+      >`
+         SELECT base_problems.id AS "baseId", base_problems."currentPid" AS "currentPid"
+         FROM judge_records
+         JOIN problems ON judge_records."problemId" = problems.pid
+         JOIN base_problems ON base_problems.id = problems."baseId"
+         JOIN problems current ON current.pid = base_problems."currentPid"
+         WHERE judge_records."userId" = ${user.id}
+            AND current.status = 'published'
+            AND current."isDeprecated" = false
+         GROUP BY base_problems.id, base_problems."currentPid"
+         ORDER BY MAX(judge_records."createdAt") DESC
+         LIMIT 5
+      `;
+      const currentPids = recentBases.map((row) => row.currentPid);
+
+      const [problems, passRates] = await Promise.all([
+         prisma.problems.findMany({
+            where: { pid: { in: currentPids } },
+            select: {
+               pid: true,
+               baseId: true,
+               title: true,
+               difficulty: true,
+               totalScore: true,
+               tags: {
+                  select: {
+                     name: true,
+                     color: true,
                   },
-                  JudgeStatus: {
-                     select: {
-                        totalCount: true,
-                        passedCount: true,
-                     },
+               },
+               CoverImage: {
+                  select: {
+                     name: true,
+                     thumbhash: true,
                   },
-                  CoverImage: {
-                     select: {
-                        name: true,
-                        thumbhash: true,
-                     },
-                  },
-                  ProblemDefaultCover: {
-                     select: {
-                        image: {
-                           select: { name: true, thumbhash: true },
-                        },
+               },
+               ProblemDefaultCover: {
+                  select: {
+                     image: {
+                        select: { name: true, thumbhash: true },
                      },
                   },
                },
             },
-         },
-      });
+         }),
+         problemStatService.getPassRates(recentBases.map((row) => row.baseId)),
+      ]);
+      const problemByPid = new Map(problems.map((p) => [p.pid, p]));
 
-      const rawProblems = recentSubmissions.map((submission) => {
-         const p = submission.problem;
-         const passCount = p.JudgeStatus?.passedCount ?? 0;
-         const totalCount = p.JudgeStatus?.totalCount ?? 0;
-         const passRate = totalCount === 0 ? 0 : (passCount / totalCount) * 100;
-         return {
-            ...p,
-            // 同 public/problem.ts：无封面返回 null，避免拼出 /api/static/unknown（403）
-            imageName:
-               p.CoverImage?.name ||
-               p.ProblemDefaultCover?.[0]?.image?.name ||
-               null,
-            imageHash:
-               p.CoverImage?.thumbhash ||
-               p.ProblemDefaultCover?.[0]?.image?.thumbhash ||
-               null,
-            passRate,
-            CoverImage: undefined,
-            ProblemDefaultCover: undefined,
-            JudgeStatus: undefined,
-         };
-      });
+      const rawProblems = currentPids
+         .map((pid) => problemByPid.get(pid))
+         .filter((p) => p !== undefined)
+         .map((p) => {
+            const passRate = (passRates.get(p.baseId) ?? 0) * 100;
+            return {
+               ...p,
+               // 同 public/problem.ts：无封面返回 null，避免拼出 /api/static/unknown（403）
+               imageName:
+                  p.CoverImage?.name ||
+                  p.ProblemDefaultCover?.[0]?.image?.name ||
+                  null,
+               imageHash:
+                  p.CoverImage?.thumbhash ||
+                  p.ProblemDefaultCover?.[0]?.image?.thumbhash ||
+                  null,
+               passRate,
+               CoverImage: undefined,
+               ProblemDefaultCover: undefined,
+            };
+         });
 
       // 服务端带缓存地把 thumbhash 渲染为 data URL，供 SSR 首帧直接使用
       const imageThumbhashUrls = await renderThumbhashDataUrls(
@@ -500,6 +541,7 @@ export const userRouter = router({
    updateUserInfo: updateUserInfoProcedure,
    uploadImage: uploadImageProcedure,
    getUserByName: getUserByNameProcedure,
+   search: searchUsersProcedure,
    getUserSpaceConfig: getUserSpaceConfigProcedure,
    updateUserSpaceConfig: updateUserSpaceConfigProcedure,
    getCommitStatistic: getCommitStatisticProcedure,

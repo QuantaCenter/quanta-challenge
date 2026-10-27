@@ -76,6 +76,8 @@ X-Quanta-Signature: sha256=<hex>           # 见下一节
 | `web-app` | `challenge-web-app` | compose 服务，`docker compose pull/up` 即可 |
 | `judge-scheduler` | `challenge-judge-scheduler` | 同上 |
 | `cloud-function` | `challenge-cloud-function` | 同上。首发会先跑 `prisma migrate deploy`，部署机侧健康探测窗口放宽到 60s |
+| `observation` | `observation` | 监控栈自研采集服务，属于**独立 compose 项目**（`packages/challenge-observation/deploy/docker-compose.yml`），要用该项目自己的 compose 文件 up（业务栈 compose 里没有它）；部署机把发布镜像重打为本地标签 `challenge-observation:latest`，健康检查 `:9310/healthz` |
+| `data-mcp` | `data-mcp` | 统一查数 MCP，同属监控栈 compose 项目；发布镜像重打为 `challenge-data-mcp:latest`，健康检查 `:9320/healthz` |
 | `judge-machine` | `null` | 跑在宿主机（端口 1889），不在默认 compose profile 里，部署机自行处理（如预拉镜像 + 重启宿主机进程） |
 | `live-server` | `null` | 该镜像是调度器判题时按需构建的，通常只需预拉到本地即可 |
 | `backend-service` | `null` | 后端服务题型的题目容器基础镜像（默认镜像），调度器按需使用，预拉到本地即可 |
@@ -107,24 +109,40 @@ X-Quanta-Signature: sha256=<signature>
 
 ## 响应约定
 
-| 状态码 | 含义 | CI 侧行为 |
+CI 侧发包脚本带 `X-Quanta-Async: 1` 头，端点对它采用**两段式**应答：
+
+1. `POST` 校验通过、接受部署后**立即**回 `202`：`{"accepted":true,"delivery":...,"tag":...,"status":"running"}`，
+   部署在后台执行；
+2. CI 按 15s 间隔轮询 `GET <WEBHOOK_URL>?delivery=<delivery>`，拿到终态才退出：
+   `{"status":"running"}` / `{"status":"ok",...}` / `{"status":"failed","error":...}` /
+   `{"status":"unknown"}`（webhook 重启竞态，容忍 2 分钟）。
+
+| 响应 | 含义 | CI 侧行为 |
 | --- | --- | --- |
-| `200` | 部署已成功完成（同步等待结束） | 视为成功；响应体原样打印到日志 |
+| `202` | 已接受，异步部署中 | 轮询 `?delivery=` 直到 `ok` / `failed`（总上限 40 分钟） |
 | `200` + `{"skipped":"already deployed"}` | 幂等命中，无需动作 | 视为成功 |
 | `400` | 报文格式错误 | 流水线失败（配置问题，需人工修） |
 | `403` | 签名/时间戳无效 | 流水线失败 |
 | `429` | 正在部署中 | 流水线失败；本次发布未生效，需手动重放 |
-| `500` | 部署失败（可能已回滚，也可能回滚失败） | 流水线失败；响应体含 `status`（`failed`/`rolled-back`/`rollback-failed`）与 `error` |
-| `5xx` / 超时 | 部署机异常 | 流水线失败 |
+| `5xx` | 部署同步模式下的失败，或请求异常 | 流水线失败；`500` 响应体含 `status`（`failed`/`rolled-back`/`rollback-failed`）与 `error` |
 
-端点**同步执行部署**，做完才回包，所以 CI 侧超时（现在 15 分钟）必须大于 `docker pull` 的最长耗时，
-不能再用「先回 202 再异步拉」的写法——那样失败只有在部署机日志里才看得到。
+为什么不再同步回包：同步意味着一条连接要静默扛住整个拉取过程，镜像一多（全量 7 个、
+串行 6~23 分钟）就会被中间 NAT / 代理在几分钟内掐断——GitHub runner 侧表现为永远等不到
+回包、只能靠 15 分钟超时报假失败（2026-10-17 两次发布正是这样挂的）。202 + 轮询的每次
+请求都是独立的短请求，部署再久也不会断；轮询本身失败就重试，结果不会丢，失败照样能让
+流水线红掉。不带 `X-Quanta-Async` 的旧客户端仍走同步回包（成功 `200` / 失败 `5xx`）。
+
+回包前的长静默仍要开 TCP keepalive（当前实现均为 60s），用于同步模式兜底；它挡不住
+中间设备对长静默连接的静默回收，只是减少 `read ECONNRESET` 的概率。
 
 ## 部署机侧应该做什么
 
 1. 校验签名与时间戳（见上）。
 2. 幂等：记录已部署的 `commit` / `delivery`，命中则跳过。
-3. 同步执行部署，完成后回包（成功 `200`，失败 `5xx`）：
+3. 请求带 `X-Quanta-Async: 1` 时：接受后立即回 `202` 并后台部署，另提供
+   `GET <同路径>?delivery=<delivery>` 返回 `running` / `ok` / `failed` 终态（重启丢内存态时，
+   可用落盘的最近成功 `delivery` 兜底回答 `ok`）。旧客户端则同步执行部署，完成后回包
+   （成功 `200`，失败 `5xx`）：
    - `service` 非空的镜像：`docker compose -f <compose> pull <service...>`，成功后
      `docker compose -f <compose> up -d <service...>`（只动变化的服务，别重启全栈）；
    - `service` 为空的镜像：`docker pull <image>@<digest>` 预拉。

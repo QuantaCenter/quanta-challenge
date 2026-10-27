@@ -125,7 +125,9 @@ const getSyncDisplayText = (
             </Operation>
          </StSpace>
       </StSpace>
-      <StSpace fill class="relative overflow-x-hidden">
+      <StSpace
+         fill-x
+         class="relative flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden">
          <StSkeleton :loading="!fsTree">
             <template #loading>
                <FsTreeSkeleton />

@@ -18,15 +18,43 @@ export type DailyProblem = NonNullable<
    Awaited<ReturnType<typeof $trpc.public.daily.getProblem.query>>
 >;
 
-// 业务口径的「今天」以服务端为准。
-//
-// SSR 渲染跑在容器本地时区（线上是 UTC），而水合后跑在浏览器本地时区，
-// 两端各自 `dayjs()` 在北京时间 00:00–08:00 会差一天（日历选中的日期、
-// 可见区间、签到状态全部错位）。这里先拿到服务端业务日期，SSR 与客户端
-// 共用同一份 payload，不再依赖运行环境时区。
-const { data: serverToday } = await useAsyncData('daily-today', () =>
+// 业务口径的「今天」以服务端为准。 SSR 渲染跑在容器本地时区（线上是 UTC），而水合后跑在浏览器本地时区， 两端各自 `dayjs()` 在北京时间 00:00–08:00 会差一天（日历选中的日期、 可见区间、签到状态全部错位）。这里先拿到服务端业务日期，SSR 与客户端 共用同一份 payload，不再依赖运行环境时区。
+const serverTodayRequest = useAsyncData('daily-today', () =>
    $trpc.public.daily.getToday.query()
 );
+
+// 以下请求不依赖业务日期，先于 await 注册，与 getToday 并行发出
+const { data: continueCheckinCounts } = useAsyncData(
+   'continue-checkin-counts',
+   () => $trpc.protected.daily.continuesCheckinCount.query(),
+   { transform: (count) => count.toString().padStart(2, '0') }
+);
+
+const { data: hasCheckedIn } = useAsyncData('has-checked-in', () =>
+   $trpc.protected.daily.hasCheckedin.query()
+);
+
+const { data: hasCompletedTodayChallenge } = useAsyncData(
+   'has-completed-today-challenge',
+   () => $trpc.protected.daily.hasCompletedDailyProblem.query()
+);
+
+// 当前用户的做题状态，用于显示题目卡片状态图标
+const { data: problemStatuses } = useAsyncData(
+   'problem-statuses',
+   () => $trpc.protected.problem.listProblemStatuses.query(),
+   { default: () => ({ completed: [] as number[], attempted: [] as number[] }) }
+);
+const completedProblemIdSet = computed(
+   () => new Set(problemStatuses.value.completed)
+);
+
+const { data: trackingAchievement, refresh: refreshTrackingAchievement } =
+   useAsyncData('tracking-achievement', () =>
+      $trpc.protected.achievement.getCurrentCheckinAchievement.query()
+   );
+
+const { data: serverToday } = await serverTodayRequest;
 const todayKey = computed(
    () => serverToday.value ?? dayjs().format('YYYY-MM-DD')
 );
@@ -40,7 +68,12 @@ const {
    pending: isDailyProblemPending,
 } = useAsyncData(
    'daily-problem',
-   () => $trpc.public.daily.getProblem.query({ date: selectedDate.value }),
+   () => {
+      const request = $trpc.public.daily.getProblem.query({
+         date: selectedDate.value,
+      });
+      return import.meta.server ? request : atLeastTime(400, request);
+   },
    { watch: [selectedDate], dedupe: 'cancel' }
 );
 
@@ -69,26 +102,6 @@ const { data: checkedinDates } = useAsyncData(
       }),
    { watch: [visibleRange], default: () => [] as string[] }
 );
-
-const { data: continueCheckinCounts } = useAsyncData(
-   'continue-checkin-counts',
-   () => $trpc.protected.daily.continuesCheckinCount.query(),
-   { transform: (count) => count.toString().padStart(2, '0') }
-);
-
-const { data: hasCheckedIn } = useAsyncData('has-checked-in', () =>
-   $trpc.protected.daily.hasCheckedin.query()
-);
-
-const { data: hasCompletedTodayChallenge } = useAsyncData(
-   'has-completed-today-challenge',
-   () => $trpc.protected.daily.hasCompletedDailyProblem.query()
-);
-
-const { data: trackingAchievement, refresh: refreshTrackingAchievement } =
-   useAsyncData('tracking-achievement', () =>
-      $trpc.protected.achievement.getCurrentCheckinAchievement.query()
-   );
 
 const achievementProgress = computed(() => {
    const progress = trackingAchievement.value?.progress ?? 0;
@@ -130,7 +143,7 @@ const handleCheckin = async () => {
 
 <template>
    <StCard :icon="Calendar" class="h-full" title="每日一题">
-      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5">
+      <StSpace v-if="!dailyProblemError" class="w-full h-full mt-5 max-sm:flex-col">
          <StSpace direction="vertical" gap="1rem" class="w-full h-full">
             <StDateIndicator
                v-model="selectedDate"
@@ -150,7 +163,9 @@ const handleCheckin = async () => {
                      class="w-full"
                      :href="`/challenge/editor/by-base/${dailyProblem.baseId}`"
                      target="_blank">
-                     <ProblemCard :problem="dailyProblem" />
+                     <ProblemCard
+                        :problem="dailyProblem"
+                        :completed="completedProblemIdSet.has(dailyProblem.pid)" />
                   </a>
                   <StSpace
                      v-else

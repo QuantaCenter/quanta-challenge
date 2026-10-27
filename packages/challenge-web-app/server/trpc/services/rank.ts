@@ -1,8 +1,19 @@
 import dayjs from 'dayjs';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
 import prisma from '~~/lib/prisma';
 import { observer } from './achievement';
 import type { ValidPath } from '~~/lib/track-wrapper';
+
+/** 只有普通用户参与排行榜（全局榜与单题榜），管理员及以上不计入。 */
+const RANKED_ROLE = 'USER' as const;
+
+const isRankedUser = async (userId: string) => {
+   const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+   });
+   return user?.role === RANKED_ROLE;
+};
 
 /**
  * 判断是否存在某题目的排行榜
@@ -26,6 +37,7 @@ const loadProblemRankings = async (problemId: number) => {
          type: 'judge',
          score: { gt: 0 },
          result: 'success',
+         user: { role: RANKED_ROLE },
       },
       select: { id: true, score: true, createdAt: true },
    });
@@ -49,7 +61,9 @@ const pushToProblemRankings = async (
    problemId: number,
    recordId: number,
    score: number,
+   userId: string,
 ) => {
+   if (!(await isRankedUser(userId))) return;
    if (!(await getProblemRankingExistence(problemId))) {
       await loadProblemRankings(problemId);
    }
@@ -75,17 +89,19 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    const redis = useRedis();
    const rankKey = `problem:${problemId}:rankings`;
 
-   const maxScore = await redis.zrevrange(rankKey, 0, 0, 'WITHSCORES');
+   const [maxScore, minScore] = await Promise.all([
+      redis.zrevrange(rankKey, 0, 0, 'WITHSCORES'),
+      redis.zrange(rankKey, 0, 0, 'WITHSCORES'),
+   ]);
    if (maxScore.length < 2) {
       return [];
    }
-   const max = parseInt(maxScore[1]) + 1;
+   const max = parseInt(maxScore[1]!) + 1;
 
-   const minScore = await redis.zrange(rankKey, 0, 0, 'WITHSCORES');
    if (minScore.length < 2) {
       return [];
    }
-   const min = parseInt(minScore[1]);
+   const min = parseInt(minScore[1]!);
 
    const intervalSize = (max - min - 1) / n;
    const intervals: { from: number; to: number; count: number }[] = [];
@@ -103,17 +119,24 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    const results = (await pipeline.exec()) as [Error | null, number | null][];
 
    results.forEach((res, idx) => {
+      const interval = intervals[idx];
+      if (!interval) {
+         return;
+      }
       const [err, count] = res;
       if (err) {
          logger.error(err, 'Error fetching rank interval count');
-         intervals[idx].count = 0;
+         interval.count = 0;
       } else {
-         intervals[idx].count = count as number;
+         interval.count = count as number;
       }
    });
 
    // 修正最后一个区间的上限
-   intervals[intervals.length - 1].to = max - 1;
+   const lastInterval = intervals[intervals.length - 1];
+   if (lastInterval) {
+      lastInterval.to = max - 1;
+   }
    return intervals;
 };
 
@@ -132,8 +155,10 @@ const getSelfProblemRanking = async (problemId: number, record: number) => {
    const redis = useRedis();
    const rankKey = `problem:${problemId}:rankings`;
 
-   const rank = await redis.zrevrank(rankKey, record.toString());
-   const total = await redis.zcard(rankKey);
+   const [rank, total] = await Promise.all([
+      redis.zrevrank(rankKey, record.toString()),
+      redis.zcard(rankKey),
+   ]);
    if (rank === null) {
       return { rank: -1, total, aheadRate: 0 };
    }
@@ -185,10 +210,12 @@ const getGlobalRankings = async (limit: number = 100) => {
    );
    const rankings: IGlobalRanking[] = [];
    for (let i = 0; i < userIdWithScore.length; i += 2) {
-      rankings.push({
-         userId: userIdWithScore[i],
-         score: parseFloat(userIdWithScore[i + 1]),
-      });
+      const userId = userIdWithScore[i];
+      const score = userIdWithScore[i + 1];
+      if (userId === undefined || score === undefined) {
+         continue;
+      }
+      rankings.push({ userId, score: parseFloat(score) });
    }
    await redis.set(resultKey, JSON.stringify(rankings), 'EX', 5 * 60);
 
@@ -199,7 +226,8 @@ const getGlobalRankings = async (limit: number = 100) => {
  * 按权威公式重算并写入用户的统计数据（分数 / 正确率 / 通过题数）。
  *
  * 公式来自 `packages/database/sql/update-user_statistics.psql`（该文件的定义是权威来源）：
- *   score        = Σ 各 baseId 上的 MAX(score)   （仅 type='judge' AND result='success'）
+ *   score        = MAX(Σ 各 baseId 上的 MAX(score) − Σ 未撤销的 score_penalties, 0)
+ *                  （判题分仅 type='judge' AND result='success'）
  *   passCount    = COUNT(DISTINCT baseId)        （仅成功记录）
  *   correctRate  = 成功记录数 / 全部 judge 记录数 × 100
  *
@@ -232,6 +260,12 @@ const recalculateUserStatistics = async (
          ) AS per_problem_max
          GROUP BY "userId"
       ),
+      penalties AS (
+         SELECT "userId", SUM(score) AS score
+         FROM score_penalties
+         WHERE "userId" = ${userId} AND "revokedAt" IS NULL
+         GROUP BY "userId"
+      ),
       passProblemIds AS (
          SELECT judge_records."userId", COUNT(DISTINCT problems."baseId") AS pass_count
          FROM judge_records
@@ -256,7 +290,7 @@ const recalculateUserStatistics = async (
       INSERT INTO user_statistics ("userId", score, "correctRate", "passCount", "createdAt", "updatedAt")
       SELECT
          ${userId},
-         COALESCE(scores.score, 0),
+         GREATEST(COALESCE(scores.score, 0) - COALESCE(penalties.score, 0), 0),
          CASE
             WHEN COALESCE(allRecords.total_count, 0) = 0 THEN 0
             ELSE ROUND(COALESCE(passRecords.pass_count, 0)::decimal / allRecords.total_count * 100, 2)
@@ -266,6 +300,7 @@ const recalculateUserStatistics = async (
          NOW()
       FROM (SELECT 1) AS dummy
       LEFT JOIN scores ON scores."userId" = ${userId}
+      LEFT JOIN penalties ON penalties."userId" = ${userId}
       LEFT JOIN passProblemIds ON passProblemIds."userId" = ${userId}
       LEFT JOIN passRecords ON passRecords."userId" = ${userId}
       LEFT JOIN allRecords ON allRecords."userId" = ${userId}
@@ -307,7 +342,11 @@ const setUserGlobalRankingScore = async (userId: string, score: number) => {
    if (!(await redis.exists(rankingKey))) {
       await loadGlobalRankings();
    }
-   await redis.zadd(rankingKey, score, userId);
+   if (await isRankedUser(userId)) {
+      await redis.zadd(rankingKey, score, userId);
+   } else {
+      await redis.zrem(rankingKey, userId);
+   }
 };
 
 /**
@@ -383,9 +422,12 @@ const getSelfGlobalRanking = async (userId: string) => {
       await loadGlobalRankings();
    }
 
-   const rank = await redis.zrevrank(rankingKey, userId);
-   const score = Number((await redis.zscore(rankingKey, userId)) ?? '0');
-   const total = await redis.zcard(rankingKey);
+   const [rank, rawScore, total] = await Promise.all([
+      redis.zrevrank(rankingKey, userId),
+      redis.zscore(rankingKey, userId),
+      redis.zcard(rankingKey),
+   ]);
+   const score = Number(rawScore ?? '0');
    if (rank === null) {
       return { rank: -1, total, aheadRate: 0, score: 0 };
    }
@@ -405,17 +447,18 @@ const loadGlobalRankings = async () => {
    const redis = useRedis();
    const rankingKey = `global:rankings`;
    const rankData = await prisma.userStatistic.findMany({
-      where: { score: { gte: 0 } },
+      where: { score: { gte: 0 }, user: { role: RANKED_ROLE } },
       select: { userId: true, score: true },
    });
 
-   const ttl = useRuntimeConfig().rank.problemCacheTTL;
-   const pipeline = redis.pipeline().expire(rankingKey, ttl ?? 3600);
-
+   const pipeline = redis.pipeline();
    rankData.forEach(({ userId, score }) => {
       pipeline.zadd(rankingKey, score, userId);
    });
 
+   // EXPIRE 必须排在 ZADD 之后：key 不存在时 EXPIRE 是空操作，ZADD 新建的 key 会永不过期
+   const ttl = useRuntimeConfig().rank.problemCacheTTL;
+   pipeline.expire(rankingKey, ttl ?? 3600);
    await pipeline.exec();
 };
 
@@ -426,6 +469,7 @@ const loadGlobalRankings = async () => {
  */
 const udpateGlobalRanking = async (userId: string, scoreDiff: number) => {
    if (scoreDiff === 0) return;
+   if (!(await isRankedUser(userId))) return;
 
    const redis = useRedis();
    const rankingKey = `global:rankings`;
@@ -459,7 +503,7 @@ const getGlobalRankingIntervals = async (
       return Array(n).fill({ from: 0, to: 0, count: 0 });
    }
 
-   const max = parseInt(maxScore[1]) + 1;
+   const max = parseInt(maxScore[1]!) + 1;
    const min = 0;
 
    const intervalSize = (max - min - 1) / n;
@@ -478,18 +522,71 @@ const getGlobalRankingIntervals = async (
    const results = (await pipeline.exec()) as [Error | null, number | null][];
 
    results.forEach((res, idx) => {
+      const interval = intervals[idx];
+      if (!interval) {
+         return;
+      }
       const [err, count] = res;
       if (err) {
          logger.error(err, 'Error fetching rank interval count:');
-         intervals[idx].count = 0;
+         interval.count = 0;
       } else {
-         intervals[idx].count = count as number;
+         interval.count = count as number;
       }
    });
 
    // 修正最后一个区间的上限
-   intervals[intervals.length - 1].to = max - 1;
+   const lastInterval = intervals[intervals.length - 1];
+   if (lastInterval) {
+      lastInterval.to = max - 1;
+   }
    return intervals;
+};
+
+/**
+ * 清空所有排行榜缓存（全局榜、单题榜及其结果缓存），下次读取时按当前角色从数据库重建。
+ * 成员角色变化后调用：参与资格变了，已缓存的榜单都可能包含/缺少该成员。
+ */
+const invalidateRankings = async () => {
+   const redis = useRedis();
+   const keys = ['global:rankings', 'global:rankings:with-userinfo'];
+   for (const pattern of ['global:rankings-result:*', 'problem:*:rankings']) {
+      let cursor = '0';
+      do {
+         const [next, found] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
+         cursor = next;
+         keys.push(...found);
+      } while (cursor !== '0');
+   }
+   await redis.del(...keys);
+};
+
+/** 总分变化后同步统计、排行榜与相关缓存 */
+const syncUserScores = async (userIds: string[]) => {
+   for (const userId of new Set(userIds)) {
+      const { score } = await recalculateUserStatistics(userId);
+      await setUserGlobalRankingScore(userId, score);
+   }
+
+   const redis = useRedis();
+   const keys = ['global:rankings:with-userinfo'];
+   let cursor = '0';
+   do {
+      const [next, found] = await redis.scan(
+         cursor,
+         'MATCH',
+         'global:rankings-result:*',
+         'COUNT',
+         500,
+      );
+      cursor = next;
+      keys.push(...found);
+   } while (cursor !== '0');
+   await redis.del(...keys);
+
+   await captureRankingSnapshot().catch((err) => {
+      logger.warn({ err, userIds }, 'Failed to capture ranking snapshot');
+   });
 };
 
 export const rankService = {
@@ -506,4 +603,6 @@ export const rankService = {
    recalculateUserStatistics,
    setUserGlobalRankingScore,
    captureRankingSnapshot,
+   invalidateRankings,
+   syncUserScores,
 };

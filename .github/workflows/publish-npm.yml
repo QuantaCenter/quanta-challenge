@@ -1,0 +1,105 @@
+name: publish-npm
+
+# 发布 qpc CLI 到 npm
+on:
+  push:
+    tags:
+      - '@quantacenter/quanta-problem-cli@*'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-npm-${{ github.ref }}
+  cancel-in-progress: false
+
+defaults:
+  run:
+    working-directory: packages/problem-creator-cli
+
+permissions:
+  contents: read
+  # OIDC trusted publishing：npm 通过工作流身份直接鉴权，无需 NPM_TOKEN 密钥
+  id-token: write
+
+jobs:
+  publish:
+    name: verify & publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: npm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      # 标签是发布意图的唯一入口：@quantacenter/quanta-problem-cli@1.2.3 必须对应 package.json 的 1.2.3，
+      # 防止改了版本忘打标签（或反之）发出去错版本。
+      # 仅 tag 触发时校验；workflow_dispatch 用于失败重试，跳过此检查。
+      - name: Check tag matches package version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          PKG_VERSION="$(node -p "require('./package.json').version")"
+          # tag 格式：@quantacenter/quanta-problem-cli@1.2.3，取最后一个 @ 之后的部分
+          TAG_VERSION="${GITHUB_REF_NAME##*@}"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::标签 v$TAG_VERSION 与 package.json 版本 $PKG_VERSION 不一致"
+            echo "请保持两者一致：改 package.json version，或重打标签。"
+            exit 1
+          fi
+          echo "发布版本：$PKG_VERSION"
+
+      - name: Lint (biome)
+        run: pnpm lint
+
+      - name: Typecheck (tsc, 含 examples)
+        run: pnpm typecheck
+
+      - name: Build (tsup)
+        run: pnpm build
+
+      - name: Smoke test built CLI
+        run: |
+          node dist/index.js --version
+          node dist/index.js check examples/hello-total
+
+      # 发布前断言 workspace 依赖确实被打进产物：出现裸的 @challenge 导入
+      # 说明 tsup noExternal 失效，发布出去用户会装不上。
+      # 只匹配带分号的导入语句/动态导入，避免误伤产物里携带的代码注释。
+      - name: Assert no workspace imports left in dist
+        run: |
+          if grep -rEn "from ['\"]@challenge/[^'\"]+['\"];|import\(['\"]@challenge/" dist --include='*.js'; then
+            echo "::error::dist 中残留 @challenge/* 导入，workspace 依赖未被打包"
+            exit 1
+          fi
+
+      - name: Publish to npm
+        run: npm publish
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### publish-npm"
+            echo ""
+            echo "| 项目 | 值 |"
+            echo "| --- | --- |"
+            echo "| 结果 | \`${{ job.status }}\` |"
+            echo "| 包 | \`$(node -p "require('./package.json').name")\` |"
+            echo "| 版本 | \`$(node -p "require('./package.json').version")\` |"
+            echo ""
+            echo "npm 页面：https://www.npmjs.com/package/$(node -p "require('./package.json').name")"
+          } >> "$GITHUB_STEP_SUMMARY"

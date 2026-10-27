@@ -1,7 +1,8 @@
 import prisma, { tracker } from '~~/lib/prisma';
 import { AchievementObserver } from './utils/achievement-observer';
+import { notificationService } from './notificatoin';
 import { requestContext } from '../context';
-import { logger } from '../../../lib/logger';
+import { logger } from '../../utils/logger';
 
 export const observer = new AchievementObserver(() => {
    const ctx = requestContext.getStore();
@@ -28,8 +29,16 @@ observer.addListener('check', async (achId, result, userId) => {
       return;
    }
    const progress = result.achieved ? 1 : Math.min(result.progress, 1);
-   await prisma
+   const txResult = await prisma
       .$transaction(async (tx) => {
+         const existing = await tx.userAchievement.findUnique({
+            where: {
+               userId_achievementId: { achievementId: achId, userId },
+            },
+            select: { progress: true },
+         });
+         const newlyAchieved = result.achieved && (!existing || existing.progress < 1);
+
          await tx.userAchievement.upsert({
             where: {
                userId_achievementId: { achievementId: achId, userId },
@@ -53,15 +62,36 @@ observer.addListener('check', async (achId, result, userId) => {
                },
             });
          }
+
+         return newlyAchieved;
       })
       .catch((err) => {
          logger.error('[Observer:check] Error awarding achievement:', err);
+         return null;
       });
+
+   // 首次达成时发送系统通知
+   if (txResult) {
+      try {
+         const achievement = await prisma.achievement.findUnique({
+            where: { id: achId },
+            select: { name: true, score: true },
+         });
+         if (achievement) {
+            await notificationService.sendNotification({
+               type: 'ACHIEVEMENT',
+               title: '成就达成',
+               content: `恭喜！你达成了成就「${achievement.name}」，获得 ${achievement.score} 积分。`,
+               userId,
+            });
+         }
+      } catch (err) {
+         logger.error({ err }, '[Observer:check] Error sending achievement notification');
+      }
+   }
 });
 
-/**
- * 使用 DFS 双色标法检测成就前置依赖中是否存在环
- */
+/** 使用 DFS 双色标法检测成就前置依赖中是否存在环 */
 const hasCircularDependency = async (
    achievementId: number,
    preAchievementIds: number[]

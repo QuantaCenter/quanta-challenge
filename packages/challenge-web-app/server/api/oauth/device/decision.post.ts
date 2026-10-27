@@ -2,26 +2,16 @@ import { z } from 'zod';
 
 import { createDeviceFlowService } from '~~/server/services/device-flow';
 import { verifyToken } from '~~/server/utils/jwt';
-import { logger } from '~~/lib/logger';
+import { logger } from '~~/server/utils/logger';
+import { getRequestContext } from '@challenge/shared/trace';
 
-/**
- * 用户在确认页点击"同意/拒绝"。
- *
- * 与 token 端点不同，这里**必须**是会话鉴权 + CSRF 校验：
- * 它代表"已登录用户把自己的账号授权给某个设备"，是最需要防 CSRF 的写操作 ——
- * 否则攻击者可以构造页面诱导登录用户提交表单，把 victim 的账号授权给攻击者的设备。
- *
- * CSRF 校验沿用仓库既有约定（server/trpc/context.ts 的双提交模式）：
- * cookie 里的 quanta_csrf_token 必须与 x-csrf-token 头一致。
- */
+/** 用户在确认页点击"同意/拒绝"：必须会话鉴权 + CSRF 双提交校验（cookie 的 quanta_csrf_token 与 x-csrf-token 头一致），防诱导授权。 */
 const BodySchema = z.object({
    user_code: z.string().min(1),
    action: z.enum(['approve', 'deny']),
 });
 
 export default defineEventHandler(async (event) => {
-   const traceId = getHeader(event, 'x-trace-id') ?? 'unknown';
-
    const token = getCookie(event, 'quanta_access_token');
    let user: { userId: string; role: string } | null = null;
    try {
@@ -34,11 +24,18 @@ export default defineEventHandler(async (event) => {
       return { error: 'unauthorized', error_description: '请先登录' };
    }
 
+   // 认证完成后补写用户身份进请求上下文（日志自动携带 quanta.user.*）。
+   const store = getRequestContext();
+   if (store) {
+      store.userId = user.userId;
+      store.role = user.role;
+   }
+
    // CSRF：cookie 与请求头必须一致
    const csrfCookie = getCookie(event, 'quanta_csrf_token');
    const csrfHeader = getHeader(event, 'x-csrf-token');
    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
-      logger.warn({ traceId, path: event.path }, 'OAuth 确认页 CSRF 校验失败');
+      logger.warn({ path: event.path }, 'OAuth 确认页 CSRF 校验失败');
       setResponseStatus(event, 403);
       return { error: 'csrf_failed', error_description: 'CSRF 校验失败，请刷新页面重试' };
    }
@@ -64,7 +61,7 @@ export default defineEventHandler(async (event) => {
          setResponseStatus(event, 404);
          return { error: 'not_found', error_description: '验证码不存在或已过期' };
       }
-      logger.info({ traceId, userId: user.userId }, '用户拒绝了设备授权');
+      logger.info({ userId: user.userId }, '用户拒绝了设备授权');
       return { status: 'denied' };
    }
 
@@ -91,7 +88,7 @@ export default defineEventHandler(async (event) => {
    }
 
    logger.info(
-      { traceId, userId: user.userId, clientId: approved.session.clientId },
+      { userId: user.userId, clientId: approved.session.clientId },
       '用户批准了设备授权',
    );
 

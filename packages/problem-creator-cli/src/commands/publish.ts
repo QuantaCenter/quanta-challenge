@@ -42,6 +42,17 @@ export const runPublish = async (
    const detail = await api.getAuditDetail(problemId);
    const publish = !options.unpublish;
 
+   const currentPid = detail.BaseProblem?.currentPid;
+   if (currentPid && currentPid !== problemId) {
+      throw new UsageError(
+         `题目 #${problemId} 不是当前版本（当前版本是 #${currentPid}），平台只允许切换当前版本的发布状态`,
+         {
+            hint: `每次上传都会生成新版本并成为当前版本：改用 \`qpc publish ${currentPid}\`。`,
+            details: { code: 'NOT_CURRENT_VERSION', currentPid },
+         },
+      );
+   }
+
    if (publish && !['ready', 'published'].includes(detail.status)) {
       throw new UsageError(
          `题目 #${problemId} 当前状态是 ${detail.status}，不能发布`,

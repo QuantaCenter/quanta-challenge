@@ -69,12 +69,12 @@ export const useInfiniteList = <TItem, TCursor = number>(
    const { key, fetchPage } = options;
    const pageSize = options.pageSize ?? DEFAULT_PAGE_SIZE;
 
-   // 首屏数据，SSR 直出
+   // 首屏数据（SSR）；deep: true 以支持就地修改列表项
    const {
       data: firstPage,
       status,
       refresh: refreshFirstPage,
-   } = useAsyncData(key, () => fetchPage(null, pageSize));
+   } = useAsyncData(key, () => fetchPage(null, pageSize), { deep: true });
 
    // 触底加载追加的后续页
    const restItems = ref<TItem[]>([]) as Ref<TItem[]>;

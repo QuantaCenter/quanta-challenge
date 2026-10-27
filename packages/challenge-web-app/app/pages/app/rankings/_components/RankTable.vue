@@ -13,6 +13,7 @@ defineProps<{
    loading: boolean;
 }>();
 
+// 「正确率 / 通过次数」两列在移动端通过 CSS 隐藏（SSR 安全）
 const columns: ITableColumn[] = [
    {
       key: 'rank',
@@ -27,25 +28,29 @@ const columns: ITableColumn[] = [
       title: '分数',
       width: '6rem',
       skeletonClass: 'h-5 w-[4.7rem] rounded-md',
+      // 移动端最后两列被隐藏，分数列成为可见的最后一列，需接管右侧圆角与内边距
+      class: 'max-md:rounded-r-lg max-md:pr-6',
    },
    {
       key: 'correctRate',
       title: '正确率',
       width: '6rem',
       skeletonClass: 'h-5 w-[5rem] rounded-md',
+      class: 'max-md:hidden',
    },
    {
-      key: 'submissions',
-      title: '提交次数',
+      key: 'passCount',
+      title: '通过次数',
       width: '6rem',
       cellAlign: 'center',
       skeletonClass: 'h-5 w-[5rem] rounded-md mx-auto',
+      class: 'max-md:hidden',
    },
 ];
 </script>
 
 <template>
-   <StSpace class="w-[48rem]">
+   <StSpace class="w-full max-w-[48rem]">
       <StTable
          :columns="columns"
          :rows="data"
@@ -66,7 +71,7 @@ const columns: ITableColumn[] = [
          </template>
 
          <template #cell-userName="{ row }">
-            <div class="flex items-center gap-3">
+            <div class="flex items-center gap-3 min-w-0">
                <StImage
                   lazy
                   :src="row.imageUrl"
@@ -74,10 +79,11 @@ const columns: ITableColumn[] = [
                   width="2.25rem"
                   height="2.25rem"
                   object="cover"
-                  class="rounded-lg" />
+                  class="rounded-lg shrink-0" />
                <NuxtLink
                   :to="`/app/space/${row.uid}`"
-                  class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all">
+                  class="st-font-body-bold text-white cursor-pointer hover:text-primary transition-all min-w-0 max-md:truncate"
+                  :title="row.userName">
                   {{ row.userName }}
                </NuxtLink>
             </div>
@@ -95,9 +101,9 @@ const columns: ITableColumn[] = [
             </span>
          </template>
 
-         <template #cell-submissions="{ row }">
+         <template #cell-passCount="{ row }">
             <span class="text-white font-family-manrope">
-               {{ row.submissions }}
+               {{ row.passCount }}
             </span>
          </template>
 

@@ -1,16 +1,29 @@
 <script setup lang="ts">
 import { Calendar, Left, Right } from '@icon-park/vue-next';
+import dayjs from 'dayjs';
 import type { FormItemStatus } from '../Form/type';
 import { usePopper } from '~/composables/use-popper';
+import { useHistoryLayer } from '~/composables/use-history-layer';
 import { Teleport } from 'vue';
 
 const props = defineProps<{
    outerClass?: string;
    status?: FormItemStatus;
    placeholder?: string;
+   /** 开启日期范围选择模式 */
+   range?: boolean;
+   /** 开启具体时间选择（时 / 分） */
+   showTime?: boolean;
+   /** 禁用日期判断：入参为 YYYY-MM-DD，返回 true 表示该日期不可选 */
+   disabledDate?: (dateStr: string) => boolean;
+   /** 可选时间下限（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）：更早的日期不可选，下限当天的更早时分也不可选 */
+   minDateTime?: string;
 }>();
 
 const value = defineModel<string>('value', { default: '' });
+// 范围模式下的起止日期（YYYY-MM-DD，开启 showTime 后为 YYYY-MM-DD HH:mm）
+const startValue = defineModel<string>('startValue', { default: '' });
+const endValue = defineModel<string>('endValue', { default: '' });
 
 const borderClass = computed(() => {
    return props.status === 'error'
@@ -22,25 +35,137 @@ const borderClass = computed(() => {
 
 const opened = ref(false);
 
-const togglePicker = () => {
-   opened.value = !opened.value;
-};
+// 移动端（<sm）以底部抽屉形式展示；桌面端仍为 Popper 浮层
+const isMobile = ref(false);
+const shown = ref(false);
 
-const displayValue = computed(() => {
-   if (!value.value) return '';
-   try {
-      const date = new Date(value.value);
-      return date.toLocaleDateString('zh-CN', {
-         year: 'numeric',
-         month: '2-digit',
-         day: '2-digit',
+// 关闭后延迟移除布局（display:none），同时保留关闭时的淡出/滑出动效
+const rendered = ref(false);
+
+// 历史栈管理（composables/use-history-layer）：移动端抽屉形态支持返回键逐层关闭
+const {
+   acquire: acquireHistory,
+   release: releaseHistory,
+   onClose: onHistoryClose,
+} = useHistoryLayer();
+
+onHistoryClose(() => {
+   // 返回键触发：历史已由 popstate 回退，这里只负责关闭选择器
+   opened.value = false;
+});
+
+watch(opened, (value) => {
+   if (value) {
+      rendered.value = true;
+      // 仅移动端抽屉形态压入历史记录；桌面 Popper 浮层不参与历史栈
+      if (isMobile.value) acquireHistory();
+      // 等元素完成首次绘制后再置位 shown，触发抽屉上滑过渡
+      nextTick(() => {
+         requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+               if (opened.value) shown.value = true;
+            });
+         });
       });
-   } catch {
-      return value.value;
+   } else {
+      shown.value = false;
+      // 主动关闭时回退自己压入的历史记录（若由返回键触发则仅出栈，不再回退）
+      releaseHistory();
+      setTimeout(() => {
+         if (!opened.value) rendered.value = false;
+      }, isMobile.value ? 300 : 100);
    }
 });
 
-// 使用 Popper 定位
+onMounted(() => {
+   const mq = window.matchMedia('(max-width: 639.98px)');
+   isMobile.value = mq.matches;
+   const onChange = (event: MediaQueryListEvent) => {
+      isMobile.value = event.matches;
+   };
+   mq.addEventListener('change', onChange);
+   onUnmounted(() => {
+      mq.removeEventListener('change', onChange);
+   });
+});
+
+onUnmounted(() => {
+   // 组件卸载时选择器仍开着：回收压入的历史记录（已释放时为空操作）
+   releaseHistory();
+});
+
+// 移动端抽屉动画走 translate 属性；桌面端保持原有的 margin + opacity 过渡
+const popperStyle = computed(() => ({
+   transition: isMobile.value
+      ? 'translate 0.3s ease-in-out, opacity 0.3s ease-in-out'
+      : 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
+}));
+
+const togglePicker = () => {
+   opened.value = !opened.value;
+   // 重新打开时回到日期视图
+   if (opened.value) {
+      viewMode.value = 'date';
+      hoverDate.value = '';
+   }
+};
+
+const selectToday = () => {
+   const today = dayjs().format('YYYY-MM-DD');
+   if (isDisabled(today)) return;
+   if (props.range) {
+      startValue.value = withTime(today, '00:00');
+      endValue.value = withTime(today, '23:59');
+   } else {
+      value.value = withTime(today, defaultTimeFor(today));
+   }
+   if (!props.showTime) opened.value = false;
+};
+
+const clearValue = () => {
+   if (props.range) {
+      startValue.value = '';
+      endValue.value = '';
+   } else {
+      value.value = '';
+   }
+   opened.value = false;
+};
+
+const formatDate = (dateStr: string) => {
+   if (!dateStr) return '';
+   const date = dayjs(dateStr);
+   return date.isValid() ? date.format('YYYY/MM/DD') : dateStr;
+};
+
+/** 取日期部分（YYYY-MM-DD），兼容带时间的值 */
+const datePart = (dateStr: string) => dateStr.split(' ')[0] ?? '';
+/** 取时间部分（HH:mm），无时间时默认 00:00 */
+const timePart = (dateStr: string) => dateStr.split(' ')[1] ?? '00:00';
+
+const pad = (num: number) => String(num).padStart(2, '0');
+
+/** 拼接日期与时间：未开启 showTime 时仅返回日期 */
+const withTime = (dateStr: string, time: string) =>
+   props.showTime ? `${dateStr} ${time}` : dateStr;
+
+const formatDateTime = (dateStr: string) => {
+   if (!dateStr) return '';
+   if (!props.showTime) return formatDate(dateStr);
+   return `${formatDate(datePart(dateStr))} ${timePart(dateStr)}`;
+};
+
+const displayValue = computed(() => {
+   if (props.range) {
+      if (!startValue.value && !endValue.value) return '';
+      return `${formatDateTime(startValue.value)} 至 ${formatDateTime(
+         endValue.value
+      )}`;
+   }
+   return formatDateTime(value.value);
+});
+
+// 使用 Popper 定位（不随输入框宽度拉伸）
 const {
    containerKey,
    container,
@@ -48,7 +173,7 @@ const {
    popper,
    onPopperUpdate,
    onFirstUpdate,
-} = usePopper();
+} = usePopper({ fillWidth: false });
 
 const upside = ref(false);
 onPopperUpdate('write', ({ state }) => {
@@ -73,18 +198,20 @@ onMounted(() => {
 });
 
 // 日历逻辑
-const currentDate = new Date();
-const viewYear = ref(currentDate.getFullYear());
-const viewMonth = ref(currentDate.getMonth());
+const now = dayjs();
+const viewYear = ref(now.year());
+const viewMonth = ref(now.month());
 
 // 如果已有值，显示该月份
 watch(
-   () => value.value,
+   () => (props.range ? startValue.value || endValue.value : value.value),
    (newValue) => {
       if (newValue) {
-         const date = new Date(newValue);
-         viewYear.value = date.getFullYear();
-         viewMonth.value = date.getMonth();
+         const date = dayjs(newValue);
+         if (date.isValid()) {
+            viewYear.value = date.year();
+            viewMonth.value = date.month();
+         }
       }
    },
    { immediate: true }
@@ -107,12 +234,12 @@ const monthNames = [
 const weekDays = ['日', '一', '二', '三', '四', '五', '六'];
 
 const calendarDays = computed(() => {
-   const year = viewYear.value;
-   const month = viewMonth.value;
-   const firstDay = new Date(year, month, 1);
-   const lastDay = new Date(year, month + 1, 0);
-   const daysInMonth = lastDay.getDate();
-   const startWeekDay = firstDay.getDay();
+   const monthStart = dayjs()
+      .year(viewYear.value)
+      .month(viewMonth.value)
+      .startOf('month');
+   const daysInMonth = monthStart.daysInMonth();
+   const startWeekDay = monthStart.day();
 
    const days: Array<{
       date: number;
@@ -121,17 +248,12 @@ const calendarDays = computed(() => {
    }> = [];
 
    // 上个月的日期
-   const prevMonthLastDay = new Date(year, month, 0).getDate();
    for (let i = startWeekDay - 1; i >= 0; i--) {
-      const prevYear = month === 0 ? year - 1 : year;
-      const prevMonth = month === 0 ? 11 : month - 1;
+      const day = monthStart.subtract(i + 1, 'day');
       days.push({
-         date: prevMonthLastDay - i,
+         date: day.date(),
          isCurrentMonth: false,
-         fullDate: `${prevYear}-${String(prevMonth + 1).padStart(
-            2,
-            '0'
-         )}-${String(prevMonthLastDay - i).padStart(2, '0')}`,
+         fullDate: day.format('YYYY-MM-DD'),
       });
    }
 
@@ -140,24 +262,18 @@ const calendarDays = computed(() => {
       days.push({
          date: i,
          isCurrentMonth: true,
-         fullDate: `${year}-${String(month + 1).padStart(2, '0')}-${String(
-            i
-         ).padStart(2, '0')}`,
+         fullDate: monthStart.date(i).format('YYYY-MM-DD'),
       });
    }
 
    // 下个月的日期
    const remainingDays = 42 - days.length; // 6 rows * 7 days
    for (let i = 1; i <= remainingDays; i++) {
-      const nextYear = month === 11 ? year + 1 : year;
-      const nextMonth = month === 11 ? 0 : month + 1;
+      const day = monthStart.add(1, 'month').date(i);
       days.push({
          date: i,
          isCurrentMonth: false,
-         fullDate: `${nextYear}-${String(nextMonth + 1).padStart(
-            2,
-            '0'
-         )}-${String(i).padStart(2, '0')}`,
+         fullDate: day.format('YYYY-MM-DD'),
       });
    }
 
@@ -182,25 +298,259 @@ const nextMonth = () => {
    }
 };
 
-const selectDate = (dateStr: string) => {
-   value.value = dateStr;
-   opened.value = false;
+// 年 / 月快速选择：date(日) -> month(月面板) -> year(年面板)
+const viewMode = ref<'date' | 'month' | 'year'>('date');
+
+/** 年视图 12 年一屏（如 2020 - 2031） */
+const decadeStart = computed(() => Math.floor(viewYear.value / 12) * 12);
+const yearGrid = computed(() =>
+   Array.from({ length: 12 }, (_, i) => decadeStart.value + i)
+);
+
+const prevYear = () => {
+   viewYear.value--;
 };
 
-const isToday = (dateStr: string) => {
-   const today = new Date();
-   return (
-      dateStr ===
-      `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(
-         2,
-         '0'
-      )}-${String(today.getDate()).padStart(2, '0')}`
-   );
+const nextYear = () => {
+   viewYear.value++;
 };
+
+const prevDecade = () => {
+   viewYear.value -= 12;
+};
+
+const nextDecade = () => {
+   viewYear.value += 12;
+};
+
+const selectYear = (year: number) => {
+   viewYear.value = year;
+   viewMode.value = 'month';
+};
+
+const selectMonth = (month: number) => {
+   viewMonth.value = month;
+   viewMode.value = 'date';
+};
+
+const selectedDate = computed(() => {
+   const v = props.range
+      ? startValue.value || endValue.value
+      : value.value;
+   return v && dayjs(v).isValid() ? dayjs(v) : null;
+});
+
+const isSelectedYear = (year: number) => selectedDate.value?.year() === year;
+
+const isSelectedMonth = (month: number) =>
+   selectedDate.value?.year() === viewYear.value &&
+   selectedDate.value?.month() === month;
+
+const isCurrentYear = (year: number) => year === now.year();
+
+const isCurrentMonth = (month: number) =>
+   viewYear.value === now.year() && month === now.month();
+
+/** 范围选择中的悬停日期，用于起点已选、终点未选时的区间预览 */
+const hoverDate = ref('');
+
+// 可选时间下限（minDateTime）的日期与时分部分
+const minDatePart = computed(() => props.minDateTime?.split(' ')[0] ?? '');
+const minTimePart = computed(() => props.minDateTime?.split(' ')[1] ?? '');
+
+/** 该日期是否被 disabledDate 或 minDateTime 禁选 */
+const isDisabled = (dateStr: string) => {
+   if (props.disabledDate?.(dateStr)) return true;
+   if (minDatePart.value && dateStr < minDatePart.value) return true;
+   return false;
+};
+
+/** 选中某日期时写入的默认时间：下限当天从下限时分起，其余从 00:00 起 */
+const defaultTimeFor = (dateStr: string) => {
+   if (
+      minDatePart.value &&
+      minTimePart.value &&
+      dateStr === minDatePart.value
+   ) {
+      return minTimePart.value;
+   }
+   return '00:00';
+};
+
+const selectDate = (dateStr: string) => {
+   if (isDisabled(dateStr)) return;
+   if (props.range) {
+      // 首次点击选起点；起点已选且终点未选时选终点；已有完整范围则重新开始
+      if (!startValue.value || (startValue.value && endValue.value)) {
+         startValue.value = withTime(dateStr, '00:00');
+         endValue.value = '';
+      } else if (dateStr < datePart(startValue.value)) {
+         const prevStart = startValue.value;
+         startValue.value = withTime(dateStr, timePart(prevStart));
+         endValue.value = withTime(datePart(prevStart), '23:59');
+      } else {
+         endValue.value = withTime(dateStr, '23:59');
+      }
+      // 仅在选完终点（形成完整区间）后关闭；开启时间选择时保持弹层打开，便于继续选择具体时间
+      if (!props.showTime && endValue.value) opened.value = false;
+      return;
+   }
+   value.value = withTime(dateStr, defaultTimeFor(dateStr));
+   if (!props.showTime) opened.value = false;
+};
+
+const isToday = (dateStr: string) => dateStr === now.format('YYYY-MM-DD');
 
 const isSelected = (dateStr: string) => {
-   return value.value === dateStr;
+   if (props.range) {
+      return (
+         (!!startValue.value && datePart(startValue.value) === dateStr) ||
+         (!!endValue.value && datePart(endValue.value) === dateStr)
+      );
+   }
+   return datePart(value.value) === dateStr;
 };
+
+const isInRange = (dateStr: string) => {
+   if (!props.range || !startValue.value) return false;
+   // 终点未选时用悬停日期做区间预览
+   let start = datePart(startValue.value);
+   let end = datePart(endValue.value) || hoverDate.value;
+   if (!end) return false;
+   if (start > end) [start, end] = [end, start];
+   return dateStr > start && dateStr < end;
+};
+
+/** 选中格圆角：起始格圆左角、结束格圆右角，起止同格四角全圆；其余格子无圆角 */
+const selectedRoundClass = (dateStr: string) => {
+   if (props.range) {
+      let start = datePart(startValue.value);
+      let end = datePart(endValue.value) || hoverDate.value;
+      if (!start) return '';
+      // 尚未形成区间（只有起点或起止同格）：整格圆角
+      if (!end || start === end) return dateStr === start ? 'rounded-md' : '';
+      if (start > end) [start, end] = [end, start];
+      if (dateStr === start) return 'rounded-l-md';
+      if (dateStr === end) return 'rounded-r-md';
+      return '';
+   }
+   return datePart(value.value) === dateStr ? 'rounded-md' : '';
+};
+
+// 具体时间选择（showTime）
+const hourOptions = Array.from({ length: 24 }, (_, i) => i);
+const minuteOptions = Array.from({ length: 60 }, (_, i) => i);
+
+const startTime = computed(() => timePart(startValue.value));
+const endTime = computed(() => timePart(endValue.value));
+const singleTime = computed(() => timePart(value.value));
+
+const isHourSelected = (time: string, hour: number) =>
+   Number(time.split(':')[0]) === hour;
+const isMinuteSelected = (time: string, minute: number) =>
+   Number(time.split(':')[1]) === minute;
+
+const setSingleTime = (hour?: number, minute?: number) => {
+   const [curHour = 0, curMinute = 0] = singleTime.value
+      .split(':')
+      .map(Number);
+   value.value = `${datePart(value.value)} ${pad(hour ?? curHour)}:${pad(
+      minute ?? curMinute
+   )}`;
+};
+
+const setStartTime = (hour?: number, minute?: number) => {
+   const [curHour = 0, curMinute = 0] = startTime.value
+      .split(':')
+      .map(Number);
+   startValue.value = `${datePart(startValue.value)} ${pad(
+      hour ?? curHour
+   )}:${pad(minute ?? curMinute)}`;
+};
+
+const setEndTime = (hour?: number, minute?: number) => {
+   const [curHour = 0, curMinute = 0] = endTime.value.split(':').map(Number);
+   endValue.value = `${datePart(endValue.value)} ${pad(
+      hour ?? curHour
+   )}:${pad(minute ?? curMinute)}`;
+};
+
+/** 起止同一天时，结束时间不能早于开始时间 */
+const isSameDay = computed(
+   () =>
+      props.range &&
+      !!startValue.value &&
+      !!endValue.value &&
+      datePart(startValue.value) === datePart(endValue.value)
+);
+
+const isEndHourDisabled = (hour: number) =>
+   isSameDay.value && hour < Number(startTime.value.split(':')[0]);
+
+const isEndMinuteDisabled = (minute: number) =>
+   isSameDay.value &&
+   Number(endTime.value.split(':')[0]) ===
+      Number(startTime.value.split(':')[0]) &&
+   minute < Number(startTime.value.split(':')[1]);
+
+/** 单选模式受 minDateTime 约束：选中日期为下限当天时，早于下限的时不可选 */
+const isSingleHourDisabled = (hour: number) => {
+   if (!minTimePart.value || !value.value) return false;
+   if (datePart(value.value) !== minDatePart.value) return false;
+   return hour < Number(minTimePart.value.split(':')[0]);
+};
+
+/** 单选模式受 minDateTime 约束：下限当天且小时等于下限小时时，早于下限的分不可选 */
+const isSingleMinuteDisabled = (minute: number) => {
+   if (!minTimePart.value || !value.value) return false;
+   if (datePart(value.value) !== minDatePart.value) return false;
+   const [minHour = 0, minMinute = 0] = minTimePart.value
+      .split(':')
+      .map(Number);
+   if (Number(singleTime.value.split(':')[0]) !== minHour) return false;
+   return minute < minMinute;
+};
+
+// 开始时间被调晚后，自动收拢结束时间
+watch(
+   [startTime, endTime, isSameDay],
+   ([start, end, sameDay]) => {
+      if (sameDay && end < start) {
+         endValue.value = `${datePart(endValue.value)} ${start}`;
+      }
+   }
+);
+
+// 时间列滚动定位到当前选中值
+const startHourCol = ref<HTMLElement | null>(null);
+const startMinuteCol = ref<HTMLElement | null>(null);
+const endHourCol = ref<HTMLElement | null>(null);
+const endMinuteCol = ref<HTMLElement | null>(null);
+const singleHourCol = ref<HTMLElement | null>(null);
+const singleMinuteCol = ref<HTMLElement | null>(null);
+
+watch(
+   [startValue, endValue, value],
+   async () => {
+      if (!props.showTime) return;
+      await nextTick();
+      const scrollTo = (col: HTMLElement | null, index: number) => {
+         if (!col) return;
+         col.scrollTo({
+            top: Math.max(0, index * 28 - col.clientHeight / 2 + 14),
+            behavior: 'smooth',
+         });
+      };
+      scrollTo(startHourCol.value, Number(startTime.value.split(':')[0]));
+      scrollTo(startMinuteCol.value, Number(startTime.value.split(':')[1]));
+      scrollTo(endHourCol.value, Number(endTime.value.split(':')[0]));
+      scrollTo(endMinuteCol.value, Number(endTime.value.split(':')[1]));
+      scrollTo(singleHourCol.value, Number(singleTime.value.split(':')[0]));
+      scrollTo(singleMinuteCol.value, Number(singleTime.value.split(':')[1]));
+   },
+   { flush: 'post' }
+);
+const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -216,94 +566,358 @@ const isSelected = (dateStr: string) => {
          type="text"
          readonly
          :value="displayValue"
-         :placeholder="placeholder || '请选择日期'"
+         :placeholder="placeholder || (range ? '请选择日期范围' : '请选择日期')"
          class="w-full outline-none border-none bg-transparent pointer-events-none text-white placeholder:text-accent-300" />
       <div
          class="text-accent-200 hover:text-white transition-colors cursor-pointer flex-shrink-0">
          <Calendar :size="20" :strokeWidth="3" />
       </div>
 
-      <Teleport to="body" class="absolute z-50">
+      <Teleport to="body" :disabled="!teleported" class="absolute z-[10001]">
+         <div
+            v-if="rendered && isMobile"
+            @click="opened = false"
+            class="fixed inset-0 z-[10000] bg-black/60 transition-opacity duration-300"
+            :class="shown ? 'opacity-100' : 'opacity-0'"></div>
          <div
             :ref="popperKey"
-            :style="{
-               transition: 'margin 0.1s ease-in-out, opacity 0.1s ease-in-out',
-            }"
+            :style="popperStyle"
             :class="[
-               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001]',
+               'absolute p-4 rounded-lg bg-background border border-accent-300 hover:cursor-auto z-[10001] min-w-[24rem]',
+               'max-sm:fixed! max-sm:left-0! max-sm:right-0! max-sm:top-auto! max-sm:bottom-0! max-sm:transform-none! max-sm:min-w-0 max-sm:max-w-none max-sm:w-full max-sm:rounded-b-none max-sm:rounded-t-2xl max-sm:max-h-[85dvh] max-sm:overflow-y-auto max-sm:flex max-sm:flex-col max-sm:border-x-0 max-sm:border-b-0 max-sm:border-t-accent-600',
                { 'opacity-0 pointer-events-none': !opened },
-               !opened && {
-                  '!-mb-4': upside,
-                  '!-mt-4': !upside,
-               },
+               { hidden: !rendered },
+               !opened &&
+                  !isMobile && {
+                     '-mb-4!': upside,
+                     '-mt-4!': !upside,
+                  },
+               shown
+                  ? 'max-sm:translate-y-0'
+                  : 'max-sm:translate-y-full',
             ]">
+            <div
+               v-if="showTime && range && (startValue || endValue)"
+               class="contents max-sm:order-last max-sm:mt-3 max-sm:flex max-sm:flex-row max-sm:gap-3 max-sm:w-full">
+               <div
+                  v-if="startValue"
+                  class="absolute right-full top-0 bottom-0 mr-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+                  <div
+                     class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                     开始时间
+                  </div>
+                  <div class="flex flex-1 min-h-0">
+                     <div
+                        ref="startHourCol"
+                        class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                        <button
+                           v-for="hour in hourOptions"
+                           :key="hour"
+                           @click.stop="setStartTime(hour)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isHourSelected(startTime, hour),
+                                 'text-white hover:bg-accent-600':
+                                    !isHourSelected(startTime, hour),
+                              },
+                           ]">
+                           {{ pad(hour) }} 时
+                        </button>
+                     </div>
+                     <div
+                        ref="startMinuteCol"
+                        class="flex-1 overflow-y-auto py-1">
+                        <button
+                           v-for="minute in minuteOptions"
+                           :key="minute"
+                           @click.stop="setStartTime(undefined, minute)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isMinuteSelected(startTime, minute),
+                                 'text-white hover:bg-accent-600':
+                                    !isMinuteSelected(startTime, minute),
+                              },
+                           ]">
+                           {{ pad(minute) }} 分
+                        </button>
+                     </div>
+                  </div>
+               </div>
+
+               <div
+                  v-if="endValue"
+                  class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:flex-1 max-sm:min-w-0 max-sm:h-44 max-sm:mx-0">
+                  <div
+                     class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                     结束时间
+                  </div>
+                  <div class="flex flex-1 min-h-0">
+                     <div
+                        ref="endHourCol"
+                        class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                        <button
+                           v-for="hour in hourOptions"
+                           :key="hour"
+                           :disabled="isEndHourDisabled(hour)"
+                           @click.stop="setEndTime(hour)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isHourSelected(endTime, hour),
+                                 'text-white hover:bg-accent-600':
+                                    !isHourSelected(endTime, hour) &&
+                                    !isEndHourDisabled(hour),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isEndHourDisabled(hour),
+                              },
+                           ]">
+                           {{ pad(hour) }} 时
+                        </button>
+                     </div>
+                     <div
+                        ref="endMinuteCol"
+                        class="flex-1 overflow-y-auto py-1">
+                        <button
+                           v-for="minute in minuteOptions"
+                           :key="minute"
+                           :disabled="isEndMinuteDisabled(minute)"
+                           @click.stop="setEndTime(undefined, minute)"
+                           :class="[
+                              'w-full h-7 text-xs transition-colors',
+                              {
+                                 'bg-primary text-black font-bold':
+                                    isMinuteSelected(endTime, minute),
+                                 'text-white hover:bg-accent-600':
+                                    !isMinuteSelected(endTime, minute) &&
+                                    !isEndMinuteDisabled(minute),
+                                 'text-accent-500 cursor-not-allowed':
+                                    isEndMinuteDisabled(minute),
+                              },
+                           ]">
+                           {{ pad(minute) }} 分
+                        </button>
+                     </div>
+                  </div>
+               </div>
+            </div>
+
+            <!-- 单选模式：时间面板（浮于日期面板右侧，高度与日期面板一致） -->
+            <div
+               v-if="showTime && !range && value"
+               class="absolute left-full top-0 bottom-0 ml-3 flex flex-col w-[8.5rem] bg-background border border-accent-300 rounded-lg overflow-hidden max-sm:static max-sm:order-last max-sm:w-full max-sm:h-44 max-sm:mt-3 max-sm:mx-0">
+               <div
+                  class="px-3 py-2 text-sm text-accent-300 border-b border-accent-500">
+                  时间
+               </div>
+               <div class="flex flex-1 min-h-0">
+                  <div
+                     ref="singleHourCol"
+                     class="flex-1 overflow-y-auto border-r border-accent-500 py-1">
+                     <button
+                        v-for="hour in hourOptions"
+                        :key="hour"
+                        :disabled="isSingleHourDisabled(hour)"
+                        @click.stop="setSingleTime(hour)"
+                        :class="[
+                           'w-full h-7 text-xs transition-colors',
+                           {
+                              'bg-primary text-black font-bold':
+                                 isHourSelected(singleTime, hour),
+                              'text-white hover:bg-accent-600':
+                                 !isHourSelected(singleTime, hour) &&
+                                 !isSingleHourDisabled(hour),
+                              'text-accent-500 cursor-not-allowed':
+                                 isSingleHourDisabled(hour),
+                           },
+                        ]">
+                        {{ pad(hour) }} 时
+                     </button>
+                  </div>
+                  <div
+                     ref="singleMinuteCol"
+                     class="flex-1 overflow-y-auto py-1">
+                     <button
+                        v-for="minute in minuteOptions"
+                        :key="minute"
+                        :disabled="isSingleMinuteDisabled(minute)"
+                        @click.stop="setSingleTime(undefined, minute)"
+                        :class="[
+                           'w-full h-7 text-xs transition-colors',
+                           {
+                              'bg-primary text-black font-bold':
+                                 isMinuteSelected(singleTime, minute),
+                              'text-white hover:bg-accent-600':
+                                 !isMinuteSelected(singleTime, minute) &&
+                                 !isSingleMinuteDisabled(minute),
+                              'text-accent-500 cursor-not-allowed':
+                                 isSingleMinuteDisabled(minute),
+                           },
+                        ]">
+                        {{ pad(minute) }} 分
+                     </button>
+                  </div>
+               </div>
+            </div>
+
             <!-- 头部：年月选择 -->
             <div class="flex items-center justify-between mb-4 text-white">
                <button
-                  @click.stop="prevMonth"
+                  @click.stop="
+                     viewMode === 'date'
+                        ? prevMonth()
+                        : viewMode === 'month'
+                        ? prevYear()
+                        : prevDecade()
+                  "
                   class="p-2 hover:bg-accent-600 rounded-md transition-colors">
                   <Left :size="16" />
                </button>
-               <div class="st-font-body-bold">
-                  {{ viewYear }} 年 {{ monthNames[viewMonth] }}
+               <!-- 日视图：年、月分别可点，进入对应面板 -->
+               <div
+                  v-if="viewMode === 'date'"
+                  class="st-font-body-bold flex gap-1">
+                  <button
+                     @click.stop="viewMode = 'year'"
+                     class="hover:text-primary transition-colors">
+                     {{ viewYear }} 年
+                  </button>
+                  <button
+                     @click.stop="viewMode = 'month'"
+                     class="hover:text-primary transition-colors">
+                     {{ monthNames[viewMonth] }}
+                  </button>
                </div>
+               <!-- 月 / 年视图：点击标题返回日视图 -->
                <button
-                  @click.stop="nextMonth"
+                  v-else
+                  @click.stop="viewMode = 'date'"
+                  class="st-font-body-bold hover:text-primary transition-colors">
+                  {{
+                     viewMode === 'month'
+                        ? `${viewYear} 年`
+                        : `${decadeStart} - ${decadeStart + 11}`
+                  }}
+               </button>
+               <button
+                  @click.stop="
+                     viewMode === 'date'
+                        ? nextMonth()
+                        : viewMode === 'month'
+                        ? nextYear()
+                        : nextDecade()
+                  "
                   class="p-2 hover:bg-accent-600 rounded-md transition-colors">
                   <Right :size="16" />
                </button>
             </div>
 
+            <!-- 年视图：12 年一屏，快速跳转 -->
+            <div v-if="viewMode === 'year'" class="grid grid-cols-4 gap-1">
+               <button
+                  v-for="year in yearGrid"
+                  :key="year"
+                  @click.stop="selectYear(year)"
+                  :class="[
+                     'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
+                     {
+                        'bg-primary text-black font-bold': isSelectedYear(year),
+                        'border border-primary':
+                           isCurrentYear(year) && !isSelectedYear(year),
+                        'text-white hover:bg-accent-600': !isSelectedYear(year),
+                     },
+                  ]">
+                  {{ year }}
+               </button>
+            </div>
+
+            <!-- 月视图：12 月一屏，快速跳转 -->
+            <div
+               v-else-if="viewMode === 'month'"
+               class="grid grid-cols-3 gap-1">
+               <button
+                  v-for="(name, month) in monthNames"
+                  :key="name"
+                  @click.stop="selectMonth(month)"
+                  :class="[
+                     'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
+                     {
+                        'bg-primary text-black font-bold':
+                           isSelectedMonth(month),
+                        'border border-primary':
+                           isCurrentMonth(month) && !isSelectedMonth(month),
+                        'text-white hover:bg-accent-600':
+                           !isSelectedMonth(month),
+                     },
+                  ]">
+                  {{ name }}
+               </button>
+            </div>
+
+            <template v-else>
+
             <!-- 星期标题 -->
-            <div class="grid grid-cols-7 gap-1 mb-2">
+            <div class="grid grid-cols-7 mb-2">
                <div
                   v-for="day in weekDays"
                   :key="day"
-                  class="text-center text-accent-300 text-sm py-2 w-9">
+                  class="text-center text-accent-300 text-sm py-2">
                   {{ day }}
                </div>
             </div>
 
             <!-- 日期网格 -->
-            <div class="grid grid-cols-7 gap-1">
+            <div class="grid grid-cols-7">
                <button
                   v-for="(day, index) in calendarDays"
                   :key="index"
+                  :disabled="isDisabled(day.fullDate)"
                   @click.stop="selectDate(day.fullDate)"
+                  @mouseenter="
+                     hoverDate = isDisabled(day.fullDate)
+                        ? hoverDate
+                        : day.fullDate
+                  "
                   :class="[
-                     'w-9 h-9 flex items-center justify-center rounded-md text-sm transition-colors',
+                     'aspect-square flex items-center justify-center text-sm transition-colors',
+                     selectedRoundClass(day.fullDate),
                      {
                         'text-accent-400': !day.isCurrentMonth,
                         'text-white': day.isCurrentMonth,
                         'bg-primary text-black font-bold': isSelected(
                            day.fullDate
                         ),
+                        'bg-primary/20 text-white':
+                           isInRange(day.fullDate) && !isSelected(day.fullDate),
                         'border border-primary':
                            isToday(day.fullDate) && !isSelected(day.fullDate),
+                        '!text-accent-500 cursor-not-allowed':
+                           isDisabled(day.fullDate),
                         'hover:bg-accent-600':
-                           day.isCurrentMonth && !isSelected(day.fullDate),
+                           day.isCurrentMonth &&
+                           !isSelected(day.fullDate) &&
+                           !isInRange(day.fullDate) &&
+                           !isDisabled(day.fullDate),
                      },
                   ]">
                   {{ day.date }}
                </button>
             </div>
+            </template>
 
             <!-- 快捷按钮 -->
             <div class="mt-4 pt-4 border-t border-accent-500 flex gap-2">
                <button
-                  @click.stop="
-                     selectDate(new Date().toISOString().split('T')[0]!)
-                  "
+                  @click.stop="selectToday()"
                   class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
                   今天
                </button>
                <button
-                  @click.stop="
-                     () => {
-                        value = '';
-                        opened = false;
-                     }
-                  "
+                  @click.stop="clearValue()"
                   class="flex-1 py-2 px-3 text-sm bg-accent-600 hover:bg-accent-500 text-white rounded-md transition-colors">
                   清空
                </button>

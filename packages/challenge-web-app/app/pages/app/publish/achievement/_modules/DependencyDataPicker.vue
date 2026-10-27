@@ -7,7 +7,9 @@ import type { IDataLoader } from '../_utils/dts-file-parser';
 
 const { $trpc } = useNuxtApp();
 
-const dependencyData = defineModel<number[]>('dependencyData', { default: [] });
+const dependencyData = defineModel<number[]>('dependencyData', {
+   default: () => [],
+});
 
 const props = defineProps<{
    outerClass?: string;
@@ -78,7 +80,7 @@ const typeToText: Record<string, { text: string; color: string }> = {
 >;
 
 const pickedDataLoaders = defineModel<IDataLoader[]>('pickedDataLoaders', {
-   default: [],
+   default: () => [],
 });
 watchEffect(() => {
    pickedDataLoaders.value = allDeps.value.filter((dep) =>

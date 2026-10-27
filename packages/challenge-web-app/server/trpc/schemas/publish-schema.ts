@@ -15,8 +15,11 @@ export const difficulties: Difficulty[] = [
    'very_hard',
 ] as const;
 
-const hasEntries = (snapshot?: Record<string, string>) =>
+export const hasEntries = (snapshot?: Record<string, string>) =>
    !!snapshot && Object.keys(snapshot).length > 0;
+
+export const REFERENCE_ANSWER_REQUIRED_MESSAGE =
+   '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）';
 
 const uploadShape = {
    title: z.string().min(1, '题目名称不能为空'),
@@ -46,20 +49,31 @@ const uploadShape = {
    serviceImage: z.enum(BACKEND_SERVICE_IMAGE_IDS).optional(),
    /** 后端服务：服务监听端口 */
    servicePort: z.number().int().positive().max(65535).optional(),
+   /** 快照镜像 id；null 表示不使用，编辑时未传入则沿用原值 */
+   snapshotImageId: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/, '快照镜像 id 不合法')
+      .nullable()
+      .optional(),
+   /** 任务日期范围 */
+   taskStartAt: z.coerce.date().optional(),
+   taskEndAt: z.coerce.date().optional(),
+   /** 定时发布时间，到点自动发布 */
+   scheduledPublishAt: z.coerce.date().optional(),
 };
+
+const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>
+   schema.refine(
+      (data: any) => {
+         return data.coverMode === 'default'
+            ? hasEntries(data.referenceAnswerSnapshot)
+            : true;
+      },
+      { error: REFERENCE_ANSWER_REQUIRED_MESSAGE }
+   );
 
 const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
    schema
-      .refine(
-         (data: any) => {
-            return data.coverMode === 'default'
-               ? hasEntries(data.referenceAnswerSnapshot)
-               : true;
-         },
-         {
-            error: '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）',
-         }
-      )
       .refine(
          (data: any) => {
             return data.coverMode === 'custom'
@@ -77,6 +91,14 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
+      )
+      .refine(
+         (data: any) => {
+            return !data.taskStartAt ||
+               !data.taskEndAt ||
+               data.taskEndAt >= data.taskStartAt;
+         },
+         { error: '任务结束日期不能早于开始日期' }
       );
 
 export const resolveBackendServiceRuntime = (input: {
@@ -96,9 +118,14 @@ export const resolveBackendServiceRuntime = (input: {
 };
 
 /** 上传新题目 */
-export const UploadSchema = withUploadRefinements(z.object(uploadShape));
+export const UploadSchema = withReferenceAnswerRefinement(
+   withUploadRefinements(z.object(uploadShape))
+);
 
-/** 重新发布（在已有 baseProblem 上创建新版本） */
+/**
+ * 编辑已有题目：只改基本信息时原地生效，否则在 baseProblem 上创建新版本并审核。
+ * 参考答案只在需要审核时才必填，由路由在判定变更类型后校验。
+ */
 export const ReuploadSchema = withUploadRefinements(
    z.object(uploadShape).extend({
       baseId: z.number('Base Problem ID must be a number').int(),

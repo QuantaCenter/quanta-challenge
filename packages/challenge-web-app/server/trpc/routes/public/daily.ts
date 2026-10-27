@@ -9,6 +9,7 @@ import {
 } from '~~/server/utils/daily-date';
 import { publicProcedure, router } from '../../trpc';
 import { dailyService } from '../../services/daily';
+import { problemStatService } from '../../services/problem-stat';
 
 const problemQuery = {
    // 题号（base_problems.id）：前端链接按它进，见设计文档 §17.7
@@ -19,9 +20,9 @@ const problemQuery = {
          title: true,
          difficulty: true,
          totalScore: true,
+         status: true,
          tags: { select: { color: true, name: true } },
          CoverImage: { select: { name: true, thumbhash: true } },
-         JudgeStatus: { select: { totalCount: true, passedCount: true } },
          ProblemDefaultCover: {
             select: { image: { select: { name: true, thumbhash: true } } },
          },
@@ -39,16 +40,19 @@ type BaseProblemRecord = Awaited<ReturnType<typeof findBaseProblemById>>;
 
 const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
    const dailyProblem = baseProblem.CurrentProblem;
-   if (!dailyProblem) {
+   // 状态过滤：题目可能在入选每日一题后被取消发布，此处不外露任何内容
+   if (!dailyProblem || dailyProblem.status !== 'published') {
       return null;
    }
-
-   const { passedCount = 0, totalCount = 0 } = dailyProblem.JudgeStatus || {};
-   const passRate = totalCount === 0 ? 0 : passedCount / totalCount;
 
    const image =
       dailyProblem.CoverImage ?? dailyProblem.ProblemDefaultCover?.[0]?.image;
    const coverImageThumbhash = image?.thumbhash ?? null;
+   const [passRate, coverImageThumbhashUrl] = await Promise.all([
+      problemStatService.getPassRate(baseProblem.id),
+      // 服务端带缓存地渲染占位图，SSR 首帧即可见
+      renderThumbhashDataUrl(coverImageThumbhash),
+   ]);
 
    return {
       pid: dailyProblem.pid,
@@ -61,8 +65,7 @@ const formatDailyProblem = async (baseProblem: BaseProblemRecord) => {
       passRate: passRate,
       coverImageName: image?.name ?? null,
       coverImageThumbhash,
-      // 服务端带缓存地渲染占位图，SSR 首帧即可见
-      coverImageThumbhashUrl: await renderThumbhashDataUrl(coverImageThumbhash),
+      coverImageThumbhashUrl,
    };
 };
 
@@ -107,13 +110,18 @@ const getDailyProblemProcedure = publicProcedure
          });
       }
 
-      // 今日：查不到记录时自动抽取并落库
+      // 今日：查不到记录时自动抽取并落库；已抽到但随后被取消发布时换题替补
       if (targetKey === todayKey) {
          const result = await prisma.dailyProblem.findFirst({
             where: { date: toDailyDate(targetKey) },
             select: { baseProblem: { select: problemQuery } },
          });
          if (result) {
+            if (result.baseProblem.CurrentProblem?.status !== 'published') {
+               const newId =
+                  await dailyService.replaceUnpublishedDailyProblem(todayKey);
+               return await formatDailyProblem(await findBaseProblemById(newId));
+            }
             return await formatDailyProblem(result.baseProblem);
          }
 

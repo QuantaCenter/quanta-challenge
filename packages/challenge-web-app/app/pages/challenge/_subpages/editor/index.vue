@@ -15,6 +15,7 @@ import PreviewPanel from './_modules/PreviewPanel.vue';
 import RequestPanel from './_modules/RequestPanel.vue';
 import { useWebContainer } from '../../_composables/use-web-container';
 import DetailWindow from './_components/DetailWindow.vue';
+import MobileProblemDetail from './_components/MobileProblemDetail.vue';
 import CommitModal from './_components/CommitModal.vue';
 import EditorBoardLayout from './_components/EditorBoardLayout.vue';
 import { useCommands } from '../../_composables/use-commands/index';
@@ -22,15 +23,26 @@ import { useFileChangeSync } from './_composables/use-file-change-sync';
 import { useManifestSync } from './_composables/use-manifest-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
+import { useEditorShortcuts } from './_composables/use-editor-shortcuts';
+import {
+   deleteCachedSnapshotImage,
+   readCachedSnapshotImage,
+   writeCachedSnapshotImage,
+} from './_utils/snapshot-image-cache';
+import { useMessage } from '~/components/st/Message/use-message';
+import * as Sentry from '@sentry/nuxt';
 
 const props = defineProps<{ id: number }>();
 
-const { $trpc } = useNuxtApp();
+const { $trpc, $authFetch } = useNuxtApp();
 
 // file change sync
+// 加载项目时的版本号；重置会递增服务端 revision，旧版本同步请求会被拒绝
+const projectRevision = ref<number>();
 const fileChangeSync = useFileChangeSync({
    problemId: props.id,
    ignorePatterns: IGNORE_FILE_PATTERNS,
+   getRevision: () => projectRevision.value,
 });
 
 // 监听文件移动/重命名事件
@@ -77,6 +89,7 @@ const getProject = async () => {
    const result = await $trpc.protected.problem.getOrForkProject.query({
       problemId: props.id,
    });
+   projectRevision.value = result.revision;
    pathContentMap.value = {};
    result.FileSystem[0]!.files.forEach((file) => {
       // 历史数据里 file.path 可能是相对路径，也可能已经带 /project 前缀。
@@ -118,6 +131,8 @@ const getProject = async () => {
    return result;
 };
 onMounted(() => {
+   // 旧版本题目已触发重定向，不再加载其工程文件（重定向后组件会以新 pid 重新挂载）
+   if (isOutdatedVersion.value) return;
    getProject().catch((err) => {
       console.error('[challenge] 加载题目文件失败:', err);
       unsupportedReason.value = err?.message ?? '加载题目文件失败';
@@ -129,7 +144,8 @@ const selectedPath = ref<string>();
 const selectedFilePath = ref<string>();
 
 watch(selectedFilePath, (newPath) => {
-   newPath && (selectedPath.value = newPath);
+   // 所有 tab 关闭时 newPath 为空字符串，需同步清空文件树选中状态
+   selectedPath.value = newPath || undefined;
 });
 
 watch(selectedPath, (newPath) => {
@@ -189,6 +205,7 @@ const {
    mountFileSystem,
    runCommand,
    getInstance,
+   servers,
    exposeServer,
    writeFile,
    onWebContainerFailed,
@@ -215,7 +232,22 @@ onWebContainerFailed((err: any) => {
 
 // run project
 const editorStore = useEditorStore();
-const currentStep = ref(0);
+
+// 移动端（与布局层 max-md: 断点一致）：文件树改由「更多」抽屉承载。
+// 用水合安全的判定：SSR 与客户端首帧恒为 false
+const isMobile = useIsMobile();
+
+// 移动端在抽屉文件树里选中文件后：关闭抽屉并滑动到代码板块
+watch(selectedFilePath, (newPath) => {
+   if (!isMobile.value || !newPath || !editorStore.mobileFileDrawerOpened) {
+      return;
+   }
+   editorStore.mobileFileDrawerOpened = false;
+   editorStore.mobileBoardJump = { board: 'code', at: Date.now() };
+});
+type BootStep = 'container' | 'snapshot' | 'install' | 'start';
+const bootStep = ref<BootStep>('container');
+const snapshotStepText = ref('正在拉取快照镜像...');
 
 /**
  * WebContainer 依赖跨源隔离（SharedArrayBuffer）。若 COOP/COEP 响应头被反向代理或
@@ -254,11 +286,125 @@ const checkRuntimeSupport = (): string | null => {
    return null;
 };
 
-// 把失败原因同步到 store：提交按钮原先只会"变灰且不解释"，
-// 用户会以为没有提交按钮。写入后按钮点击时会给出具体原因。
 watch(unsupportedReason, (reason) => {
-   if (reason) editorStore.initFailureReason = reason;
+   if (reason) {
+      editorStore.initFailureReason = reason;
+      Sentry.captureMessage(`在线开发环境启动失败: ${reason}`, 'error');
+   }
 });
+
+const downloadSnapshotImage = async (
+   fileName: string,
+   expectedSize: number | null,
+) => {
+   const response = await $authFetch(
+      `/api/static/image-builds/${encodeURIComponent(fileName)}`,
+   );
+   if (!response.ok) {
+      throw new Error(`快照镜像下载失败（HTTP ${response.status}）`);
+   }
+   // 响应带 Content-Encoding，读到的是解压后的字节，进度按原始大小计算
+   if (!response.body || !expectedSize) {
+      return new Uint8Array(await response.arrayBuffer());
+   }
+   const reader = response.body.getReader();
+   const chunks: Uint8Array[] = [];
+   let received = 0;
+   for (; ;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      received += value.byteLength;
+      const percent = Math.min(99, Math.floor((received / expectedSize) * 100));
+      snapshotStepText.value = `正在拉取快照镜像... ${percent}%`;
+   }
+   const bytes = new Uint8Array(received);
+   let offset = 0;
+   for (const chunk of chunks) {
+      bytes.set(chunk, offset);
+      offset += chunk.byteLength;
+   }
+   return bytes;
+};
+
+/** 题目绑定快照镜像时，在 bootCommand 之前挂载到工作区根；优先使用本地缓存 */
+const loadSnapshotImage = async (): Promise<boolean> => {
+   if (!problem.value?.snapshotImageId) return false;
+   const build = problem.value.SnapshotImage;
+   if (!build) {
+      throw new Error('题目绑定的快照镜像不存在或已被删除，请联系发布者');
+   }
+   if (build.status !== 'ready' || !build.fileName) {
+      throw new Error(
+         `题目绑定的快照镜像「${build.name}」尚未构建完成，请联系发布者`,
+      );
+   }
+   const { id, name, fileName, sizeBytes } = build;
+   const instance = await getInstance();
+
+   const mountSnapshot = async (fromCache: boolean): Promise<number> => {
+      let bytes: Uint8Array<ArrayBuffer> | null = null;
+      if (fromCache) {
+         bytes = await readCachedSnapshotImage(fileName);
+         if (bytes && sizeBytes && bytes.byteLength !== sizeBytes) {
+            await deleteCachedSnapshotImage(fileName);
+            bytes = null;
+         }
+         if (!bytes) return -1;
+         snapshotStepText.value = '正在读取缓存...';
+         await terminal.value?.writeTerminal(
+            `[image] 命中本地缓存「${name}」\n`,
+         );
+      } else {
+         snapshotStepText.value = '正在拉取快照镜像...';
+         await terminal.value?.writeTerminal(
+            `[image] 正在拉取快照镜像「${name}」…\n`,
+         );
+         bytes = await downloadSnapshotImage(fileName, sizeBytes);
+         if (bytes.byteLength === 0) {
+            throw new Error(`快照镜像「${name}」内容为空，请联系发布者重新上传`);
+         }
+      }
+      const size = bytes.byteLength;
+      // mount 会转移 buffer，需在此之前复制出要缓存的内容
+      const cacheBlob = fromCache ? null : new Blob([bytes]);
+      await instance.mount(bytes);
+      if (cacheBlob) void writeCachedSnapshotImage(id, fileName, cacheBlob);
+      return size;
+   };
+
+   let size = -1;
+   try {
+      size = await mountSnapshot(true);
+   } catch (error) {
+      console.warn('[challenge] 缓存的快照镜像挂载失败，改为重新下载:', error);
+      await deleteCachedSnapshotImage(fileName);
+   }
+   if (size < 0) {
+      try {
+         size = await mountSnapshot(false);
+      } catch (error: any) {
+         throw new Error(
+            `快照镜像「${name}」加载失败：${error?.message ?? error}`,
+         );
+      }
+   }
+
+   // snapshot 不保留执行权限
+   const fix = await runCommand([
+      'sh',
+      '-c',
+      'chmod +x node_modules/.bin/* 2>/dev/null; true',
+   ]);
+   await fix.exit;
+   await terminal.value?.writeTerminal(
+      `[image] 快照镜像已就绪（${(size / 1024 / 1024).toFixed(1)} MB）\n`,
+   );
+   return true;
+};
+
+/** 挂载快照镜像后，所有 shell 的 PATH 需包含 node_modules/.bin */
+let imageEnv: Record<string, string> | undefined;
 
 const runProject = async () => {
    // 标记启动流程已开始，便于区分"进行中"与"从未触发"
@@ -292,12 +438,20 @@ const runProject = async () => {
 
    // run boot commands
    editorStore.hasProjectInitialized = false;
-   currentStep.value = 1;
 
+   bootStep.value = 'snapshot';
+   if (await loadSnapshotImage()) {
+      const instance = await getInstance();
+      imageEnv = {
+         PATH: `${instance.workdir}/node_modules/.bin:${instance.path}`,
+      };
+   }
+
+   bootStep.value = 'install';
    if (problem.value?.bootCommand) {
       const bootCommands = handleCommands(problem.value.bootCommand);
       for (const { command, title } of bootCommands) {
-         const process = await runCommand(command);
+         const process = await runCommand(command, { env: imageEnv });
          await terminal.value!.attachProcess({
             process: process,
             id: terminalId,
@@ -311,9 +465,9 @@ const runProject = async () => {
    await terminal.value?.writeTerminal('\n');
 
    // run shell command (init commands)
-   currentStep.value = 2;
+   bootStep.value = 'start';
    if (problem.value?.initCommand) {
-      const shell = await runCommand('sh');
+      const shell = await runCommand('sh', { env: imageEnv });
       const initCommands = handleCommands(problem.value.initCommand).slice(
          0,
          1,
@@ -340,7 +494,7 @@ onMounted(() => {
 
 // handle add terminal
 const addTerminal = async () => {
-   const process = await runCommand('sh');
+   const process = await runCommand('sh', { env: imageEnv });
    await terminal.value?.createTerminal({ process, name: 'jsh' });
 };
 
@@ -398,15 +552,42 @@ const fileLoader = async (filePath: string) => {
 };
 
 // preview
-const previewUrl = ref<string>();
-const hostName = ref<string>();
-onMounted(() => {
-   watch(exposeServer, (server) => {
-      if (!server) return;
-      previewUrl.value = server.url;
-      hostName.value = `localhost:${server.port}`;
-   });
+const previewUrl = computed(() => exposeServer.value?.url);
+const preview = useTemplateRef('preview');
+
+// shortcuts
+const message = useMessage();
+let saveHintShown = false;
+useEditorShortcuts({
+   onSave: () => {
+      if (saveHintShown) return;
+      saveHintShown = true;
+      message.info('代码会自动保存', '无需手动保存，修改会自动同步到云端');
+   },
+   onRefreshPreview: () => preview.value?.refresh(),
+   onCloseTab: () => codeEditor.value?.closeCurrentTab(),
+   onToggleTerminal: () => terminal.value?.toggleFold(),
 });
+
+// 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，
+// 重定向到当前版本。旧版本可能已被弃用或取消发布，因此必须在加载
+// 题目详情之前完成校验，否则旧版本会直接走 404 而无法跳转。
+const { data: resolvedCurrentPid } = await useAsyncData(
+   `problem-current-pid-${props.id}`,
+   () =>
+      $trpc.protected.problem.getCurrentProblemPid.query({
+         problemId: props.id,
+      }),
+);
+const resolvedPid = computed(() => resolvedCurrentPid.value?.pid ?? null);
+const isOutdatedVersion = computed(
+   () => resolvedPid.value != null && resolvedPid.value !== props.id,
+);
+if (isOutdatedVersion.value) {
+   await navigateTo(`/challenge/editor/${resolvedPid.value}`, {
+      replace: true,
+   });
+}
 
 // get and parse problem detail
 const getProblemDetail = async () => {
@@ -417,10 +598,22 @@ const getProblemDetail = async () => {
       problemId: props.id,
    });
 };
-const { data: problem } = await useAsyncData(
+const { data: problem, error: problemError } = await useAsyncData(
    `problem-detail-${props.id}`,
    getProblemDetail,
 );
+// 服务端判定：题目不存在或未发布（含被取消发布）时，SSR 阶段直接渲染 404 页面，
+// 防止通过 URL 直达未发布题目。其他错误原样抛出，避免掩盖真实故障。
+if (problemError.value) {
+   if ((problemError.value as any)?.data?.code === 'NOT_FOUND') {
+      throw createError({
+         statusCode: 404,
+         fatal: true,
+         statusMessage: '题目不存在或未发布',
+      });
+   }
+   throw problemError.value;
+}
 const loaded = (() => { let r; const p = new Promise<void>(res => { r = res; }); return { promise: p, resolve: r! }; })();
 watch(problem, () => problem.value && loaded.resolve(), { immediate: true });
 
@@ -451,6 +644,20 @@ const { operator } = useCommands({
    runCommand,
    getWebContainerInstance: getInstance,
    fsTree,
+   // 终端等场景直接操作 WebContainer 文件系统时，diff 出的变更也走云端同步
+   onFsChange: (changes) => {
+      for (const change of changes) {
+         if (change.type === 'rm') {
+            fileChangeSync.rm(change.path);
+         } else if (change.type === 'mv') {
+            fileChangeSync.mv(change.oldPath, change.newPath);
+         } else if (change.type === 'change') {
+            fileChangeSync.change(change.path, change.content);
+         } else {
+            fileChangeSync.create(change.path, change.content);
+         }
+      }
+   },
 });
 
 // handle move item
@@ -509,26 +716,65 @@ const handleAddFolder = async () => {
 };
 
 // prevent leave
-usePreventLeave({
+const { enable: preventLeaveEnabled } = usePreventLeave({
    onPrevent: () => {
       // 离开页面前强制同步
       fileChangeSync.forceSync();
    },
 });
 
-// steps
-const steps = [
-   { idle: '启动开发容器', running: '正在启动开发容器...' },
-   { idle: '安装项目依赖', running: '正在安装项目依赖...' },
-   { idle: '启动项目', running: '正在启动项目...' },
-];
+// 错误提示组件的「重试」会整页 reload：先关掉离开拦截，避免浏览器弹"确认离开"框
+useEventBus('editor-env-retry').on(() => {
+   preventLeaveEnabled.value = false;
+});
 
-// seo enhancement
-//
-// 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。
-// unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段
-// HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器
-// 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
+// 设置菜单的「重置题目」：冲刷挂起的文件同步后重置服务端项目，再整页重载重建容器
+const { event: resetProjectEvent } = useEventEmitter<{ at: number }>(
+   'challenge-settings',
+   'reset-project',
+);
+watch(resetProjectEvent, async (val) => {
+   if (!val) return;
+   preventLeaveEnabled.value = false;
+   try {
+      await fileChangeSync.forceSync();
+      // forceSync 只处理排队中的变更，还需等待在途请求写完，避免旧内容覆盖重置结果
+      while (fileChangeSync.isSyncing.value) {
+         await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+      await $trpc.protected.problem.resetProject.mutate({
+         problemId: props.id,
+      });
+   } catch (error) {
+      console.error('[challenge] 重置题目失败:', error);
+   } finally {
+      window.location.reload();
+   }
+});
+
+// steps
+const steps = computed(() =>
+   [
+      { key: 'container', idle: '启动开发容器', running: '正在启动开发容器...' },
+      problem.value?.snapshotImageId && {
+         key: 'snapshot',
+         idle: '拉取快照镜像',
+         running: snapshotStepText.value,
+      },
+      { key: 'install', idle: '安装项目依赖', running: '正在安装项目依赖...' },
+      { key: 'start', idle: '启动项目', running: '正在启动项目...' },
+   ].filter((step): step is { key: BootStep; idle: string; running: string } =>
+      Boolean(step),
+   ),
+);
+const currentStep = computed(() =>
+   Math.max(
+      0,
+      steps.value.findIndex((step) => step.key === bootStep.value),
+   ),
+);
+
+// seo enhancement 注意：题面是 markdown，里面常带 `<style>` 这类裸标签，**不能**直接塞进 head。 unhead 只转义 `"` 不转义 `<`，而 nuxt-security 的 nonce 插件会用正则盲扫整段 HTML（属性值内部也照扫）并注入 nonce="..."，属性会被提前闭合，剩余文本被解析器 从 <head> 搬进 <body>，页面上就会多出一段乱码文本。详见 utils/seo-text.ts。
 const seoDescription = computed(() =>
    toSeoText(problem.value?.detail).slice(0, 100)
 );
@@ -549,68 +795,44 @@ useSeoMeta({
 <template>
    <StSpace fill>
       <DetailWindow :markdown="problem?.detail" />
-      <CommitModal
-         :run-commands="runCommand"
-         :get-wc-instance="getInstance"
-         :build-command="problem?.buildCommand ?? void 0"
-         :upload-dir="problem?.judgeUploadPath ?? void 0"
+      <CommitModal :run-commands="runCommand" :get-wc-instance="getInstance"
+         :build-command="problem?.buildCommand ?? void 0" :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
          <EditorBoardLayout :preview-label="previewBoardLabel">
+            <template #board-detail>
+               <MobileProblemDetail :markdown="problem?.detail" />
+            </template>
+
             <template #board-files>
-               <FileManagerPanel
-                  :dir-loader="dirLoader"
-                  :file-loader="fileLoader"
-                  :fs-tree="fsTree"
-                  :last-sync-time="fileChangeSync.lastSyncTime.value"
-                  :is-syncing="fileChangeSync.isSyncing.value"
-                  :sync-status="fileChangeSync.syncStatus.value"
-                  v-model:selected-path="selectedPath"
-                  @move-item="handleMoveItem"
-                  @file-click="handleFileClick"
-                  @add-file="handleAddFile"
-                  @add-folder="handleAddFolder" />
+               <Teleport :disabled="!isMobile" to="#challenge-mobile-drawer-files">
+                  <FileManagerPanel :dir-loader="dirLoader" :file-loader="fileLoader" :fs-tree="fsTree"
+                     :last-sync-time="fileChangeSync.lastSyncTime.value" :is-syncing="fileChangeSync.isSyncing.value"
+                     :sync-status="fileChangeSync.syncStatus.value" v-model:selected-path="selectedPath"
+                     @move-item="handleMoveItem" @file-click="handleFileClick" @add-file="handleAddFile"
+                     @add-folder="handleAddFolder" />
+               </Teleport>
             </template>
 
             <template #board-code>
-               <StSplitPanel
-                  direction="vertical"
-                  class="size-full"
-                  storage-key="editor.code-terminal"
+               <StSplitPanel direction="vertical" class="size-full" storage-key="editor.code-terminal"
                   :start-percent="65">
                   <template #start>
-                     <CodeEditorPanel
-                        ref="code-editor"
-                        v-model:current-file-path="selectedFilePath"
-                        :get-wc-instance="getInstance"
-                        :default-fs="pathContentMap" />
+                     <CodeEditorPanel ref="code-editor" v-model:current-file-path="selectedFilePath"
+                        :get-wc-instance="getInstance" :default-fs="pathContentMap" />
                   </template>
                   <template #end="panelMethods">
-                     <TerminalPanel
-                        ref="terminal"
-                        v-bind="panelMethods"
-                        @add-terminal="addTerminal" />
+                     <TerminalPanel ref="terminal" v-bind="panelMethods" @add-terminal="addTerminal" />
                   </template>
                </StSplitPanel>
             </template>
 
             <template #board-preview>
-               <RequestPanel
-                  v-if="isBackendService"
-                  :port="backendServicePort"
-                  :server-ready="!!exposeServer"
-                  :steps="steps"
-                  :current-step="currentStep"
-                  :unsupported-reason="unsupportedReason"
-                  :get-wc-instance="getInstance"
-                  :write-file="writeFile" />
-               <PreviewPanel
-                  v-else
-                  :steps="steps"
-                  :current-step="currentStep"
-                  :preview-url="previewUrl"
-                  :host-name="hostName"
-                  :unsupported-reason="unsupportedReason" />
+               <RequestPanel v-if="isBackendService" :port="backendServicePort" :server-ready="!!exposeServer"
+                  :steps="steps" :current-step="currentStep" :unsupported-reason="unsupportedReason"
+                  :get-wc-instance="getInstance" :write-file="writeFile" />
+               <PreviewPanel v-else ref="preview" :steps="steps" :current-step="currentStep" :preview-url="previewUrl"
+                  :servers="servers" :unsupported-reason="unsupportedReason" />
             </template>
          </EditorBoardLayout>
       </StSpace>

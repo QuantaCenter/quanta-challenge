@@ -17,9 +17,7 @@ const username = computed(
    () => authStore.user?.displayName || authStore.user?.name || '用户',
 );
 
-// 问候语取决于「用户本地时间」。SSR 此时跑在容器时区，与浏览器本地时区
-// 未必一致，服务端直接算会在水合时产生文案跳变/不匹配。这里先用中性文案
-// 渲染，挂载后在客户端按真实本地时间计算。
+// 问候语取决于「用户本地时间」。SSR 此时跑在容器时区，与浏览器本地时区 未必一致，服务端直接算会在水合时产生文案跳变/不匹配。这里先用中性文案 渲染，挂载后在客户端按真实本地时间计算。
 const greeting = ref('你好');
 
 onMounted(() => {
@@ -32,18 +30,34 @@ onMounted(() => {
 
 <template>
    <StSpace direction="vertical" align="center" gap="0">
-      <StSpace gap="1.5rem" fill class="px-4 py-6 max-w-[80.68rem] shrink-0">
+      <StSpace
+         gap="1.5rem"
+         fill
+         class="px-4 py-6 max-w-[80.68rem] shrink-0 max-md:flex-col">
          <StSpace direction="vertical" align="start" gap="1.5rem" fill>
-            <h1 class="st-font-hero-bold">{{ greeting }}，{{ username }}</h1>
-            <StSpace gap="1.5rem" fill-x class="mt-4">
+            <h1
+               class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+               {{ greeting }}，{{ username }}
+            </h1>
+            <StSpace
+               gap="1.5rem"
+               fill-x
+               class="mt-4 max-md:mt-0 max-md:hidden">
                <RecentSubmissionCard />
                <RecentLearningCard />
             </StSpace>
             <DailyChallengeCard />
          </StSpace>
-         <StSpace direction="vertical" gap="1.5rem" fill>
+         <StSpace
+            direction="vertical"
+            gap="1.5rem"
+            fill
+            class="max-md:h-auto max-md:shrink-0">
             <SubmissionStatusCard />
-            <StSpace gap="1.5rem" fill>
+            <StSpace
+               gap="1.5rem"
+               fill
+               class="max-md:flex-col max-md:h-auto max-md:shrink-0">
                <RankingCard />
                <AchievementsCard />
             </StSpace>

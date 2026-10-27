@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import JudgeScript from './_modules/JudgeScript.vue';
 import UploadProject from './_components/UploadProject.vue';
-import LazyMarkdownEditingDrawer from './_drawers/MarkdownEditingDrawer.vue';
+import LazyMarkdownEditingDrawer from '../_drawers/MarkdownEditingDrawer.vue';
 import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
 import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';
@@ -14,6 +14,7 @@ import {
 import { UploadTwo } from '@icon-park/vue-next';
 import { normalizePath, joinPath } from '~/utils/path-utils';
 import { useMessage } from '~/components/st/Message/use-message';
+import dayjs from 'dayjs';
 
 useSeoMeta({ title: '发布题目 - Quanta Challenge' });
 
@@ -23,7 +24,7 @@ const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
 let storageName = 'publishFormdata';
 let fromId: number | undefined = undefined;
-let baseId: number | undefined = undefined;
+const baseId = ref<number | undefined>(undefined);
 
 const route = useRoute();
 if (route.query.fromId) {
@@ -49,6 +50,54 @@ const enableCloudFunction = computed<boolean>({
    },
 });
 
+interface SnapshotImageItem {
+   id: string;
+   name: string;
+   description: string;
+   status: string;
+}
+const snapshotImages = ref<SnapshotImageItem[]>([]);
+const snapshotListLoading = ref(false);
+const refreshSnapshotImages = async () => {
+   snapshotListLoading.value = true;
+   try {
+      snapshotImages.value = await $trpc.admin.imageBuild.list.query();
+   } catch (error) {
+      console.error('[publish] 获取快照镜像列表失败:', error);
+   } finally {
+      snapshotListLoading.value = false;
+   }
+};
+onMounted(() => refreshSnapshotImages());
+
+/** 已选快照镜像不可用（列表加载完成后才判断） */
+const isSelectedSnapshotUnavailable = computed(
+   () =>
+      !!draft.value.snapshotImageId &&
+      !snapshotListLoading.value &&
+      !snapshotImages.value.some(
+         (item) =>
+            item.status === 'ready' && item.id === draft.value.snapshotImageId,
+      ),
+);
+
+const snapshotImageOptions = computed(() => [
+   { label: '不使用快照镜像', value: '' },
+   ...snapshotImages.value
+      .filter((item) => item.status === 'ready')
+      .map((item) => ({
+         label: item.name,
+         value: item.id,
+         description: item.description || undefined,
+      })),
+]);
+
+const selectedSnapshotName = computed(
+   () =>
+      snapshotImages.value.find((item) => item.id === draft.value.snapshotImageId)
+         ?.name ?? draft.value.snapshotImageId,
+);
+
 const problemType = computed<'frontend' | 'backend_service'>({
    get: () => draft.value.problemType ?? 'frontend',
    set: (value) => {
@@ -57,6 +106,85 @@ const problemType = computed<'frontend' | 'backend_service'>({
 });
 
 const detailLoading = ref(false);
+
+// 编辑时的原始数据，用于判断本次修改能否不经审核直接生效（以服务端判定为准）
+interface IEditBaseline {
+   isCurrent: boolean;
+   status: string;
+   hasDefaultCover: boolean;
+   judgeScript: string;
+   score?: number;
+   answerTemplate: Record<string, string>;
+   bootCommand: string;
+   initCommand: string;
+   buildCommand: string;
+   judgeUploadPath: string;
+   enableCloudFunction: boolean;
+   problemType: 'frontend' | 'backend_service';
+   serviceImage: string;
+   servicePort: number;
+   snapshotImageId: string;
+}
+const baseline = ref<IEditBaseline>();
+
+const auditReasonLabels = {
+   version: '基于历史版本编辑',
+   status: '当前版本尚未通过审核',
+   judgeScript: '判题脚本',
+   answerTemplate: '作答模板',
+   totalScore: '题目总分',
+   runtime: '题型 / 命令 / 镜像 / 端口 / 云函数',
+   cover: '首屏截图封面（需由审核生成）',
+} as const;
+type AuditReason = keyof typeof auditReasonLabels;
+
+const isSameSnapshot = (a: Record<string, string>, b: Record<string, string>) => {
+   const left = removeRootDir(a);
+   const right = removeRootDir(b);
+   const keys = Object.keys(left);
+   return (
+      keys.length === Object.keys(right).length &&
+      keys.every((key) => left[key] === right[key])
+   );
+};
+
+const auditReasons = computed<AuditReason[]>(() => {
+   const base = baseline.value;
+   if (!base) return [];
+   const value = draft.value;
+   const reasons: AuditReason[] = [];
+   if (!base.isCurrent) reasons.push('version');
+   if (!['ready', 'published'].includes(base.status)) reasons.push('status');
+   if (value.judgeScript !== base.judgeScript) reasons.push('judgeScript');
+   if (!isSameSnapshot(value.answerTemplate, base.answerTemplate)) {
+      reasons.push('answerTemplate');
+   }
+   if (value.score !== base.score) reasons.push('totalScore');
+   if (
+      value.bootCommand !== base.bootCommand ||
+      value.initCommand !== base.initCommand ||
+      value.buildCommand !== base.buildCommand ||
+      value.judgeUploadPath !== base.judgeUploadPath ||
+      value.enableCloudFunction !== base.enableCloudFunction ||
+      value.problemType !== base.problemType ||
+      (value.problemType === 'backend_service' &&
+         (value.serviceImage !== base.serviceImage ||
+            value.servicePort !== base.servicePort))
+   ) {
+      reasons.push('runtime');
+   }
+   if (value.coverMode === 'default' && !base.hasDefaultCover) {
+      reasons.push('cover');
+   }
+   return reasons;
+});
+// 新建题目总是需要审核；编辑时只改基本信息可直接发布
+const needsAudit = computed(
+   () => !fromId || !baseline.value || auditReasons.value.length > 0,
+);
+const isPublishedBaseline = computed(
+   () => !!fromId && baseline.value?.status === 'published',
+);
 
 const imageName = ref('');
 const imageUrl = computed(() => {
@@ -70,7 +198,7 @@ const fetchProblemDetail = async () => {
       const problem = await $trpc.admin.problem.getDetail.query({
          problemId: fromId,
       });
-      baseId = problem.BaseProblem.id;
+      baseId.value = problem.BaseProblem.id;
 
       imageName.value = problem.CoverImage?.name ?? '';
       draft.value.title = problem.title;
@@ -92,6 +220,16 @@ const fetchProblemDetail = async () => {
       draft.value.problemType = problem.problemType ?? 'frontend';
       draft.value.serviceImage = problem.serviceImage ?? '';
       draft.value.servicePort = problem.servicePort ?? 3000;
+      draft.value.snapshotImageId = problem.snapshotImageId ?? '';
+      draft.value.taskStartAt = problem.taskStartAt
+         ? dayjs(problem.taskStartAt).format('YYYY-MM-DD HH:mm')
+         : '';
+      draft.value.taskEndAt = problem.taskEndAt
+         ? dayjs(problem.taskEndAt).format('YYYY-MM-DD HH:mm')
+         : '';
+      draft.value.scheduledPublishAt = problem.scheduledPublishAt
+         ? dayjs(problem.scheduledPublishAt).format('YYYY-MM-DD HH:mm')
+         : '';
       applyProblemTypeConstraints(draft.value.problemType);
 
       const files = problem.Project[0]?.FileSystem[0]?.files ?? [];
@@ -102,6 +240,24 @@ const fetchProblemDetail = async () => {
             joinPath('/answer-template', normalizedPath)
          ] = file.content;
       }
+
+      baseline.value = {
+         isCurrent: problem.BaseProblem.currentPid === fromId,
+         status: problem.status,
+         hasDefaultCover: problem.ProblemDefaultCover.length > 0,
+         judgeScript: draft.value.judgeScript,
+         score: draft.value.score,
+         answerTemplate: { ...draft.value.answerTemplate },
+         bootCommand: draft.value.bootCommand,
+         initCommand: draft.value.initCommand,
+         buildCommand: draft.value.buildCommand,
+         judgeUploadPath: draft.value.judgeUploadPath,
+         enableCloudFunction: draft.value.enableCloudFunction,
+         problemType: draft.value.problemType,
+         serviceImage: draft.value.serviceImage,
+         servicePort: draft.value.servicePort,
+         snapshotImageId: draft.value.snapshotImageId,
+      };
    } finally {
       // 失败也要解锁，否则报错后字段永久置灰
       detailLoading.value = false;
@@ -127,10 +283,14 @@ const markdownEditing = ref(false);
 // 提交
 const submitLoading = ref(false);
 const handleSubmit = async () => {
+   if (fromId && baseId.value === undefined) {
+      message.error('题目详情加载中', '请稍候再提交');
+      return;
+   }
    const upload = async () => {
       const uploadMethod = fromId ? 'reupload' : 'upload';
       return await $trpc.admin.problem[uploadMethod].mutate({
-         baseId: baseId!,
+         baseId: baseId.value!,
          title: draft.value.title,
          detail: draft.value.detail,
          totalScore: draft.value.score ?? 0,
@@ -152,6 +312,13 @@ const handleSubmit = async () => {
                ? normalizeBackendServiceImageId(draft.value.serviceImage)
                : undefined,
          servicePort: draft.value.servicePort,
+         snapshotImageId: draft.value.snapshotImageId || null,
+         taskStartAt: draft.value.taskStartAt || undefined,
+         taskEndAt: draft.value.taskEndAt || undefined,
+         // DatePicker 的值按浏览器本地时区用 dayjs 解析后转为 ISO，避免服务端按自身时区误读
+         scheduledPublishAt: draft.value.scheduledPublishAt
+            ? dayjs(draft.value.scheduledPublishAt).toISOString()
+            : undefined,
       });
    };
    submitLoading.value = true;
@@ -160,6 +327,9 @@ const handleSubmit = async () => {
       const result = await atLeastTime(300, upload());
       // 只有成功了，才进行跳转
       if (result?.problemId) {
+         if ('mode' in result && result.mode === 'quick') {
+            message.success('已直接发布', '题目信息已更新，无需重新审核');
+         }
          navigateTo(`/app/publish/problem/detail/${result.problemId}`);
       }
    } catch (error) {
@@ -178,8 +348,11 @@ const handleSubmit = async () => {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-[44rem] pb-[10rem] my-6">
-         <h1 class="st-font-hero-bold">发布题目</h1>
+         class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
+         <h1
+            class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
+            {{ fromId ? '编辑题目' : '发布题目' }}
+         </h1>
          <StForm
             v-model:model-value="draft"
             :ref="formKey"
@@ -188,7 +361,7 @@ const handleSubmit = async () => {
             <StSpace
                direction="vertical"
                gap="1.75rem"
-               class="w-full px-[0.625rem]">
+               class="w-full px-[0.625rem] max-md:gap-4!">
                <StFormItem name="title" label="题目标题" required>
                   <StInput
                      v-model:value="draft.title"
@@ -241,7 +414,7 @@ const handleSubmit = async () => {
                      :options="difficultyOptions" />
                </StFormItem>
                <template v-if="problemType === 'backend_service'">
-                  <StFormItem name="serviceImage" label="初始镜像" required>
+                  <StFormItem name="serviceImage" label="初始镜像（判题容器）" required>
                      <StSelect
                         v-model:value="draft.serviceImage"
                         placeholder="请选择初始镜像"
@@ -267,6 +440,38 @@ const handleSubmit = async () => {
                      v-model:value="enableCloudFunction"
                      :options="cloudFunctionOptions" />
                </StFormItem>
+               <StFormItem name="snapshotImageId" label="快照镜像（做题环境，可选）">
+                  <template #header-right>
+                     <StSpace gap="1rem" align="center">
+                        <StTextButton
+                           :text="snapshotListLoading ? '刷新中…' : '刷新列表'"
+                           @click="refreshSnapshotImages" />
+                        <NuxtLink
+                           to="/app/publish/image"
+                           target="_blank"
+                           class="st-font-caption text-primary hover:underline">
+                           构建快照镜像 ↗
+                        </NuxtLink>
+                     </StSpace>
+                  </template>
+                  <StSpace direction="vertical" gap="0.5rem" fill-x>
+                     <StSelect
+                        v-model:value="draft.snapshotImageId"
+                        placeholder="不使用快照镜像"
+                        attach-to-body
+                        :outer-class
+                        :options="snapshotImageOptions">
+                        <template #selected-preview>
+                           <span class="text-white">{{ selectedSnapshotName }}</span>
+                        </template>
+                     </StSelect>
+                     <p
+                        v-if="isSelectedSnapshotUnavailable"
+                        class="st-font-caption text-error">
+                        所选快照镜像不存在或尚未上传完成，发布时会被拒绝。
+                     </p>
+                  </StSpace>
+               </StFormItem>
                <StFormItem name="cover" label="封面图片" required>
                   <!-- 后端题型只支持自定义封面，不需要让出题人选 -->
                   <StSlideRadioGroup
@@ -290,7 +495,7 @@ const handleSubmit = async () => {
                <StFormItem
                   name="referenceAnswer"
                   label="参考答案"
-                  :required="draft.coverMode === 'default'">
+                  :required="draft.coverMode === 'default' && needsAudit">
                   <UploadProject
                      :ignore-directories="
                         ignores.directories.filter((i) => i !== 'dist')
@@ -345,16 +550,73 @@ const handleSubmit = async () => {
                      placeholder="请输入打包上传路径"
                      :outer-class />
                </StFormItem>
+               <StFormItem name="taskRange" label="任务日期范围">
+                  <StDatePicker
+                     range
+                     show-time
+                     v-model:start-value="draft.taskStartAt"
+                     v-model:end-value="draft.taskEndAt"
+                     placeholder="选择任务生效的日期与时间区间（可选）"
+                     :outer-class />
+               </StFormItem>
+               <StFormItem
+                  name="scheduledPublishAt"
+                  :label="
+                     isPublishedBaseline
+                        ? '定时发布时间（已发布题目不适用）'
+                        : '定时发布时间'
+                  "
+                  error-message="定时发布时间必须晚于当前时间">
+                  <StDatePicker
+                     v-model:value="draft.scheduledPublishAt"
+                     show-time
+                     placeholder="到点自动发布，留空则手动发布"
+                     :outer-class />
+               </StFormItem>
             </StSpace>
-            <StSpace justify="between" align="center" class="px-2 mt-[2.13rem]">
+            <div
+               v-if="fromId && baseline"
+               class="mx-2 mt-[2.13rem] px-4 py-3 rounded-[0.5rem] border text-sm leading-6"
+               :class="
+                  needsAudit
+                     ? 'border-warning/40 bg-warning/5'
+                     : 'border-success/40 bg-success/5'
+               ">
+               <template v-if="needsAudit">
+                  <div>
+                     以下内容有变更，需要重新审核：{{
+                        auditReasons.map((r) => auditReasonLabels[r]).join('、')
+                     }}
+                  </div>
+                  <div class="text-accent-300">
+                     提交后会创建新版本，审核通过并发布后生效。{{
+                        auditReasons.includes('answerTemplate')
+                           ? '作答模板已变更，用户进入新版本时会从新模板开始作答。'
+                           : '作答模板未变，用户已有的作答文件会保留。'
+                     }}
+                  </div>
+               </template>
+               <template v-else>
+                  <div>只修改了标题、描述、标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。</div>
+                  <div class="text-accent-300">
+                     用户的完成状态、作答文件和提交记录都不受影响。
+                  </div>
+               </template>
+            </div>
+            <StSpace
+               justify="between"
+               align="center"
+               class="px-2 max-md:flex-col max-md:items-end max-md:gap-3!"
+               :class="fromId && baseline ? 'mt-4' : 'mt-[2.13rem]'">
                <div class="text-accent-300">已经自动保存</div>
                <StButton
                   :loading="submitLoading"
+                  :disabled="!!fromId && baseId === undefined"
                   @click="handleSubmit"
                   class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]">
                   <div class="flex gap-2 items-center">
                      <UploadTwo class="text-[1.5rem]" />
-                     <span>提交审核</span>
+                     <span>{{ needsAudit ? '提交审核' : '直接发布' }}</span>
                   </div>
                </StButton>
             </StSpace>

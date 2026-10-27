@@ -24,10 +24,7 @@ watch(
    { immediate: true }
 );
 
-// 高亮器在 useShiki 的 onMounted 里同步初始化。setup 期那次 watch 因为还没
-// 初始化会直接 return，而 code 之后不再变化时 watch 也不会再触发，于是
-// highlightHtml 永远为空、ready 也永远不发（「如何调用」整块被 v-show 隐藏）。
-// 这里在初始化完成后补跑一次，保证静态代码也能高亮并发出 ready。
+// 高亮器在 useShiki 的 onMounted 里同步初始化。setup 期那次 watch 因为还没 初始化会直接 return，而 code 之后不再变化时 watch 也不会再触发，于是 highlightHtml 永远为空、ready 也永远不发（「如何调用」整块被 v-show 隐藏）。 这里在初始化完成后补跑一次，保证静态代码也能高亮并发出 ready。
 onMounted(() => {
    debouncedHighlightCode(props.code, props.language);
 });
@@ -50,5 +47,14 @@ onMounted(() => {
 .code * {
    font-family: 'FiraCode Nerd Font Mono', 'monospace' !important;
    font-variant-ligatures: none !important;
+}
+
+@media (max-width: 47.99rem) {
+   .code {
+      font-size: 0.8125rem;
+   }
+   .code :deep(pre) {
+      font-size: 0.8125rem !important;
+   }
 }
 </style>
