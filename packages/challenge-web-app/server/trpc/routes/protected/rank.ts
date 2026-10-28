@@ -14,12 +14,12 @@ const getMyRankInProblemProcedure = protectedProcedure
       const { userId } = ctx.user;
       const { recordId } = input;
 
-      // 确保存在有得分的提交记录
       const { problemId } = await prisma.judgeRecords.findUniqueOrThrow({
          where: {
             id: recordId,
             userId,
-            score: { gt: 0 },
+            type: 'judge',
+            result: { not: 'pending' },
          },
          select: {
             problemId: true,

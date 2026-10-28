@@ -118,8 +118,13 @@ const rank = ref<IRank[]>([]);
 const ahead = ref('--%');
 const getRank = async () => {
    if (props.passive) return;
-   if (recordId.value === null || detail.value?.result !== 'success') {
+   if (
+      recordId.value === null ||
+      !detail.value ||
+      detail.value.result === 'pending'
+   ) {
       rank.value = [];
+      ahead.value = '--%';
       return;
    }
 
@@ -151,12 +156,20 @@ onMounted(() => {
 });
 
 const showChart = computed(() => {
-   return detail.value?.result === 'success' && detail.value.score !== null;
+   return (
+      detail.value !== null &&
+      detail.value.result !== 'pending'
+   );
 });
 
 const formattedDate = computed(() => {
    if (!detail.value) return '';
    return dayjs(detail.value.createdAt).format('YYYY/MM/DD HH:mm:ss');
+});
+
+const avatarUrl = computed(() => {
+   const name = detail.value?.user.avatar?.name;
+   return name ? `/api/static/${name}` : undefined;
 });
 
 const judgeResult = computed<any>(() => {
@@ -241,7 +254,7 @@ const StatusIcon = () => {
                   direction="vertical"
                   gap="1.5rem">
                   <StSpace fill-x gap="0.75rem" align="center">
-                     <StAvatar size="2rem" />
+                     <StAvatar size="2rem" :url="avatarUrl" />
                      <div>
                         <span class="st-font-body-bold">
                            {{ detail?.user.name }}
@@ -284,7 +297,7 @@ const StatusIcon = () => {
                         <span class="font-family-manrope text-primary">
                            {{ ahead }}
                         </span>
-                        的提交者
+                        的提交
                      </h2>
                      <StRankingChart
                         :rank="rank"

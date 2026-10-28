@@ -7,6 +7,24 @@ import type { ValidPath } from '~~/lib/track-wrapper';
 /** 只有普通用户参与排行榜（全局榜与单题榜），管理员及以上不计入。 */
 const RANKED_ROLE = 'USER' as const;
 
+/** 单题榜 Redis key（v2：统计该题全部已完成的 judge 提交，而非仅 AC） */
+const problemRankingsKey = (problemId: number) =>
+   `problem:${problemId}:rankings:v2`;
+
+/** 判题分数写入排行榜前规范化：非有限数字视为 0 */
+const normalizeJudgeScore = (score: unknown): number => {
+   const n = typeof score === 'number' ? score : Number(score);
+   return Number.isFinite(n) ? n : 0;
+};
+
+const toProblemRankingMemberScore = (
+   score: unknown,
+   createdAtMs: number,
+): number => {
+   const normalized = normalizeJudgeScore(score);
+   return normalized + (1e10 - (createdAtMs % 1e10)) / 1e12;
+};
+
 const isRankedUser = async (userId: string) => {
    const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -20,8 +38,7 @@ const isRankedUser = async (userId: string) => {
  */
 const getProblemRankingExistence = async (problemId: number) => {
    const redis = useRedis();
-   const rankKey = `problem:${problemId}:rankings`;
-   return redis.exists(rankKey);
+   return redis.exists(problemRankingsKey(problemId));
 };
 
 /**
@@ -30,13 +47,12 @@ const getProblemRankingExistence = async (problemId: number) => {
 const loadProblemRankings = async (problemId: number) => {
    const redis = useRedis();
 
-   const rankKey = `problem:${problemId}:rankings`;
+   const rankKey = problemRankingsKey(problemId);
    const rankData = await prisma.judgeRecords.findMany({
       where: {
          problemId,
          type: 'judge',
-         score: { gt: 0 },
-         result: 'success',
+         result: { not: 'pending' },
          user: { role: RANKED_ROLE },
       },
       select: { id: true, score: true, createdAt: true },
@@ -45,7 +61,7 @@ const loadProblemRankings = async (problemId: number) => {
    const pipeline = redis.pipeline();
    rankData.forEach(({ id, score, createdAt }) => {
       // 加入时间戳，保证分数相同的情况下后提交的排名更靠后
-      const _score = score + (1e10 - (createdAt.getTime() % 1e10)) / 1e12;
+      const _score = toProblemRankingMemberScore(score, createdAt.getTime());
       pipeline.zadd(rankKey, _score, id);
    });
 
@@ -69,9 +85,8 @@ const pushToProblemRankings = async (
    }
 
    const redis = useRedis();
-   const rankKey = `problem:${problemId}:rankings`;
-   // 加入时间戳，保证分数相同的情况下后提交的排名更靠后
-   const _score = score + (1e10 - (Date.now() % 1e10)) / 1e12;
+   const rankKey = problemRankingsKey(problemId);
+   const _score = toProblemRankingMemberScore(score, Date.now());
    await redis.zadd(rankKey, _score, recordId.toString());
 };
 
@@ -87,7 +102,7 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
    }
 
    const redis = useRedis();
-   const rankKey = `problem:${problemId}:rankings`;
+   const rankKey = problemRankingsKey(problemId);
 
    const [maxScore, minScore] = await Promise.all([
       redis.zrevrange(rankKey, 0, 0, 'WITHSCORES'),
@@ -143,9 +158,9 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
 /**
  * 获取记录在某题目中的排名
  * @returns
- * - rank: 排名（1-based）
+ * - rank: 排名（1-based，同分按提交时间先后，仅作次序展示）
  * - total: 总记录数
- * - aheadRate: 超越率（0~1 之间）
+ * - aheadRate: 超越率（0~1）：严格低于本条得分的提交占比；与当前最高分同档视为 100%
  */
 const getSelfProblemRanking = async (problemId: number, record: number) => {
    if (!(await getProblemRankingExistence(problemId))) {
@@ -153,20 +168,44 @@ const getSelfProblemRanking = async (problemId: number, record: number) => {
    }
 
    const redis = useRedis();
-   const rankKey = `problem:${problemId}:rankings`;
+   const rankKey = problemRankingsKey(problemId);
+   const recordKey = record.toString();
 
-   const [rank, total] = await Promise.all([
-      redis.zrevrank(rankKey, record.toString()),
+   const [rank, total, rawMemberScore, topEntry] = await Promise.all([
+      redis.zrevrank(rankKey, recordKey),
       redis.zcard(rankKey),
+      redis.zscore(rankKey, recordKey),
+      redis.zrevrange(rankKey, 0, 0, 'WITHSCORES'),
    ]);
    if (rank === null) {
       return { rank: -1, total, aheadRate: 0 };
    }
 
+   // Redis 成员分 = 规范化得分 + (<1 的时间戳修正)，取整即判题分
+   const myScore = normalizeJudgeScore(
+      Math.floor(Number(rawMemberScore ?? 0)),
+   );
+   const maxScore =
+      topEntry.length >= 2
+         ? normalizeJudgeScore(Math.floor(Number(topEntry[1])))
+         : myScore;
+
+   let aheadRate: number;
+   if (total <= 1) {
+      aheadRate = 1;
+   } else if (myScore >= maxScore) {
+      // 全员满分等同分第一档：不应因时间戳 tie-break 把末位算成 0%
+      aheadRate = 1;
+   } else {
+      const upperBound = myScore > 0 ? myScore - 1e-6 : -1e-6;
+      const lowerCount = await redis.zcount(rankKey, 0, upperBound);
+      aheadRate = lowerCount / total;
+   }
+
    return {
       rank: rank + 1,
       total,
-      aheadRate: total <= 1 ? 1 : (total - rank - 1) / total,
+      aheadRate,
    };
 };
 
@@ -544,7 +583,7 @@ const getGlobalRankingIntervals = async (
 const invalidateRankings = async () => {
    const redis = useRedis();
    const keys = ['global:rankings', 'global:rankings:with-userinfo'];
-   for (const pattern of ['global:rankings-result:*', 'problem:*:rankings']) {
+   for (const pattern of ['global:rankings-result:*', 'problem:*:rankings*']) {
       let cursor = '0';
       do {
          const [next, found] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 500);
