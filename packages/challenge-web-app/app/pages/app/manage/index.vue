@@ -2,6 +2,7 @@
 import {
    Box,
    Code,
+   FileText,
    GoldMedalTwo,
    Help,
    History,
@@ -29,6 +30,13 @@ const options: ProcessOption[] = [
       url: '/app/publish/problem/mine',
       icon: TableReport,
       iconColor: '#C1EF3F',
+   },
+   {
+      title: '学习内容管理',
+      description: '管理学习文章、专题及其发布状态',
+      url: '/app/manage/learning',
+      icon: FileText,
+      iconColor: '#34D399',
    },
    {
       title: '成就管理',

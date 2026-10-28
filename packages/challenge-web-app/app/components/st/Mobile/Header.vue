@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { HamburgerButton, Remind, Search } from '@icon-park/vue-next';
+import { BookOpen, HamburgerButton, Remind, Search } from '@icon-park/vue-next';
 import Logo from '~/components/icon/Logo.vue';
 
 const emit = defineEmits<{
@@ -17,6 +17,12 @@ const { unreadCount } = useUnreadNotifications();
          <Logo class="scale-75 origin-left" />
       </NuxtLink>
       <StSpace gap="0.5rem" align="center">
+         <NuxtLink
+            to="/app/learning"
+            aria-label="学习"
+            class="size-10 relative flex items-center justify-center rounded-full text-white active:bg-accent-500 transition-colors">
+            <BookOpen class="text-[1.375rem]" />
+         </NuxtLink>
          <NuxtLink
             to="/app/notifications"
             aria-label="通知"

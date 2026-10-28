@@ -1008,7 +1008,7 @@ const searchProcedure = protectedAdminProcedure
             status: 'published',
             ...(input.keyword ? { title: { contains: input.keyword } } : {}),
          },
-         select: { pid: true, title: true, difficulty: true },
+         select: { pid: true, baseId: true, title: true, difficulty: true },
          orderBy: { pid: 'desc' },
          take: input.limit,
       });

@@ -1,10 +1,13 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-function readIdFile(): Record<string, number> {
+function readIdFile(): Record<string, string | number> {
    const file = path.resolve(import.meta.dirname, '../.e2e-ids.json');
    try {
-      return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<string, number>;
+      return JSON.parse(fs.readFileSync(file, 'utf-8')) as Record<
+         string,
+         string | number
+      >;
    } catch {
       return {};
    }
@@ -18,4 +21,10 @@ export const E2E_ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'e2e-admin-p
 export const E2E_PROBLEM_PID = Number(process.env.E2E_PROBLEM_PID ?? ids.problemPid ?? 1);
 export const E2E_ACHIEVEMENT_ID = Number(
    process.env.E2E_ACHIEVEMENT_ID ?? ids.achievementId ?? 1,
+);
+export const E2E_LEARNING_TOPIC_ID = String(
+   process.env.E2E_LEARNING_TOPIC_ID ?? ids.learningTopicId ?? '',
+);
+export const E2E_LEARNING_ARTICLE_ID = String(
+   process.env.E2E_LEARNING_ARTICLE_ID ?? ids.learningArticleId ?? '',
 );

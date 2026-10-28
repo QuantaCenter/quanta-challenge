@@ -169,10 +169,14 @@ async function ensureTags(adminId: string) {
 async function ensureProblems(adminId: string) {
    const tagNames = await prisma.tags.findMany({ where: { name: { in: TAGS } } });
    let firstPid = 0;
+   let firstBaseId = 0;
    for (const [i, p] of PROBLEMS.entries()) {
       const existing = await prisma.problems.findFirst({ where: { title: p.title } });
       if (existing) {
-         if (!firstPid) firstPid = existing.pid;
+         if (!firstPid) {
+            firstPid = existing.pid;
+            firstBaseId = existing.baseId;
+         }
          continue;
       }
       // Problems.baseId 外键指向 BaseProblems：先建基础题记录，再把版本题挂上去
@@ -199,10 +203,76 @@ async function ensureProblems(adminId: string) {
          where: { id: base.id },
          data: { currentPid: created.pid },
       });
-      if (!firstPid) firstPid = created.pid;
+      if (!firstPid) {
+         firstPid = created.pid;
+         firstBaseId = base.id;
+      }
    }
    console.log(`✅ 已发布题目就绪（首个 pid=${firstPid}）`);
-   return firstPid;
+   return { problemPid: firstPid, problemBaseId: firstBaseId };
+}
+
+async function ensureLearning(adminId: string, problemBaseId: number) {
+   let article = await prisma.learningArticle.findFirst({
+      where: { title: 'E2E - HTML 入门文章' },
+   });
+   if (!article) {
+      article = await prisma.learningArticle.create({
+         data: {
+            authorId: adminId,
+            title: 'E2E - HTML 入门文章',
+            summary: '用于验证阅读、练习与实时 Playground 的学习文章。',
+            source: `# HTML 入门
+
+阅读正文后完成练习，并修改下面的示例。
+
+<Problem baseId={${problemBaseId}} />
+
+<Playground id="11111111-1111-4111-8111-111111111111" />`,
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+            problems: {
+               create: { baseId: problemBaseId, sort: 0 },
+            },
+            playgrounds: {
+               create: {
+                  id: '11111111-1111-4111-8111-111111111111',
+                  title: '修改问候语',
+                  html: '<h1>Hello, Quanta!</h1>',
+                  css: 'h1 { color: rebeccapurple; }',
+                  js: 'document.querySelector(\"h1\").addEventListener(\"click\", e => e.target.textContent = \"你好！\")',
+               },
+            },
+         },
+      });
+   }
+
+   let topic = await prisma.learningTopic.findFirst({
+      where: { title: 'E2E - 前端基础专题' },
+   });
+   if (!topic) {
+      topic = await prisma.learningTopic.create({
+         data: {
+            authorId: adminId,
+            title: 'E2E - 前端基础专题',
+            description: '用于端到端测试的学习专题。',
+            status: 'PUBLISHED',
+            publishedAt: new Date(),
+            articles: {
+               create: { articleId: article.id, sort: 0 },
+            },
+         },
+      });
+   }
+
+   await prisma.learningArticleRead.deleteMany({
+      where: { userId: adminId, articleId: article.id },
+   });
+   await prisma.learningTopicVisit.deleteMany({
+      where: { userId: adminId, topicId: topic.id },
+   });
+   console.log('✅ 学习专题、文章与 Playground 就绪');
+   return { learningTopicId: topic.id, learningArticleId: article.id };
 }
 
 async function ensureAchievements(adminId: string) {
@@ -303,7 +373,8 @@ async function main() {
    const admin = await ensureAdmin();
    const users = await ensureNormalUsers();
    await ensureTags(admin.id);
-   const problemPid = await ensureProblems(admin.id);
+   const { problemPid, problemBaseId } = await ensureProblems(admin.id);
+   const learningIds = await ensureLearning(admin.id, problemBaseId);
    const achievementId = await ensureAchievements(admin.id);
    await ensureNotifications(admin.id);
    await ensureJudgeRecords(admin.id, problemPid);
@@ -311,7 +382,7 @@ async function main() {
 
    fs.writeFileSync(
       path.resolve(import.meta.dirname, '../.e2e-ids.json'),
-      JSON.stringify({ problemPid, achievementId }, null, 2),
+      JSON.stringify({ problemPid, achievementId, ...learningIds }, null, 2),
    );
    console.log('✅ 动态 id 已写入 .e2e-ids.json');
 }

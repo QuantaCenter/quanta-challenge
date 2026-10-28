@@ -46,6 +46,10 @@ model User {
   notifications             Notification[]
   appeals                   Appeal[]
   scorePenalties            ScorePenalty[]
+  authoredArticles          LearningArticle[]           @relation("LearningArticleAuthor")
+  authoredTopics            LearningTopic[]             @relation("LearningTopicAuthor")
+  articleReads              LearningArticleRead[]
+  topicVisits               LearningTopicVisit[]
 
   @@map("users")
 }
@@ -150,6 +154,7 @@ model Image {
   Problem             Problems[]
   Achievement         Achievement[]
   UserInfo            UserInfo[]
+  LearningArticle     LearningArticle[]
 
   @@map("images")
 }
@@ -206,38 +211,40 @@ model BaseProblems {
   ProblemVersions           Problems[]                  @relation("ProblemVersions")
   ProblemVersionTransitions ProblemVersionTransitions[]
   DailyProblem              DailyProblem[]
+  LearningArticleProblem    LearningArticleProblem[]
+  LearningTopicProblem      LearningTopicProblem[]
 
   @@map("base_problems")
 }
 
 // 问题版本表
 model Problems {
-  pid             Int        @id @default(autoincrement())
-  baseId          Int
-  title           String
-  detail          String
-  isDeprecated    Boolean    @default(false)
-  difficulty      Difficulty
-  totalScore      Int
-  status          Status
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  coverImageId    String?
-  bootCommand     String?
-  initCommand     String?
-  buildCommand    String?
-  judgeUploadPath String
-  enableCloudFunction Boolean @default(false)
-  problemType     ProblemType @default(frontend)
+  pid                 Int         @id @default(autoincrement())
+  baseId              Int
+  title               String
+  detail              String
+  isDeprecated        Boolean     @default(false)
+  difficulty          Difficulty
+  totalScore          Int
+  status              Status
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  coverImageId        String?
+  bootCommand         String?
+  initCommand         String?
+  buildCommand        String?
+  judgeUploadPath     String
+  enableCloudFunction Boolean     @default(false)
+  problemType         ProblemType @default(frontend)
   // 后端题判题容器的初始镜像（注册表 id）
-  serviceImage    String?
-  servicePort     Int        @default(3000)
+  serviceImage        String?
+  servicePort         Int         @default(3000)
   // 做题页挂载的快照镜像，不参与判题
-  snapshotImageId String?
-  taskStartAt        DateTime?
-  taskEndAt          DateTime?
-  scheduledPublishAt DateTime?
-  tags            Tags[]
+  snapshotImageId     String?
+  taskStartAt         DateTime?
+  taskEndAt           DateTime?
+  scheduledPublishAt  DateTime?
+  tags                Tags[]
 
   AuditRecord                 AuditRecords[]
   StatusTransitions           StatusTransitions[]
@@ -307,6 +314,150 @@ enum Status {
   invalid
   ready
   published
+}
+
+enum LearningPublishStatus {
+  DRAFT
+  PUBLISHED
+}
+
+/// 独立文章。正文 source 是 Markdown 与受控学习指令的唯一真源。
+model LearningArticle {
+  id           String                @id @default(uuid())
+  authorId     String
+  title        String
+  summary      String                @default("")
+  source       String                @default("")
+  status       LearningPublishStatus @default(DRAFT)
+  coverImageId String?
+  publishedAt  DateTime?
+  createdAt    DateTime              @default(now())
+  updatedAt    DateTime              @updatedAt
+
+  author      User                     @relation("LearningArticleAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  coverImage  Image?                   @relation(fields: [coverImageId], references: [id], onDelete: SetNull)
+  topics      LearningTopicArticle[]
+  problems    LearningArticleProblem[]
+  playgrounds LearningPlayground[]
+  reads       LearningArticleRead[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@map("learning_articles")
+}
+
+/// 专题是文章与直接练习题的有序集合。
+model LearningTopic {
+  id          String                @id @default(uuid())
+  authorId    String
+  title       String
+  description String                @default("")
+  status      LearningPublishStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  author   User                   @relation("LearningTopicAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  articles LearningTopicArticle[]
+  problems LearningTopicProblem[]
+  visits   LearningTopicVisit[]
+
+  @@index([status, publishedAt])
+  @@index([authorId])
+  @@map("learning_topics")
+}
+
+model LearningTopicArticle {
+  id        String @id @default(cuid())
+  topicId   String
+  articleId String
+  sort      Int
+
+  topic   LearningTopic   @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  article LearningArticle @relation(fields: [articleId], references: [id], onDelete: Restrict)
+
+  @@unique([topicId, articleId])
+  @@index([topicId, sort])
+  @@index([articleId])
+  @@map("learning_topic_articles")
+}
+
+model LearningTopicProblem {
+  id      String @id @default(cuid())
+  topicId String
+  baseId  Int
+  sort    Int
+
+  topic       LearningTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  baseProblem BaseProblems  @relation(fields: [baseId], references: [id], onDelete: Restrict)
+
+  @@unique([topicId, baseId])
+  @@index([topicId, sort])
+  @@index([baseId])
+  @@map("learning_topic_problems")
+}
+
+/// 从文章 source 的 <Problem baseId={...} /> 指令同步得到。
+model LearningArticleProblem {
+  id        String @id @default(cuid())
+  articleId String
+  baseId    Int
+  sort      Int
+
+  article     LearningArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  baseProblem BaseProblems    @relation(fields: [baseId], references: [id], onDelete: Restrict)
+
+  @@unique([articleId, baseId])
+  @@index([articleId, sort])
+  @@index([baseId])
+  @@map("learning_article_problems")
+}
+
+/// 文章中的轻量 HTML/CSS/JS 实验场，source 通过 id 指令确定展示位置。
+model LearningPlayground {
+  id        String   @id @default(uuid())
+  articleId String
+  title     String   @default("动手试一试")
+  html      String   @default("")
+  css       String   @default("")
+  js        String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  article LearningArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@map("learning_playgrounds")
+}
+
+/// 用户滚动到文末并明确确认后的阅读事实。
+model LearningArticleRead {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  readAt    DateTime @default(now())
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article LearningArticle @relation(fields: [articleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, articleId])
+  @@index([userId, readAt])
+  @@map("learning_article_reads")
+}
+
+/// Dashboard 最近学习只记录专题访问；同一专题重复访问更新时间。
+model LearningTopicVisit {
+  id        String   @id @default(cuid())
+  userId    String
+  topicId   String
+  visitedAt DateTime @default(now())
+
+  user  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic LearningTopic @relation(fields: [topicId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, topicId])
+  @@index([userId, visitedAt])
+  @@map("learning_topic_visits")
 }
 
 // 审核记录表

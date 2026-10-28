@@ -5,6 +5,7 @@ import type { FormItemStatus } from '../Form/type';
 
 interface IProblemPickerProblem {
    pid: number;
+   baseId: number;
    title: string;
    difficulty: string;
 }
@@ -33,12 +34,20 @@ const props = withDefaults(
       multiple?: boolean;
       max?: number;
       limit?: number;
+      /** 模型存题目版本 pid，或稳定题号 baseId */
+      valueKey?: 'pid' | 'baseId';
    }>(),
-   { multiple: true, limit: 8 },
+   { multiple: true, limit: 8, valueKey: 'pid' },
 );
 
-/** 选中题目的 pid（problems.pid） */
+const emit = defineEmits<{
+   select: [problem: IProblemPickerProblem];
+}>();
+
+/** 选中题目的 pid 或 baseId，由 valueKey 决定 */
 const value = defineModel<number[]>('value', { default: () => [] });
+const problemValue = (problem: IProblemPickerProblem) =>
+   problem[props.valueKey];
 
 const borderClass = computed(() =>
    props.status === 'error'
@@ -63,6 +72,7 @@ const selectedProblems = computed(() =>
       (pid) =>
          selectedInfo.get(pid) ?? {
             pid,
+            baseId: pid,
             title: `#${pid}`,
             difficulty: '',
          },
@@ -74,7 +84,7 @@ const reachedMax = computed(
 );
 
 const visibleResults = computed(() =>
-   results.value.filter((problem) => !value.value.includes(problem.pid)),
+   results.value.filter((problem) => !value.value.includes(problemValue(problem))),
 );
 
 let requestSeq = 0;
@@ -115,10 +125,12 @@ onClickOutside(rootRef, () => {
 });
 
 const pick = (problem: IProblemPickerProblem) => {
-   selectedInfo.set(problem.pid, problem);
+   const selectedValue = problemValue(problem);
+   selectedInfo.set(selectedValue, problem);
    value.value = props.multiple
-      ? [...value.value, problem.pid]
-      : [problem.pid];
+      ? [...value.value, selectedValue]
+      : [selectedValue];
+   emit('select', problem);
    keyword.value = '';
    if (!props.multiple) opened.value = false;
    inputRef.value?.focus();
@@ -175,9 +187,9 @@ const showDropdown = computed(
          @click="inputRef?.focus()">
          <span
             v-for="problem in selectedProblems"
-            :key="problem.pid"
+            :key="problemValue(problem)"
             class="flex items-center gap-1.5 h-6 pl-1 pr-1 rounded-md bg-accent-600 border border-accent-500 text-accent-100 st-font-caption leading-none">
-            <span class="text-accent-400">#{{ problem.pid }}</span>
+            <span class="text-accent-400">#{{ problemValue(problem) }}</span>
             <span class="max-w-[12rem] truncate">
                {{ problem.title }}
             </span>
@@ -186,7 +198,7 @@ const showDropdown = computed(
                :aria-label="`移除 ${problem.title}`"
                :disabled="disabled"
                class="flex items-center justify-center size-4 rounded hover:bg-accent-500 hover:text-error transition-colors cursor-pointer"
-               @click.stop="remove(problem.pid)">
+               @click.stop="remove(problemValue(problem))">
                <Close size="0.75rem" />
             </button>
          </span>
@@ -229,7 +241,7 @@ const showDropdown = computed(
             </li>
             <li
                v-for="(problem, index) in visibleResults"
-               :key="problem.pid"
+               :key="problemValue(problem)"
                role="option"
                :aria-selected="index === activeIndex"
                class="flex items-center gap-3 px-3 py-2 rounded-md cursor-pointer transition-colors"
@@ -238,7 +250,7 @@ const showDropdown = computed(
                @mousedown.prevent="pick(problem)">
                <span
                   class="st-font-caption px-1.5 py-0.5 rounded border border-accent-500 text-accent-400 shrink-0">
-                  #{{ problem.pid }}
+                  #{{ problemValue(problem) }}
                </span>
                <div class="min-w-0 flex-1">
                   <div class="st-font-body-normal text-white truncate">

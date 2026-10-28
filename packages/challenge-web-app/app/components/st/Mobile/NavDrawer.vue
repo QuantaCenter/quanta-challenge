@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+   BookOpen,
    CategoryManagement,
    Close,
    DashboardTwo,
@@ -151,6 +152,13 @@ const teleported = useClientTeleport();
                         :class="{ 'bg-accent-600 text-white': isActive('/app/problems') }">
                         <TableReport />
                         <span>题目</span>
+                     </NuxtLink>
+                     <NuxtLink
+                        to="/app/learning"
+                        class="st-mobile-drawer-item"
+                        :class="{ 'bg-accent-600 text-white': isActive('/app/learning') }">
+                        <BookOpen />
+                        <span>学习</span>
                      </NuxtLink>
                      <NuxtLink
                         v-if="role !== 'USER'"

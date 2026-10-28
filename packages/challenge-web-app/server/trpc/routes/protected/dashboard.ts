@@ -3,6 +3,7 @@ import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import { rankService } from '../../services/rank';
 import { problemStatService } from '../../services/problem-stat';
+import { getTopicLearningProgress } from '../../services/learning';
 
 const getRecentSubmissions = protectedProcedure.query(async ({ ctx }) => {
    const { userId } = ctx.user;
@@ -68,7 +69,34 @@ const getSubmissionStatus = protectedProcedure.query(async ({ ctx }) => {
    return statusCount;
 });
 
+const getRecentLearning = protectedProcedure.query(async ({ ctx }) => {
+   const visits = await prisma.learningTopicVisit.findMany({
+      where: {
+         userId: ctx.user.userId,
+         topic: { status: 'PUBLISHED' },
+      },
+      orderBy: { visitedAt: 'desc' },
+      take: 5,
+      select: {
+         topicId: true,
+         topic: { select: { title: true } },
+      },
+   });
+   const progress = await Promise.all(
+      visits.map((visit) =>
+         getTopicLearningProgress(ctx.user.userId, visit.topicId),
+      ),
+   );
+   return visits.map((visit, index) => ({
+      topicId: visit.topicId,
+      title: visit.topic.title,
+      percent: progress[index]?.percent ?? 0,
+      completed: progress[index]?.completed ?? false,
+   }));
+});
+
 export const dashboardRouter = router({
    getRecentSubmissions,
    getSubmissionStatus,
+   getRecentLearning,
 });

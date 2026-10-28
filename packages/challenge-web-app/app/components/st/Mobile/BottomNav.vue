@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+   BookOpen,
    DashboardTwo,
    Ranking,
    TableReport,
@@ -13,6 +14,7 @@ const items = [
    { to: '/app/dashboard', label: '仪表盘', icon: DashboardTwo },
    { to: '/app/rankings', label: '排行榜', icon: Ranking },
    { to: '/app/problems', label: '题目', icon: TableReport },
+   { to: '/app/learning', label: '学习', icon: BookOpen },
    { to: '/app/achievements', label: '成就', icon: Trophy },
    { to: '/app/space', label: '我的', icon: User },
 ];

@@ -12,6 +12,7 @@ import { E2E_ACHIEVEMENT_ID } from '../helpers/env';
 const USER_PAGES = [
    '/app/dashboard',
    '/app/problems',
+   '/app/learning',
    '/app/rankings',
    '/app/achievements',
    '/app/space',
@@ -33,6 +34,7 @@ const MANAGE_PAGES = [
    '/app/manage/image',
    '/app/manage/cloud-function',
    '/app/manage/scheduled-task',
+   '/app/manage/learning',
 ];
 
 /** 发布端页面 */
@@ -45,6 +47,8 @@ const PUBLISH_PAGES = [
    '/app/publish/create-tag',
    '/app/publish/cloud-function',
    '/app/publish/scheduled-task',
+   '/app/publish/article/new',
+   '/app/publish/topic/new',
 ];
 
 const ALL_PAGES = [...USER_PAGES, ...MANAGE_PAGES, ...PUBLISH_PAGES];

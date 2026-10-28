@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+   BookOpen,
    User,
    CategoryManagement,
    DashboardTwo,
@@ -43,6 +44,11 @@ const role = computed(() => authStore.user?.role ?? 'USER');
             <StSidebarSidePopper content="题目">
                <StSidebarNavigationButton to="/app/problems">
                   <TableReport />
+               </StSidebarNavigationButton>
+            </StSidebarSidePopper>
+            <StSidebarSidePopper content="学习">
+               <StSidebarNavigationButton to="/app/learning">
+                  <BookOpen />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
             <StSidebarSidePopper v-if="role !== 'USER'" content="发布">

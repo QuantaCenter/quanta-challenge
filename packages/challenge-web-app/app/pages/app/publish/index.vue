@@ -2,10 +2,12 @@
 import {
    Box,
    Code,
+   FileText,
    GoldMedalTwo,
    TableReport,
    Tag,
    Timer,
+   Topic,
    VolumeNotice,
 } from '@icon-park/vue-next';
 
@@ -18,6 +20,20 @@ const options = [
       url: '/app/publish/problem',
       icon: TableReport,
       iconColor: '#C1EF3F',
+   },
+   {
+      title: '创建学习文章',
+      description: '编写 Markdown 教程，插入题目与可实时预览的 Playground',
+      url: '/app/publish/article/new',
+      icon: FileText,
+      iconColor: '#38BDF8',
+   },
+   {
+      title: '创建学习专题',
+      description: '将学习文章与题目混排组织为专题',
+      url: '/app/publish/topic/new',
+      icon: Topic,
+      iconColor: '#34D399',
    },
    {
       title: '构建快照镜像',

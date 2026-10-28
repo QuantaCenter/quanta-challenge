@@ -4,6 +4,7 @@ import { appealAdminRouter } from './appeal';
 import { cloudFunctionAdminRouter } from './cloud-function';
 import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
+import { learningAdminRouter } from './learning';
 import { notificationAdminRouter } from './notification';
 import { problemRouter } from './problem';
 import { scheduledTaskAdminRouter } from './scheduled-task';
@@ -16,6 +17,7 @@ export const adminRouter = router({
   submission: submissionRouter,
    tag: tagRouter,
    image: imageRouter,
+   learning: learningAdminRouter,
    imageBuild: imageBuildRouter,
    achievement: achievementRouter,
    user: userRouter,
