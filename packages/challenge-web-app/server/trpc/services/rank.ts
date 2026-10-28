@@ -48,7 +48,13 @@ const problemRankingRecordWhereByBase = (baseId: number) => ({
    problem: { baseId },
 });
 
-/** 超越率以数据库为准；统计范围与提交列表一致（同一 base 题下各版本） */
+/**
+ * 超越率以数据库为准；统计范围与提交列表一致（同一 base 题下各版本）。
+ *
+ * 对照组恒为普通用户的提交。管理员不进正式榜（`loadProblemRankings` /
+ * `pushToProblemRankings` 都会把他们滤掉），但查自己的记录时不能因此落到
+ * 「查不到 → 0%」：把自己这一条并入分母，于是管理员看到的是自己相对普通用户的位置。
+ */
 const computeProblemAheadRate = async (
    recordId: number,
 ): Promise<{ aheadRate: number; total: number } | null> => {
@@ -57,10 +63,10 @@ const computeProblemAheadRate = async (
          id: recordId,
          type: 'judge',
          result: { not: 'pending' },
-         user: { role: RANKED_ROLE },
       },
       select: {
          score: true,
+         user: { select: { role: true } },
          problem: { select: { baseId: true } },
       },
    });
@@ -71,7 +77,9 @@ const computeProblemAheadRate = async (
       where: problemRankingRecordWhereByBase(myRecord.problem.baseId),
       select: { score: true },
    });
-   const total = peers.length;
+   // 普通用户自己已在 peers 里；不入榜的角色要额外把自己算进分母
+   const total =
+      myRecord.user.role === RANKED_ROLE ? peers.length : peers.length + 1;
    if (total <= 1) {
       return { aheadRate: 1, total };
    }
@@ -253,9 +261,9 @@ const getProblemRankingIntervals = async (problemId: number, n: number) => {
 /**
  * 获取记录在某题目中的排名
  * @returns
- * - rank: 排名（1-based，同分按提交时间先后，仅作次序展示）
- * - total: 总记录数
- * - aheadRate: 超越率（0~1）：严格低于本条得分的提交占比；与当前最高分同档视为 100%
+ * - rank: 正式榜名次（1-based，同分按提交时间先后）；不入榜的角色为 -1
+ * - total: 对照组提交数
+ * - aheadRate: 超越率（0~1）：严格低于本条得分的提交占比；与对照组最高分同档视为 100%
  */
 const getSelfProblemRanking = async (problemId: number, record: number) => {
    if (!(await getProblemRankingExistence(problemId))) {
