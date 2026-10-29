@@ -64,8 +64,13 @@ export default defineEventHandler(async (event) => {
    const store = getRequestContext();
    if (store) store.userId = String(userId);
 
-   if (result === 'success') {
-      await rankService.pushToProblemRankings(problem.pid, recordId, score, userId);
+   if (type === 'judge') {
+      await rankService.pushToProblemRankings(
+         problem.pid,
+         recordId,
+         score,
+         userId,
+      );
    }
 
    const { score: totalScore } = await rankService.recalculateUserStatistics(userId);

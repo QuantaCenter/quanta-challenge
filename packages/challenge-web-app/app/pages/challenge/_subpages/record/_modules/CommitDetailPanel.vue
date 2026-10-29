@@ -28,7 +28,6 @@ const { $trpc } = useNuxtApp();
 const detail = ref<CommitDetailType | null>(null);
 const lastRecordId = ref<number | null>(null);
 const recordCache = new Map<number, CommitDetailType>();
-const aheadCache = new Map<number, string>();
 const recordId = ref<number | null>(props.initialRecordId ?? null);
 
 watch(
@@ -46,7 +45,6 @@ const commitEmitter = useEventBus<number>('challenge-commit');
 commitEmitter.on((id) => {
    // 提交后清空缓存
    recordCache.clear();
-   aheadCache.clear();
    // 重新获取详情和排名
    recordId.value = id;
    getDetail();
@@ -78,6 +76,9 @@ const getDetail = async () => {
 
    if (recordCache.has(recordId.value)) {
       detail.value = recordCache.get(recordId.value)!;
+      if (detail.value.result !== 'pending') {
+         getRank();
+      }
       return;
    }
 
@@ -93,6 +94,7 @@ const getDetail = async () => {
 
    if (detail.value && detail.value.result !== 'pending') {
       recordCache.set(recordId.value, detail.value);
+      getRank();
    } else if (detail.value?.result === 'pending') {
       // 轮询结果
       let waitTime = 1000;
@@ -118,8 +120,13 @@ const rank = ref<IRank[]>([]);
 const ahead = ref('--%');
 const getRank = async () => {
    if (props.passive) return;
-   if (recordId.value === null || detail.value?.result !== 'success') {
+   if (
+      recordId.value === null ||
+      !detail.value ||
+      detail.value.result === 'pending'
+   ) {
       rank.value = [];
+      ahead.value = '--%';
       return;
    }
 
@@ -127,16 +134,10 @@ const getRank = async () => {
       problemId: props.problemId,
    });
 
-   const getAhead = aheadCache.get(recordId.value)
-      ? Promise.resolve(aheadCache.get(recordId.value)!)
-      : $trpc.protected.rank.getMyRankInProblem
-           .query({ recordId: recordId.value })
-           .then(({ aheadRate }) => {
-              const res = (aheadRate * 100).toFixed(2) + '%';
-              aheadCache.set(recordId.value!, res);
-              return res;
-           })
-           .catch(() => '--%');
+   const getAhead = $trpc.protected.rank.getMyRankInProblem
+      .query({ recordId: recordId.value })
+      .then(({ aheadRate }) => (aheadRate * 100).toFixed(2) + '%')
+      .catch(() => '--%');
 
    [rank.value, ahead.value] = await Promise.all([getRank, getAhead]);
 };
@@ -151,12 +152,26 @@ onMounted(() => {
 });
 
 const showChart = computed(() => {
-   return detail.value?.result === 'success' && detail.value.score !== null;
+   const result = detail.value?.result;
+   return result === 'success' || result === 'failed';
+});
+
+/** 分布图定位用得分：非法值按 0 处理 */
+const chartScore = computed(() => {
+   const score = detail.value?.score;
+   if (typeof score === 'number' && Number.isFinite(score)) return score;
+   const n = Number(score);
+   return Number.isFinite(n) ? n : 0;
 });
 
 const formattedDate = computed(() => {
    if (!detail.value) return '';
    return dayjs(detail.value.createdAt).format('YYYY/MM/DD HH:mm:ss');
+});
+
+const avatarUrl = computed(() => {
+   const name = detail.value?.user.avatar?.name;
+   return name ? `/api/static/${name}` : undefined;
 });
 
 const judgeResult = computed<any>(() => {
@@ -241,7 +256,7 @@ const StatusIcon = () => {
                   direction="vertical"
                   gap="1.5rem">
                   <StSpace fill-x gap="0.75rem" align="center">
-                     <StAvatar size="2rem" />
+                     <StAvatar size="2rem" :url="avatarUrl" />
                      <div>
                         <span class="st-font-body-bold">
                            {{ detail?.user.name }}
@@ -284,11 +299,11 @@ const StatusIcon = () => {
                         <span class="font-family-manrope text-primary">
                            {{ ahead }}
                         </span>
-                        的提交者
+                        的提交
                      </h2>
                      <StRankingChart
                         :rank="rank"
-                        :current-score="detail?.score" />
+                        :current-score="chartScore" />
                   </StSpace>
                   <Divider v-if="showChart" />
                   <StSpace fill-x direction="vertical" gap="1rem" class="st-selectable">

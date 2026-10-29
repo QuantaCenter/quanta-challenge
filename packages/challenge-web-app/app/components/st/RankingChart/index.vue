@@ -33,7 +33,8 @@ const currentIntervalIdx = computed(() => {
 });
 
 const maxCount = computed(() => {
-   return Math.max(...props.rank.map((item) => item.count));
+   if (!props.rank.length) return 1;
+   return Math.max(1, ...props.rank.map((item) => item.count));
 });
 
 const xAxisLabels = computed(() => {
