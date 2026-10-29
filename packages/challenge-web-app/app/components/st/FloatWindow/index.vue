@@ -70,7 +70,7 @@ const teleported = useClientTeleport();
                   <div
                      ref="resizableHandle"
                      style="touch-action: none"
-                     class="cursor-se-resize absolute right-0 bottom-0 border-r-2 border-b-2 border-secondary size-4 hover:size-5 rounded-br-xl hover:border-r-4 hover:border-b-4 hover:translate-0.5 transition-all"></div>
+                     class="cursor-se-resize absolute right-0 bottom-0 z-10 border-r-2 border-b-2 border-secondary size-4 hover:size-5 rounded-br-xl hover:border-r-4 hover:border-b-4 hover:translate-0.5 transition-all"></div>
                </StSpace>
             </Transition>
          </StSpace>

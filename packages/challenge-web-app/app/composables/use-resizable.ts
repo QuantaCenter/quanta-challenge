@@ -17,26 +17,6 @@ export const useResizable = (
    const minHeight = ref(options?.minHeight ?? 0);
    const isResizing = ref(false);
 
-   onMounted(() => {
-      const handler = unref(el);
-      if (!handler) return;
-
-      handler.addEventListener('pointerdown', onStartResize);
-      document.addEventListener('pointermove', onResizing);
-      document.addEventListener('pointerup', onStopResize);
-      document.addEventListener('pointercancel', onStopResize);
-   });
-
-   onUnmounted(() => {
-      const handler = unref(el);
-      if (!handler) return;
-
-      handler.removeEventListener('pointerdown', onStartResize);
-      document.removeEventListener('pointermove', onResizing);
-      document.removeEventListener('pointerup', onStopResize);
-      document.removeEventListener('pointercancel', onStopResize);
-   });
-
    const startPosition = { x: 0, y: 0 };
    const onStartResize = (event: PointerEvent) => {
       isResizing.value = true;
@@ -72,6 +52,28 @@ export const useResizable = (
       isResizing.value = false;
       event.preventDefault();
    };
+
+   // 手柄可能在 onMounted 之后才进 DOM（浮窗要等客户端 Teleport 打开才渲染）。
+   // 只在 onMounted 里绑一次会绑到空引用，之后手柄出现也不会再绑，表现为看得见但拖不动。
+   watch(
+      el,
+      (handler, _, onCleanup) => {
+         if (!handler) return;
+
+         handler.addEventListener('pointerdown', onStartResize);
+         document.addEventListener('pointermove', onResizing);
+         document.addEventListener('pointerup', onStopResize);
+         document.addEventListener('pointercancel', onStopResize);
+
+         onCleanup(() => {
+            handler.removeEventListener('pointerdown', onStartResize);
+            document.removeEventListener('pointermove', onResizing);
+            document.removeEventListener('pointerup', onStopResize);
+            document.removeEventListener('pointercancel', onStopResize);
+         });
+      },
+      { flush: 'post' },
+   );
 
    return { width, height, isResizing };
 };
