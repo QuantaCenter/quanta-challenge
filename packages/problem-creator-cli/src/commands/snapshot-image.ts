@@ -131,7 +131,13 @@ const renderImages = (
                  ? colors.green('●')
                  : colors.dim('○');
          const facts = [
-            ready ? undefined : colors.yellow(image.status === 'ready' ? '旧格式，需重建' : '构建中，不可选'),
+            ready
+               ? undefined
+               : colors.yellow(
+                    image.status === 'ready'
+                       ? '旧格式，需重建'
+                       : '构建中，不可选',
+                 ),
             (image.compressedSizeBytes ?? image.sizeBytes)
                ? formatBytes(image.compressedSizeBytes ?? image.sizeBytes ?? 0)
                : undefined,
@@ -158,7 +164,9 @@ const pickImage = async (
    images: SnapshotImage[],
    current: string | null | undefined,
 ): Promise<string | null> => {
-   const ready = images.filter((image) => image.status === 'ready' && image.formatVersion === 1);
+   const ready = images.filter(
+      (image) => image.status === 'ready' && image.formatVersion === 1,
+   );
    const choice = await select(
       '选择本题的快照镜像（方向键选择，回车确认）',
       [
@@ -218,7 +226,9 @@ const assertSelectable = (
       });
    }
    if (image.formatVersion !== 1) {
-      throw new UsageError(`快照镜像「${image.name}」仍是旧格式，需管理员使用 Vivari 重建`);
+      throw new UsageError(
+         `快照镜像「${image.name}」仍是旧格式，需管理员使用 Vivari 重建`,
+      );
    }
    return id;
 };
