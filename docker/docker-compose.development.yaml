@@ -2,6 +2,7 @@ name: quanta-challenge
 
 services:
   challenge-web-app:
+    image: quanta-challenge-web-app:vivari-dev
     build:
       context: ../
       dockerfile: packages/challenge-web-app/Dockerfile
@@ -17,6 +18,7 @@ services:
       - REDIS_HOST=redis
       # 使用 http：开发环境走本地 HTTP，写 https 会让 cookie 的 secure 属性与协议不符
       - APP_SERVER=http://localhost:3000
+      - NUXT_PUBLIC_VIVARI_PREVIEW_ORIGIN=${VIVARI_PREVIEW_ORIGIN:-http://localhost:3001}
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888
       # 从 docker/.env 读取，避免把管理员口令写进版本库（可用 SUPER_ADMIN_PASSWORD 等覆盖）
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:-stillsoda}
@@ -49,6 +51,19 @@ services:
     volumes:
       - qtc_app_storage:/app/packages/challenge-web-app/local_store # Persist local storage
       - /app/tmp:/app/tmp
+
+  vivari-preview:
+    image: quanta-challenge-web-app:vivari-dev
+    command: ["node", "scripts/serve-vivari-preview.mjs"]
+    working_dir: /app/packages/challenge-web-app
+    environment:
+      - PORT=3001
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - quanta-challenge-network
+    depends_on:
+      - challenge-web-app
 
   challenge-judge-scheduler:
     build:

@@ -6,7 +6,7 @@ import {
    setResponseStatus,
 } from 'h3';
 import { useStore } from '../../trpc/store';
-import { measureGunzipSize, requireImageBuildUser } from '../../services/image-build';
+import { inspectGunzipVivariImage, requireImageBuildUser } from '../../services/image-build';
 import prisma from '~~/lib/prisma';
 
 /**
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
 
    let sizeBytes: number;
    try {
-      sizeBytes = await measureGunzipSize(body, maxRawBytes);
+      sizeBytes = await inspectGunzipVivariImage(body, maxRawBytes);
    } catch (error) {
       if (error instanceof RangeError) {
          throw createError({
@@ -61,7 +61,7 @@ export default defineEventHandler(async (event) => {
             statusMessage: 'Decompressed image too large',
          });
       }
-      throw createError({ statusCode: 400, statusMessage: 'Invalid gzip payload' });
+      throw createError({ statusCode: 400, statusMessage: 'Invalid Vivari image payload' });
    }
    if (sizeBytes === 0) {
       throw createError({ statusCode: 400, statusMessage: 'Empty image' });
@@ -80,6 +80,7 @@ export default defineEventHandler(async (event) => {
          data: {
             status: 'ready',
             compression: 'gzip',
+            formatVersion: 1,
             fileId,
             fileName,
             sizeBytes,

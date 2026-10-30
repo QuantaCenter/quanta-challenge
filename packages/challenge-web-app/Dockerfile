@@ -77,7 +77,7 @@ WORKDIR /app/packages/challenge-web-app
 RUN pnpm exec nuxi prepare
 
 # 构建应用
-RUN pnpm build
+RUN pnpm build:large && pnpm build:vivari-preview
 
 # 生成 Prisma 客户端
 WORKDIR /app/packages/database

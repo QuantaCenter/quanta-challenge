@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import type { WebContainer, WebContainerProcess } from '~/utils/vivari-runtime';
 import type { IProgressStep } from '~/components/st/Progress/type';
 import { useTerminal } from '../../../_composables/use-terminal';
 import { useEventEmitter } from '~/composables/use-event-emitter';

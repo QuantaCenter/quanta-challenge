@@ -88,11 +88,11 @@ const actionClass =
          <span
             class="rounded-md px-2 py-0.5 st-font-caption"
             :class="
-               row.status === 'ready'
+               row.status === 'ready' && row.formatVersion === 1
                   ? 'bg-success/15 text-success'
                   : 'bg-accent-500 text-accent-300'
             ">
-            {{ row.status === 'ready' ? '可用' : '待上传' }}
+            {{ row.status === 'ready' ? (row.formatVersion === 1 ? '可用' : '需重建') : '待上传' }}
          </span>
       </template>
       <template #cell-size="{ row }">

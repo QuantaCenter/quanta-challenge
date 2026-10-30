@@ -2,7 +2,7 @@ import type {
    DirectoryNode,
    FileNode,
    FileSystemTree,
-} from '@webcontainer/api';
+} from '~/utils/vivari-runtime';
 import { normalizePath } from '~/utils/path-utils';
 
 const isFileNode = (node: any): node is FileNode => {

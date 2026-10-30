@@ -1,4 +1,4 @@
-import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import type { WebContainer, WebContainerProcess } from '~/utils/vivari-runtime';
 import type { CommandData } from '../../_subpages/editor/_components/RightClickMenuProvider.vue';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import type { DispatcherFsChange } from './file-system-dispatcher';

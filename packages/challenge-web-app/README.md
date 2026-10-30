@@ -4,7 +4,7 @@ Quanta Challenge 的用户端与管理端 Web 应用，基于 Nuxt 4（Vue 3 + N
 
 ## 主要功能
 
-- **在线编辑器**：Monaco Editor + WebContainer。前端题型在浏览器内实时预览（`challenge/_subpages/editor`），后端题型提供请求构造 / 响应查看 / 终端面板
+- **在线编辑器**：Monaco Editor + Vivari。前端题型在浏览器内实时预览（`challenge/_subpages/editor`），后端题型提供请求构造 / 响应查看 / 终端面板。独立预览域名与镜像重建见 `docs/VIVARI_MIGRATION.md`
 - **判题提交与记录**：代码快照提交到评测调度器，`server/api/webhooks` 接收判题完成回调，更新排行榜与通知
 - **用户体系**：账号密码 + WebAuthn（Passkey）认证，JWT access / refresh token（`server/api/refresh`）；同时承载 `qpc` 的 OAuth 2.0 设备授权页（`/auth/device`）
 - **题目 / 云函数 / 成就发布**：出题发布页、云函数源码编辑与 API Key 管理、成就依赖数据与校验脚本

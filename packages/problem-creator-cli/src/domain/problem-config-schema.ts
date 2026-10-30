@@ -79,7 +79,7 @@ export const problemConfigSchema = z.object({
       .array(z.number().int().positive())
       .min(1, 'tagIds 至少需要一个标签（用 `qpc tag` 查看可用 id）'),
    /**
-    * 做题页 WebContainer 挂载的快照镜像 id（`qpc snapshot-image` 查看）。
+    * 做题页 Vivari 挂载的快照镜像 id（`qpc snapshot-image` 查看）。
     * null = 明确不用；不写 = 新题不用，追加版本时沿用平台上当前版本的值。
     */
    snapshotImageId: z

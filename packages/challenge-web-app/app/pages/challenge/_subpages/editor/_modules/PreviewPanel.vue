@@ -23,6 +23,7 @@ import {
 
 const props = defineProps<{
    previewUrl?: string;
+   attachPreview: (frame: HTMLIFrameElement) => Promise<() => void>;
    /** 所有已就绪的服务，用于把地址栏里的 localhost:<port> 映射到对应预览域名 */
    servers?: IPreviewServer[];
    steps?: { idle: string; running: string }[];
@@ -192,6 +193,19 @@ const refresh = () => {
 };
 
 const inlineIframeRef = useTemplateRef<HTMLIFrameElement>('inline-iframe');
+const fullscreenIframeRef = useTemplateRef<HTMLIFrameElement>('fullscreen-iframe');
+for (const frameRef of [inlineIframeRef, fullscreenIframeRef]) {
+   watch(frameRef, (frame, _, onCleanup) => {
+      if (!frame) return;
+      let disposed = false;
+      let detach: (() => void) | undefined;
+      props.attachPreview(frame).then((off) => {
+         if (disposed) off();
+         else detach = off;
+      });
+      onCleanup(() => { disposed = true; detach?.(); });
+   }, { flush: 'post' });
+}
 const previewConsole = usePreviewConsole({
    getTarget: () => inlineIframeRef.value?.contentWindow,
 });
@@ -433,7 +447,7 @@ const teleported = useClientTeleport();
                   class="size-[3rem] rounded-full bg-accent-600 text-accent-200 opacity-50 absolute hover:opacity-80 transition-opacity cursor-pointer right-4 top-4 z-[10001]">
                   <OffScreen />
                </StSpace>
-               <iframe v-if="iframeSrc" :src="iframeSrc" class="size-full bg-white"></iframe>
+               <iframe v-if="iframeSrc" ref="fullscreen-iframe" :src="iframeSrc" class="size-full bg-white"></iframe>
             </div>
          </template>
       </Teleport>

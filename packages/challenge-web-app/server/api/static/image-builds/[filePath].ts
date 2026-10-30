@@ -30,7 +30,7 @@ export default defineEventHandler(async (event) => {
    }
 
    const build = await prisma.imageBuild.findFirst({
-      where: { fileName: decoded, status: 'ready' },
+      where: { fileName: decoded, status: 'ready', formatVersion: 1 },
       select: { fileId: true, compression: true },
    });
    if (!build?.fileId) {

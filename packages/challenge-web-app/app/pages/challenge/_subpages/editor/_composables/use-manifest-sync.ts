@@ -1,4 +1,4 @@
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 import type * as monaco from 'monaco-editor';
 
 const MANIFEST_NAMES = new Set([

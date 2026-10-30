@@ -21,7 +21,7 @@ export default defineProblemConfig({ /* 字段如下 */ });
 | `problemId` | 否 | `qpc upload --write` 写回的 pid；有它时上传会追加新版本 |
 | `cover` | 否 | `{ mode: 'default' }`（参考解首屏截图）或 `{ mode: 'custom', imageId, generate }` |
 | `runtime.judgeUploadPath` | 否 | 默认 `project`：快照键前缀与站点根 |
-| `runtime.initCommand` | 否 | 学生浏览器里（WebContainer）的启动命令；前端默认静态服务器，后端默认 `cd ./project && npm start` |
+| `runtime.initCommand` | 否 | 学生浏览器里（Vivari）的启动命令；前端默认静态服务器，后端默认 `cd ./project && npm start` |
 | `runtime.buildCommand` | 否 | 后端题建议 `node -e ""` |
 | `runtime.serviceImage` | 后端 | 目前只有 `node-24` |
 | `runtime.servicePort` | 后端 | 服务端口，默认 3000 |
@@ -43,7 +43,7 @@ export default defineProblemConfig({ /* 字段如下 */ });
 
 ## 注意
 
-- `initCommand` 跑在学生浏览器的 WebContainer 里，**本地和 `qpc check` 都测不到**。不要随手改；必须改时一次只改一个参数，并在真实浏览器里确认预览能起来。判题用的不是它，而是判题容器里的静态服务器 / `npm start`。
+- `initCommand` 跑在学生浏览器的 Vivari 里，**本地和 `qpc check` 都测不到**。不要随手改；必须改时一次只改一个参数，并在真实浏览器里确认预览能起来。判题用的不是它，而是判题容器里的静态服务器 / `npm start`。
 - 站点根必须等于 `judgeUploadPath`（RUN001），否则页面 404、判题一直等选择器直到超时。
 - 后端题的 `bootCommand` 由镜像决定，写了也会被覆盖（RUN002）。
 - 上传新版本后它自动成为**当前版本**，只有当前版本能发布。

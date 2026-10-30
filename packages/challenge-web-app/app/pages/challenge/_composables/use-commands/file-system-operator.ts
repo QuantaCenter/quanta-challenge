@@ -1,4 +1,4 @@
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import type { useMessage } from '~/components/st/Message/use-message';
 

@@ -19,7 +19,7 @@ Quanta Challenge 是一个在线编程挑战平台，支持前端与后端服务
 
 ### 功能
 
-- **在线代码编辑器**：基于 Monaco Editor，前端题型通过 WebContainer 在浏览器内实时预览
+- **在线代码编辑器**：基于 Monaco Editor，前端题型通过 Vivari 在浏览器内实时预览
 - **自动化评测**：前端题型由 Playwright 判题机执行视觉回归与功能检查；后端服务题型由 HTTP 判题机对用户服务发请求断言
 - **题目管理**：多版本题目、难度分级、标签分类；`qpc` CLI 覆盖出题到发布的完整流程
 - **用户系统**：账号认证、成就、排行榜、通知
@@ -69,7 +69,7 @@ flowchart LR
 |------|------|
 | [Nuxt 4](https://nuxt.com/) / Vue 3 | Web 应用框架 |
 | [Monaco Editor](https://microsoft.github.io/monaco-editor/) | 代码编辑器 |
-| [WebContainer](https://webcontainers.io/) | 浏览器内 Node.js 运行时（前端题型预览） |
+| [Vivari](https://github.com/maitrungduc1410/vivari) | 浏览器内 Node.js 运行时（前端预览与后端调试）；[部署和迁移说明](docs/VIVARI_MIGRATION.md) |
 | [Tailwind CSS](https://tailwindcss.com/) | CSS 框架 |
 | [tRPC](https://trpc.io/) | 端到端类型安全 API |
 | Pinia | 状态管理 |

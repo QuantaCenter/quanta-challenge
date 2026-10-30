@@ -2,7 +2,7 @@
 import { useTerminal } from '../../../_composables/use-terminal';
 import Tab from '../_components/Tab.vue';
 import { DeleteFour, Plus, Down, Up } from '@icon-park/vue-next';
-import type { WebContainerProcess } from '@webcontainer/api';
+import type { WebContainerProcess } from '~/utils/vivari-runtime';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import type { IPanelMethods } from '~/components/st/SplitPanel/index.vue';
 

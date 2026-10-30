@@ -1,4 +1,4 @@
-import type { WebContainerProcess } from '@webcontainer/api';
+import type { WebContainerProcess } from '~/utils/vivari-runtime';
 import type { Terminal } from 'xterm';
 import type { ITheme } from 'xterm';
 import type { FitAddon } from 'xterm-addon-fit';
