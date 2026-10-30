@@ -154,7 +154,7 @@ model Image {
   @@map("images")
 }
 
-// 快照镜像：做题页 WebContainer 启动时挂载，不参与判题
+// 快照镜像：做题页 Vivari 启动时挂载，不参与判题
 model ImageBuild {
   id                  String   @id @default(cuid())
   name                String
@@ -168,6 +168,8 @@ model ImageBuild {
   fileName            String?  @unique
   // 固定为 gzip
   compression         String   @default("gzip")
+  // 0 = 旧 WebContainer 二进制格式，1 = QVIM1 Vivari 格式
+  formatVersion       Int      @default(0)
   sizeBytes           Int?
   compressedSizeBytes Int?
   createdBy           String

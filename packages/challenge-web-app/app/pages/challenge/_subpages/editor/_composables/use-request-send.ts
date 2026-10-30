@@ -1,4 +1,4 @@
-import type { WebContainer, WebContainerProcess } from '@webcontainer/api';
+import type { WebContainer, WebContainerProcess } from '~/utils/vivari-runtime';
 import {
    REQUEST_RUNNER_DESCRIPTOR_PATH,
    REQUEST_RUNNER_SCRIPT,

@@ -387,6 +387,9 @@ importers:
       '@types/mime-types':
         specifier: ^3.0.1
         version: 3.0.1
+      '@vivari/core':
+        specifier: 1.1.4
+        version: 1.1.4
       '@volar/jsdelivr':
         specifier: ^2.4.23
         version: 2.4.23
@@ -396,9 +399,6 @@ importers:
       '@vue/language-service':
         specifier: ^2.2.0
         version: 2.2.0(typescript@5.8.3)
-      '@webcontainer/api':
-        specifier: ^1.6.4
-        version: 1.6.4
       bcrypt:
         specifier: ^6.0.0
         version: 6.0.0
@@ -3019,6 +3019,9 @@ packages:
       vite: ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0
       vue: ^3.2.25 || ^3.6.0-rc.10
 
+  '@vivari/core@1.1.4':
+    resolution: {integrity: sha512-kVxb9A9PF0ZRyMZpOXT/WgnWxFKjLMH9NIwegFVfQDUjO+ubs3YAVsV2CMm9Ee6pObKR6XF281nhsXk9ukJVMQ==}
+
   '@volar/jsdelivr@2.4.23':
     resolution: {integrity: sha512-1W6ruokqwMj5yJM6se4Ko6PiA6xi1UlT1sVnxBF5zWkR1MCy3GSgN1lnInt25vjf4+nOL+Hn9MSSS8a39svV7Q==}
 
@@ -3183,9 +3186,6 @@ packages:
     resolution: {integrity: sha512-pDykCSoS2T3fsQrYqf9SyF0QXWHmcGPQ+qiOVjlYSzlWd9dgppB2bFSM1GgKKkt7uzn0BBMV3IbJsUfHG2+BCg==}
     peerDependencies:
       vue: ^3.5.0
-
-  '@webcontainer/api@1.6.4':
-    resolution: {integrity: sha512-r9sHCXg1FcC1AMgppGwAc0vYWaQhqvg282cnsuPbJEzYnWifAdCVvg+8ngJUEHyHcomhJJp+/zuytite4ITHLw==}
 
   '@whatwg-node/disposablestack@0.0.6':
     resolution: {integrity: sha512-LOtTn+JgJvX8WfBVJtF08TGrdjuFzGJc4mkP8EdDI8ADbvO7kiexYep1o8dwnt0okb0jYclCDXF13xU7Ge4zSw==}
@@ -9472,6 +9472,8 @@ snapshots:
       vite: 8.3.4(@types/node@24.0.14)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.43.1)(tsx@4.23.15)(yaml@2.8.0)
       vue: 3.5.44(typescript@5.8.3)
 
+  '@vivari/core@1.1.4': {}
+
   '@volar/jsdelivr@2.4.23': {}
 
   '@volar/language-core@2.4.23':
@@ -9769,8 +9771,6 @@ snapshots:
   '@vueuse/shared@13.6.0(vue@3.5.44(typescript@5.8.3))':
     dependencies:
       vue: 3.5.44(typescript@5.8.3)
-
-  '@webcontainer/api@1.6.4': {}
 
   '@whatwg-node/disposablestack@0.0.6':
     dependencies:

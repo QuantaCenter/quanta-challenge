@@ -1,4 +1,4 @@
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 
 export interface IUseDepsLoaderOptions {
    getInstance: () => Promise<WebContainer> | WebContainer;

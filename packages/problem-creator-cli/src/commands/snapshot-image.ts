@@ -31,7 +31,7 @@ export const registerSnapshotImageCommand = (
    program
       .command('snapshot-image')
       .description(
-         '查看平台快照镜像（做题页 WebContainer 挂载）；--write 把 snapshotImageId 写回配置（不带 id 交互单选，带 id 直接写入）',
+         '查看平台快照镜像（做题页 Vivari 挂载）；--write 把 snapshotImageId 写回配置（不带 id 交互单选，带 id 直接写入）',
       )
       .argument('[dir]', '题目目录（默认当前目录）', '.')
       .option(
@@ -123,7 +123,7 @@ const renderImages = (
    } else {
       ctx.logger.step(`平台快照镜像（${images.length} 个）`);
       for (const image of images) {
-         const ready = image.status === 'ready';
+         const ready = image.status === 'ready' && image.formatVersion === 1;
          const mark =
             selected === undefined
                ? colors.dim('·')
@@ -131,7 +131,13 @@ const renderImages = (
                  ? colors.green('●')
                  : colors.dim('○');
          const facts = [
-            ready ? undefined : colors.yellow('构建中，不可选'),
+            ready
+               ? undefined
+               : colors.yellow(
+                    image.status === 'ready'
+                       ? '旧格式，需重建'
+                       : '构建中，不可选',
+                 ),
             (image.compressedSizeBytes ?? image.sizeBytes)
                ? formatBytes(image.compressedSizeBytes ?? image.sizeBytes ?? 0)
                : undefined,
@@ -158,7 +164,9 @@ const pickImage = async (
    images: SnapshotImage[],
    current: string | null | undefined,
 ): Promise<string | null> => {
-   const ready = images.filter((image) => image.status === 'ready');
+   const ready = images.filter(
+      (image) => image.status === 'ready' && image.formatVersion === 1,
+   );
    const choice = await select(
       '选择本题的快照镜像（方向键选择，回车确认）',
       [
@@ -216,6 +224,11 @@ const assertSelectable = (
       throw new UsageError(`快照镜像「${image.name}」还在构建中，暂不可用`, {
          hint: '等管理端「快照镜像」里状态变成就绪后重跑。',
       });
+   }
+   if (image.formatVersion !== 1) {
+      throw new UsageError(
+         `快照镜像「${image.name}」仍是旧格式，需管理员使用 Vivari 重建`,
+      );
    }
    return id;
 };

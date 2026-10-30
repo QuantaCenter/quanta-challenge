@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Starting Vivari preview…</title>
+    <style>
+      html,body{height:100%;margin:0}
+      body{display:flex;align-items:center;justify-content:center;background:#0b0d10;color:#e6e8eb;
+        font:15px/1.6 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+      .card{max-width:34rem;padding:2rem;text-align:center}
+      .spin{width:26px;height:26px;margin:0 auto 1rem;border:3px solid #2a2f36;border-top-color:#6aa3ff;
+        border-radius:50%;animation:s 1s linear infinite}@keyframes s{to{transform:rotate(360deg)}}
+      h1{font-size:1.15rem;margin:.25rem 0 .5rem}p{color:#9aa4af;margin:.4rem 0}
+    </style>
+  </head>
+  <body>
+    <!--
+      Mode-B standalone preview boot page.
+
+      Cloudflare serves this (via a `_redirects` rewrite of `/preview/*`) ONLY when
+      no Service Worker is controlling the tab yet — i.e. a preview opened in its
+      OWN top-level tab on the preview origin, where the SW registered by the
+      hidden bridge iframe (a third-party context in the editor tab) isn't visible
+      due to browser storage partitioning, or one hard-reloaded, which bypasses the
+      SW for that load. We register the SW *first-party* (or ask it to claim us) so
+      the tab becomes controlled, then reload: the SW then serves the real preview
+      (or a friendly "connecting…" page if the kernel still isn't reachable).
+
+      When the SW already controls the tab it intercepts `/preview/*` before this
+      page is ever reached, so the embedded editor preview is unaffected.
+    -->
+    <div class="card">
+      <div class="spin" id="sp"></div>
+      <h1 id="t">Starting your Vivari preview…</h1>
+      <p id="m">Registering the preview runtime.</p>
+    </div>
+    <script>
+      (function () {
+        var t = document.getElementById("t");
+        var m = document.getElementById("m");
+        var sp = document.getElementById("sp");
+        function fail(msg) {
+          if (sp) sp.style.display = "none";
+          t.textContent = "Preview unavailable";
+          m.textContent = msg;
+        }
+        if (!("serviceWorker" in navigator)) {
+          fail("This browser has no Service Worker support, which Vivari previews require.");
+          return;
+        }
+        // This page's work ends in a reload, so a copy restored from the back/forward
+        // cache has nothing left to run and would sit here: Chrome restores one on the
+        // forced reload of a tab this page has already booted.
+        window.addEventListener("pageshow", function (event) {
+          if (event.persisted) location.reload();
+        });
+        // Reload only when this load gained control, so a reload that lands here again
+        // already controlled (the SW let it through) stops. A hard reload brings the same
+        // tab back uncontrolled, so it is not one reload per tab. A load whose navigation
+        // started within RELOAD_WINDOW_MS of our own reload is that reload landing here
+        // again, which stops a loop where every load bypasses the SW (DevTools' "Bypass
+        // for network"). Navigation start, not now: a slow download must not count.
+        var RELOAD_KEY = "vv-boot-reloaded:" + location.pathname;
+        var RELOAD_WINDOW_MS = 3000;
+        var controlledAtLoad = !!navigator.serviceWorker.controller;
+        var navigationStart = performance.timeOrigin || Date.now();
+        var lastReload = 0;
+        try {
+          lastReload = Number(sessionStorage.getItem(RELOAD_KEY)) || 0;
+        } catch (e) {}
+        var reloadLandedHere = navigationStart - lastReload < RELOAD_WINDOW_MS;
+        // With storage blocked there is no record of our reload, so we cannot tell a loop
+        // from a hard reload; let the user reload instead.
+        function recordReload() {
+          try {
+            sessionStorage.setItem(RELOAD_KEY, String(Date.now()));
+            return true;
+          } catch (e) {
+            return false;
+          }
+        }
+        navigator.serviceWorker
+          .register("/sw.js", { scope: "/" })
+          .then(function () {
+            return navigator.serviceWorker.ready;
+          })
+          .then(function (registration) {
+            if (navigator.serviceWorker.controller) return;
+            return new Promise(function (resolve) {
+              navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true });
+              // After a hard reload the SW is long active and claims nothing unasked.
+              if (registration.active) registration.active.postMessage({ type: "vv-claim" });
+              setTimeout(resolve, 2500);
+            });
+          })
+          .then(function () {
+            if (!navigator.serviceWorker.controller) {
+              fail("The preview runtime didn't take control. Keep the Vivari editor tab open and reload.");
+              return;
+            }
+            if (!controlledAtLoad) {
+              if (!reloadLandedHere && recordReload()) {
+                // The SW now controls us: reload so it intercepts /preview/* and
+                // serves the real preview (or its own "connecting…" page).
+                location.reload();
+                return;
+              }
+              fail("This load skipped the preview runtime. Reload the tab normally to open the preview.");
+              return;
+            }
+            // Controlled from the start — the SW should be serving the preview
+            // now; if you can read this the kernel isn't reachable from this tab.
+            if (sp) sp.style.display = "none";
+            m.textContent = "Waiting for your Vivari project tab…";
+          })
+          .catch(function () {
+            fail("Couldn't start the preview runtime. Keep the Vivari editor tab open and try again.");
+          });
+      })();
+    </script>
+  </body>
+</html>

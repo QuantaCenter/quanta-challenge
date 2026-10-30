@@ -4,6 +4,7 @@ import { createError, getCookie, getHeader } from 'h3';
 import { TRPCError } from '@trpc/server';
 import { verifyToken, type ITokenPayload } from '../utils/jwt';
 import prisma from '~~/lib/prisma';
+import { inspectVivariImage } from '@challenge/shared/vivari-image';
 
 /** 非 tRPC 路由的鉴权，规则同 trpc/context.ts */
 export const requireImageBuildUser = (
@@ -46,6 +47,36 @@ export const measureGunzipSize = (body: Buffer, limit: number) =>
          }
       });
       gunzip.on('end', () => resolve(size));
+      gunzip.on('error', reject);
+      gunzip.end(body);
+   });
+
+/** Validate the versioned image without retaining its potentially huge file payload in server memory. */
+export const inspectGunzipVivariImage = (body: Buffer, limit: number) =>
+   new Promise<number>((resolve, reject) => {
+      const gunzip = createGunzip();
+      const chunks: Buffer[] = [];
+      const prefixLimit = 32 * 1024 * 1024 + 16;
+      let prefixSize = 0;
+      let size = 0;
+      gunzip.on('data', (chunk: Buffer) => {
+         size += chunk.length;
+         if (size > limit) {
+            gunzip.destroy(new RangeError('decompressed size exceeds limit'));
+            return;
+         }
+         if (prefixSize < prefixLimit) {
+            const kept = chunk.subarray(0, prefixLimit - prefixSize);
+            chunks.push(kept);
+            prefixSize += kept.length;
+         }
+      });
+      gunzip.on('end', () => {
+         try {
+            inspectVivariImage(Buffer.concat(chunks), size);
+            resolve(size);
+         } catch (error) { reject(error); }
+      });
       gunzip.on('error', reject);
       gunzip.end(body);
    });
@@ -93,7 +124,7 @@ export const ensureSnapshotImageReady = async (
    if (!snapshotImageId) return;
    const build = await prisma.imageBuild.findUnique({
       where: { id: snapshotImageId },
-      select: { name: true, status: true, fileName: true },
+      select: { name: true, status: true, fileName: true, formatVersion: true },
    });
    if (!build) {
       throw new TRPCError({
@@ -106,5 +137,8 @@ export const ensureSnapshotImageReady = async (
          code: 'BAD_REQUEST',
          message: `快照镜像「${build.name}」尚未上传完成，无法绑定`,
       });
+   }
+   if (build.formatVersion !== 1) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: `快照镜像「${build.name}」需要使用 Vivari 重新构建` });
    }
 };

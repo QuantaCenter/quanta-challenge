@@ -55,7 +55,7 @@ Web 回调。其余（容器、判题机、脚本 API）都是新的。
 |---|---|---|
 | 用户产物 | 静态文件 | 常驻进程 |
 | 容器 | `challenge-live-server-agent`（`live-server`） | `challenge-backend-service-agent` |
-| 依赖 | 无需安装（或 WebContainer 侧装好） | 启动前必须 `pnpm install` |
+| 依赖 | 无需安装（或 Vivari 侧装好） | 启动前必须 `pnpm install` |
 | 判题机 | Playwright + DOM | HTTP 客户端 + 新脚本 API |
 | 就绪信号 | `live-server` 打印 `Ready` | 由容器入口脚本探测端口后打印 `Ready` |
 | 网络 | 判题机访问 `http://<alias>:3000` | 同左，但容器自身要**断网安装** |
@@ -362,7 +362,7 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 （`_utils/request-runner.ts`，脚本与请求描述写在 `.quanta/`，与 `project/` 同级，
 不会被资源管理器捕获、也不会被打进提交快照）。
 
-原因：预览地址（`https://<id>-<port>.webcontainer-api.io`）对页面来说是跨源资源，
+原因：预览地址（独立 Vivari 预览域名）对页面来说是跨源资源，
 而题目参考实现（`node:http` / Express 模板）**不会**下发 CORS 响应头，
 面板就只能永远显示 `Failed to fetch`。容器内访问 `127.0.0.1:<servicePort>` 是同源回环，
 不存在跨域，也不需要暴露预览地址——这与判题机发请求的口径也一致
@@ -370,7 +370,7 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 
 > 注意三个易错点：
 > ① 辅助文件与脚本路径都用**相对路径**（`.quanta/request.mjs`）：
-> WebContainer 的 fs API 与子进程 cwd 都以工作目录为基准，带前导 `/` 的路径
+> Vivari 的 fs API 与子进程 cwd 都以工作目录为基准，带前导 `/` 的路径
 > 在不同版本里解释不一致（这也是题目 `initCommand` 必须写 `cd ./project && ...` 的同一个坑）；
 > ② 辅助文件必须落在 `project/` **同级**：资源管理器只渲染题库文件树（`/project/...`）。
 > `FileSystemDispatcher` 虽然监听的是容器工作目录根，但它按 fsTree 根节点前缀过滤，
@@ -404,7 +404,7 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 
 同一个题目有三个命令字段，编辑器与判题容器对它们的用法**不同**：
 
-| 字段 | 编辑器（WebContainer） | 判题容器 | 要求 |
+| 字段 | 编辑器（Vivari） | 判题容器 | 要求 |
 |---|---|---|---|
 | `bootCommand` | 逐个执行，**等它退出** | **不用**（入口脚本自己做离线安装） | 只能放有限步骤 |
 | `initCommand` | 只取**第一行**，写进交互式 `sh` | **就是服务启动命令** | 长期运行的服务器 |
@@ -416,7 +416,7 @@ const runtime = await db.getProblemRuntimeInfo(problemId);
 两个必须遵守的约定：
 
 1. **`initCommand` 必须相对挂载根写 `cd ./project && ...`**。
-   - 编辑器里 WebContainer 根下有个 `project/` 目录（`toProjectMountPath` 统一加前缀）；
+   - 编辑器里 Vivari 工作目录 `/workspace` 下有个 `project/` 目录（`toProjectMountPath` 统一加前缀）；
    - 判题容器把快照挂在 `/app`，入口脚本先在 `APP_DIR`(`/app/project`) 装依赖，
      再切到 `WORK_DIR`(`/app`) 执行启动命令。
    两边都有 `project/` 这层，所以同一条命令两边都能跑。

@@ -204,3 +204,8 @@ e2e/test-results/
 e2e/playwright-report/
 e2e/.auth/
 e2e/.e2e-ids.json
+
+# Generated Vivari runtime and standalone preview deployment artifacts
+packages/challenge-web-app/public/assets/
+packages/challenge-web-app/public/sw.js
+packages/challenge-web-app/dist-vivari-preview/

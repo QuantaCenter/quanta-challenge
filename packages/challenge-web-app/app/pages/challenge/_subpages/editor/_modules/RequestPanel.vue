@@ -15,7 +15,7 @@ import {
    Round,
    Text,
 } from '@icon-park/vue-next';
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useViewTransition } from '~/composables/use-view-transition';
 import EditorEnvError from '../_components/EditorEnvError.vue';

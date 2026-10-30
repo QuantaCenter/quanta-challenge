@@ -1,0 +1,1 @@
+ALTER TABLE "image_builds" ADD COLUMN "formatVersion" INTEGER NOT NULL DEFAULT 0;

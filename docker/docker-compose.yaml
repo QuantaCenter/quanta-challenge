@@ -2,6 +2,7 @@ name: quanta-challenge
 
 services:
   challenge-web-app:
+    image: quanta-challenge-web-app:vivari
     build:
       context: ../
       dockerfile: packages/challenge-web-app/Dockerfile
@@ -19,6 +20,7 @@ services:
       - NUXT_REDIS_USERNAME=${NUXT_REDIS_USERNAME:-${REDIS_USERNAME:-}}
       - NUXT_REDIS_PASSWORD=${NUXT_REDIS_PASSWORD:-${REDIS_PASSWORD:-}}
       - APP_SERVER=${APP_SERVER:?请设置 APP_SERVER，例如 https://your-domain.example}
+      - NUXT_PUBLIC_VIVARI_PREVIEW_ORIGIN=${VIVARI_PREVIEW_ORIGIN:?请设置独立 HTTPS 预览域名 VIVARI_PREVIEW_ORIGIN}
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:?请设置 SUPER_ADMIN_ACCOUNT}
       - SUPER_PASSWORD=${SUPER_ADMIN_PASSWORD:?请设置 SUPER_ADMIN_PASSWORD}
@@ -62,6 +64,19 @@ services:
     volumes:
       - qtc_app_storage:/app/packages/challenge-web-app/local_store # Persist local storage
       - /app/tmp:/app/tmp
+
+  vivari-preview:
+    image: quanta-challenge-web-app:vivari
+    command: ["node", "scripts/serve-vivari-preview.mjs"]
+    working_dir: /app/packages/challenge-web-app
+    environment:
+      - PORT=3001
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      - quanta-challenge-network
+    depends_on:
+      - challenge-web-app
 
   challenge-judge-scheduler:
     build:

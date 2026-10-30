@@ -55,6 +55,7 @@ export const buildPreviewConsoleScript = (parentOrigin: string) => `
 
    var CHANNEL = ${JSON.stringify(PREVIEW_CONSOLE_CHANNEL)};
    var PARENT_ORIGIN = ${JSON.stringify(parentOrigin)};
+   if (PARENT_ORIGIN === '__PARENT_WINDOW__') PARENT_ORIGIN = '*';
    var MAX_DEPTH = 3;
    var MAX_ENTRIES = 100;
    var MAX_STRING = 10000;
@@ -283,7 +284,9 @@ export const buildPreviewConsoleScript = (parentOrigin: string) => `
    };
 
    window.addEventListener('message', function (event) {
-      if (event.source !== window.parent || event.origin !== PARENT_ORIGIN) return;
+      if (event.source !== window.parent) return;
+      if (PARENT_ORIGIN === '*') PARENT_ORIGIN = event.origin;
+      if (event.origin !== PARENT_ORIGIN) return;
       var data = event.data;
       if (!data || data.channel !== CHANNEL || !data.payload) return;
       var message = data.payload;

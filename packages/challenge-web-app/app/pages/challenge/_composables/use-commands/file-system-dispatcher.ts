@@ -1,4 +1,4 @@
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import { hasBinarySnapshotExtension } from '@challenge/shared/snapshot-content';
 
@@ -16,6 +16,7 @@ export type DispatcherFsChange =
  * 监听 WebContainer 文件系统的变更事件，并将变更批量分发到 fsTree 中
  */
 export class FileSystemDispatcher {
+   private watcher?: { close(): void };
    constructor(
       private getWebContainerInstance: () => Promise<WebContainer>,
       private fsTree: Ref<IFileSystemItem[] | undefined>,
@@ -25,12 +26,14 @@ export class FileSystemDispatcher {
 
    async startListening() {
       const wc = await this.getWebContainerInstance();
-      wc.fs.watch('/', { recursive: true }, (event, path) => {
+      this.watcher = wc.fs.watch('/', { recursive: true }, (event, path) => {
          this._handleFsEvent(event, this._decodePath(path));
       });
    }
 
    stopListening() {
+      this.watcher?.close();
+      this.watcher = undefined;
       if (this._dispatchTimer) {
          clearTimeout(this._dispatchTimer);
          this._dispatchTimer = null;
@@ -49,7 +52,7 @@ export class FileSystemDispatcher {
    }
 
    private async _handleFsEvent(event: string, path: string) {
-      if (event === 'rename') {
+      if (event === 'rename' || event === 'change') {
          // 规范化路径后添加到变更集合
          const normalizedPath = normalizePath(`/${path}`);
          if (!this._isTrackedPath(normalizedPath)) return;

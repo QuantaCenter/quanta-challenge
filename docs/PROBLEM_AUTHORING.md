@@ -176,12 +176,12 @@ curl -I http://localhost:3000/api/static/<name>
   上游一发新版，学生端预览行为就会无声变化（而判题镜像里的 live-server 不跟着变），
   也就是"环境漂移"。
 - **`-y`（免交互）** —— npx 首次需要下载 `serve` 时会问 `Ok to proceed? (y)`，而这条
-  命令是写进 WebContainer 的 `sh` 会话里执行的，没有人替它回答 → 环境初始化卡住。
+  命令是写进 Vivari 的 `sh` 会话里执行的，没有人替它回答 → 环境初始化卡住。
 
 ### ⚠️ 这条命令必须真机验证，且一次只加一个参数
 
-这条命令跑在 WebContainer 里（见 `app/pages/challenge/_subpages/editor/index.vue` 的
-`runProject`）。**本地、CI、单测都测不到它**——它们不跑 WebContainer。真机验证记录：
+这条命令跑在 Vivari 里（见 `app/pages/challenge/_subpages/editor/index.vue` 的
+`runProject`）。**本地、CI、单测都测不到它**——它们不跑 Vivari。下表是迁移前的历史记录；迁移后必须重新真机验证：
 
 | 写法 | 结果 |
 |---|---|

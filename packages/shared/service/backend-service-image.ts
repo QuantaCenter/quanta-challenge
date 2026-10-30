@@ -5,7 +5,7 @@ export interface BackendServiceImage {
    label: string;
    /** 真正拉起容器的 docker 镜像名 */
    image: string;
-   /** 编辑器（WebContainer）里的一次性准备步骤，`mountPath` = 题目的 judgeUploadPath */
+   /** 编辑器（Vivari）里的一次性准备步骤，`mountPath` = 题目的 judgeUploadPath */
    editorBootCommand: (mountPath: string) => string;
    /** 服务启动命令，编辑器与判题容器共用 */
    initCommand: (mountPath: string) => string;

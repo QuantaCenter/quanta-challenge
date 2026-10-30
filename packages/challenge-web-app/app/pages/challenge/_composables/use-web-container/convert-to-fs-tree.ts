@@ -1,4 +1,4 @@
-import type { DirectoryNode, FileSystemTree } from '@webcontainer/api';
+import type { DirectoryNode, FileSystemTree } from '~/utils/vivari-runtime';
 import {
    decodeSnapshotContent,
    hasBinarySnapshotExtension,

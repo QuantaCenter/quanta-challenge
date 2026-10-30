@@ -10,40 +10,41 @@ const LOCAL_HOSTNAMES = new Set([
    '[::1]',
 ]);
 
-/** WebContainer 预览域名形如 `<id>--<port>--<hash>.<区域>.webcontainer-api.io`，端口编码在子域里 */
-const PORT_IN_HOST = /--(\d+)--/;
+/** Vivari shared-origin preview URLs use /preview/<port>/ paths. */
+const PORT_IN_PATH = /^\/preview\/(\d+)(?=\/|$)/;
 
-const portOfPreviewHost = (hostname: string) => {
-   const match = hostname.match(PORT_IN_HOST);
+const portOfPreview = (url: URL) => {
+   const match = url.pathname.match(PORT_IN_PATH);
    return match ? Number(match[1]) : undefined;
 };
 
 /** 端口 → 预览源：优先用已就绪服务的地址；端口尚未就绪时按已知地址的域名格式推导 */
 const previewOriginOf = (port: number, servers: IPreviewServer[]) => {
    const ready = servers.find((s) => s.port === port);
-   if (ready) return new URL(ready.url).origin;
+   if (ready) return ready.url;
 
-   const sample = servers.find((s) => PORT_IN_HOST.test(new URL(s.url).hostname));
+   const sample = servers.find((s) => PORT_IN_PATH.test(new URL(s.url).pathname));
    if (!sample) return undefined;
    const url = new URL(sample.url);
-   url.hostname = url.hostname.replace(PORT_IN_HOST, `--${port}--`);
-   return url.origin;
+   url.pathname = url.pathname.replace(PORT_IN_PATH, `/preview/${port}`);
+   return url.href;
 };
 
 /** 预览地址 → 地址栏展示：把预览域名还原成 `http://localhost:<port>` */
 export const toDisplayUrl = (previewUrl: string) => {
    try {
       const url = new URL(previewUrl);
-      const port = portOfPreviewHost(url.hostname);
+      const port = portOfPreview(url);
       if (port == null) return previewUrl;
-      return `http://localhost:${port}${url.pathname}${url.search}${url.hash}`;
+      const path = url.pathname.replace(PORT_IN_PATH, '') || '/';
+      return `http://localhost:${port}${path}${url.search}${url.hash}`;
    } catch {
       return previewUrl;
    }
 };
 
 const PREVIEW_ORIGIN_IN_TEXT =
-   /https?:\/\/[\w-]+--(\d+)--[\w-]+(?:\.[\w-]+)*\.webcontainer-api\.io/g;
+   /https?:\/\/[^\s/]+\/preview\/(\d+)(?=\/|\b)/g;
 
 /** 将文本中的预览域名替换为 localhost:port */
 export const toDisplayText = (text: string) =>
@@ -64,16 +65,28 @@ export const resolvePreviewUrl = (
 
    try {
       if (text.startsWith('/')) {
-         return currentUrl ? new URL(text, currentUrl).href : undefined;
+         if (!currentUrl) return undefined;
+         const current = new URL(currentUrl);
+         const port = portOfPreview(current);
+         if (port == null) return new URL(text, currentUrl).href;
+         const path = new URL(text, 'http://localhost');
+         current.pathname = `/preview/${port}${path.pathname}`;
+         current.search = path.search;
+         current.hash = path.hash;
+         return current.href;
       }
 
       const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(text) ? text : `http://${text}`);
       if (!LOCAL_HOSTNAMES.has(url.hostname)) return url.href;
 
       const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
-      const origin = previewOriginOf(port, servers);
-      if (!origin) return undefined;
-      return `${origin}${url.pathname}${url.search}${url.hash}`;
+      const preview = previewOriginOf(port, servers);
+      if (!preview) return undefined;
+      const target = new URL(preview);
+      target.pathname = `/preview/${port}${url.pathname}`;
+      target.search = url.search;
+      target.hash = url.hash;
+      return target.href;
    } catch {
       return undefined;
    }

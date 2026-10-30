@@ -173,7 +173,7 @@ qpc tag --set 1,3  # 指定 id，写回（CI / 非交互）
 
 ## 快照镜像（`qpc snapshot-image`）
 
-快照镜像在做题页的 WebContainer 启动时挂载（预装依赖，不参与判题），由管理员在管理端「快照镜像」里构建。启动命令（`runtime.initCommand`）用到的工具或依赖（如 `vite`）如果已包含在某个快照镜像里，就要填上它：依赖直接挂载、不用现场下载，做题页启动更快。`qpc snapshot-image` 从平台拉取（`admin.imageBuild.list`，需登录），用法与 `qpc tag` 一致：
+快照镜像在做题页的 Vivari 启动时挂载（预装依赖，不参与判题），由管理员在管理端「快照镜像」里构建。启动命令（`runtime.initCommand`）用到的工具或依赖（如 `vite`）如果已包含在某个快照镜像里，就要填上它：依赖直接挂载、不用现场下载，做题页启动更快。`qpc snapshot-image` 从平台拉取（`admin.imageBuild.list`，需登录），用法与 `qpc tag` 一致：
 
 ```bash
 qpc snapshot-image              # 列出全部快照镜像（id / 名称 / 大小 / 引用数）

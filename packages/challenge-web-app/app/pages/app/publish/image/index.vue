@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { CloseOne, PlayOne, UploadTwo } from '@icon-park/vue-next';
-import type { WebContainerProcess } from '@webcontainer/api';
+import type { WebContainerProcess } from '~/utils/vivari-runtime';
 import type { StepsStep, StepsTone } from '~/components/st/Steps/type';
 import { useWebContainer } from '~/pages/challenge/_composables/use-web-container';
 import { useTerminal } from '~/pages/challenge/_composables/use-terminal';
@@ -352,13 +352,7 @@ const cancelBuild = () => {
 const { getInstance } = useWebContainer({ workdirName: WORKDIR_NAME });
 
 const getBuildInstance = async () => {
-   const instance = await getInstance();
-   if (!instance.workdir.endsWith(`/${WORKDIR_NAME}`)) {
-      throw new Error(
-         `当前标签页的开发容器工作区是 ${instance.workdir}，不是快照镜像构建专用工作区，请刷新页面后重试`,
-      );
-   }
-   return instance;
+   return getInstance();
 };
 
 const drainOutput = (process: WebContainerProcess) => {

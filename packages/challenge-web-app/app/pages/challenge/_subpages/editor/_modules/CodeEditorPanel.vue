@@ -6,7 +6,7 @@ import { MoreOne, Setting } from '@icon-park/vue-next';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
-import type { WebContainer } from '@webcontainer/api';
+import type { WebContainer } from '~/utils/vivari-runtime';
 import type { editor } from 'monaco-editor';
 import { onClickOutside } from '@vueuse/core';
 import {

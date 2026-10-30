@@ -119,6 +119,7 @@ const getProblemDetailProcedure = protectedProcedure
                   name: true,
                   status: true,
                   fileName: true,
+                  formatVersion: true,
                   sizeBytes: true,
                },
             },
