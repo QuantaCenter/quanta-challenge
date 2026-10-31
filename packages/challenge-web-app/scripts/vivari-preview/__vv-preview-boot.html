@@ -81,6 +81,14 @@
             return false;
           }
         }
+        var waitingForKernel = false;
+        navigator.serviceWorker.addEventListener("message", function (event) {
+          if (event.data && event.data.type === "vv-preview-connected" && waitingForKernel &&
+              !reloadLandedHere && recordReload()) {
+            waitingForKernel = false;
+            location.reload();
+          }
+        });
         navigator.serviceWorker
           .register("/sw.js", { scope: "/" })
           .then(function () {
@@ -114,6 +122,8 @@
             // now; if you can read this the kernel isn't reachable from this tab.
             if (sp) sp.style.display = "none";
             m.textContent = "Waiting for your Vivari project tab…";
+            waitingForKernel = true;
+            navigator.serviceWorker.controller.postMessage({ type: "vv-preview-status" });
           })
           .catch(function () {
             fail("Couldn't start the preview runtime. Keep the Vivari editor tab open and try again.");
