@@ -75,10 +75,14 @@ export class WebContainer {
             throw new Error('VIVARI_PREVIEW_WILDCARD_DOMAIN 必须是独立的 HTTPS 预览基域名');
          }
       }
+      // 每次启动独立预览源；桥接随 boot 完成，端口就绪后即可导航。
+      const previewOrigin = options.previewWildcardDomain
+         ? `${window.location.protocol}//${crypto.randomUUID().replaceAll('-', '')}.${options.previewWildcardDomain}`
+         : options.previewOrigin || undefined;
       const vivari = await Vivari.boot({
          timeout: 45_000,
-         previewWildcardDomain: options.previewWildcardDomain || undefined,
-         previewOrigin: options.previewOrigin || undefined,
+         previewOrigin,
+         previewPopout: 'isolated',
       });
       const runtime = new WebContainer(vivari, options.workdirName ?? 'workspace');
       await vivari.fs.mkdir(runtime.workdir, { recursive: true });

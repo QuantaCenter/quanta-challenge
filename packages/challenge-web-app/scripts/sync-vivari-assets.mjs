@@ -109,21 +109,7 @@ const seededNavAnchor =
 `    if (event.request.mode === "navigate" && event.resultingClientId) vvPreviewClients.set(event.resultingClientId, port);\n` +
 previewNavAnchor;
 
-const connectMarker = 'if (kernelPort) kernelPort.onmessage = onKernelPortMessage;';
-if (originalSw.split(connectMarker).length !== 2) throw new Error('Vivari SW 桥接连接注入点已改变，需要重新审核');
-const messageMarker = 'const d = event.data;\n  // Mode B handshake:';
-if (originalSw.split(messageMarker).length !== 2) throw new Error('Vivari SW 消息注入点已改变，需要重新审核');
 const patchedSw = originalSw
-   .replace(connectMarker, `${connectMarker}
-    if (kernelPort) event.waitUntil(self.clients.matchAll().then((clients) => {
-       for (const client of clients) client.postMessage({ type: "vv-preview-connected" });
-    }));`)
-   .replace(messageMarker, `const d = event.data;
-  if (d && d.type === "vv-preview-status") {
-     if (kernelPort && event.source) event.source.postMessage({ type: "vv-preview-connected" });
-     return;
-  }
-  // Mode B handshake:`)
    .replace(fetchMarker, assetBypass)
    .replace(marker, `{ const tag = '<script>' + ${JSON.stringify(consoleScript)} + '</script>'; outBody = /<head([^>]*)>/i.test(outBody) ? outBody.replace(/<head([^>]*)>/i, (head) => head + tag) : tag + outBody; }\n    ${marker}`)
    .replace(fetchAnchor, identityDecl)

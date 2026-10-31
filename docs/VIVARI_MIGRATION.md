@@ -6,7 +6,7 @@
 
 ## 独立预览域名
 
-1. Docker Compose 会启动 `vivari-preview` 静态服务，仅绑定宿主机 `127.0.0.1:3001`。将 `*.preview.quantacenter.com` 的 DNS、覆盖该通配域名的 HTTPS 证书及反向代理指向该端口；不要把主站 Cookie 域设置到预览子域名。每次 Vivari boot 生成随机 token，预览地址形如 `<token>--<port>.preview.quantacenter.com`，因此同一道题重复打开也使用不同源和不同 Service Worker。它与主站使用同一镜像，保证 Vivari 版本相同。其他部署方式可运行 `pnpm --filter @challenge/app build:vivari-preview`，将 `packages/challenge-web-app/dist-vivari-preview/` 作为独立静态站点根目录部署。该目录含与主站相同版本的 `sw.js`、`__vv-bridge.html`、`__vv-preview-boot.html`、Cloudflare Pages 风格的 `_headers` 与 `_redirects`。
+1. Docker Compose 会启动 `vivari-preview` 静态服务，仅绑定宿主机 `127.0.0.1:3001`。将 `*.preview.quantacenter.com` 的 DNS、覆盖该通配域名的 HTTPS 证书及反向代理指向该端口；不要把主站 Cookie 域设置到预览子域名。每次 Vivari boot 生成独立子域名，预览地址形如 `https://<token>.preview.quantacenter.com/preview/<port>/`。同一道题重复打开使用不同源和不同 Service Worker，同一运行实例的端口共用该实例的 SW。使用 SDK 独立预览源模式，在启动内核前等待桥接完成，避免端口就绪后才注册 SW 的首次导航竞争。它与主站使用同一镜像，保证 Vivari 版本相同。其他部署方式可运行 `pnpm --filter @challenge/app build:vivari-preview`，将 `packages/challenge-web-app/dist-vivari-preview/` 作为独立静态站点根目录部署。该目录含与主站相同版本的 `sw.js`、`__vv-bridge.html`、`__vv-preview-boot.html`、Cloudflare Pages 风格的 `_headers` 与 `_redirects`。
 2. 如果部署平台不识别 `_headers` / `_redirects`，手工配置相同规则：所有预览响应需 `Cross-Origin-Embedder-Policy: credentialless`、`Cross-Origin-Resource-Policy: cross-origin`；`/sw.js` 另需 `Service-Worker-Allowed: /`；未由 Service Worker 拦截的 HTML 导航应重写到 `/__vv-preview-boot.html`（包括根路径和深链接）。
 3. 配置 HTTPS、`VIVARI_PREVIEW_WILDCARD_DOMAIN`，并验证主站和任一预览子域名的 `sw.js` 内容哈希相同。升级 Vivari 时必须同时重新构建两处资源；`scripts/sync-vivari-assets.mjs` 会在上游 HTML 注入点变化时直接失败，要求重新审查控制台补丁。
 4. 在真实浏览器同时打开同一道题两次，确认预览子域名不同且两个页面互不串流；再验证 `crossOriginIsolated`、前端 HMR、预览控制台日志与执行、后端请求，以及主站 Cookie 未发送给预览域名。控制台脚本由本仓库在 Vivari 预览 Service Worker 的 HTML 响应处注入。

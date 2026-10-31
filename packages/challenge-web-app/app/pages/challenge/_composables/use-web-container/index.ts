@@ -244,7 +244,6 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
       try {
          const active = await getInstance();
          if (!mounted) return;
-         webContainerReadyCallbacks.forEach((callback) => callback(active));
 
          subscriptions.push(active.on('server-ready', (port, url) => {
             servers.value = [
@@ -271,6 +270,7 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
                }
             }
          }));
+         webContainerReadyCallbacks.forEach((callback) => callback(active));
       } catch (err: any) {
          console.error('[webcontainer] 启动失败:', err);
          error.value = { message: err?.message ?? String(err) };
