@@ -63,17 +63,23 @@ export class WebContainer {
       } as typeof this.fs;
    }
 
-   static async boot(options: { workdirName?: string; previewOrigin?: string } = {}) {
+   static async boot(options: { workdirName?: string; previewOrigin?: string; previewWildcardDomain?: string } = {}) {
       if (import.meta.env.PROD) {
-         if (!options.previewOrigin) {
-            throw new Error('未配置 VIVARI_PREVIEW_ORIGIN，无法安全启动独立预览域名');
+         if (!options.previewWildcardDomain) {
+            throw new Error('未配置 VIVARI_PREVIEW_WILDCARD_DOMAIN，无法启动独立预览域名');
          }
-         const preview = new URL(options.previewOrigin);
-         if (preview.protocol !== 'https:' || preview.hostname === window.location.hostname) {
-            throw new Error('VIVARI_PREVIEW_ORIGIN 必须是与主站不同域名的 HTTPS 地址');
+         const domain = options.previewWildcardDomain;
+         if (!/^(?!-)[a-z0-9.-]+\.[a-z]{2,}$/i.test(domain) || domain.startsWith('*.') ||
+             window.location.protocol !== 'https:' ||
+             (window.location.hostname !== domain && window.location.hostname.endsWith(`.${domain}`))) {
+            throw new Error('VIVARI_PREVIEW_WILDCARD_DOMAIN 必须是独立的 HTTPS 预览基域名');
          }
       }
-      const vivari = await Vivari.boot({ timeout: 45_000, previewOrigin: options.previewOrigin || undefined });
+      const vivari = await Vivari.boot({
+         timeout: 45_000,
+         previewWildcardDomain: options.previewWildcardDomain || undefined,
+         previewOrigin: options.previewOrigin || undefined,
+      });
       const runtime = new WebContainer(vivari, options.workdirName ?? 'workspace');
       await vivari.fs.mkdir(runtime.workdir, { recursive: true });
       return runtime;

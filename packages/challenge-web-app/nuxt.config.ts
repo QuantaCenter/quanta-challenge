@@ -278,6 +278,7 @@ export default defineNuxtConfig({
       public: {
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
          vivariPreviewOrigin: env('VIVARI_PREVIEW_ORIGIN', ''),
+         vivariPreviewWildcardDomain: env('VIVARI_PREVIEW_WILDCARD_DOMAIN', ''),
          quantaOAuthIssuer: env(
             'QUANTA_OAUTH_ISSUER',
             'https://www.quantacenter.com',

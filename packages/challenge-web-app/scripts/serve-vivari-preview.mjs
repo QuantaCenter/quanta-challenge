@@ -18,7 +18,7 @@ createServer(async (request, response) => {
       response.end('ok');
       return;
    }
-   const selected = files.get(pathname) || (pathname.startsWith('/preview/')
+   const selected = files.get(pathname) || (request.headers.accept?.includes('text/html')
       ? files.get('/__vv-preview-boot.html') : undefined);
    if (!selected) {
       response.writeHead(404, { 'Cache-Control': 'no-store' });

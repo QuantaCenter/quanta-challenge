@@ -1,15 +1,15 @@
 # Vivari 运行环境与镜像切换
 
-做题页和镜像构建页使用 `@vivari/core` 1.1.4。应用启动时从 `public/assets/` 加载同版本 Worker，并从 `/sw.js` 注册主站 Service Worker。`pnpm --filter @challenge/app build` 和 `dev` 会自动同步这些文件。主站 `/assets/**` 响应必须保留 `Cross-Origin-Embedder-Policy: require-corp`，否则隔离页面会以 `kernel worker failed to load` 失败。生产环境必须设置 `VIVARI_PREVIEW_ORIGIN=https://<独立预览域名>`；未设置时编辑器会报错，避免把学生代码放在平台登录态的同源下。
+做题页和镜像构建页使用 `@vivari/core` 1.1.4。应用启动时从 `public/assets/` 加载同版本 Worker；通配预览模式在各预览子域名注册 `/sw.js`。`pnpm --filter @challenge/app build` 和 `dev` 会自动同步这些文件。主站 `/assets/**` 响应必须保留 `Cross-Origin-Embedder-Policy: require-corp`，否则隔离页面会以 `kernel worker failed to load` 失败。生产环境设置 `VIVARI_PREVIEW_WILDCARD_DOMAIN=preview.quantacenter.com`（填写基域名，不含 `*.` 或协议）；未设置时编辑器会报错，避免把学生代码放在平台登录态的同源下。
 
 `npm`、`pnpm`、`yarn` 和 `corepack` 首次使用时从主站 `/vendor/*-pack.bin` 下载真实 CLI。归档取自 [Vivari 官方 Studio](https://vivari.run/studio/)，已存入 `packages/challenge-web-app/public/vendor/`，并由资源同步脚本校验 SHA256。部署时必须一同上传这些同源资源；只安装 `@vivari/core` 不会提供它们。升级 Vivari 时重新核对归档格式、版本和校验值。
 
 ## 独立预览域名
 
-1. Docker Compose 会启动 `vivari-preview` 静态服务，仅绑定宿主机 `127.0.0.1:3001`。把独立 HTTPS 域名反向代理到该端口，并且不要把主站 Cookie 域设置到预览子域名。它与主站使用同一镜像，保证 Vivari 版本相同。其他部署方式可运行 `pnpm --filter @challenge/app build:vivari-preview`，将 `packages/challenge-web-app/dist-vivari-preview/` 作为独立静态站点根目录部署。该目录含与主站相同版本的 `sw.js`、`__vv-bridge.html`、`__vv-preview-boot.html`、Cloudflare Pages 风格的 `_headers` 与 `_redirects`。
-2. 如果部署平台不识别 `_headers` / `_redirects`，手工配置相同规则：所有预览响应需 `Cross-Origin-Embedder-Policy: credentialless`、`Cross-Origin-Resource-Policy: cross-origin`；`/sw.js` 另需 `Service-Worker-Allowed: /`；未由 Service Worker 拦截的 `/preview/*` 应重写到 `/__vv-preview-boot.html`。
-3. 配置 HTTPS、`VIVARI_PREVIEW_ORIGIN`，并验证主站和预览域名的 `sw.js` 内容哈希相同。升级 Vivari 时必须同时重新构建两处资源；`scripts/sync-vivari-assets.mjs` 会在上游 HTML 注入点变化时直接失败，要求重新审查控制台补丁。
-4. 在真实浏览器验证 `crossOriginIsolated`、前端 HMR、预览控制台日志与执行、后端请求，以及主站 Cookie 未发送给预览域名。控制台脚本由本仓库在 Vivari 预览 Service Worker 的 HTML 响应处注入。
+1. Docker Compose 会启动 `vivari-preview` 静态服务，仅绑定宿主机 `127.0.0.1:3001`。将 `*.preview.quantacenter.com` 的 DNS、覆盖该通配域名的 HTTPS 证书及反向代理指向该端口；不要把主站 Cookie 域设置到预览子域名。每次 Vivari boot 生成随机 token，预览地址形如 `<token>--<port>.preview.quantacenter.com`，因此同一道题重复打开也使用不同源和不同 Service Worker。它与主站使用同一镜像，保证 Vivari 版本相同。其他部署方式可运行 `pnpm --filter @challenge/app build:vivari-preview`，将 `packages/challenge-web-app/dist-vivari-preview/` 作为独立静态站点根目录部署。该目录含与主站相同版本的 `sw.js`、`__vv-bridge.html`、`__vv-preview-boot.html`、Cloudflare Pages 风格的 `_headers` 与 `_redirects`。
+2. 如果部署平台不识别 `_headers` / `_redirects`，手工配置相同规则：所有预览响应需 `Cross-Origin-Embedder-Policy: credentialless`、`Cross-Origin-Resource-Policy: cross-origin`；`/sw.js` 另需 `Service-Worker-Allowed: /`；未由 Service Worker 拦截的 HTML 导航应重写到 `/__vv-preview-boot.html`（包括根路径和深链接）。
+3. 配置 HTTPS、`VIVARI_PREVIEW_WILDCARD_DOMAIN`，并验证主站和任一预览子域名的 `sw.js` 内容哈希相同。升级 Vivari 时必须同时重新构建两处资源；`scripts/sync-vivari-assets.mjs` 会在上游 HTML 注入点变化时直接失败，要求重新审查控制台补丁。
+4. 在真实浏览器同时打开同一道题两次，确认预览子域名不同且两个页面互不串流；再验证 `crossOriginIsolated`、前端 HMR、预览控制台日志与执行、后端请求，以及主站 Cookie 未发送给预览域名。控制台脚本由本仓库在 Vivari 预览 Service Worker 的 HTML 响应处注入。
 
 ## Service Worker 补丁登记
 

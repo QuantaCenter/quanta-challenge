@@ -55,6 +55,7 @@ const initWebContainer = async (
          WebContainer.boot({
             workdirName: options?.workdirName,
             previewOrigin: useRuntimeConfig().public.vivariPreviewOrigin,
+            previewWildcardDomain: useRuntimeConfig().public.vivariPreviewWildcardDomain,
          }),
          timeout,
       ]);

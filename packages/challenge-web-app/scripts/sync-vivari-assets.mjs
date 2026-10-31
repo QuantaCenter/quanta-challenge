@@ -125,7 +125,7 @@ if (process.argv.includes('--preview')) {
       await copyFile(join(root, 'scripts', 'vivari-preview', name), join(output, name));
    }
    await writeFile(join(output, '_headers'), `/*\n  Cross-Origin-Embedder-Policy: credentialless\n  Cross-Origin-Resource-Policy: cross-origin\n/sw.js\n  Service-Worker-Allowed: /\n  Cross-Origin-Embedder-Policy: credentialless\n  Cross-Origin-Resource-Policy: cross-origin\n`);
-   await writeFile(join(output, '_redirects'), '/preview/* /__vv-preview-boot.html 200\n');
+   await writeFile(join(output, '_redirects'), '/* /__vv-preview-boot.html 200\n');
 } else {
    const output = join(root, 'public');
    await mkdir(join(output, 'assets'), { recursive: true });
