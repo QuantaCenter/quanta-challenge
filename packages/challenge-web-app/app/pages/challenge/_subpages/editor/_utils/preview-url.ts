@@ -10,51 +10,44 @@ const LOCAL_HOSTNAMES = new Set([
    '[::1]',
 ]);
 
-/** Vivari shared-origin preview URLs use /preview/<port>/ paths. */
-const PORT_IN_PATH = /^\/preview\/(\d+)(?=\/|$)/;
-const PORT_IN_HOST = /^([a-z0-9]+)--(\d+)((?:-[a-z0-9]+)?\..+)$/i;
+/** WebContainer 预览域名形如 `<id>--<port>--<hash>.<区域>.webcontainer-api.io`，端口编码在子域里 */
+const PORT_IN_HOST = /--(\d+)--/;
 
-const portOfPreview = (url: URL) => {
-   const match = url.pathname.match(PORT_IN_PATH);
-   return match ? Number(match[1]) : Number(url.hostname.match(PORT_IN_HOST)?.[2]) || undefined;
+const portOfPreviewHost = (hostname: string) => {
+   const match = hostname.match(PORT_IN_HOST);
+   return match ? Number(match[1]) : undefined;
 };
 
 /** 端口 → 预览源：优先用已就绪服务的地址；端口尚未就绪时按已知地址的域名格式推导 */
 const previewOriginOf = (port: number, servers: IPreviewServer[]) => {
    const ready = servers.find((s) => s.port === port);
-   if (ready) return ready.url;
+   if (ready) return new URL(ready.url).origin;
 
-   const sample = servers.find((s) => portOfPreview(new URL(s.url)) != null);
+   const sample = servers.find((s) => PORT_IN_HOST.test(new URL(s.url).hostname));
    if (!sample) return undefined;
    const url = new URL(sample.url);
-   if (PORT_IN_HOST.test(url.hostname)) {
-      url.hostname = url.hostname.replace(PORT_IN_HOST, (_, token, _port, suffix) => `${token}--${port}${suffix}`);
-   } else {
-      url.pathname = url.pathname.replace(PORT_IN_PATH, `/preview/${port}`);
-   }
-   return url.href;
+   url.hostname = url.hostname.replace(PORT_IN_HOST, `--${port}--`);
+   return url.origin;
 };
 
 /** 预览地址 → 地址栏展示：把预览域名还原成 `http://localhost:<port>` */
 export const toDisplayUrl = (previewUrl: string) => {
    try {
       const url = new URL(previewUrl);
-      const port = portOfPreview(url);
+      const port = portOfPreviewHost(url.hostname);
       if (port == null) return previewUrl;
-      const path = url.pathname.replace(PORT_IN_PATH, '') || '/';
-      return `http://localhost:${port}${path}${url.search}${url.hash}`;
+      return `http://localhost:${port}${url.pathname}${url.search}${url.hash}`;
    } catch {
       return previewUrl;
    }
 };
 
 const PREVIEW_ORIGIN_IN_TEXT =
-   /https?:\/\/[^\s/]+\/preview\/(\d+)(?=\/|\b)/g;
+   /https?:\/\/[\w-]+--(\d+)--[\w-]+(?:\.[\w-]+)*\.webcontainer-api\.io/g;
 
 /** 将文本中的预览域名替换为 localhost:port */
 export const toDisplayText = (text: string) =>
-   text.replace(PREVIEW_ORIGIN_IN_TEXT, (_, port) => `http://localhost:${port}`)
-      .replace(/https?:\/\/[a-z0-9]+--(\d+)(?:-[a-z0-9]+)?\.[^\s/:]+/gi, (_, port) => `http://localhost:${port}`);
+   text.replace(PREVIEW_ORIGIN_IN_TEXT, (_, port) => `http://localhost:${port}`);
 
 /**
  * 地址栏输入 → iframe 实际地址。
@@ -71,28 +64,16 @@ export const resolvePreviewUrl = (
 
    try {
       if (text.startsWith('/')) {
-         if (!currentUrl) return undefined;
-         const current = new URL(currentUrl);
-         const port = portOfPreview(current);
-         if (port == null || PORT_IN_HOST.test(current.hostname)) return new URL(text, currentUrl).href;
-         const path = new URL(text, 'http://localhost');
-         current.pathname = `/preview/${port}${path.pathname}`;
-         current.search = path.search;
-         current.hash = path.hash;
-         return current.href;
+         return currentUrl ? new URL(text, currentUrl).href : undefined;
       }
 
       const url = new URL(/^[a-z][a-z\d+.-]*:\/\//i.test(text) ? text : `http://${text}`);
       if (!LOCAL_HOSTNAMES.has(url.hostname)) return url.href;
 
       const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 80;
-      const preview = previewOriginOf(port, servers);
-      if (!preview) return undefined;
-      const target = new URL(preview);
-      target.pathname = PORT_IN_HOST.test(target.hostname) ? url.pathname : `/preview/${port}${url.pathname}`;
-      target.search = url.search;
-      target.hash = url.hash;
-      return target.href;
+      const origin = previewOriginOf(port, servers);
+      if (!origin) return undefined;
+      return `${origin}${url.pathname}${url.search}${url.hash}`;
    } catch {
       return undefined;
    }

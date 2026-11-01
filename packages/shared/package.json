@@ -37,9 +37,6 @@
       "./snapshot-content": {
          "import": "./service/snapshot-content.ts"
       },
-      "./vivari-image": {
-         "import": "./service/vivari-image.ts"
-      },
       "./cli-version": {
          "import": "./service/cli-version.ts"
       },

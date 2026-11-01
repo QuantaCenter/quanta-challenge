@@ -82,12 +82,12 @@ export interface Tag {
 }
 
 export interface SnapshotImage {
+   formatVersion: number;
    id: string;
    name: string;
    description: string;
    /** building | ready，只有 ready 能被题目引用 */
    status: string;
-   formatVersion: number;
    sizeBytes: number | null;
    compressedSizeBytes: number | null;
    updatedAt: string;

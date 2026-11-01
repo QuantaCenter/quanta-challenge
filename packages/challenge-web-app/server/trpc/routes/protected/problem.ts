@@ -115,11 +115,11 @@ const getProblemDetailProcedure = protectedProcedure
             },
             SnapshotImage: {
                select: {
+                  formatVersion: true,
                   id: true,
                   name: true,
                   status: true,
                   fileName: true,
-                  formatVersion: true,
                   sizeBytes: true,
                },
             },

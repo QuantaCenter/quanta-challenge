@@ -334,24 +334,23 @@ const loadSnapshotImage = async (): Promise<boolean> => {
    if (!build) {
       throw new Error('题目绑定的快照镜像不存在或已被删除，请联系发布者');
    }
+   if (build.formatVersion !== 0) {
+      throw new Error(`快照镜像「${build.name}」需要使用 WebContainer 重新构建，请联系发布者`);
+   }
    if (build.status !== 'ready' || !build.fileName) {
       throw new Error(
          `题目绑定的快照镜像「${build.name}」尚未构建完成，请联系发布者`,
       );
    }
-   if (build.formatVersion !== 1) {
-      throw new Error(`快照镜像「${build.name}」仍是旧格式，请管理员使用 Vivari 重新构建`);
-   }
    const { id, name, fileName, sizeBytes } = build;
-   const cacheKey = `vivari-1:${fileName}`;
    const instance = await getInstance();
 
    const mountSnapshot = async (fromCache: boolean): Promise<number> => {
       let bytes: Uint8Array<ArrayBuffer> | null = null;
       if (fromCache) {
-         bytes = await readCachedSnapshotImage(cacheKey);
+         bytes = await readCachedSnapshotImage(fileName);
          if (bytes && sizeBytes && bytes.byteLength !== sizeBytes) {
-            await deleteCachedSnapshotImage(cacheKey);
+            await deleteCachedSnapshotImage(fileName);
             bytes = null;
          }
          if (!bytes) return -1;
@@ -373,7 +372,7 @@ const loadSnapshotImage = async (): Promise<boolean> => {
       // mount 会转移 buffer，需在此之前复制出要缓存的内容
       const cacheBlob = fromCache ? null : new Blob([bytes]);
       await instance.mount(bytes);
-      if (cacheBlob) void writeCachedSnapshotImage(id, cacheKey, cacheBlob);
+      if (cacheBlob) void writeCachedSnapshotImage(id, fileName, cacheBlob);
       return size;
    };
 
@@ -382,7 +381,7 @@ const loadSnapshotImage = async (): Promise<boolean> => {
       size = await mountSnapshot(true);
    } catch (error) {
       console.warn('[challenge] 缓存的快照镜像挂载失败，改为重新下载:', error);
-      await deleteCachedSnapshotImage(cacheKey);
+      await deleteCachedSnapshotImage(fileName);
    }
    if (size < 0) {
       try {
@@ -394,7 +393,7 @@ const loadSnapshotImage = async (): Promise<boolean> => {
       }
    }
 
-   // 兼容镜像中历史依赖工具生成的非可执行 bin 链接。
+   // snapshot 不保留执行权限
    const fix = await runCommand([
       'sh',
       '-c',
@@ -557,8 +556,6 @@ const fileLoader = async (filePath: string) => {
 
 // preview
 const previewUrl = computed(() => exposeServer.value?.url);
-const attachPreview = async (frame: HTMLIFrameElement) =>
-   (await getInstance()).attachPreview(frame);
 const preview = useTemplateRef('preview');
 
 // shortcuts
@@ -837,7 +834,7 @@ useSeoMeta({
                <RequestPanel v-if="isBackendService" :port="backendServicePort" :server-ready="!!exposeServer"
                   :steps="steps" :current-step="currentStep" :unsupported-reason="unsupportedReason"
                   :get-wc-instance="getInstance" :write-file="writeFile" />
-               <PreviewPanel v-else ref="preview" :steps="steps" :current-step="currentStep" :preview-url="previewUrl" :attach-preview="attachPreview"
+               <PreviewPanel v-else ref="preview" :steps="steps" :current-step="currentStep" :preview-url="previewUrl"
                   :servers="servers" :unsupported-reason="unsupportedReason" />
             </template>
          </EditorBoardLayout>

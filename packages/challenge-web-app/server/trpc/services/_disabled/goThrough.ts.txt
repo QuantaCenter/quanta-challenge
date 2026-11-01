@@ -1,0 +1,74 @@
+// packages/challenge-web-app/app/pages/challenge/_composables/use-web-container/index.ts
+import type { WebContainer } from '@webcontainer/api';
+import { TRPCError } from '@trpc/server';
+import { middleware, publicProcedure } from '../trpc';
+import { injectInfo } from '../middlewares/inject-info';
+import { useRoute } from 'nuxt/app';
+type WebContainerApi = typeof import('@webcontainer/api').WebContainer;
+
+
+let instance: WebContainer | null = null;
+let router = useRoute()
+let redis = useRedis()
+const initWebContainer = async (WebContainer: WebContainerApi) => {
+    // 空①：只 boot 一次，之后整个页面复用
+    if (!instance) {
+        instance = await WebContainer.boot({ workdirName: 'project' });
+    }
+};
+
+const writeFile = async (path: string, content: string) => {
+    const instance = await getInstance();
+    const normalized = normalizePath(path);   // 例如 '/src/index.ts'
+
+    // 空②：WebContainer 的内存 FS 需要 ________ 形式的路径
+    await instance.fs.writeFile(normalized, content);
+};
+
+//   B 段 · 服务端（tRPC + Redis + Prisma）
+
+// packages/challenge-web-app/server/trpc/middlewares/require-auth.ts
+export const requireAuth = middleware(async ({ ctx, next }) => {
+    if (!ctx.user) throw new TRPCError({ code: 'UNAUTHORIZED' });
+    // 空③
+    return next({ ctx: user });
+});
+
+// packages/challenge-web-app/server/trpc/protected-trpc.ts
+export const protectedProcedure = publicProcedure
+    .use(requireAuth)   // 空④-a
+    .use(injectInfo);  // 空④-b
+
+// packages/challenge-web-app/server/trpc/middlewares/limit-request.ts
+export const limitRequest = (timesPerMinute: number) =>
+    middleware(async ({ ctx, next }) => {
+        const key = `req_limit:${getRequestFingerprint(ctx.event)}`;
+
+        // 空⑤-a：原子地 +1，并拿到自增后的值
+        const count = await redis.incr(key);
+
+        // 空⑤-b：什么时候才设置过期？
+        if (count === 1) await redis.expire(key, 60);
+
+        if (count > timesPerMinute) throw new TRPCError({ code: 'TOO_MANY_REQUESTS' });
+        return next();
+    });
+
+// packages/challenge-web-app/server/trpc/routes/protected/submit.ts
+export const submitRouter = router({
+    submit: protectedProcedure
+        .use(limitRequest(10))
+        .input(z.object({
+            problemId: z.number().int(),
+            files: z.record(z.string(), z.string()),   // path -> content
+        }))
+        .mutation(async ({ ctx, input }) => {
+            const { userId } = ctx.user;   // 空③的兑现处：这行为什么不报「可能为 null」
+            const record = await prisma.judgeRecords.create({
+                data: {
+                    userId: userId
+                },
+            });
+            return { recordId: record.id };
+        }),
+});

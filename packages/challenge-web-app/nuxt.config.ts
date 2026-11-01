@@ -68,7 +68,7 @@ export default defineNuxtConfig({
             'vscode-uri',
             'vscode-html-languageservice',
             'typescript',
-            '@vivari/core',
+            '@webcontainer/api',
             'xterm',
             'xterm-addon-fit',
             'marked',
@@ -116,19 +116,6 @@ export default defineNuxtConfig({
    },
 
    routeRules: {
-      '/assets/**': {
-         headers: {
-            'Cross-Origin-Embedder-Policy': 'require-corp',
-            'Cross-Origin-Resource-Policy': 'same-origin',
-         },
-      },
-      '/sw.js': {
-         headers: {
-            'Service-Worker-Allowed': '/',
-            'Cross-Origin-Opener-Policy': 'same-origin',
-            'Cross-Origin-Embedder-Policy': 'require-corp',
-         },
-      },
       '/api/auth/quanta/**': {
          headers: {
             'Cache-Control': 'no-store',
@@ -277,8 +264,6 @@ export default defineNuxtConfig({
    runtimeConfig: {
       public: {
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
-         vivariPreviewOrigin: env('VIVARI_PREVIEW_ORIGIN', ''),
-         vivariPreviewWildcardDomain: env('VIVARI_PREVIEW_WILDCARD_DOMAIN', ''),
          quantaOAuthIssuer: env(
             'QUANTA_OAUTH_ISSUER',
             'https://www.quantacenter.com',
