@@ -1,3 +1,9 @@
+import {
+   useEditorKeybindings,
+   keyFromEvent,
+   shortcutRecording,
+} from './editor-keybindings';
+
 export interface IUseEditorShortcutsOptions {
    onSave: () => void;
    onRefreshPreview: () => void;
@@ -13,6 +19,7 @@ export interface IUseEditorShortcutsOptions {
  * 页面可能根本收不到。
  */
 export const useEditorShortcuts = (options: IUseEditorShortcutsOptions) => {
+   const bindings = useEditorKeybindings();
    const handlers: Record<string, () => void> = {
       s: options.onSave,
       r: options.onRefreshPreview,
@@ -24,10 +31,20 @@ export const useEditorShortcuts = (options: IUseEditorShortcutsOptions) => {
       window,
       'keydown',
       (event: KeyboardEvent) => {
-         if (!(event.ctrlKey || event.metaKey) || event.shiftKey || event.altKey) {
-            return;
-         }
-         const handler = handlers[event.key.toLowerCase()];
+         if (shortcutRecording.value) return;
+         if (event.isComposing) return;
+         const key = keyFromEvent(event);
+         if (!key) return;
+         const target = event.target;
+         if (
+            !event.ctrlKey && !event.metaKey && !event.altKey &&
+            target instanceof HTMLElement &&
+            (target.isContentEditable || target.closest('input, textarea, [contenteditable="true"]'))
+         ) return;
+         const action = Object.keys(bindings.value).find(
+            (id) => bindings.value[id] === key,
+         );
+         const handler = action ? handlers[action] : undefined;
          if (!handler) return;
 
          event.preventDefault();

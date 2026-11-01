@@ -2,13 +2,12 @@
 import { useMonacoEditor } from '../../../_composables/use-monaco-editor';
 import { normalizePath, getBaseName } from '~/utils/path-utils';
 import Tab from '../_components/Tab.vue';
-import { MoreOne, Setting } from '@icon-park/vue-next';
+import { Setting } from '@icon-park/vue-next';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
 import type { editor } from 'monaco-editor';
-import { onClickOutside } from '@vueuse/core';
 import {
    hasBinarySnapshotExtension,
    toSnapshotDataUrl,
@@ -94,40 +93,8 @@ const {
 
 const hasEditorReady = ref(false);
 
-// 下拉菜单状态
-const isDropdownOpen = ref(false);
-// 菜单内容延迟到首次打开才渲染
-const hasOpenedDropdown = ref(false);
-const dropdownButtonRef = ref<HTMLElement>();
-const dropdownMenuRef = ref<HTMLElement>();
-
 // 配置 Modal 状态
 const isSettingsModalOpen = ref(false);
-
-// 打开/收起下拉菜单
-const toggleDropdown = async () => {
-   isDropdownOpen.value = !isDropdownOpen.value;
-   if (isDropdownOpen.value) {
-      hasOpenedDropdown.value = true;
-      // 关闭态是 display:none，打开后需等 DOM 恢复显示再让 Popper 重新测量定位
-      await nextTick();
-      popperInstance.value?.update();
-   }
-};
-
-const { popperKey, containerKey: popperContainerKey, popperInstance } = usePopper({
-   options: {
-      placement: 'bottom-end',
-      modifiers: [
-         {
-            name: 'offset',
-            options: {
-               offset: [0, 0],
-            },
-         },
-      ],
-   },
-});
 
 const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
 
@@ -187,20 +154,6 @@ onUnmounted(() => {
    }
 });
 
-// 打开配置 Modal
-const openSettingsModal = () => {
-   isSettingsModalOpen.value = true;
-   isDropdownOpen.value = false;
-};
-
-// 点击外部关闭下拉菜单
-onClickOutside(
-   dropdownMenuRef,
-   () => {
-      isDropdownOpen.value = false;
-   },
-   { ignore: [dropdownButtonRef] }
-);
 onEditorInstanceReady(() => {
    hasEditorReady.value = true;
    const disposeWatcher = watch(
@@ -308,7 +261,6 @@ defineExpose({
    addExtraLibs,
    onEditorInstanceReady,
 });
-const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -344,34 +296,16 @@ const teleported = useClientTeleport();
                </StSkeleton>
             </StSpace>
          </StSpace>
-         <div class="relative">
-            <div
-               :ref="popperContainerKey"
-               class="size-[2rem] rounded-[0.5rem] m-0.5 text-accent-200 bg-accent-500 cursor-pointer hover:bg-accent-400 transition-colors flex items-center justify-center"
-               @click="toggleDropdown">
-               <MoreOne />
-            </div>
-
-            <Teleport to="body">
-               <template v-if="teleported">
-                  <div
-                     :ref="popperKey"
-                     class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
-                     :class="isDropdownOpen ? 'visible' : 'hidden'">
-                     <template v-if="hasOpenedDropdown">
-                        <StSpace
-                           align="center"
-                           gap="0.5rem"
-                           class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
-                           @click="openSettingsModal">
-                           <Setting />
-                           编辑器设置
-                        </StSpace>
-                     </template>
-                  </div>
-               </template>
-            </Teleport>
-         </div>
+         <StButton
+            size="sm"
+            aria-label="编辑器设置"
+            title="编辑器设置"
+            aria-haspopup="dialog"
+            class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+            @click="isSettingsModalOpen = true"
+         >
+            <Setting />
+         </StButton>
       </StSpace>
 
       <StSpace fill class="relative bg-[#1C1C1C] border border-[#1F1F1F]">
