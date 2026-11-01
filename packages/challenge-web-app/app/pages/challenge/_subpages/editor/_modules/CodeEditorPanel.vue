@@ -26,7 +26,6 @@ interface ITab {
 
 const openedTabs = ref<ITab[]>([]);
 const draggedTabPath = ref<string | null>(null);
-const tabDropTarget = ref<{ path: string; after: boolean } | null>(null);
 
 const startTabDrag = (event: DragEvent, path: string) => {
    if (!event.dataTransfer) return;
@@ -35,29 +34,30 @@ const startTabDrag = (event: DragEvent, path: string) => {
    event.dataTransfer.setData('application/x-quanta-editor-tab', path);
 };
 
-const updateTabDropTarget = (event: DragEvent, path: string) => {
+const reorderTabOnDrag = (event: DragEvent, path: string) => {
    if (!draggedTabPath.value || !event.currentTarget) return;
    event.preventDefault();
    if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+   const from = openedTabs.value.findIndex((tab) => tab.path === draggedTabPath.value);
+   const target = openedTabs.value.findIndex((tab) => tab.path === path);
+   if (from === -1 || target === -1 || from === target) return;
+
    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
-   tabDropTarget.value = { path, after: event.clientX >= rect.left + rect.width / 2 };
+   const pastMiddle = event.clientX >= rect.left + rect.width / 2;
+   if ((from < target && !pastMiddle) || (from > target && pastMiddle)) return;
+
+   const [item] = openedTabs.value.splice(from, 1);
+   if (item) openedTabs.value.splice(target, 0, item);
 };
 
 const endTabDrag = () => {
    draggedTabPath.value = null;
-   tabDropTarget.value = null;
 };
 
 const dropTab = (event: DragEvent) => {
-   if (!draggedTabPath.value || !tabDropTarget.value) return;
+   if (!draggedTabPath.value) return;
    event.preventDefault();
-   const from = openedTabs.value.findIndex((tab) => tab.path === draggedTabPath.value);
-   const target = openedTabs.value.findIndex((tab) => tab.path === tabDropTarget.value?.path);
-   if (from !== -1 && target !== -1) {
-      const destination = target + (tabDropTarget.value.after ? 1 : 0);
-      const [item] = openedTabs.value.splice(from, 1);
-      if (item) openedTabs.value.splice(destination - (from < destination ? 1 : 0), 0, item);
-   }
    endTabDrag();
 };
 
@@ -349,23 +349,23 @@ defineExpose({
                   <template #loading>
                      <TabSkeleton :count="3" />
                   </template>
-                  <Tab
-                     v-for="item in openedTabs"
-                     :key="item.path"
-                     :content="item.name"
-                     draggable="true"
-                     :class="{
-                        '!bg-primary !text-white':
-                           currentFilePath === item.path,
-                        '!border-l-primary': tabDropTarget?.path === item.path && !tabDropTarget.after,
-                        '!border-r-primary': tabDropTarget?.path === item.path && tabDropTarget.after,
-                     }"
-                     @dragstart="startTabDrag($event, item.path)"
-                     @dragover="updateTabDropTarget($event, item.path)"
-                     @drop="dropTab"
-                     @dragend="endTabDrag"
-                     @click="onClickTab(item)"
-                     @remove="onCloseTab(item)" />
+                  <TransitionGroup tag="div" class="flex gap-2" move-class="editor-tab-move">
+                     <Tab
+                        v-for="item in openedTabs"
+                        :key="item.path"
+                        :content="item.name"
+                        draggable="true"
+                        :class="{
+                           '!bg-primary !text-white': currentFilePath === item.path,
+                           'opacity-50': draggedTabPath === item.path,
+                        }"
+                        @dragstart="startTabDrag($event, item.path)"
+                        @dragover="reorderTabOnDrag($event, item.path)"
+                        @drop="dropTab"
+                        @dragend="endTabDrag"
+                        @click="onClickTab(item)"
+                        @remove="onCloseTab(item)" />
+                  </TransitionGroup>
                </StSkeleton>
             </StSpace>
          </StSpace>
@@ -423,6 +423,18 @@ defineExpose({
 </template>
 
 <style scoped src="@/assets/css/utils.css" />
+
+<style scoped>
+.editor-tab-move {
+   transition: transform 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+   .editor-tab-move {
+      transition: none;
+   }
+}
+</style>
 
 <style lang="css">
 * {
