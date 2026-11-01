@@ -1,9 +1,10 @@
-import { WebContainer } from '~/utils/vivari-runtime';
+import type { WebContainer } from '@webcontainer/api';
 import { convertToFsTree } from './convert-to-fs-tree';
 import { convertToPathContentMap } from './convert-to-path-content-map';
-type WebContainerApi = typeof WebContainer;
+import { buildPreviewConsoleScript } from './preview-console';
+
+type WebContainerApi = typeof import('@webcontainer/api').WebContainer;
 let instance: WebContainer | null = null;
-const workdirInstances = new Map<string, WebContainer>();
 
 /** 该实例是否已被 teardown（此后所有代理调用都会抛 "Proxy has been released"） */
 let released = false;
@@ -17,7 +18,6 @@ const watchTeardown = (wc: WebContainer) => {
    wc.teardown = () => {
       released = true;
       instance = null;
-      workdirInstances.clear();
       teardown();
    };
 };
@@ -27,7 +27,6 @@ const resetInstance = () => {
    released = false;
    bootingPromise = null;
    instance = null;
-   workdirInstances.clear();
 };
 
 const BOOT_TIMEOUT_MS = 45_000;
@@ -43,7 +42,8 @@ const initWebContainer = async (
             reject(
                new Error(
                   `在线运行环境启动超时（${BOOT_TIMEOUT_MS / 1000} 秒内未就绪）。` +
-                     '请检查 Vivari Worker、Service Worker 和预览域名是否可达。',
+                     'boot() 需通过 iframe 访问 https://stackblitz.com/headless 下载运行时，' +
+                     '请检查网络后刷新重试。',
                ),
             ),
          BOOT_TIMEOUT_MS,
@@ -52,16 +52,16 @@ const initWebContainer = async (
 
    try {
       instance = await Promise.race([
-         WebContainer.boot({
-            workdirName: options?.workdirName,
-            previewOrigin: useRuntimeConfig().public.vivariPreviewOrigin,
-            previewWildcardDomain: useRuntimeConfig().public.vivariPreviewWildcardDomain,
-         }),
+         WebContainer.boot({ workdirName: options?.workdirName }),
          timeout,
       ]);
       released = false;
       watchTeardown(instance);
-      workdirInstances.set(instance.workdir, instance);
+      await instance
+         .setPreviewScript(buildPreviewConsoleScript(window.location.origin))
+         .catch((err) => {
+            console.warn('[webcontainer] 注入预览控制台脚本失败:', err);
+         });
    } finally {
       if (timer) clearTimeout(timer);
    }
@@ -100,21 +100,11 @@ export interface IUseWebContainerOptions {
 type WebContainerReadyCallback = (wc: WebContainer) => void;
 
 export const useWebContainer = (options?: IUseWebContainerOptions) => {
-   const workdir = `/${options?.workdirName ?? 'workspace'}`;
-   const scopedInstance = async () => {
-      const root = await startBoot(WebContainer, options);
-      const existing = workdirInstances.get(workdir);
-      if (existing) return existing;
-      const scoped = await root.withWorkdir(options?.workdirName ?? 'workspace');
-      workdirInstances.set(workdir, scoped);
-      return scoped;
-   };
    const webContainerReadyCallbacks = new Set<WebContainerReadyCallback>();
    const webContainerFailedCallbacks = new Set<(error: unknown) => void>();
    const onWebContainerReady = (callback: WebContainerReadyCallback) => {
-      const ready = workdirInstances.get(workdir);
-      if (ready) {
-         return callback(ready);
+      if (instance) {
+         return callback(instance);
       }
       webContainerReadyCallbacks.add(callback);
    };
@@ -125,8 +115,14 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
    const getInstance = async () => {
       if (!instance && released) {
          resetInstance();
+         const { WebContainer } = await import('@webcontainer/api');
+         await startBoot(WebContainer, options);
       }
-      return scopedInstance();
+      if (instance) return instance;
+      return new Promise<WebContainer>((resolve, reject) => {
+         onWebContainerReady((wc) => resolve(wc));
+         onWebContainerFailed((err) => reject(err));
+      });
    };
 
    const mountFileSystem = (pathContentMap: Record<string, string>) => {
@@ -236,16 +232,17 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
    const error = ref<{ message: string }>();
    const openedPort = ref<number>();
    const closePort = ref<number>();
-   const subscriptions: Array<() => void> = [];
-   let mounted = false;
 
    onMounted(async () => {
-      mounted = true;
       try {
-         const active = await getInstance();
-         if (!mounted) return;
+         const { WebContainer } = await import('@webcontainer/api');
 
-         subscriptions.push(active.on('server-ready', (port, url) => {
+         if (!instance || released) {
+            await startBoot(WebContainer, options);
+            webContainerReadyCallbacks.forEach((callback) => callback(instance!));
+         }
+
+         instance!.on('server-ready', (port, url) => {
             servers.value = [
                ...servers.value.filter((s) => s.port !== port),
                { port, url },
@@ -253,13 +250,13 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
             if (!exposeServer.value || exposeServer.value.port === port) {
                exposeServer.value = { port, url };
             }
-         }));
+         });
 
-         subscriptions.push(active.on('error', (err) => {
+         instance!.on('error', (err) => {
             error.value = err;
-         }));
+         });
 
-         subscriptions.push(active.on('port', (port, type) => {
+         instance!.on('port', (port, type) => {
             if (type === 'open') {
                openedPort.value = port;
             } else {
@@ -269,19 +266,12 @@ export const useWebContainer = (options?: IUseWebContainerOptions) => {
                   exposeServer.value = servers.value[0];
                }
             }
-         }));
-         webContainerReadyCallbacks.forEach((callback) => callback(active));
+         });
       } catch (err: any) {
          console.error('[webcontainer] 启动失败:', err);
          error.value = { message: err?.message ?? String(err) };
          webContainerFailedCallbacks.forEach((callback) => callback(err));
       }
-   });
-   onUnmounted(() => {
-      mounted = false;
-      subscriptions.splice(0).forEach((off) => off());
-      webContainerReadyCallbacks.clear();
-      webContainerFailedCallbacks.clear();
    });
 
    // 注意：这里**不能** teardown。 instance 是模块级单例，整个标签页共用。原实现在 onUnmounted 里调用 instance?.teardown()，于是任何一个消费者卸载（组件重新挂载、路由切换、 HMR）都会把共享实例销毁，之后所有 mount/watch/spawn 都会抛 "Proxy has been released and is not useable" —— 这正是编辑器一直 卡在"正在启动开发容器…"的真实原因。 WebContainer boot 成本很高，本就应该随标签页存活；需要干净状态时刷新页面即可。 若将来确实需要释放，应改为引用计数（最后一个消费者卸载时才 teardown）。

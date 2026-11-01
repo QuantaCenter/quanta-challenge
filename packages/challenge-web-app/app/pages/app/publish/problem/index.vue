@@ -78,14 +78,14 @@ const isSelectedSnapshotUnavailable = computed(
       !snapshotListLoading.value &&
       !snapshotImages.value.some(
          (item) =>
-            item.status === 'ready' && item.formatVersion === 1 && item.id === draft.value.snapshotImageId,
+            item.status === 'ready' && item.formatVersion === 0 && item.id === draft.value.snapshotImageId,
       ),
 );
 
 const snapshotImageOptions = computed(() => [
    { label: '不使用快照镜像', value: '' },
    ...snapshotImages.value
-      .filter((item) => item.status === 'ready' && item.formatVersion === 1)
+      .filter((item) => item.status === 'ready' && item.formatVersion === 0)
       .map((item) => ({
          label: item.name,
          value: item.id,
