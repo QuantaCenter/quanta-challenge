@@ -326,25 +326,27 @@ defineExpose({
                </StSkeleton>
             </StSpace>
          </StSpace>
-         <StButton
-            size="sm"
-            aria-label="格式化当前文件"
-            title="格式化当前文件"
-            class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
-            @click="formatDocument"
-         >
-            <FileCode2 :size="16" />
-         </StButton>
-         <StButton
-            size="sm"
-            aria-label="编辑器设置"
-            title="编辑器设置"
-            aria-haspopup="dialog"
-            class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
-            @click="isSettingsModalOpen = true"
-         >
-            <Setting />
-         </StButton>
+         <StPopover content="格式化当前文件" placement="bottom" class="shrink-0">
+            <StButton
+               size="sm"
+               aria-label="格式化当前文件"
+               class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+               @click="formatDocument"
+            >
+               <FileCode2 :size="16" />
+            </StButton>
+         </StPopover>
+         <StPopover content="编辑器设置" placement="bottom" class="shrink-0">
+            <StButton
+               size="sm"
+               aria-label="编辑器设置"
+               aria-haspopup="dialog"
+               class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+               @click="isSettingsModalOpen = true"
+            >
+               <Setting />
+            </StButton>
+         </StPopover>
       </StSpace>
 
       <StSpace fill class="relative bg-[#1C1C1C] border border-[#1F1F1F]">
