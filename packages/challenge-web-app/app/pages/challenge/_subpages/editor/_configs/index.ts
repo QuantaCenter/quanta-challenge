@@ -1,6 +1,8 @@
 // 编辑器配置接口
 export interface EditorConfig {
    fontSize: number;
+   fontFamily: string;
+   lineHeight: number;
    wordWrap: boolean;
    tabSize: number;
    insertSpaces: boolean;
@@ -11,6 +13,8 @@ export interface EditorConfig {
 // 默认配置值
 export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    fontSize: 16,
+   fontFamily: 'FiraCode Nerd Font Mono, monospace',
+   lineHeight: 0,
    wordWrap: false,
    tabSize: 2,
    insertSpaces: true,

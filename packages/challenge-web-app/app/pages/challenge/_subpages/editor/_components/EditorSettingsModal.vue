@@ -74,12 +74,12 @@ const update = (patch: Partial<EditorConfig>) =>
    });
 
 const updateNumber = (
-   key: 'fontSize' | 'tabSize',
+   key: 'fontSize' | 'tabSize' | 'lineHeight',
    value: string | number | undefined,
 ) => {
    const number = Number(value);
-   const min = key === 'fontSize' ? 10 : 1;
-   const max = key === 'fontSize' ? 32 : 8;
+   const min = key === 'fontSize' ? 10 : key === 'tabSize' ? 1 : 0;
+   const max = key === 'fontSize' ? 32 : key === 'tabSize' ? 8 : 64;
    if (
       value !== '' &&
       Number.isInteger(number) &&
@@ -89,7 +89,7 @@ const updateNumber = (
       update({ [key]: number });
 };
 
-const restoreNumber = (key: 'fontSize' | 'tabSize', event: FocusEvent) => {
+const restoreNumber = (key: 'fontSize' | 'tabSize' | 'lineHeight', event: FocusEvent) => {
    const input = event.target;
    if (input instanceof HTMLInputElement) input.value = String(props.config[key]);
 };
@@ -202,6 +202,35 @@ const lineNumberOptions = [
                      outer-class="w-32 shrink-0 bg-accent-500 border border-accent-400 !py-2 !px-3 [&amp;_input]:min-w-0 [&amp;_input]:w-full [&amp;_input]:pr-6"
                      @update:value="updateNumber('fontSize', $event)"
                      @blur="restoreNumber('fontSize', $event)"
+                  />
+               </div>
+               <div class="setting-row">
+                  <div>
+                     <div>字体</div>
+                     <p>输入浏览器可用的字体名称</p>
+                  </div>
+                  <StInput
+                     :value="config.fontFamily"
+                     aria-label="字体"
+                     outer-class="w-56 shrink-0 bg-accent-500 border border-accent-400 !py-2 !px-3 [&amp;_input]:min-w-0 [&amp;_input]:w-full"
+                     @update:value="update({ fontFamily: String($event ?? '') })"
+                  />
+               </div>
+               <div class="setting-row">
+                  <div>
+                     <div>行高</div>
+                     <p>像素值，0 表示自动</p>
+                  </div>
+                  <StInput
+                     :value="config.lineHeight"
+                     type="number"
+                     min="0"
+                     max="64"
+                     step="1"
+                     aria-label="行高"
+                     outer-class="w-32 shrink-0 bg-accent-500 border border-accent-400 !py-2 !px-3 [&amp;_input]:min-w-0 [&amp;_input]:w-full [&amp;_input]:pr-6"
+                     @update:value="updateNumber('lineHeight', $event)"
+                     @blur="restoreNumber('lineHeight', $event)"
                   />
                </div>
                <div class="setting-row">

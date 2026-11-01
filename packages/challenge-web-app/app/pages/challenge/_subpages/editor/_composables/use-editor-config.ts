@@ -35,6 +35,8 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
       const config = { ...DEFAULT_EDITOR_CONFIG, ...editorConfig.value };
       instance.updateOptions({
          fontSize: resolveFontSize(config.fontSize),
+         fontFamily: config.fontFamily,
+         lineHeight: config.lineHeight,
          wordWrap: config.wordWrap ? 'on' : 'off',
          minimap: { enabled: config.minimap },
          lineNumbers: config.lineNumbers,
