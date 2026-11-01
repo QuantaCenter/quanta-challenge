@@ -411,7 +411,7 @@ const cursorOptions = [
                            </StButton>
                         </div>
                         <div
-                           class="min-w-[10rem] rounded-md border bg-accent-500 px-3 py-2 text-sm text-center"
+                           class="w-56 max-w-[45vw] shrink-0 break-words rounded-md border bg-accent-500 px-3 py-2 text-sm text-center"
                            :class="recording === action.id ? 'border-primary' : 'border-accent-400'"
                            aria-live="polite"
                         >
