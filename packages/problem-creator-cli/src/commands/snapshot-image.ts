@@ -131,7 +131,13 @@ const renderImages = (
                  ? colors.green('●')
                  : colors.dim('○');
          const facts = [
-            ready ? undefined : colors.yellow(image.formatVersion !== 0 ? '格式不兼容，需重建' : '构建中，不可选'),
+            ready
+               ? undefined
+               : colors.yellow(
+                    image.formatVersion !== 0
+                       ? '格式不兼容，需重建'
+                       : '构建中，不可选',
+                 ),
             (image.compressedSizeBytes ?? image.sizeBytes)
                ? formatBytes(image.compressedSizeBytes ?? image.sizeBytes ?? 0)
                : undefined,
@@ -158,7 +164,9 @@ const pickImage = async (
    images: SnapshotImage[],
    current: string | null | undefined,
 ): Promise<string | null> => {
-   const ready = images.filter((image) => image.status === 'ready' && image.formatVersion === 0);
+   const ready = images.filter(
+      (image) => image.status === 'ready' && image.formatVersion === 0,
+   );
    const choice = await select(
       '选择本题的快照镜像（方向键选择，回车确认）',
       [
@@ -213,7 +221,9 @@ const assertSelectable = (
       });
    }
    if (image.formatVersion !== 0) {
-      throw new UsageError(`快照镜像「${image.name}」需要使用 WebContainer 重新构建`);
+      throw new UsageError(
+         `快照镜像「${image.name}」需要使用 WebContainer 重新构建`,
+      );
    }
    if (image.status !== 'ready') {
       throw new UsageError(`快照镜像「${image.name}」还在构建中，暂不可用`, {
