@@ -3,6 +3,7 @@ import { useMonacoEditor } from '../../../_composables/use-monaco-editor';
 import { normalizePath, getBaseName } from '~/utils/path-utils';
 import Tab from '../_components/Tab.vue';
 import { Setting } from '@icon-park/vue-next';
+import { FileCode2 } from 'lucide-vue-next';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
@@ -14,6 +15,7 @@ import {
 } from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
+import { useMessage } from '~/components/st/Message/use-message';
 
 const currentFilePath = defineModel<string>('currentFilePath');
 
@@ -97,6 +99,33 @@ const hasEditorReady = ref(false);
 const isSettingsModalOpen = ref(false);
 
 const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
+
+const message = useMessage();
+let editorInstance: editor.IStandaloneCodeEditor | undefined;
+
+onEditorInstanceReady((instance) => {
+   editorInstance = instance;
+});
+
+const formatDocument = async () => {
+   if (!editorInstance?.getModel()) {
+      message.info('请先打开可编辑的文件');
+      return;
+   }
+
+   const action = editorInstance.getAction('editor.action.formatDocument');
+   if (!action?.isSupported()) {
+      message.info('当前文件暂不支持格式化');
+      return;
+   }
+
+   try {
+      await action.run();
+   } catch (error) {
+      console.error('[editor] 格式化失败:', error);
+      message.error('格式化失败', '请检查文件内容后重试');
+   }
+};
 
 // 移动端顶栏撤回/重做：注册执行能力，供顶栏按钮调用
 const { actions: historyActions, canUndo, canRedo } = useMobileEditorHistory();
@@ -260,6 +289,7 @@ defineExpose({
    onModelContentChange,
    addExtraLibs,
    onEditorInstanceReady,
+   formatDocument,
 });
 </script>
 
@@ -296,6 +326,15 @@ defineExpose({
                </StSkeleton>
             </StSpace>
          </StSpace>
+         <StButton
+            size="sm"
+            aria-label="格式化当前文件"
+            title="格式化当前文件"
+            class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+            @click="formatDocument"
+         >
+            <FileCode2 :size="16" />
+         </StButton>
          <StButton
             size="sm"
             aria-label="编辑器设置"

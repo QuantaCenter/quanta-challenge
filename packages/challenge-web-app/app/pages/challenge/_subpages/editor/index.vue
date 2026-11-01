@@ -570,6 +570,7 @@ useEditorShortcuts({
    onRefreshPreview: () => preview.value?.refresh(),
    onCloseTab: () => codeEditor.value?.closeCurrentTab(),
    onToggleTerminal: () => terminal.value?.toggleFold(),
+   onFormat: () => codeEditor.value?.formatDocument(),
 });
 
 // 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，

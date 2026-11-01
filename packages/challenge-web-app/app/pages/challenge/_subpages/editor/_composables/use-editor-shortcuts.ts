@@ -9,6 +9,7 @@ export interface IUseEditorShortcutsOptions {
    onRefreshPreview: () => void;
    onCloseTab: () => void;
    onToggleTerminal: () => void;
+   onFormat: () => void;
 }
 
 /**
@@ -25,6 +26,7 @@ export const useEditorShortcuts = (options: IUseEditorShortcutsOptions) => {
       r: options.onRefreshPreview,
       w: options.onCloseTab,
       j: options.onToggleTerminal,
+      format: options.onFormat,
    };
 
    useEventListener(
