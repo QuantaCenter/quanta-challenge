@@ -8,6 +8,7 @@ export interface EditorConfig {
    insertSpaces: boolean;
    minimap: boolean;
    lineNumbers: 'on' | 'relative' | 'off';
+   renderWhitespace: 'none' | 'selection' | 'boundary' | 'all';
 }
 
 // 默认配置值
@@ -20,6 +21,7 @@ export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    insertSpaces: true,
    minimap: false,
    lineNumbers: 'on',
+   renderWhitespace: 'selection',
 };
 
 export const DEFAULT_FILE_SYSTEM_SYNC_INTERVAL = 5 * 1000;

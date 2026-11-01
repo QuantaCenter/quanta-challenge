@@ -161,6 +161,13 @@ const lineNumberOptions = [
    { label: '相对行号', value: 'relative' },
    { label: '关闭', value: 'off' },
 ];
+
+const whitespaceOptions = [
+   { label: '不显示', value: 'none' },
+   { label: '仅选中区域', value: 'selection' },
+   { label: '边界空白', value: 'boundary' },
+   { label: '全部显示', value: 'all' },
+];
 </script>
 
 <template>
@@ -264,6 +271,23 @@ const lineNumberOptions = [
                   >
                      <template #selected-preview>
                         {{ lineNumberOptions.find((item) => item.value === config.lineNumbers)?.label }}
+                     </template>
+                  </StSelect>
+               </div>
+               <div class="setting-row">
+                  <div>
+                     <div>空白字符</div>
+                     <p>显示空格与制表符标记</p>
+                  </div>
+                  <StSelect
+                     :value="config.renderWhitespace"
+                     :options="whitespaceOptions"
+                     attach-to-body
+                     outer-class="w-40 bg-accent-500 border border-accent-400 !py-2 !px-3"
+                     @update:value="$event && update({ renderWhitespace: $event })"
+                  >
+                     <template #selected-preview>
+                        {{ whitespaceOptions.find((item) => item.value === config.renderWhitespace)?.label }}
                      </template>
                   </StSelect>
                </div>

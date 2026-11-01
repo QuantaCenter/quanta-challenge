@@ -40,6 +40,7 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          wordWrap: config.wordWrap ? 'on' : 'off',
          minimap: { enabled: config.minimap },
          lineNumbers: config.lineNumbers,
+         renderWhitespace: config.renderWhitespace,
       });
       instance.getModel()?.updateOptions({
          tabSize: config.tabSize,
