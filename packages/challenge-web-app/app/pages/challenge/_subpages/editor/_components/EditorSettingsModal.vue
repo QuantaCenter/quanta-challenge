@@ -174,6 +174,11 @@ const toggles = [
       label: '自动闭合引号',
       description: '输入引号时补全对应引号',
    },
+   {
+      key: 'cursorAnimation' as const,
+      label: '光标平滑移动',
+      description: '光标位置变化时显示动画',
+   },
 ];
 
 const lineNumberOptions = [
@@ -187,6 +192,34 @@ const whitespaceOptions = [
    { label: '仅选中区域', value: 'selection' },
    { label: '边界空白', value: 'boundary' },
    { label: '全部显示', value: 'all' },
+];
+
+const cursorOptions = [
+   {
+      key: 'cursorStyle' as const,
+      label: '光标样式',
+      description: '选择光标的形状',
+      options: [
+         { label: '竖线', value: 'line' },
+         { label: '细竖线', value: 'line-thin' },
+         { label: '方块', value: 'block' },
+         { label: '空心方块', value: 'block-outline' },
+         { label: '下划线', value: 'underline' },
+         { label: '细下划线', value: 'underline-thin' },
+      ],
+   },
+   {
+      key: 'cursorBlinking' as const,
+      label: '光标闪烁',
+      description: '选择光标的闪烁效果',
+      options: [
+         { label: '闪烁', value: 'blink' },
+         { label: '平滑', value: 'smooth' },
+         { label: '渐变', value: 'phase' },
+         { label: '展开', value: 'expand' },
+         { label: '常亮', value: 'solid' },
+      ],
+   },
 ];
 </script>
 
@@ -308,6 +341,23 @@ const whitespaceOptions = [
                   >
                      <template #selected-preview>
                         {{ whitespaceOptions.find((item) => item.value === config.renderWhitespace)?.label }}
+                     </template>
+                  </StSelect>
+               </div>
+               <div v-for="item in cursorOptions" :key="item.key" class="setting-row">
+                  <div>
+                     <div>{{ item.label }}</div>
+                     <p>{{ item.description }}</p>
+                  </div>
+                  <StSelect
+                     :value="config[item.key]"
+                     :options="item.options"
+                     attach-to-body
+                     outer-class="w-40 bg-accent-500 border border-accent-400 !py-2 !px-3"
+                     @update:value="$event && update({ [item.key]: $event })"
+                  >
+                     <template #selected-preview>
+                        {{ item.options.find((option) => option.value === config[item.key])?.label }}
                      </template>
                   </StSelect>
                </div>

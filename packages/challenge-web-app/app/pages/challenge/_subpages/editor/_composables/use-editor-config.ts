@@ -45,6 +45,9 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          guides: { indentation: config.indentGuides },
          autoClosingBrackets: config.autoCloseBrackets ? 'languageDefined' : 'never',
          autoClosingQuotes: config.autoCloseQuotes ? 'languageDefined' : 'never',
+         cursorStyle: config.cursorStyle,
+         cursorBlinking: config.cursorBlinking,
+         cursorSmoothCaretAnimation: config.cursorAnimation ? 'on' : 'off',
       });
       instance.getModel()?.updateOptions({
          tabSize: config.tabSize,

@@ -13,6 +13,9 @@ export interface EditorConfig {
    indentGuides: boolean;
    autoCloseBrackets: boolean;
    autoCloseQuotes: boolean;
+   cursorStyle: 'line' | 'block' | 'underline' | 'line-thin' | 'block-outline' | 'underline-thin';
+   cursorBlinking: 'blink' | 'smooth' | 'phase' | 'expand' | 'solid';
+   cursorAnimation: boolean;
 }
 
 // 默认配置值
@@ -30,6 +33,9 @@ export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    indentGuides: true,
    autoCloseBrackets: true,
    autoCloseQuotes: true,
+   cursorStyle: 'line',
+   cursorBlinking: 'blink',
+   cursorAnimation: true,
 };
 
 export const DEFAULT_FILE_SYSTEM_SYNC_INTERVAL = 5 * 1000;
