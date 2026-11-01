@@ -164,6 +164,16 @@ const toggles = [
       label: '缩进参考线',
       description: '显示代码缩进层级',
    },
+   {
+      key: 'autoCloseBrackets' as const,
+      label: '自动闭合括号',
+      description: '输入左括号时补全对应括号',
+   },
+   {
+      key: 'autoCloseQuotes' as const,
+      label: '自动闭合引号',
+      description: '输入引号时补全对应引号',
+   },
 ];
 
 const lineNumberOptions = [

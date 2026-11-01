@@ -11,6 +11,8 @@ export interface EditorConfig {
    renderWhitespace: 'none' | 'selection' | 'boundary' | 'all';
    matchBrackets: boolean;
    indentGuides: boolean;
+   autoCloseBrackets: boolean;
+   autoCloseQuotes: boolean;
 }
 
 // 默认配置值
@@ -26,6 +28,8 @@ export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    renderWhitespace: 'selection',
    matchBrackets: true,
    indentGuides: true,
+   autoCloseBrackets: true,
+   autoCloseQuotes: true,
 };
 
 export const DEFAULT_FILE_SYSTEM_SYNC_INTERVAL = 5 * 1000;

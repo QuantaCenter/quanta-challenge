@@ -43,6 +43,8 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          renderWhitespace: config.renderWhitespace,
          matchBrackets: config.matchBrackets ? 'always' : 'never',
          guides: { indentation: config.indentGuides },
+         autoClosingBrackets: config.autoCloseBrackets ? 'languageDefined' : 'never',
+         autoClosingQuotes: config.autoCloseQuotes ? 'languageDefined' : 'never',
       });
       instance.getModel()?.updateOptions({
          tabSize: config.tabSize,
