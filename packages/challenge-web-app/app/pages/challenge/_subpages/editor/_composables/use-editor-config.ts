@@ -37,6 +37,7 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          fontSize: resolveFontSize(config.fontSize),
          wordWrap: config.wordWrap ? 'on' : 'off',
          minimap: { enabled: config.minimap },
+         lineNumbers: config.lineNumbers,
       });
       instance.getModel()?.updateOptions({
          tabSize: config.tabSize,

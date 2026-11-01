@@ -155,6 +155,12 @@ const toggles = [
       description: '在编辑器右侧显示文件概览',
    },
 ];
+
+const lineNumberOptions = [
+   { label: '普通行号', value: 'on' },
+   { label: '相对行号', value: 'relative' },
+   { label: '关闭', value: 'off' },
+];
 </script>
 
 <template>
@@ -214,6 +220,23 @@ const toggles = [
                      @update:value="updateNumber('tabSize', $event)"
                      @blur="restoreNumber('tabSize', $event)"
                   />
+               </div>
+               <div class="setting-row">
+                  <div>
+                     <div>行号</div>
+                     <p>选择编辑器行号的显示方式</p>
+                  </div>
+                  <StSelect
+                     :value="config.lineNumbers"
+                     :options="lineNumberOptions"
+                     attach-to-body
+                     outer-class="w-40 bg-accent-500 border border-accent-400 !py-2 !px-3"
+                     @update:value="$event && update({ lineNumbers: $event })"
+                  >
+                     <template #selected-preview>
+                        {{ lineNumberOptions.find((item) => item.value === config.lineNumbers)?.label }}
+                     </template>
+                  </StSelect>
                </div>
                <div v-for="item in toggles" :key="item.key" class="setting-row">
                   <div>

@@ -5,6 +5,7 @@ export interface EditorConfig {
    tabSize: number;
    insertSpaces: boolean;
    minimap: boolean;
+   lineNumbers: 'on' | 'relative' | 'off';
 }
 
 // 默认配置值
@@ -14,6 +15,7 @@ export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    tabSize: 2,
    insertSpaces: true,
    minimap: false,
+   lineNumbers: 'on',
 };
 
 export const DEFAULT_FILE_SYSTEM_SYNC_INTERVAL = 5 * 1000;
