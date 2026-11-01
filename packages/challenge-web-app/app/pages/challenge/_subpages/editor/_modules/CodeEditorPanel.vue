@@ -25,6 +25,42 @@ interface ITab {
 }
 
 const openedTabs = ref<ITab[]>([]);
+const draggedTabPath = ref<string | null>(null);
+const tabDropTarget = ref<{ path: string; after: boolean } | null>(null);
+
+const startTabDrag = (event: DragEvent, path: string) => {
+   if (!event.dataTransfer) return;
+   draggedTabPath.value = path;
+   event.dataTransfer.effectAllowed = 'move';
+   event.dataTransfer.setData('application/x-quanta-editor-tab', path);
+};
+
+const updateTabDropTarget = (event: DragEvent, path: string) => {
+   if (!draggedTabPath.value || !event.currentTarget) return;
+   event.preventDefault();
+   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+   tabDropTarget.value = { path, after: event.clientX >= rect.left + rect.width / 2 };
+};
+
+const endTabDrag = () => {
+   draggedTabPath.value = null;
+   tabDropTarget.value = null;
+};
+
+const dropTab = (event: DragEvent) => {
+   if (!draggedTabPath.value || !tabDropTarget.value) return;
+   event.preventDefault();
+   const from = openedTabs.value.findIndex((tab) => tab.path === draggedTabPath.value);
+   const target = openedTabs.value.findIndex((tab) => tab.path === tabDropTarget.value?.path);
+   if (from !== -1 && target !== -1) {
+      const destination = target + (tabDropTarget.value.after ? 1 : 0);
+      const [item] = openedTabs.value.splice(from, 1);
+      if (item) openedTabs.value.splice(destination - (from < destination ? 1 : 0), 0, item);
+   }
+   endTabDrag();
+};
+
 watch(
    currentFilePath,
    (newPath) => {
@@ -317,10 +353,17 @@ defineExpose({
                      v-for="item in openedTabs"
                      :key="item.path"
                      :content="item.name"
+                     draggable="true"
                      :class="{
                         '!bg-primary !text-white':
                            currentFilePath === item.path,
+                        '!border-l-primary': tabDropTarget?.path === item.path && !tabDropTarget.after,
+                        '!border-r-primary': tabDropTarget?.path === item.path && tabDropTarget.after,
                      }"
+                     @dragstart="startTabDrag($event, item.path)"
+                     @dragover="updateTabDropTarget($event, item.path)"
+                     @drop="dropTab"
+                     @dragend="endTabDrag"
                      @click="onClickTab(item)"
                      @remove="onCloseTab(item)" />
                </StSkeleton>
