@@ -154,6 +154,16 @@ const toggles = [
       label: '代码缩略图',
       description: '在编辑器右侧显示文件概览',
    },
+   {
+      key: 'matchBrackets' as const,
+      label: '括号匹配',
+      description: '高亮光标附近的配对括号',
+   },
+   {
+      key: 'indentGuides' as const,
+      label: '缩进参考线',
+      description: '显示代码缩进层级',
+   },
 ];
 
 const lineNumberOptions = [

@@ -41,6 +41,8 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          minimap: { enabled: config.minimap },
          lineNumbers: config.lineNumbers,
          renderWhitespace: config.renderWhitespace,
+         matchBrackets: config.matchBrackets ? 'always' : 'never',
+         guides: { indentation: config.indentGuides },
       });
       instance.getModel()?.updateOptions({
          tabSize: config.tabSize,

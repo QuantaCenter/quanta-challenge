@@ -9,6 +9,8 @@ export interface EditorConfig {
    minimap: boolean;
    lineNumbers: 'on' | 'relative' | 'off';
    renderWhitespace: 'none' | 'selection' | 'boundary' | 'all';
+   matchBrackets: boolean;
+   indentGuides: boolean;
 }
 
 // 默认配置值
@@ -22,6 +24,8 @@ export const DEFAULT_EDITOR_CONFIG: EditorConfig = {
    minimap: false,
    lineNumbers: 'on',
    renderWhitespace: 'selection',
+   matchBrackets: true,
+   indentGuides: true,
 };
 
 export const DEFAULT_FILE_SYSTEM_SYNC_INTERVAL = 5 * 1000;
