@@ -24,6 +24,7 @@ const opened = defineModel<boolean>('opened', {
 });
 
 const tab = ref('settings');
+const layoutStore = useLayoutStore();
 const bindings = useEditorKeybindings();
 const isMac = ref(false);
 const resetConflict = ref<{ id: string; label: string } | null>(null);
@@ -242,7 +243,7 @@ const cursorOptions = [
          <div class="px-6 pt-4">
             <StTabs
                v-model="tab"
-               :options="[ { label: '编辑器设置', value: 'settings' }, { label: '快捷键', value: 'shortcuts' }, ]"
+               :options="[ { label: '编辑器设置', value: 'settings' }, { label: '快捷键', value: 'shortcuts' }, { label: '布局', value: 'layout' } ]"
             />
          </div>
          <div class="h-96 p-6 max-h-[65vh] overflow-y-auto">
@@ -373,7 +374,7 @@ const cursorOptions = [
                   />
                </div>
             </div>
-            <div v-else>
+            <div v-else-if="tab === 'shortcuts'">
                <div
                   v-for="action in shortcutActions"
                   :key="action.id"
@@ -426,6 +427,18 @@ const cursorOptions = [
                      默认快捷键已用于“{{ resetConflict.label }}”，请先修改该绑定。
                   </p>
                </div>
+            </div>
+            <div v-else class="space-y-5">
+               <div class="setting-row">
+                  <div>
+                     <div>锁定面板拖拽</div>
+                     <p>防止意外调整面板位置和大小</p>
+                  </div>
+                  <StSwitch v-model="layoutStore.locked" aria-label="锁定面板拖拽" />
+               </div>
+               <StButton size="sm" @click="layoutStore.resetLayout()">
+                  恢复默认布局
+               </StButton>
             </div>
          </div>
       </div>

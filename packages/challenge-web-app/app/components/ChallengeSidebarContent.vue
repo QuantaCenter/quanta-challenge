@@ -10,7 +10,7 @@ import { useParam } from '~/composables/use-param';
 import useAuthStore from '~/stores/auth-store';
 import { useMessageOutsideVue } from '~/components/st/Message/use-message';
 
-/** 移动端隐藏「题目详情」（题面已是分页板块）与「布局设置」（桌面专属功能）按钮。
+/** 移动端隐藏「题目详情」（题面已是分页板块）按钮。
  *  水合安全判定：SSR 与客户端首帧恒为 false，mounted 后才隐藏 */
 const isMobile = useIsMobile();
 
@@ -135,7 +135,6 @@ const avatarUrl = computed(() => {
 
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
-         <ChallengeLayoutMenu v-if="!isMobile" />
       </StSpace>
    </template>
 
