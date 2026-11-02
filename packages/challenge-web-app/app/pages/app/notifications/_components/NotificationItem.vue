@@ -34,6 +34,7 @@ const iconMap: Record<NotificationType, Component> = {
    ACHIEVEMENT: CheckOne,
    ANNOUNCEMENT: VolumeNotice,
    WARNING: Caution,
+   FEEDBACK: Comment,
 };
 
 /** 图标与背景色 */
@@ -45,6 +46,7 @@ const iconStyleMap: Record<NotificationType, { icon: string; bg: string }> = {
    ACHIEVEMENT: { icon: 'text-yellow-500', bg: 'bg-yellow-500/15' },
    ANNOUNCEMENT: { icon: 'text-violet-400', bg: 'bg-violet-400/15' },
    WARNING: { icon: 'text-error', bg: 'bg-error/15' },
+   FEEDBACK: { icon: 'text-primary', bg: 'bg-primary/15' },
 };
 
 const IconComponent = computed(() => iconMap[props.type] || Remind);
@@ -87,6 +89,13 @@ const isWarning = computed(() => props.type === 'WARNING');
          <p class="st-font-body-normal text-accent-300 line-clamp-2">
             {{ markdownToPlainText(content) }}
          </p>
+         <NuxtLink
+            v-if="type === 'FEEDBACK'"
+            to="/app/feedback"
+            class="mt-2 inline-block text-sm text-primary"
+            @click.stop>
+            查看我的反馈
+         </NuxtLink>
       </div>
       <div
          v-if="!read"

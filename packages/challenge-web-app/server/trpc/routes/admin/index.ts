@@ -2,6 +2,7 @@ import { router } from '../../trpc';
 import { achievementRouter } from './achievement';
 import { appealAdminRouter } from './appeal';
 import { cloudFunctionAdminRouter } from './cloud-function';
+import { feedbackAdminRouter } from './feedback';
 import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
 import { notificationAdminRouter } from './notification';
@@ -23,4 +24,5 @@ export const adminRouter = router({
    notification: notificationAdminRouter,
    appeal: appealAdminRouter,
    scheduledTask: scheduledTaskAdminRouter,
+   feedback: feedbackAdminRouter,
 });

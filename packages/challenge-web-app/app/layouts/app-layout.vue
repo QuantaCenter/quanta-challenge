@@ -5,6 +5,7 @@ import {
    useMessageOutsideVue,
 } from '~/components/st/Message/use-message';
 import useAuthStore from '~/stores/auth-store';
+import { useFeedbackStore } from '~/stores/feedback-store';
 import UnreadWarningNotice from '~/components/notification/UnreadWarningNotice.vue';
 
 const authStore = useAuthStore();
@@ -90,6 +91,9 @@ const notificationNewSignal = useState('notification-new-signal', () => 0);
 
 // 移动端导航抽屉（< 768px 时由移动端顶栏展开）
 const mobileDrawerOpen = ref(false);
+
+// 反馈抽屉开关（与侧边栏反馈图标共享）
+const feedbackStore = useFeedbackStore();
 </script>
 
 <template>
@@ -147,6 +151,11 @@ const mobileDrawerOpen = ref(false);
 
       <!-- 对话框覆盖层 -->
       <DialogOverlay />
+
+      <!-- 反馈抽屉 -->
+      <FeedbackDrawer
+         :opened="feedbackStore.opened"
+         @update:opened="feedbackStore.opened = $event" />
 
       <UnreadWarningNotice :count="unreadWarningCount" />
    </div>

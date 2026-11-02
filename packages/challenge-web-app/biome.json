@@ -14,6 +14,10 @@
          "app/app.vue",
          "app/pages/auth/login/index.vue",
          "app/pages/auth/quanta/**",
+         "app/components/feedback/**",
+         "app/pages/app/feedback/**",
+         "app/pages/app/manage/feedback/**",
+         "app/stores/feedback-store.ts",
          "app/plugins/trpc.ts",
          "app/utils/quanta-login.ts",
          "server/api/auth/quanta/**",
@@ -21,6 +25,9 @@
          "server/trpc/trpc.ts",
          "server/trpc/routes/auth/index.ts",
          "server/trpc/routes/auth/quanta.ts",
+         "server/trpc/routes/admin/feedback.ts",
+         "server/trpc/routes/protected/feedback.ts",
+         "server/trpc/schemas/feedback.ts",
          "tests/quanta-oauth*.test.ts"
       ]
    },

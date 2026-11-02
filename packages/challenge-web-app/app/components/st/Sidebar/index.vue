@@ -8,12 +8,17 @@ import {
    TableReport,
    Trophy,
    UploadTwo,
+   Comment,
 } from '@icon-park/vue-next';
 import Logo from '~/components/icon/Logo.vue';
 import useAuthStore from '~/stores/auth-store';
+import { useFeedbackStore } from '~/stores/feedback-store';
 
 const authStore = useAuthStore();
 const role = computed(() => authStore.user?.role ?? 'USER');
+
+// 反馈抽屉开关（跨组件共享，抽屉本体挂在 app-layout 内）
+const feedbackStore = useFeedbackStore();
 </script>
 
 <template>
@@ -64,6 +69,16 @@ const role = computed(() => authStore.user?.role ?? 'USER');
                <StSidebarNavigationButton to="/app/settings">
                   <SettingTwo />
                </StSidebarNavigationButton>
+            </StSidebarSidePopper>
+            <StSidebarSidePopper content="反馈">
+               <StRippleEffect>
+                  <button
+                     aria-label="反馈"
+                     class="size-[3.5rem] flex shrink-0 items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer"
+                     @click="feedbackStore.open()">
+                     <Comment />
+                  </button>
+               </StRippleEffect>
             </StSidebarSidePopper>
          </StSpace>
          <StSidebarNavigationButton to="/app/space">

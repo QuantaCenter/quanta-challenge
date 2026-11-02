@@ -12,6 +12,7 @@ import {
    User,
 } from '@icon-park/vue-next';
 import useAuthStore from '~/stores/auth-store';
+import { useFeedbackStore } from '~/stores/feedback-store';
 
 const props = defineProps<{
    open: boolean;
@@ -22,6 +23,7 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
+const feedbackStore = useFeedbackStore();
 const role = computed(() => authStore.user?.role ?? 'USER');
 const route = useRoute();
 
@@ -44,6 +46,10 @@ const avatarUrl = computed(() => {
 });
 
 const close = () => emit('update:open', false);
+const openFeedback = () => {
+   close();
+   feedbackStore.open();
+};
 
 // 与桌面端 Header/Profile.vue 的退出登录逻辑保持一致
 const handleLogout = async () => {
@@ -190,6 +196,18 @@ const teleported = useClientTeleport();
                         <span>个人空间</span>
                      </NuxtLink>
                   </nav>
+                  <button
+                     type="button"
+                     class="st-mobile-drawer-item cursor-pointer"
+                     @click="openFeedback">
+                     问题反馈
+                  </button>
+                  <NuxtLink
+                     to="/app/feedback"
+                     class="st-mobile-drawer-item"
+                     @click="close">
+                     我的反馈
+                  </NuxtLink>
                   <div class="shrink-0 border-t border-accent-500 p-3">
                      <button
                         class="st-mobile-drawer-item w-full cursor-pointer text-left hover:text-error"

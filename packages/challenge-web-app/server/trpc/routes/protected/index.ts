@@ -3,6 +3,7 @@ import { achievementRouter } from './achievement';
 import { cloudFunctionRouter } from './cloud-function';
 import { dailyRouter } from './daily';
 import { dashboardRouter } from './dashboard';
+import { feedbackRouter } from './feedback';
 import { problemRouter } from './problem';
 import { rankRouter } from './rank';
 import { userRouter } from './user';
@@ -25,4 +26,5 @@ export const protectedRouter = router({
    setting: settingRouter,
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
+   feedback: feedbackRouter,
 });
