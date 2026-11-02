@@ -560,6 +560,7 @@ const preview = useTemplateRef('preview');
 
 // shortcuts
 const message = useMessage();
+const layoutStore = useLayoutStore();
 let saveHintShown = false;
 useEditorShortcuts({
    onSave: () => {
@@ -569,7 +570,12 @@ useEditorShortcuts({
    },
    onRefreshPreview: () => preview.value?.refresh(),
    onCloseTab: () => codeEditor.value?.closeCurrentTab(),
-   onToggleTerminal: () => terminal.value?.toggleFold(),
+   onToggleFiles: () => {
+      layoutStore.filesVisible = !layoutStore.filesVisible;
+   },
+   onToggleTerminal: () => {
+      editorStore.terminalVisible = !editorStore.terminalVisible;
+   },
    onFormat: () => codeEditor.value?.formatDocument(),
 });
 
