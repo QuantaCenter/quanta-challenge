@@ -138,7 +138,19 @@ const avatarUrl = computed(() => {
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
          <ChallengeLayoutMenu v-if="!isMobile" />
+      </StSpace>
 
+      <StMiniSidebarDivider v-if="!isMobile" />
+      <StSpace direction="vertical" align="center" gap="0.5rem">
+         <StMiniSidebarButton
+            v-if="!isMobile"
+            name="文件栏"
+            :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
+            :aria-pressed="layoutStore.filesVisible"
+            :class="{ '!text-primary': layoutStore.filesVisible }"
+            @click="layoutStore.filesVisible = !layoutStore.filesVisible">
+            <PanelLeft :size="18" />
+         </StMiniSidebarButton>
          <StMiniSidebarButton
             name="终端"
             :aria-label="store.terminalVisible ? '隐藏终端' : '显示终端'"
@@ -148,18 +160,6 @@ const avatarUrl = computed(() => {
             <SquareTerminal :size="18" />
          </StMiniSidebarButton>
       </StSpace>
-
-      <template v-if="!isMobile">
-         <StMiniSidebarDivider />
-         <StMiniSidebarButton
-            name="文件栏"
-            :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
-            :aria-pressed="layoutStore.filesVisible"
-            :class="{ '!text-primary': layoutStore.filesVisible }"
-            @click="layoutStore.filesVisible = !layoutStore.filesVisible">
-            <PanelLeft :size="18" />
-         </StMiniSidebarButton>
-      </template>
    </template>
 
    <div class="flex-1" />
