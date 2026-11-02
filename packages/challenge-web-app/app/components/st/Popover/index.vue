@@ -21,9 +21,10 @@ const triggered = ref(false);
 // 服务端与水合期间内联渲染，挂载后再传送到 body（规避 teleport 水合错位）
 const teleported = useClientTeleport();
 
-const onMouseEnter = () => {
-   popperInstance.value?.update();
+const onMouseEnter = async () => {
    triggered.value = true;
+   await nextTick();
+   popperInstance.value?.update();
 };
 const onMouseLeave = () => {
    triggered.value = false;
@@ -63,6 +64,7 @@ onUnmounted(() => {
       <template v-if="teleported">
          <div
             :ref="popperKey"
+            v-show="triggered"
             class="absolute z-[10001] transition-opacity !w-fit"
             :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
             :style="{ zIndex: props.zIndex ?? 9998 }">
