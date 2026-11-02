@@ -22,6 +22,7 @@ const LAYOUT_COOKIE = 'challenge-layout';
 type StoredLayout = {
    panelSizes: Record<string, number>;
    locked: boolean;
+   filesVisible?: boolean;
    order: string[];
    sizes: number[];
 };
@@ -29,6 +30,7 @@ type StoredLayout = {
 const defaultLayout = (): StoredLayout => ({
    panelSizes: {},
    locked: false,
+   filesVisible: true,
    order: [...EDITOR_BOARD_DEFAULT_ORDER],
    sizes: [...EDITOR_BOARD_DEFAULT_SIZES],
 });
@@ -66,6 +68,12 @@ export const useLayoutStore = defineStore('layout', () => {
    const locked = computed({
       get: () => layout.value.locked ?? false,
       set: (value: boolean) => write({ locked: value }),
+   });
+
+   /** 桌面端文件栏显隐；旧版 cookie 缺少该字段时默认显示。 */
+   const filesVisible = computed({
+      get: () => layout.value.filesVisible ?? true,
+      set: (value: boolean) => write({ filesVisible: value }),
    });
 
    const editorBoardLayout = computed(() =>
@@ -128,6 +136,7 @@ export const useLayoutStore = defineStore('layout', () => {
    return {
       panelSizes,
       locked,
+      filesVisible,
       resetToken,
       editorBoardLayout,
       getPanelSize,
