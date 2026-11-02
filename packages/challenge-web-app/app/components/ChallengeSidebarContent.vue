@@ -140,7 +140,8 @@ const avatarUrl = computed(() => {
          <ChallengeLayoutMenu v-if="!isMobile" />
       </StSpace>
 
-      <StMiniSidebarDivider v-if="!isMobile" />
+      <!-- 终端按钮在移动端也可见，分隔线应始终保留。 -->
+      <StMiniSidebarDivider />
       <StSpace direction="vertical" align="center" gap="0.5rem">
          <StMiniSidebarButton
             v-if="!isMobile"
