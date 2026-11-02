@@ -4,10 +4,12 @@ import {
    History,
    Return,
    UploadWeb,
+   Comment,
 } from '@icon-park/vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import { useParam } from '~/composables/use-param';
 import useAuthStore from '~/stores/auth-store';
+import { useFeedbackStore } from '~/stores/feedback-store';
 import { useMessageOutsideVue } from '~/components/st/Message/use-message';
 import { PanelLeft, SquareTerminal } from 'lucide-vue-next';
 
@@ -17,6 +19,11 @@ const isMobile = useIsMobile();
 
 const store = useEditorStore();
 const layoutStore = useLayoutStore();
+const feedbackStore = useFeedbackStore();
+const openFeedback = () => {
+   store.mobileFileDrawerOpened = false;
+   feedbackStore.open();
+};
 const toggleDetailWindow = () => {
    store.detailWindowOpened = !store.detailWindowOpened;
 };
@@ -163,6 +170,9 @@ const avatarUrl = computed(() => {
    </template>
 
    <div class="flex-1" />
+   <StMiniSidebarButton name="问题反馈" aria-label="问题反馈" @click="openFeedback">
+      <Comment />
+   </StMiniSidebarButton>
 
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
       <ChallengeSettingsMenu :problem-id="mode === 'problem' ? id : undefined" />

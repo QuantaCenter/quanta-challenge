@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import useAuthStore from '~/stores/auth-store';
+import { useFeedbackStore } from '~/stores/feedback-store';
 import { useEditorStore } from '~/stores/editor-store';
 import { HamburgerButton, Redo, Return, Undo } from '@icon-park/vue-next';
 
 const store = useEditorStore();
+const feedbackStore = useFeedbackStore();
 
 // 提交记录页：移动端顶栏只保留一个「返回」按钮（回到做题页）
 const route = useRoute();
@@ -152,6 +154,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
          </div>
 
          <DialogOverlay />
+         <FeedbackDrawer v-model:opened="feedbackStore.opened" />
       </div>
    </StMessageProvider>
 </template>

@@ -9,6 +9,7 @@ import {
    TableReport,
    Tag,
    Timer,
+   Comment,
 } from '@icon-park/vue-next';
 import type { Component } from 'vue';
 
@@ -85,6 +86,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/scheduled-task',
       icon: Timer,
       iconColor: '#F97316',
+   },
+   {
+      title: '反馈管理',
+      description: '查看用户提交的反馈并回复处理',
+      url: '/app/manage/feedback',
+      icon: Comment,
+      iconColor: '#F59E0B',
    },
 ];
 </script>

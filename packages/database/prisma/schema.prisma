@@ -46,6 +46,8 @@ model User {
   notifications             Notification[]
   appeals                   Appeal[]
   scorePenalties            ScorePenalty[]
+  feedbacks                 Feedback[]
+  resolvedFeedbacks         Feedback[]                  @relation("FeedbackResolvedBy")
 
   @@map("users")
 }
@@ -208,6 +210,7 @@ model BaseProblems {
   ProblemVersions           Problems[]                  @relation("ProblemVersions")
   ProblemVersionTransitions ProblemVersionTransitions[]
   DailyProblem              DailyProblem[]
+  Feedback                  Feedback[]
 
   @@map("base_problems")
 }
@@ -721,6 +724,7 @@ enum NotificationType {
   ACHIEVEMENT
   ANNOUNCEMENT
   WARNING
+  FEEDBACK
 }
 
 model Notification {
@@ -884,4 +888,73 @@ model CloudFunctionInvocation {
   @@index([functionId, createdAt])
   @@index([userId, createdAt])
   @@map("cloud_function_invocations")
+}
+
+enum FeedbackType {
+  bug
+  problem_judge
+  suggestion
+  other
+}
+
+enum FeedbackStatus {
+  pending
+  working
+  resolved
+  closed
+}
+
+// 用户反馈
+model Feedback {
+  id            Int            @id @default(autoincrement())
+  submissionKey String?        @unique
+  type          FeedbackType
+  title         String
+  description   String?
+  status        FeedbackStatus @default(pending)
+  pagePath      String?
+  diagnostic    Json?
+  baseProblemId Int?
+  authorId      String
+  reply         String?
+  resolvedById  String?
+  resolvedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  baseProblem BaseProblems?       @relation(fields: [baseProblemId], references: [id], onDelete: SetNull)
+  author      User                @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  resolvedBy  User?               @relation("FeedbackResolvedBy", fields: [resolvedById], references: [id], onDelete: SetNull)
+  events      FeedbackEvent[]
+  attachments FeedbackAttachment[]
+
+  @@index([authorId, createdAt])
+  @@index([status, createdAt])
+  @@map("feedbacks")
+}
+
+model FeedbackEvent {
+  id         Int            @id @default(autoincrement())
+  feedbackId Int
+  actorName  String
+  status     FeedbackStatus
+  reply      String
+  createdAt  DateTime       @default(now())
+  feedback   Feedback       @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([feedbackId, id])
+  @@map("feedback_events")
+}
+
+model FeedbackAttachment {
+  id         String    @id @default(cuid())
+  ownerId    String
+  feedbackId Int?
+  mimeType   String
+  content    Bytes
+  createdAt  DateTime  @default(now())
+  feedback   Feedback? @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, createdAt])
+  @@map("feedback_attachments")
 }
