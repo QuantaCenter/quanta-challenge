@@ -139,6 +139,18 @@ const avatarUrl = computed(() => {
 
          <ChallengeLayoutMenu v-if="!isMobile" />
       </StSpace>
+
+      <template v-if="!isMobile">
+         <StMiniSidebarDivider />
+         <StMiniSidebarButton
+            name="文件栏"
+            :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
+            :aria-pressed="layoutStore.filesVisible"
+            :class="{ '!text-primary': layoutStore.filesVisible }"
+            @click="layoutStore.filesVisible = !layoutStore.filesVisible">
+            <PanelLeft :size="18" />
+         </StMiniSidebarButton>
+      </template>
    </template>
 
    <div class="flex-1" />
@@ -148,16 +160,4 @@ const avatarUrl = computed(() => {
 
       <StAvatar size="2.25rem" :url="avatarUrl" />
    </StSpace>
-
-   <template v-if="mode === 'problem' && !isMobile">
-      <StMiniSidebarDivider />
-      <StMiniSidebarButton
-         name="文件栏"
-         :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
-         :aria-pressed="layoutStore.filesVisible"
-         :class="{ '!text-primary': layoutStore.filesVisible }"
-         @click="layoutStore.filesVisible = !layoutStore.filesVisible">
-         <PanelLeft :size="18" />
-      </StMiniSidebarButton>
-   </template>
 </template>
