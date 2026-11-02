@@ -343,8 +343,8 @@ defineExpose({
          gap="0">
          <StSpace
             fill-x
-            class="h-[2rem] relative overflow-x-auto mini-scrollbar">
-            <StSpace fill-x gap="0.5rem" class="absolute left-0 top-0 p-1">
+            class="h-[2rem] relative overflow-x-auto overflow-y-hidden mini-scrollbar">
+            <StSpace fill-x align="center" gap="0.5rem" class="absolute left-0 top-0 h-full px-1">
                <StSkeleton :loading="!hasEditorReady">
                   <template #loading>
                      <TabSkeleton :count="3" />
