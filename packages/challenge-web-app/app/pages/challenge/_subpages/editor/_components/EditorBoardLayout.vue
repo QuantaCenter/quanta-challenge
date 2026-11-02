@@ -4,7 +4,7 @@ import { useMediaQuery } from '@vueuse/core';
 import { useLayoutStore, type EditorBoardId } from '~/stores/layout-store';
 import { useEditorStore } from '~/stores/editor-store';
 import { keyboardDelta, percentFromDrag } from '~/components/st/SplitPanel/layout-math';
-import { resizeBoardPair } from '~/utils/board-layout';
+import { getVisibleBoardLayout, mergeVisibleBoardSizes, resizeBoardPair } from '~/utils/board-layout';
 
 const layoutStore = useLayoutStore();
 
@@ -20,15 +20,29 @@ const BOARD_LABEL = computed<Record<EditorBoardId, string>>(() => ({
    code: '代码编辑器 / 终端',
    preview: props.previewLabel,
 }));
-/** 三条板块之间有两条分隔条 */
-const DIVIDER_INDEXES = [0, 1];
-
 const container = useTemplateRef('container');
 
-const order = computed(
-   () => layoutStore.editorBoardLayout.order as EditorBoardId[]
+const visibleLayout = computed(() =>
+   getVisibleBoardLayout(
+      layoutStore.editorBoardLayout,
+      layoutStore.filesVisible ? [] : ['files'],
+   )
 );
-const sizes = computed(() => layoutStore.editorBoardLayout.sizes);
+const order = computed(() => visibleLayout.value.order);
+const sizes = computed(() => visibleLayout.value.sizes);
+const dividerIndexes = computed(() => order.value.slice(1).map((_, index) => index));
+const visibleSizePercent = (index: number) => {
+   const total = sizes.value.reduce((sum, size) => sum + size, 0);
+   return total > 0 ? Math.round(((sizes.value[index] ?? 0) / total) * 100) : 0;
+};
+
+/** 将可见板块的宽度写回完整布局，保留隐藏文件栏的宽度。 */
+const setVisibleBoardSizes = (visibleSizes: number[]) => {
+   const layout = layoutStore.editorBoardLayout;
+   layoutStore.setEditorBoardSizes(
+      mergeVisibleBoardSizes(layout, order.value, visibleSizes),
+   );
+};
 
 /** 拖拽分隔条期间的临时宽度（不落盘，避免高频写 localStorage） */
 const draggingSizes = ref<number[] | null>(null);
@@ -184,7 +198,7 @@ const handleDividerDown = (index: number, event: PointerEvent) => {
    const onPointerUp = () => {
       detach();
       if (moved && draggingSizes.value) {
-         layoutStore.setEditorBoardSizes(draggingSizes.value);
+         setVisibleBoardSizes(draggingSizes.value);
       }
       draggingSizes.value = null;
    };
@@ -219,11 +233,18 @@ const handleDividerKeydown = (index: number, event: KeyboardEvent) => {
 
    event.preventDefault();
    draggingSizes.value = resizeBoardPair(sizes.value, index, clamped);
-   layoutStore.setEditorBoardSizes(draggingSizes.value);
+   setVisibleBoardSizes(draggingSizes.value);
    draggingSizes.value = null;
 };
 
 onUnmounted(() => activeCleanup?.());
+
+watch(() => layoutStore.filesVisible, () => {
+   activeCleanup?.();
+   draggingSizes.value = null;
+   draggingBoard.value = null;
+   dragOverBoard.value = null;
+});
 
 // 「恢复默认布局」时把拖拽中的临时宽度也丢掉
 watch(
@@ -277,6 +298,7 @@ watch(
             :class="{
                'pointer-events-none': draggingDivider !== null,
                'max-md:hidden': id === 'files',
+               'md:hidden': id === 'files' && !layoutStore.filesVisible,
             }"
          @dragover.prevent="handleDragOver(id)"
          @dragleave="handleDragLeave(id)"
@@ -320,12 +342,12 @@ watch(
       </div>
 
       <div
-         v-for="index in DIVIDER_INDEXES"
+         v-for="index in dividerIndexes"
          :key="`divider-${index}`"
          :style="dividerStyle(index)"
          role="separator"
          aria-orientation="vertical"
-         :aria-valuenow="Math.round(sizes[index] ?? 0)"
+         :aria-valuenow="visibleSizePercent(index)"
          :aria-valuemin="10"
          :aria-valuemax="90"
          :aria-label="`第 ${index + 1} 条面板分隔条`"

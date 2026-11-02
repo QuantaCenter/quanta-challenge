@@ -39,7 +39,7 @@ export const useSearch = () => {
 
    // 用于取消过期请求，避免快速输入时旧结果覆盖新结果
    let abortController: AbortController | null = null;
-   let currentOffset = 0;
+   const nextCursor = useState<{ typeIndex: number; id?: string | number | null; itemIndex?: number } | null>('search-cursor', () => null);
 
    /**
     * 执行搜索
@@ -64,7 +64,7 @@ export const useSearch = () => {
 
       const append = options?.append ?? false;
       if (!append) {
-         currentOffset = 0;
+         nextCursor.value = null;
          searchResults.value = [];
       }
       isSearching.value = !append;
@@ -86,7 +86,7 @@ export const useSearch = () => {
                   q: trimmed,
                   type: typeParam as any,
                   limit: SEARCH_LIMITS.DEFAULT_LIMIT,
-                  offset: currentOffset,
+                  cursor: nextCursor.value,
                },
                { signal: controller.signal }
             )
@@ -99,7 +99,7 @@ export const useSearch = () => {
             ? [...searchResults.value, ...response.results]
             : response.results;
          hasMoreResults.value = response.hasMore;
-         currentOffset += SEARCH_LIMITS.DEFAULT_LIMIT;
+         nextCursor.value = response.nextCursor;
       } catch (error) {
          // 请求被新搜索取消，忽略错误
          if (controller.signal.aborted) return;

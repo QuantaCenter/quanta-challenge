@@ -28,5 +28,9 @@ export const searchQuerySchema = z.object({
       .max(SEARCH_LIMITS.MAX_LIMIT)
       .optional()
       .default(SEARCH_LIMITS.DEFAULT_LIMIT),
-   offset: z.number().int().min(0).optional().default(0),
+   cursor: z.object({
+      typeIndex: z.number().int().min(0).max(9),
+      id: z.union([z.string(), z.number()]).nullish(),
+      itemIndex: z.number().int().min(0).optional(),
+   }).nullish(),
 });

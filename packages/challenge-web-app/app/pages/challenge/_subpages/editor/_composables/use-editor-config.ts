@@ -25,18 +25,42 @@ export const useEditorConfig = (options: IUseEditorConfigOptions) => {
          ? MOBILE_DEFAULT_FONT_SIZE
          : fontSize;
 
-   // 监听配置变化，实时更新编辑器
-   watch(
-      () => editorConfig.value.fontSize,
-      (newFontSize) => {
-         onEditorInstanceReady((instance) => {
-            instance.updateOptions({
-               fontSize: resolveFontSize(newFontSize),
-            });
-         });
-      },
-      { immediate: true }
-   );
+   // 旧版本只保存了字号，合并默认值以兼容已有配置。
+   editorConfig.value = { ...DEFAULT_EDITOR_CONFIG, ...editorConfig.value };
+
+   let instance: monaco.editor.IStandaloneCodeEditor | undefined;
+   let listener: monaco.IDisposable | undefined;
+   const applyConfig = () => {
+      if (!instance) return;
+      const config = { ...DEFAULT_EDITOR_CONFIG, ...editorConfig.value };
+      instance.updateOptions({
+         fontSize: resolveFontSize(config.fontSize),
+         fontFamily: config.fontFamily,
+         lineHeight: config.lineHeight,
+         wordWrap: config.wordWrap ? 'on' : 'off',
+         minimap: { enabled: config.minimap },
+         lineNumbers: config.lineNumbers,
+         renderWhitespace: config.renderWhitespace,
+         matchBrackets: config.matchBrackets ? 'always' : 'never',
+         guides: { indentation: config.indentGuides },
+         autoClosingBrackets: config.autoCloseBrackets ? 'languageDefined' : 'never',
+         autoClosingQuotes: config.autoCloseQuotes ? 'languageDefined' : 'never',
+         cursorStyle: config.cursorStyle,
+         cursorBlinking: config.cursorBlinking,
+         cursorSmoothCaretAnimation: config.cursorAnimation ? 'on' : 'off',
+      });
+      instance.getModel()?.updateOptions({
+         tabSize: config.tabSize,
+         insertSpaces: config.insertSpaces,
+      });
+   };
+   watch(editorConfig, applyConfig, { deep: true });
+   onEditorInstanceReady((readyInstance) => {
+      instance = readyInstance;
+      listener = instance.onDidChangeModel(applyConfig);
+      applyConfig();
+   });
+   onUnmounted(() => listener?.dispose());
 
    return { editorConfig };
 };

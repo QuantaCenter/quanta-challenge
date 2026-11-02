@@ -62,6 +62,7 @@ export const useSubmissionManagement = () => {
   const startTimeInput = ref('');
   const endTimeInput = ref('');
   const page = ref(1);
+  const cursors = ref<(number | null)[]>([null]);
 
   const { data, pending, error, refresh } = useAsyncData(
     'manage-submissions',
@@ -74,12 +75,22 @@ export const useSubmissionManagement = () => {
           result: result.value === 'ALL' ? undefined : result.value,
           startTime: toRangeBoundary(startTimeInput.value),
           endTime: toRangeBoundary(endTimeInput.value, true),
-          page: page.value,
+          cursor: cursors.value[page.value - 1],
           pageSize: PAGE_SIZE,
         }),
       );
     },
   );
+
+  watch(page, (next, previous) => {
+    if (next > previous && data.value?.nextCursor != null)
+      cursors.value[next - 1] = data.value.nextCursor;
+  }, { flush: 'sync' });
+
+  watch([userKeyword, problemKeyword, result, startTimeInput, endTimeInput], () => {
+    cursors.value = [null];
+    page.value = 1;
+  }, { flush: 'sync' });
 
   watch(
     error,
@@ -144,6 +155,7 @@ export const useSubmissionManagement = () => {
   };
 
   const total = computed(() => data.value?.total ?? 0);
+  const hasNextPage = computed(() => data.value?.nextCursor != null);
   const totalPages = computed(() =>
     Math.max(1, Math.ceil(total.value / PAGE_SIZE)),
   );
@@ -185,6 +197,7 @@ export const useSubmissionManagement = () => {
     // 派生展示
     total,
     totalPages,
+    hasNextPage,
     isFiltering,
     isInitialLoading,
     isRefreshing,

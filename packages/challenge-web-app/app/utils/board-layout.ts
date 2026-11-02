@@ -16,6 +16,37 @@ export interface IBoardLayout {
    sizes: number[];
 }
 
+/** 保留原比例，只筛选当前可见的板块。 */
+export const getVisibleBoardLayout = <Id extends string>(
+   layout: { order: Id[]; sizes: number[] },
+   hidden: readonly Id[]
+): { order: Id[]; sizes: number[] } => {
+   const order: Id[] = [];
+   const sizes: number[] = [];
+   layout.order.forEach((id, index) => {
+      if (hidden.includes(id)) return;
+      order.push(id);
+      sizes.push(layout.sizes[index] ?? 0);
+   });
+   return { order, sizes };
+};
+
+/** 写回可见板块的宽度，隐藏板块的宽度保持不变。 */
+export const mergeVisibleBoardSizes = <Id extends string>(
+   layout: { order: Id[]; sizes: number[] },
+   visibleOrder: readonly Id[],
+   visibleSizes: readonly number[]
+): number[] => {
+   const next = [...layout.sizes];
+   visibleOrder.forEach((id, index) => {
+      const fullIndex = layout.order.indexOf(id);
+      if (fullIndex !== -1 && visibleSizes[index] !== undefined) {
+         next[fullIndex] = visibleSizes[index]!;
+      }
+   });
+   return next;
+};
+
 /** 位置归一化：保证 order 覆盖全部板块、sizes 与 order 等长且为正数 */
 export const normalizeBoardLayout = <Id extends string>(
    order: unknown,

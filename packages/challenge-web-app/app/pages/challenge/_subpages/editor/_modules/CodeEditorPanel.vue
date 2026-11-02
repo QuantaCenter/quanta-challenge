@@ -2,19 +2,20 @@
 import { useMonacoEditor } from '../../../_composables/use-monaco-editor';
 import { normalizePath, getBaseName } from '~/utils/path-utils';
 import Tab from '../_components/Tab.vue';
-import { MoreOne, Setting } from '@icon-park/vue-next';
+import { Setting } from '@icon-park/vue-next';
+import { FileCode2 } from 'lucide-vue-next';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
 import type { editor } from 'monaco-editor';
-import { onClickOutside } from '@vueuse/core';
 import {
    hasBinarySnapshotExtension,
    toSnapshotDataUrl,
 } from '@challenge/shared/snapshot-content';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
+import { useMessage } from '~/components/st/Message/use-message';
 
 const currentFilePath = defineModel<string>('currentFilePath');
 
@@ -24,6 +25,42 @@ interface ITab {
 }
 
 const openedTabs = ref<ITab[]>([]);
+const draggedTabPath = ref<string | null>(null);
+
+const startTabDrag = (event: DragEvent, path: string) => {
+   if (!event.dataTransfer) return;
+   draggedTabPath.value = path;
+   event.dataTransfer.effectAllowed = 'move';
+   event.dataTransfer.setData('application/x-quanta-editor-tab', path);
+};
+
+const reorderTabOnDrag = (event: DragEvent, path: string) => {
+   if (!draggedTabPath.value || !event.currentTarget) return;
+   event.preventDefault();
+   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+
+   const from = openedTabs.value.findIndex((tab) => tab.path === draggedTabPath.value);
+   const target = openedTabs.value.findIndex((tab) => tab.path === path);
+   if (from === -1 || target === -1 || from === target) return;
+
+   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+   const pastMiddle = event.clientX >= rect.left + rect.width / 2;
+   if ((from < target && !pastMiddle) || (from > target && pastMiddle)) return;
+
+   const [item] = openedTabs.value.splice(from, 1);
+   if (item) openedTabs.value.splice(target, 0, item);
+};
+
+const endTabDrag = () => {
+   draggedTabPath.value = null;
+};
+
+const dropTab = (event: DragEvent) => {
+   if (!draggedTabPath.value) return;
+   event.preventDefault();
+   endTabDrag();
+};
+
 watch(
    currentFilePath,
    (newPath) => {
@@ -94,42 +131,37 @@ const {
 
 const hasEditorReady = ref(false);
 
-// 下拉菜单状态
-const isDropdownOpen = ref(false);
-// 菜单内容延迟到首次打开才渲染
-const hasOpenedDropdown = ref(false);
-const dropdownButtonRef = ref<HTMLElement>();
-const dropdownMenuRef = ref<HTMLElement>();
-
 // 配置 Modal 状态
 const isSettingsModalOpen = ref(false);
 
-// 打开/收起下拉菜单
-const toggleDropdown = async () => {
-   isDropdownOpen.value = !isDropdownOpen.value;
-   if (isDropdownOpen.value) {
-      hasOpenedDropdown.value = true;
-      // 关闭态是 display:none，打开后需等 DOM 恢复显示再让 Popper 重新测量定位
-      await nextTick();
-      popperInstance.value?.update();
-   }
-};
+const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
 
-const { popperKey, containerKey: popperContainerKey, popperInstance } = usePopper({
-   options: {
-      placement: 'bottom-end',
-      modifiers: [
-         {
-            name: 'offset',
-            options: {
-               offset: [0, 0],
-            },
-         },
-      ],
-   },
+const message = useMessage();
+let editorInstance: editor.IStandaloneCodeEditor | undefined;
+
+onEditorInstanceReady((instance) => {
+   editorInstance = instance;
 });
 
-const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
+const formatDocument = async () => {
+   if (!editorInstance?.getModel()) {
+      message.info('请先打开可编辑的文件');
+      return;
+   }
+
+   const action = editorInstance.getAction('editor.action.formatDocument');
+   if (!action?.isSupported()) {
+      message.info('当前文件暂不支持格式化');
+      return;
+   }
+
+   try {
+      await action.run();
+   } catch (error) {
+      console.error('[editor] 格式化失败:', error);
+      message.error('格式化失败', '请检查文件内容后重试');
+   }
+};
 
 // 移动端顶栏撤回/重做：注册执行能力，供顶栏按钮调用
 const { actions: historyActions, canUndo, canRedo } = useMobileEditorHistory();
@@ -187,20 +219,6 @@ onUnmounted(() => {
    }
 });
 
-// 打开配置 Modal
-const openSettingsModal = () => {
-   isSettingsModalOpen.value = true;
-   isDropdownOpen.value = false;
-};
-
-// 点击外部关闭下拉菜单
-onClickOutside(
-   dropdownMenuRef,
-   () => {
-      isDropdownOpen.value = false;
-   },
-   { ignore: [dropdownButtonRef] }
-);
 onEditorInstanceReady(() => {
    hasEditorReady.value = true;
    const disposeWatcher = watch(
@@ -307,8 +325,8 @@ defineExpose({
    onModelContentChange,
    addExtraLibs,
    onEditorInstanceReady,
+   formatDocument,
 });
-const teleported = useClientTeleport();
 </script>
 
 <template>
@@ -325,53 +343,53 @@ const teleported = useClientTeleport();
          gap="0">
          <StSpace
             fill-x
-            class="h-[2rem] relative overflow-x-auto mini-scrollbar">
-            <StSpace fill-x gap="0.5rem" class="absolute left-0 top-0 p-1">
+            class="h-[2rem] relative overflow-x-auto overflow-y-hidden mini-scrollbar">
+            <StSpace fill-x align="center" gap="0.5rem" class="absolute left-0 top-0 h-full px-1">
                <StSkeleton :loading="!hasEditorReady">
                   <template #loading>
                      <TabSkeleton :count="3" />
                   </template>
-                  <Tab
-                     v-for="item in openedTabs"
-                     :key="item.path"
-                     :content="item.name"
-                     :class="{
-                        '!bg-primary !text-white':
-                           currentFilePath === item.path,
-                     }"
-                     @click="onClickTab(item)"
-                     @remove="onCloseTab(item)" />
+                  <TransitionGroup tag="div" class="flex gap-2" move-class="editor-tab-move">
+                     <Tab
+                        v-for="item in openedTabs"
+                        :key="item.path"
+                        :content="item.name"
+                        draggable="true"
+                        :class="{
+                           '!bg-primary !text-white': currentFilePath === item.path,
+                           'opacity-50': draggedTabPath === item.path,
+                        }"
+                        @dragstart="startTabDrag($event, item.path)"
+                        @dragover="reorderTabOnDrag($event, item.path)"
+                        @drop="dropTab"
+                        @dragend="endTabDrag"
+                        @click="onClickTab(item)"
+                        @remove="onCloseTab(item)" />
+                  </TransitionGroup>
                </StSkeleton>
             </StSpace>
          </StSpace>
-         <div class="relative">
-            <div
-               :ref="popperContainerKey"
-               class="size-[2rem] rounded-[0.5rem] m-0.5 text-accent-200 bg-accent-500 cursor-pointer hover:bg-accent-400 transition-colors flex items-center justify-center"
-               @click="toggleDropdown">
-               <MoreOne />
-            </div>
-
-            <Teleport to="body">
-               <template v-if="teleported">
-                  <div
-                     :ref="popperKey"
-                     class="absolute transition-all flex gap-0 flex-col py-1 bg-accent-600 rounded-lg shadow-lg overflow-hidden z-[10003] min-w-[9rem]"
-                     :class="isDropdownOpen ? 'visible' : 'hidden'">
-                     <template v-if="hasOpenedDropdown">
-                        <StSpace
-                           align="center"
-                           gap="0.5rem"
-                           class="w-full px-4 py-2.5 text-left text-accent-100 hover:bg-accent-500 transition-colors st-font-body-normal cursor-pointer text-nowrap whitespace-nowrap"
-                           @click="openSettingsModal">
-                           <Setting />
-                           编辑器设置
-                        </StSpace>
-                     </template>
-                  </div>
-               </template>
-            </Teleport>
-         </div>
+         <StPopover content="格式化当前文件" placement="bottom" class="shrink-0">
+            <StButton
+               size="sm"
+               aria-label="格式化当前文件"
+               class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+               @click="formatDocument"
+            >
+               <FileCode2 :size="16" />
+            </StButton>
+         </StPopover>
+         <StPopover content="编辑器设置" placement="bottom" class="shrink-0">
+            <StButton
+               size="sm"
+               aria-label="编辑器设置"
+               aria-haspopup="dialog"
+               class="!p-0 !bg-accent-500 hover:!bg-accent-400 size-[2rem] shrink-0 !rounded-[0.5rem] m-0.5 !text-accent-200"
+               @click="isSettingsModalOpen = true"
+            >
+               <Setting />
+            </StButton>
+         </StPopover>
       </StSpace>
 
       <StSpace fill class="relative bg-[#1C1C1C] border border-[#1F1F1F]">
@@ -405,6 +423,18 @@ const teleported = useClientTeleport();
 </template>
 
 <style scoped src="@/assets/css/utils.css" />
+
+<style scoped>
+.editor-tab-move {
+   transition: transform 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+   .editor-tab-move {
+      transition: none;
+   }
+}
+</style>
 
 <style lang="css">
 * {

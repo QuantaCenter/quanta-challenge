@@ -15,7 +15,7 @@ const SubmissionListSchema = z.object({
   /** 提交时间范围（闭区间） */
   startTime: z.coerce.date().optional(),
   endTime: z.coerce.date().optional(),
-  page: z.number().int().min(1).default(1),
+  cursor: z.number().int().nullish(),
   pageSize: z.number().int().min(1).max(100).default(20),
 });
 
@@ -24,7 +24,7 @@ const getAllSubmissionsProcedure = protectedAdminProcedure
   // prefault 而不是 default：不传参时把 {} 交给 schema 正常解析出各字段默认值（同 user.ts）
   .input(SubmissionListSchema.prefault({}))
   .query(async ({ input }) => {
-    const { userKeyword, problemKeyword, result, startTime, endTime, page, pageSize } =
+    const { userKeyword, problemKeyword, result, startTime, endTime, cursor, pageSize } =
       input;
 
     const where: Prisma.JudgeRecordsWhereInput = {
@@ -67,8 +67,9 @@ const getAllSubmissionsProcedure = protectedAdminProcedure
       prisma.judgeRecords.findMany({
         where,
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * pageSize,
-        take: pageSize,
+        cursor: cursor == null ? undefined : { id: cursor },
+        skip: cursor == null ? 0 : 1,
+        take: pageSize + 1,
         select: {
           id: true,
           result: true,
@@ -98,6 +99,9 @@ const getAllSubmissionsProcedure = protectedAdminProcedure
       }),
     ]);
 
+    const hasMore = submissions.length > pageSize;
+    if (hasMore) submissions.pop();
+    const nextCursor = hasMore ? submissions[submissions.length - 1]!.id : null;
     return {
       submissions: submissions.map((submission) => ({
         ...submission,
@@ -106,8 +110,7 @@ const getAllSubmissionsProcedure = protectedAdminProcedure
           : null,
       })),
       total,
-      page,
-      pageSize,
+      nextCursor,
     };
   });
 

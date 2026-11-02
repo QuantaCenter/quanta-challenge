@@ -29,11 +29,13 @@ const STATUS_BADGE = {
 const { $trpc } = useNuxtApp();
 const message = useMessage();
 const page = ref(1);
+const cursors = ref<(string | null)[]>([null]);
 const status = ref<StatusFilter>('PENDING');
 
 watch(status, () => {
+   cursors.value = [null];
    page.value = 1;
-});
+}, { flush: 'sync' });
 
 const { data, pending, error, refresh } = useAsyncData(
    'manage-appeals',
@@ -42,12 +44,17 @@ const { data, pending, error, refresh } = useAsyncData(
          500,
          $trpc.admin.appeal.list.query({
             status: status.value === 'ALL' ? undefined : status.value,
-            page: page.value,
+            cursor: cursors.value[page.value - 1],
             pageSize: PAGE_SIZE,
          }),
       ),
    { watch: [page, status] },
 );
+
+watch(page, (next, previous) => {
+   if (next > previous && data.value?.nextCursor != null)
+      cursors.value[next - 1] = data.value.nextCursor;
+}, { flush: 'sync' });
 
 watch(
    error,
@@ -64,6 +71,7 @@ type Appeal = NonNullable<typeof data.value>['appeals'][number];
 
 const appeals = computed(() => data.value?.appeals ?? []);
 const total = computed(() => data.value?.total ?? 0);
+const hasNextPage = computed(() => data.value?.nextCursor != null);
 const totalPages = computed(() =>
    Math.max(1, Math.ceil(total.value / PAGE_SIZE)),
 );
@@ -260,7 +268,9 @@ const handleAppeal = async (appeal: Appeal, approve: boolean) => {
          <MemberPagination
             v-model:page="page"
             :total="total"
-            :total-pages="totalPages" />
+            :total-pages="totalPages"
+            :has-next-page="hasNextPage"
+            :pending="pending" />
       </StSpace>
    </StSpace>
 </template>

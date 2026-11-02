@@ -191,7 +191,7 @@ export interface SearchParams {
    q: string; // 搜索关键词
    type?: string; // 搜索类型，多个用逗号分隔，如 "problem,user"
    limit?: number; // 结果数量限制
-   offset?: number; // 分页偏移量
+   cursor?: { typeIndex: number; id?: string | number | null; itemIndex?: number } | null;
 }
 
 /**
@@ -201,4 +201,5 @@ export interface SearchResponse {
    results: SearchResult[];
    total: number;
    hasMore: boolean;
+   nextCursor: SearchParams['cursor'];
 }

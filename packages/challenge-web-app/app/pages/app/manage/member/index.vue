@@ -20,6 +20,7 @@ const {
    sortOrderTip,
    total,
    totalPages,
+   hasNextPage,
    isFiltering,
    isInitialLoading,
    isRefreshing,
@@ -76,7 +77,9 @@ const {
          <MemberPagination
             v-model:page="page"
             :total="total"
-            :total-pages="totalPages" />
+            :total-pages="totalPages"
+            :has-next-page="hasNextPage"
+            :pending="isRefreshing || isInitialLoading" />
       </StSpace>
    </StSpace>
 </template>

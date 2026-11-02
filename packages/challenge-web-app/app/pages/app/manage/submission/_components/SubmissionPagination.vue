@@ -7,6 +7,8 @@ const page = defineModel<number>('page', { required: true });
 defineProps<{
   total: number;
   totalPages: number;
+  hasNextPage: boolean;
+  pending: boolean;
 }>();
 </script>
 
@@ -18,7 +20,7 @@ defineProps<{
     <StSpace gap="0.5rem">
       <button
         type="button"
-        :disabled="page <= 1"
+        :disabled="page <= 1 || pending"
         class="flex items-center gap-1 px-4 py-2 bg-accent-600 border border-accent-500 rounded-[0.5rem] text-accent-300 st-font-caption hover:bg-accent-500 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-600 disabled:active:scale-100 cursor-pointer"
         @click="page -= 1">
         <Left size="1.25rem" class="shrink-0" />
@@ -26,7 +28,7 @@ defineProps<{
       </button>
       <button
         type="button"
-        :disabled="page >= totalPages"
+        :disabled="!hasNextPage || pending"
         class="flex items-center gap-1 px-4 py-2 bg-accent-600 border border-accent-500 rounded-[0.5rem] text-accent-300 st-font-caption hover:bg-accent-500 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-accent-600 disabled:active:scale-100 cursor-pointer"
         @click="page += 1">
         <span>下一页</span>

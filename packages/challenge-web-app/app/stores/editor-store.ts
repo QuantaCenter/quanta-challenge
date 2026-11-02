@@ -1,6 +1,7 @@
 export const useEditorStore = defineStore('editor', () => {
    const detailWindowOpened = ref(false);
    const hasProjectInitialized = ref(false);
+   const terminalVisible = ref(true);
 
    /**
     * 开发容器启动失败的原因；null 表示尚未失败。
@@ -50,6 +51,7 @@ export const useEditorStore = defineStore('editor', () => {
    return {
       detailWindowOpened,
       hasProjectInitialized,
+      terminalVisible,
       initFailureReason,
       initStarted,
       cloudFunctionEnabled,

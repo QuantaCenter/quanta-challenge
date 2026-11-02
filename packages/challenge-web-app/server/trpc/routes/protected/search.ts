@@ -24,6 +24,8 @@ import { problemStatService } from '../../services/problem-stat';
 interface TypePage {
    results: SearchResult[];
    hasMore: boolean;
+   nextId?: string | number | null;
+   itemIndex?: number;
 }
 const EMPTY_PAGE: TypePage = { results: [], hasMore: false };
 
@@ -31,7 +33,8 @@ const EMPTY_PAGE: TypePage = { results: [], hasMore: false };
 const searchProcedure = protectedProcedure
    .input(searchQuerySchema)
    .query(async ({ input, ctx }) => {
-      const { q, type, limit, offset } = input;
+      const { q, type, limit, cursor } = input;
+      let afterId = cursor?.id;
       const searchQuery = q.trim().toLowerCase();
       const role = ctx.user.role;
       const isAdmin = role === 'ADMIN' || role === 'SUPER_ADMIN';
@@ -69,9 +72,14 @@ const searchProcedure = protectedProcedure
                   },
                },
             },
-            skip: offset,
+            orderBy: { id: 'asc' },
+            cursor: afterId == null ? undefined : { id: Number(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const problemsHasMore = problems.length > limit;
+         if (problemsHasMore) problems.pop();
 
          const passRates = await problemStatService.getPassRates(
             problems.map((p) => p.id)
@@ -94,7 +102,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: problemResults,
-            hasMore: problems.length > limit,
+            hasMore: problemsHasMore,
+            nextId: problems.at(-1)?.id ?? null,
          };
       };
 
@@ -124,14 +133,20 @@ const searchProcedure = protectedProcedure
             include: {
                Problem: {
                   take: 5, // 每个标签最多显示5个题目
+                  orderBy: { pid: 'asc' },
                   include: {
                      tags: true,
                   },
                },
             },
-            skip: offset,
-            take: limit + 1,
+            orderBy: { tid: 'asc' },
+            cursor: afterId == null ? undefined : { tid: Number(afterId) },
+            skip: afterId == null || (type === 'tag' && cursor?.typeIndex === 1 && cursor.itemIndex) ? 0 : 1,
+            take: (type === 'tag' ? 1 : limit) + 1,
          });
+
+         const tagsHasMore = tags.length > (type === 'tag' ? 1 : limit);
+         if (tagsHasMore) tags.pop();
 
          const tagResults: SearchResult[] = tags.map(
             (tag): TagSearchResult => ({
@@ -174,9 +189,14 @@ const searchProcedure = protectedProcedure
             }
          }
 
+         const itemIndex = type === 'tag' && afterId != null && cursor?.typeIndex === 1 ? (cursor.itemIndex ?? 0) : 0;
+         const pageResults = tagResults.slice(itemIndex, itemIndex + limit);
+         const moreInTag = itemIndex + limit < tagResults.length;
          return {
-            results: tagResults,
-            hasMore: tags.length > limit,
+            results: pageResults,
+            hasMore: moreInTag || tagsHasMore,
+            nextId: tags.at(-1)?.tid ?? null,
+            itemIndex: moreInTag ? itemIndex + limit : undefined,
          };
       };
 
@@ -211,9 +231,14 @@ const searchProcedure = protectedProcedure
                avatar: true,
                UserStatistic: true,
             },
-            skip: offset,
+            orderBy: { id: 'asc' },
+            cursor: afterId == null ? undefined : { id: String(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const usersHasMore = users.length > limit;
+         if (usersHasMore) users.pop();
 
          const userResults: UserSearchResult[] = users.map((user) => ({
             id: `user-${user.id}`,
@@ -230,7 +255,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: userResults,
-            hasMore: users.length > limit,
+            hasMore: usersHasMore,
+            nextId: users.at(-1)?.id ?? null,
          };
       };
 
@@ -247,7 +273,8 @@ const searchProcedure = protectedProcedure
                ),
          );
 
-         const pageSections = matchingSections.slice(offset, offset + limit);
+         const startIndex = afterId == null ? 0 : matchingSections.findIndex((section) => section.id === afterId) + 1;
+         const pageSections = matchingSections.slice(startIndex, startIndex + limit);
 
          const sectionResults: PageSectionSearchResult[] = pageSections.map(
             (section) => ({
@@ -265,7 +292,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: sectionResults,
-            hasMore: matchingSections.length > offset + limit,
+            hasMore: matchingSections.length > startIndex + limit,
+            nextId: pageSections.at(-1)?.id ?? null,
          };
       };
 
@@ -327,12 +355,14 @@ const searchProcedure = protectedProcedure
                   },
                },
             },
-            orderBy: {
-               date: 'desc',
-            },
-            skip: offset,
+            orderBy: [{ date: 'desc' }, { id: 'desc' }],
+            cursor: afterId == null ? undefined : { id: Number(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const dailyProblemsHasMore = dailyProblems.length > limit;
+         if (dailyProblemsHasMore) dailyProblems.pop();
 
          const dailyResults: DailyProblemSearchResult[] = dailyProblems
             .filter((dp) => dp.baseProblem.CurrentProblem)
@@ -364,7 +394,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: dailyResults,
-            hasMore: dailyProblems.length > limit,
+            hasMore: dailyProblemsHasMore,
+            nextId: dailyProblems.at(-1)?.id ?? null,
          };
       };
 
@@ -395,9 +426,14 @@ const searchProcedure = protectedProcedure
                   take: 1,
                },
             },
-            skip: offset,
+            orderBy: { id: 'asc' },
+            cursor: afterId == null ? undefined : { id: Number(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const achievementsHasMore = achievements.length > limit;
+         if (achievementsHasMore) achievements.pop();
 
          const achievementResults: AchievementSearchResult[] =
             achievements.map((achievement) => ({
@@ -415,7 +451,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: achievementResults,
-            hasMore: achievements.length > limit,
+            hasMore: achievementsHasMore,
+            nextId: achievements.at(-1)?.id ?? null,
          };
       };
 
@@ -441,10 +478,14 @@ const searchProcedure = protectedProcedure
                   },
                ],
             },
-            orderBy: { createdAt: 'desc' },
-            skip: offset,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            cursor: afterId == null ? undefined : { id: String(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const notificationsHasMore = notifications.length > limit;
+         if (notificationsHasMore) notifications.pop();
 
          const notificationResults: NotificationSearchResult[] =
             notifications.map((notification) => ({
@@ -462,7 +503,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: notificationResults,
-            hasMore: notifications.length > limit,
+            hasMore: notificationsHasMore,
+            nextId: notifications.at(-1)?.id ?? null,
          };
       };
 
@@ -512,9 +554,13 @@ const searchProcedure = protectedProcedure
                problem: { select: { pid: true, title: true } },
             },
             orderBy: { id: 'desc' },
-            skip: offset,
+            cursor: afterId == null ? undefined : { id: Number(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const submissionsHasMore = submissions.length > limit;
+         if (submissionsHasMore) submissions.pop();
 
          const submissionResults: SubmissionSearchResult[] = submissions.map(
             (submission) => ({
@@ -537,7 +583,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: submissionResults,
-            hasMore: submissions.length > limit,
+            hasMore: submissionsHasMore,
+            nextId: submissions.at(-1)?.id ?? null,
          };
       };
 
@@ -577,10 +624,14 @@ const searchProcedure = protectedProcedure
             include: {
                user: { select: { name: true, displayName: true } },
             },
-            orderBy: { createdAt: 'desc' },
-            skip: offset,
+            orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+            cursor: afterId == null ? undefined : { id: String(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const appealsHasMore = appeals.length > limit;
+         if (appealsHasMore) appeals.pop();
 
          const appealResults: AppealSearchResult[] = appeals.map((appeal) => ({
             id: `appeal-${appeal.id}`,
@@ -597,7 +648,8 @@ const searchProcedure = protectedProcedure
 
          return {
             results: appealResults,
-            hasMore: appeals.length > limit,
+            hasMore: appealsHasMore,
+            nextId: appeals.at(-1)?.id ?? null,
          };
       };
 
@@ -622,10 +674,14 @@ const searchProcedure = protectedProcedure
                   },
                ],
             },
-            orderBy: { updatedAt: 'desc' },
-            skip: offset,
+            orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
+            cursor: afterId == null ? undefined : { id: String(afterId) },
+            skip: afterId == null ? 0 : 1,
             take: limit + 1,
          });
+
+         const cloudFunctionsHasMore = cloudFunctions.length > limit;
+         if (cloudFunctionsHasMore) cloudFunctions.pop();
 
          const cloudFunctionResults: CloudFunctionSearchResult[] =
             cloudFunctions.map((fn) => ({
@@ -641,85 +697,37 @@ const searchProcedure = protectedProcedure
 
          return {
             results: cloudFunctionResults,
-            hasMore: cloudFunctions.length > limit,
+            hasMore: cloudFunctionsHasMore,
+            nextId: cloudFunctions.at(-1)?.id ?? null,
          };
       };
 
       try {
-         // 各类搜索互不依赖，并行查询；结果仍按原先的类型顺序拼接
-         const [problemPage, tagPage, userPage, dailyPage, achievementPage, notificationPage, submissionPage, appealPage, cloudFunctionPage] =
-            await Promise.all([
-               searchProblems(),
-               searchTags(),
-               searchUsers(),
-               searchDailyProblems(),
-               searchAchievements(),
-               searchNotifications(),
-               searchSubmissions(),
-               searchAppeals(),
-               searchCloudFunctions(),
-            ]);
-         const sectionPage = searchPageSections();
-
-         const results: SearchResult[] = [
-            ...problemPage.results,
-            ...tagPage.results,
-            ...userPage.results,
-            ...achievementPage.results,
-            ...notificationPage.results,
-            ...submissionPage.results,
-            ...appealPage.results,
-            ...cloudFunctionPage.results,
-            ...sectionPage.results,
-            ...dailyPage.results,
+         // 按固定类型顺序推进，避免截断结果后丢失未展示的记录。
+         const searches = [
+            searchProblems, searchTags, searchUsers, searchAchievements,
+            searchNotifications, searchSubmissions, searchAppeals,
+            searchCloudFunctions, searchPageSections, searchDailyProblems,
          ];
-
-         // 按相关性排序（简单实现：精确匹配优先）
-         const sortedResults = results.sort((a, b) => {
-            const aExactMatch = a.title.toLowerCase().includes(searchQuery);
-            const bExactMatch = b.title.toLowerCase().includes(searchQuery);
-
-            if (aExactMatch && !bExactMatch) return -1;
-            if (!aExactMatch && bExactMatch) return 1;
-
-            // 相同类型的放在一起
-            if (a.type !== b.type) {
-               const typeOrder = [
-                  'daily-problem',
-                  'problem',
-                  'achievement',
-                  'notification',
-                  'user',
-                  'tag',
-                  'submission',
-                  'appeal',
-                  'cloud-function',
-                  'page-section',
-               ];
-               return typeOrder.indexOf(a.type) - typeOrder.indexOf(b.type);
-            }
-
-            return 0;
-         });
-
-         // 限制总结果数量
-         const finalResults = sortedResults.slice(0, limit);
-
-         return {
-            results: finalResults,
-            total: finalResults.length,
-            hasMore:
-               problemPage.hasMore ||
-               tagPage.hasMore ||
-               userPage.hasMore ||
-               achievementPage.hasMore ||
-               notificationPage.hasMore ||
-               submissionPage.hasMore ||
-               appealPage.hasMore ||
-               cloudFunctionPage.hasMore ||
-               sectionPage.hasMore ||
-               dailyPage.hasMore,
-         };
+         const searchTypes: SearchType[] = [
+            'problem', 'tag', 'user', 'achievement', 'notification',
+            'submission', 'appeal', 'cloud-function', 'page-section', 'daily-problem',
+         ];
+         const enabled = (index: number) => wants(searchTypes[index]!) &&
+            (isAdmin || !['submission', 'appeal', 'cloud-function'].includes(searchTypes[index]!));
+         for (let index = cursor?.typeIndex ?? 0; index < searches.length; index++) {
+            if (!enabled(index)) continue;
+            if (index !== (cursor?.typeIndex ?? 0)) afterId = null;
+            const page = await searches[index]!();
+            const nextIndex = searchTypes.findIndex((_, i) => i > index && enabled(i));
+            const nextCursor = page.hasMore
+               ? { typeIndex: index, id: page.nextId, itemIndex: page.itemIndex }
+               : nextIndex >= 0 ? { typeIndex: nextIndex, id: null } : null;
+            if (page.results.length || !nextCursor)
+               return { results: page.results, total: page.results.length,
+                  hasMore: nextCursor !== null, nextCursor };
+         }
+         return { results: [], total: 0, hasMore: false, nextCursor: null };
       } catch (error) {
          logger.error(
             { error },
