@@ -14,6 +14,7 @@ import {
 const props = defineProps<{
    direction: 'horizontal' | 'vertical';
    startPercent?: number;
+   hideEnd?: boolean;
    /**
     * 持久化标识：给了它，用户拖出来的比例会被记住（刷新后保持，
     * 并可通过做题页侧边栏的「布局」菜单重置）。
@@ -84,6 +85,12 @@ const detachDragListeners = () => {
    activePointerMove = null;
    activePointerUp = null;
 };
+
+watch(() => props.hideEnd, (hidden) => {
+   if (!hidden) return;
+   isDragging.value = false;
+   detachDragListeners();
+});
 
 const handleResize = (event: PointerEvent) => {
    // pointerdown 对触摸也会触发，这里仅响应主键（左键 / 触屏）
@@ -246,7 +253,7 @@ const methodsToProvide = {
       <div
          ref="startPanel"
          :style="{
-            flexBasis: basis.start,
+            flexBasis: hideEnd ? '100%' : basis.start,
             pointerEvents: isDragging ? 'none' : 'auto',
          }"
          class="flex-shrink-0">
@@ -254,6 +261,7 @@ const methodsToProvide = {
       </div>
       <!-- RESIZER -->
       <div
+         v-show="!hideEnd"
          role="separator"
          :aria-orientation="direction === 'horizontal' ? 'vertical' : 'horizontal'"
          :aria-valuenow="Math.round(startPercentage)"
@@ -290,6 +298,7 @@ const methodsToProvide = {
       <!-- END -->
       <div
          ref="endPanel"
+         v-show="!hideEnd"
          :style="{
             flexBasis: basis.end,
             pointerEvents: isDragging ? 'none' : 'auto',
