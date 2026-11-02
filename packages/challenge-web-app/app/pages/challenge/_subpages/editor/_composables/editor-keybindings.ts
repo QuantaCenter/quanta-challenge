@@ -2,7 +2,8 @@ export const shortcutActions = [
    { id: 's', label: '保存提示', description: '代码自动同步到云端' },
    { id: 'r', label: '刷新预览', description: '重新加载预览页面' },
    { id: 'w', label: '关闭当前标签', description: '关闭当前打开的文件' },
-   { id: 'j', label: '切换终端', description: '展开或收起终端面板' },
+   { id: 'b', label: '切换文件栏', description: '显示或隐藏文件栏' },
+   { id: 'j', label: '切换终端', description: '显示或隐藏终端面板' },
    { id: 'format', label: '格式化代码', description: '格式化当前文件' },
 ];
 
@@ -10,6 +11,7 @@ export const defaultKeybindings: Record<string, string> = {
    s: 'Mod+S',
    r: 'Mod+R',
    w: 'Mod+W',
+   b: 'Mod+B',
    j: 'Mod+J',
    format: 'Mod+Shift+F',
 };

@@ -8,12 +8,13 @@ export interface IUseEditorShortcutsOptions {
    onSave: () => void;
    onRefreshPreview: () => void;
    onCloseTab: () => void;
+   onToggleFiles: () => void;
    onToggleTerminal: () => void;
    onFormat: () => void;
 }
 
 /**
- * 做题页快捷键：Ctrl/⌘ + S / R / W / J。
+ * 做题页快捷键：Ctrl/⌘ + S / R / W / B / J。
  *
  * 在 window 捕获阶段监听，抢在 Monaco、xterm 之前拦下浏览器默认行为。
  * 焦点在跨源的预览 iframe 内时事件到不了这里；Ctrl+W 在多数浏览器里属于保留快捷键，
@@ -25,6 +26,7 @@ export const useEditorShortcuts = (options: IUseEditorShortcutsOptions) => {
       s: options.onSave,
       r: options.onRefreshPreview,
       w: options.onCloseTab,
+      b: options.onToggleFiles,
       j: options.onToggleTerminal,
       format: options.onFormat,
    };
