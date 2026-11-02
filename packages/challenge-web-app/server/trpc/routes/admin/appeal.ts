@@ -9,7 +9,7 @@ import { rankService } from '../../services/rank';
 
 const AppealListSchema = z.object({
    status: z.enum(['PENDING', 'APPROVED', 'REJECTED']).optional(),
-   page: z.number().int().min(1).default(1),
+   cursor: z.string().nullish(),
    pageSize: z.number().int().min(1).max(100).default(20),
 });
 
@@ -17,7 +17,7 @@ const AppealListSchema = z.object({
 const listProcedure = protectedAdminProcedure
    .input(AppealListSchema.prefault({}))
    .query(async ({ input }) => {
-      const { status, page, pageSize } = input;
+      const { status, cursor, pageSize } = input;
       const where = status ? { status } : {};
 
       const [total, appeals] = await Promise.all([
@@ -25,8 +25,9 @@ const listProcedure = protectedAdminProcedure
          prisma.appeal.findMany({
             where,
             orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
-            skip: (page - 1) * pageSize,
-            take: pageSize,
+            cursor: cursor == null ? undefined : { id: cursor },
+            skip: cursor == null ? 0 : 1,
+            take: pageSize + 1,
             select: {
                id: true,
                content: true,
@@ -52,6 +53,9 @@ const listProcedure = protectedAdminProcedure
          }),
       ]);
 
+      const hasMore = appeals.length > pageSize;
+      if (hasMore) appeals.pop();
+      const nextCursor = hasMore ? appeals[appeals.length - 1]!.id : null;
       return {
          appeals: appeals.map(({ user, ...appeal }) => ({
             ...appeal,
@@ -64,8 +68,7 @@ const listProcedure = protectedAdminProcedure
             },
          })),
          total,
-         page,
-         pageSize,
+         nextCursor,
       };
    });
 

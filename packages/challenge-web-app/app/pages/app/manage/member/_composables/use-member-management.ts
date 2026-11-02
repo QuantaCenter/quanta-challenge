@@ -56,6 +56,7 @@ export const useMemberManagement = () => {
    const sortBy = ref<SortBy>('lastActiveAt');
    const sortOrder = ref<SortOrder>('desc');
    const page = ref(1);
+   const cursors = ref<(string | null)[]>([null]);
 
    const sortFieldOptions: ISelectOption[] = SORT_FIELDS.map((field) => ({
       label: field.label,
@@ -90,11 +91,21 @@ export const useMemberManagement = () => {
             role: role.value === 'ALL' ? undefined : role.value,
             sortBy: sortBy.value,
             sortOrder: sortOrder.value,
-            page: page.value,
+            cursor: cursors.value[page.value - 1],
             pageSize: PAGE_SIZE,
          });
       },
    );
+
+   watch(page, (next, previous) => {
+      if (next > previous && data.value?.nextCursor != null)
+         cursors.value[next - 1] = data.value.nextCursor;
+   }, { flush: 'sync' });
+
+   watch([keyword, role, sortBy, sortOrder], () => {
+      cursors.value = [null];
+      page.value = 1;
+   }, { flush: 'sync' });
 
    watch(
       error,
@@ -140,6 +151,7 @@ export const useMemberManagement = () => {
    };
 
    const total = computed(() => data.value?.total ?? 0);
+   const hasNextPage = computed(() => data.value?.nextCursor != null);
    const totalPages = computed(() =>
       Math.max(1, Math.ceil(total.value / PAGE_SIZE)),
    );
@@ -260,6 +272,7 @@ export const useMemberManagement = () => {
       sortOrderTip,
       total,
       totalPages,
+      hasNextPage,
       isFiltering,
       isInitialLoading,
       isRefreshing,

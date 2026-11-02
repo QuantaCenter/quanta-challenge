@@ -49,9 +49,7 @@ const listNotificationsProcedure = protectedProcedure
          where,
          take: limit + 1,
          cursor: cursor ? { id: cursor } : undefined,
-         orderBy: {
-            createdAt: 'desc',
-         },
+         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
          include: {
             appeal: { select: { status: true, createdAt: true } },
             scorePenalty: { select: { score: true, revokedAt: true } },

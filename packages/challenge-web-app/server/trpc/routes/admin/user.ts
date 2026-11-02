@@ -22,7 +22,7 @@ const MemberListSchema = z.object({
    /** 只支持能直接在数据库排序的字段：活跃时间 / 注册时间 / 分数 */
    sortBy: z.enum(['lastActiveAt', 'createdAt', 'score']).default('lastActiveAt'),
    sortOrder: z.enum(['asc', 'desc']).default('desc'),
-   page: z.number().int().min(1).default(1),
+   cursor: z.string().nullish(),
    pageSize: z.number().int().min(1).max(100).default(20),
 });
 
@@ -31,7 +31,7 @@ const getAllMembersProcedure = protectedAdminProcedure
    // prefault 而不是 default：zod 4 的 default 不会再解析默认值， 传 undefined 时各字段自身的默认值就丢了（page 会变成 undefined）。 用 prefault 把 {} 交给 schema 正常解析；同时允许调用方不传入参—— 不传时 tRPC 会把 undefined 交给校验器，缺了这层会直接 400。
    .input(MemberListSchema.prefault({}))
    .query(async ({ input }) => {
-      const { keyword, role, sortBy, sortOrder, page, pageSize } = input;
+      const { keyword, role, sortBy, sortOrder, cursor, pageSize } = input;
 
       const where: Prisma.UserWhereInput = {
          ...(role ? { role } : {}),
@@ -63,8 +63,9 @@ const getAllMembersProcedure = protectedAdminProcedure
          prisma.user.findMany({
             where,
             orderBy,
-            skip: (page - 1) * pageSize,
-            take: pageSize,
+            cursor: cursor == null ? undefined : { id: cursor },
+            skip: cursor == null ? 0 : 1,
+            take: pageSize + 1,
             select: {
                id: true,
                name: true,
@@ -89,6 +90,9 @@ const getAllMembersProcedure = protectedAdminProcedure
          }),
       ]);
 
+      const hasMore = users.length > pageSize;
+      if (hasMore) users.pop();
+      const nextCursor = hasMore ? users[users.length - 1]!.id : null;
       const userIds = users.map((user) => user.id);
       const [submissionStats, recentStats] = userIds.length
          ? await Promise.all([
@@ -151,7 +155,7 @@ const getAllMembersProcedure = protectedAdminProcedure
          };
       });
 
-      return { members, total, page, pageSize };
+      return { members, total, nextCursor };
    });
 
 const ResetPasswordSchema = z.object({
