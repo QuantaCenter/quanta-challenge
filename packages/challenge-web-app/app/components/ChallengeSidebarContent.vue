@@ -137,8 +137,6 @@ const avatarUrl = computed(() => {
 
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
-         <ChallengeLayoutMenu v-if="!isMobile" />
-
          <StMiniSidebarButton
             v-if="!isMobile"
             name="文件栏"
@@ -148,6 +146,8 @@ const avatarUrl = computed(() => {
             @click="layoutStore.filesVisible = !layoutStore.filesVisible">
             <PanelLeft :size="18" />
          </StMiniSidebarButton>
+
+         <ChallengeLayoutMenu v-if="!isMobile" />
       </StSpace>
    </template>
 
