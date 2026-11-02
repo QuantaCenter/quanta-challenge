@@ -24,6 +24,11 @@ const opened = defineModel<boolean>('opened', {
 });
 
 const tab = ref('settings');
+const isMobile = useIsMobile();
+const tabOptions = computed(() => [
+   { label: '编辑器设置', value: 'settings' },
+   ...(!isMobile.value ? [{ label: '快捷键', value: 'shortcuts' }] : []),
+]);
 const bindings = useEditorKeybindings();
 const isMac = ref(false);
 const resetConflict = ref<{ id: string; label: string } | null>(null);
@@ -126,6 +131,9 @@ watch(opened, (value) => {
    }
 });
 watch(tab, stop);
+watch(isMobile, (mobile) => {
+   if (mobile && tab.value === 'shortcuts') tab.value = 'settings';
+});
 onUnmounted(stop);
 
 const confirm = () => {
@@ -242,7 +250,7 @@ const cursorOptions = [
          <div class="px-6 pt-4">
             <StTabs
                v-model="tab"
-               :options="[ { label: '编辑器设置', value: 'settings' }, { label: '快捷键', value: 'shortcuts' }, ]"
+               :options="tabOptions"
             />
          </div>
          <div class="h-96 p-6 max-h-[65vh] overflow-y-auto">
