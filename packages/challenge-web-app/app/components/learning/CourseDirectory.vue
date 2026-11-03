@@ -70,9 +70,9 @@ function chapterRowClass(chapter: DirectoryChapter) {
    // 负的纵向外边距抵消内边距，高亮区域变高但不改变目录原有的纵向节奏
    return [
       'group relative -my-1.5 rounded-lg py-1.5 transition-colors',
-      isChapterActive(chapter) ? 'bg-accent-500' : '',
+      isChapterActive(chapter) ? 'bg-accent-600' : '',
       isChapterClickable(chapter)
-         ? isChapterActive(chapter) ? 'hover:bg-accent-400' : 'hover:bg-accent-500'
+         ? isChapterActive(chapter) ? 'hover:bg-accent-500/60' : 'hover:bg-accent-600/70'
          : '',
    ];
 }
@@ -94,8 +94,8 @@ function sectionButtonClass(section: DirectoryChapter['sections'][number]) {
    return [
       'enabled:cursor-pointer',
       props.activeSectionId === section.id
-         ? 'bg-accent-500 enabled:hover:bg-accent-400'
-         : 'enabled:hover:bg-accent-500',
+         ? 'bg-accent-600 enabled:hover:bg-accent-500/60'
+         : 'enabled:hover:bg-accent-600/70',
    ];
 }
 function percentage(chapter: DirectoryChapter) {

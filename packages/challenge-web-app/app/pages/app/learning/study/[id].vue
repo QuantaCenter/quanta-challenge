@@ -77,7 +77,6 @@ async function closeDirectory() {
          resolve();
       };
       window.addEventListener('popstate', done);
-      setTimeout(done, 400);
    });
    directoryOpen.value = false;
    await popped;
@@ -143,7 +142,7 @@ function beginChapter() {
 <template>
    <div
       class="mx-auto my-6 w-full px-6 pb-24 xl:-translate-x-10 transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none max-md:my-4 max-md:px-4"
-      :class="directoryCollapsed ? 'md:max-w-[55rem]' : 'md:max-w-[78.5rem]'">
+      :class="directoryCollapsed ? 'md:max-w-[63rem]' : 'md:max-w-[78.5rem]'">
       <!-- 移动端：吸顶的课程进度条，目录收进底部抽屉 -->
       <div
          v-if="course && !error"
@@ -198,7 +197,7 @@ function beginChapter() {
             :aria-expanded="!directoryCollapsed"
             aria-controls="learning-directory-panel"
             :title="directoryCollapsed ? '展开目录' : '收起目录'"
-            class="hidden size-8 shrink-0 items-center justify-center rounded-lg bg-accent-600 text-accent-300 transition-colors hover:bg-accent-500 hover:text-white focus-visible:outline-2 focus-visible:outline-primary md:inline-flex"
+            class="hidden size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-accent-600 text-accent-300 transition-colors hover:bg-accent-500 hover:text-white focus-visible:outline-2 focus-visible:outline-primary md:inline-flex"
             @click="directoryCollapsed = !directoryCollapsed">
             <MenuUnfold v-if="directoryCollapsed" />
             <MenuFold v-else />
@@ -218,9 +217,9 @@ function beginChapter() {
          <div
             id="learning-directory-panel"
             :inert="directoryCollapsed && desktop"
-            class="min-w-0 transition-opacity duration-500 ease-in-out motion-reduce:transition-none max-md:hidden md:sticky md:top-[6.5rem] md:overflow-hidden"
+            class="min-w-0 border-r border-accent-600 transition-opacity duration-500 ease-in-out motion-reduce:transition-none max-md:hidden md:sticky md:top-[6.5rem] md:overflow-hidden"
             :class="{ 'md:pointer-events-none md:opacity-0': directoryCollapsed }">
-         <aside class="rounded-xl bg-accent-600 p-6 md:max-h-[calc(100vh-8rem)] md:w-[22rem] md:overflow-auto">
+         <aside class="p-6 md:max-h-[calc(100vh-8rem)] md:w-[calc(22rem-1px)] md:overflow-auto">
             <StSpace direction="vertical" gap="0.75rem" fill-x>
                <h2 class="text-xl">{{ course.title }}</h2>
                <span class="text-xs text-accent-300">已完成 {{ completedCount }}/{{ allSections.length }} 节</span>
@@ -240,7 +239,11 @@ function beginChapter() {
             </StSpace>
          </aside>
          </div>
-         <article ref="article" class="relative w-full min-w-0 max-w-[52rem] justify-self-center" :aria-busy="switching">
+         <article
+            ref="article"
+            class="relative w-full min-w-0 justify-self-center transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none"
+            :class="directoryCollapsed ? 'max-w-[60rem]' : 'max-w-[52rem]'"
+            :aria-busy="switching">
             <Transition
                enter-active-class="transition-opacity duration-150"
                leave-active-class="transition-opacity duration-150"

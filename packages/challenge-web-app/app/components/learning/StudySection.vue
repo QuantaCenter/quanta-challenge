@@ -23,10 +23,17 @@ const problemHtml = computed(() => rawProblemHtml.value.replace(/<style[\s\S]*?<
 const end = useTemplateRef('end');
 const reachedEnd = ref(false);
 const saving = ref(false);
+const checking = ref(false);
 const saved = ref(false);
 const saveError = ref(false);
 const isCompleted = computed(() => props.completed || saved.value);
 let observer: IntersectionObserver | undefined;
+
+function checkStatus() {
+   if (saving.value || checking.value) return;
+   checking.value = true;
+   void complete(true);
+}
 
 async function complete(notify = false) {
    if (saving.value || isCompleted.value || !section.value) return;
@@ -109,7 +116,7 @@ onBeforeUnmount(() => {
          <ArticleBody
             :html="html"
             :blocks="blocks"
-            class="w-full max-w-[52rem] self-center" />
+            class="w-full self-center" />
          <div ref="end" class="h-px w-full" aria-hidden="true"></div>
       </template>
       <p v-else-if="!section.problem" class="text-accent-300">当前题目暂不可用，请稍后再试。</p>
@@ -117,7 +124,7 @@ onBeforeUnmount(() => {
          <ArticleBody
             v-if="problemHtml"
             :html="problemHtml"
-            class="w-full max-w-[52rem] self-center" />
+            class="w-full self-center" />
          <ProblemWorkspace
             :key="section.problem.pid"
             :pid="section.problem.pid"
@@ -139,12 +146,27 @@ onBeforeUnmount(() => {
             v-if="section.type === 'problem' && section.problem && !isCompleted"
             bordered
             size="sm"
-            :loading="saving"
+            :disabled="saving || checking"
             class="max-md:w-full max-md:!py-2.5"
-            @click="complete(true)">
-            <Refresh class="mr-2" />
+            @click="checkStatus">
+            <Refresh
+               class="mr-2"
+               :class="{ 'check-status-spin': checking }"
+               @animationend="checking = false" />
             检查通过状态
          </StButton>
       </StSpace>
    </StSpace>
 </template>
+
+<style scoped>
+.check-status-spin {
+   animation: check-status-spin 600ms ease-in-out;
+}
+
+@keyframes check-status-spin {
+   to {
+      transform: rotate(360deg);
+   }
+}
+</style>
