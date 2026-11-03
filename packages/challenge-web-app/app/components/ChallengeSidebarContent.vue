@@ -77,7 +77,7 @@ const itemClass =
 </script>
 
 <template>
-   <StMiniSidebarDivider />
+   <StMiniSidebarDivider v-if="!embedded" />
 
    <StSpace direction="vertical" align="center" gap="0.5rem">
       <template v-if="mode === 'record'">

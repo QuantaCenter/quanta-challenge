@@ -5,7 +5,6 @@ import {
    HamburgerButton,
    Redo,
    Return,
-   ShareThree,
    Undo,
 } from '@icon-park/vue-next';
 
@@ -18,12 +17,6 @@ const path = useParam<string[]>('path', { required: true });
 const problemId = computed(() => Number(path.value?.[1] ?? 0));
 
 const { embedded, withEmbed } = useChallengeEmbed();
-/** 嵌入模式下侧边栏顶部的 logo 换成「在新窗口打开」，跳到同一题目的完整做题页 */
-const standaloneUrl = computed(() =>
-   isRecordMode.value
-      ? `/challenge/record/${problemId.value}`
-      : `/challenge/editor/${problemId.value}`,
-);
 
 // 路由变化后自动收起抽屉
 watch(
@@ -78,19 +71,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
       <div
          class="flex h-screen w-full bg-[#111111] max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden"
          :class="embedded ? 'p-1.5 gap-1.5' : 'p-3 gap-3'">
-         <StMiniSidebar class="max-md:hidden" :compact="embedded">
-            <template v-if="embedded" #header>
-               <StSidebarSidePopper content="在新窗口打开">
-                  <a
-                     :href="standaloneUrl"
-                     target="_blank"
-                     rel="noopener"
-                     aria-label="在新窗口打开"
-                     class="size-[var(--mini-sidebar-item,2.75rem)] flex items-center justify-center rounded-lg bg-[#272727] text-accent-200 hover:text-white hover:bg-accent-500 transition-colors">
-                     <ShareThree class="text-[1rem]" />
-                  </a>
-               </StSidebarSidePopper>
-            </template>
+         <StMiniSidebar class="max-md:hidden" :compact="embedded" :hide-header="embedded">
             <ChallengeSidebarContent />
          </StMiniSidebar>
 
@@ -167,7 +148,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
                      : '-translate-x-full invisible'
                "
                style="width: 88vw; max-width: calc(100vw - 0.5rem)">
-               <StMiniSidebar v-if="isMobile" hide-tooltips
+               <StMiniSidebar v-if="isMobile" hide-tooltips :hide-header="embedded"
                   class="w-16 shrink-0 overflow-hidden">
                   <ChallengeSidebarContent />
                </StMiniSidebar>

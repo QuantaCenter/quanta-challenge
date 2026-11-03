@@ -4,6 +4,7 @@ import { MINI_SIDEBAR_TOOLTIP_HIDDEN_KEY } from './type';
 
 const props = defineProps<{
    hideTooltips?: boolean;
+   hideHeader?: boolean;
    /** 紧凑模式：按钮与留白整体缩小（嵌入做题页使用） */
    compact?: boolean;
 }>();
@@ -23,7 +24,7 @@ provide(
             ? 'p-1 rounded-lg [--mini-sidebar-item:2.125rem] [--mini-sidebar-gap:0.5rem]'
             : 'py-2 px-2 rounded-xl'
       ">
-      <slot name="header">
+      <slot v-if="!hideHeader" name="header">
          <StSpace
             align="center"
             justify="center"
