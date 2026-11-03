@@ -15,6 +15,9 @@ import { PanelLeft, SquareTerminal } from 'lucide-vue-next';
  *  水合安全判定：SSR 与客户端首帧恒为 false，mounted 后才隐藏 */
 const isMobile = useIsMobile();
 
+/** 嵌入模式只保留做题必需的按钮：计时器、布局设置、头像都交给独立做题页 */
+const { embedded, withEmbed } = useChallengeEmbed();
+
 const store = useEditorStore();
 const layoutStore = useLayoutStore();
 const toggleDetailWindow = () => {
@@ -68,6 +71,9 @@ const avatarUrl = computed(() => {
    if (name) return `/api/static/${name}`;
    return user?.imageId ? `/api/static/${user.imageId}` : '';
 });
+
+const itemClass =
+   'size-[var(--mini-sidebar-item,2.75rem)] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer';
 </script>
 
 <template>
@@ -76,10 +82,9 @@ const avatarUrl = computed(() => {
    <StSpace direction="vertical" align="center" gap="0.5rem">
       <template v-if="mode === 'record'">
          <StSidebarSidePopper content="返回题目">
-            <NuxtLink :to="`/challenge/editor/${id}`">
+            <NuxtLink :to="withEmbed(`/challenge/editor/${id}`)">
                <StRippleEffect>
-                  <button
-                     class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
+                  <button :class="itemClass">
                      <Return class="text-[1.1rem]" />
                   </button>
                </StRippleEffect>
@@ -92,20 +97,16 @@ const avatarUrl = computed(() => {
             <StRippleEffect>
                <button
                   @click="toggleDetailWindow"
-                  class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer"
-                  :class="{
-                     '!text-primary': store.detailWindowOpened,
-                  }">
+                  :class="[itemClass, { '!text-primary': store.detailWindowOpened }]">
                   <AlignTextLeftOne class="text-[1.1rem]" />
                </button>
             </StRippleEffect>
          </StSidebarSidePopper>
 
          <StSidebarSidePopper content="提交记录">
-            <NuxtLink :to="`/challenge/record/${id}`">
+            <NuxtLink :to="withEmbed(`/challenge/record/${id}`)">
                <StRippleEffect>
-                  <button
-                     class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 text-white hover:bg-accent-500 transition-colors cursor-pointer">
+                  <button :class="itemClass">
                      <History class="text-[1.1rem]" />
                   </button>
                </StRippleEffect>
@@ -126,18 +127,18 @@ const avatarUrl = computed(() => {
                   : '提交（容器未就绪，点击查看原因）'
             "
             :aria-disabled="!store.hasProjectInitialized"
-            class="size-[2.75rem] flex items-center justify-center rounded-full bg-accent-600 hover:bg-accent-500 transition-colors cursor-pointer !text-success"
+            class="!text-success"
             :class="{
                '!opacity-40 !text-accent-300': !store.hasProjectInitialized,
             }">
             <UploadWeb class="text-[1.1rem]" />
          </StMiniSidebarButton>
 
-         <TimerWidget :toolbar="true" />
+         <TimerWidget v-if="!embedded" :toolbar="true" />
 
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
-         <ChallengeLayoutMenu v-if="!isMobile" />
+         <ChallengeLayoutMenu v-if="!isMobile && !embedded" />
       </StSpace>
 
       <!-- 终端按钮在移动端也可见，分隔线应始终保留。 -->
@@ -168,6 +169,6 @@ const avatarUrl = computed(() => {
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
       <ChallengeSettingsMenu :problem-id="mode === 'problem' ? id : undefined" />
 
-      <StAvatar size="2.25rem" :url="avatarUrl" />
+      <StAvatar v-if="!embedded" size="2.25rem" :url="avatarUrl" />
    </StSpace>
 </template>

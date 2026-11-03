@@ -1,7 +1,13 @@
 <script setup lang="ts">
 import useAuthStore from '~/stores/auth-store';
 import { useEditorStore } from '~/stores/editor-store';
-import { HamburgerButton, Redo, Return, Undo } from '@icon-park/vue-next';
+import {
+   HamburgerButton,
+   Redo,
+   Return,
+   ShareThree,
+   Undo,
+} from '@icon-park/vue-next';
 
 const store = useEditorStore();
 
@@ -10,6 +16,14 @@ const route = useRoute();
 const isRecordMode = computed(() => route.path.startsWith('/challenge/record'));
 const path = useParam<string[]>('path', { required: true });
 const problemId = computed(() => Number(path.value?.[1] ?? 0));
+
+const { embedded, withEmbed } = useChallengeEmbed();
+/** 嵌入模式下侧边栏顶部的 logo 换成「在新窗口打开」，跳到同一题目的完整做题页 */
+const standaloneUrl = computed(() =>
+   isRecordMode.value
+      ? `/challenge/record/${problemId.value}`
+      : `/challenge/editor/${problemId.value}`,
+);
 
 // 路由变化后自动收起抽屉
 watch(
@@ -62,8 +76,21 @@ onUnmounted(() => detachDrawerTouchLock?.());
 <template>
    <StMessageProvider>
       <div
-         class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden">
-         <StMiniSidebar class="max-md:hidden">
+         class="flex h-screen w-full bg-[#111111] max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden"
+         :class="embedded ? 'p-1.5 gap-1.5' : 'p-3 gap-3'">
+         <StMiniSidebar class="max-md:hidden" :compact="embedded">
+            <template v-if="embedded" #header>
+               <StSidebarSidePopper content="在新窗口打开">
+                  <a
+                     :href="standaloneUrl"
+                     target="_blank"
+                     rel="noopener"
+                     aria-label="在新窗口打开"
+                     class="size-[var(--mini-sidebar-item,2.75rem)] flex items-center justify-center rounded-lg bg-[#272727] text-accent-200 hover:text-white hover:bg-accent-500 transition-colors">
+                     <ShareThree class="text-[1rem]" />
+                  </a>
+               </StSidebarSidePopper>
+            </template>
             <ChallengeSidebarContent />
          </StMiniSidebar>
 
@@ -71,7 +98,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
             class="hidden max-md:flex h-11 shrink-0 items-center gap-1.5 bg-[#1F1F1F] rounded-lg px-1.5">
             <NuxtLink
                v-if="isRecordMode"
-               :to="`/challenge/editor/${problemId}`"
+               :to="withEmbed(`/challenge/editor/${problemId}`)"
                aria-label="返回题目"
                class="h-9 px-3 shrink-0 flex items-center gap-1 rounded-md bg-accent-600 text-white text-sm active:bg-accent-500 transition-colors cursor-pointer">
                <Return class="text-[1.1rem]" />

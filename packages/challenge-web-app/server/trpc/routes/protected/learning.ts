@@ -45,7 +45,7 @@ export const learningRouter = router({
             select: {
                id: true, title: true, type: true, articleContent: true,
                baseProblem: {
-                  select: { CurrentProblem: { select: { pid: true, title: true, status: true } } },
+                  select: { CurrentProblem: { select: { pid: true, title: true, status: true, detail: true } } },
                },
             },
          });
@@ -55,7 +55,9 @@ export const learningRouter = router({
             title: section.title,
             type: section.type,
             articleContent: section.type === 'article' ? section.articleContent : null,
-            problem: problem?.status === 'published' ? { pid: problem.pid, title: problem.title } : null,
+            problem: problem?.status === 'published'
+               ? { pid: problem.pid, title: problem.title, detail: problem.detail }
+               : null,
          };
       }),
    completeSection: protectedProcedure

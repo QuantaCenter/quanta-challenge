@@ -183,11 +183,14 @@ const path = useParam<string[]>('path', {
 });
 const id = computed(() => Number(path.value?.[1] ?? 0));
 const commitEmitter = useEventBus<number>('challenge-commit');
+const { withEmbed, notifyParent } = useChallengeEmbed();
 const close = (recordId?: number) => {
    runningProcess?.kill();
    opened.value = false;
    commitEmitter.emit(recordId);
-   recordId && navigateTo(`/challenge/record/${id.value}?id=${recordId}`);
+   if (!recordId) return;
+   notifyParent({ type: 'committed', recordId });
+   navigateTo(withEmbed(`/challenge/record/${id.value}?id=${recordId}`));
 };
 
 const closable = computed(() => {

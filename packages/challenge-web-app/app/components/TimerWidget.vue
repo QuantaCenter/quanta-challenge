@@ -70,7 +70,7 @@ const onPanelChange = (status: TimerStatus) => {
             @click="toggleMenu"
             :class="[
                props.toolbar
-                  ? '!px-0 !py-0 !size-[2.75rem] flex items-center justify-center'
+                  ? '!px-0 !py-0 !size-[var(--mini-sidebar-item,2.75rem)] flex items-center justify-center'
                   : '!px-4',
                'transition-colors',
                {

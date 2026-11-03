@@ -1,3 +1,5 @@
+import type { Ref } from 'vue';
+import { isChallengeEmbedRoute } from '~/composables/use-challenge-embed';
 import { moveBoard, normalizeBoardLayout } from '~/utils/board-layout';
 
 /** 做题页的三个板块 */
@@ -48,12 +50,15 @@ const defaultLayout = (): StoredLayout => ({
  * cookie 服务端能读到，SSR 与客户端首次渲染拿到同一份数据，闪烁随之消失。
  */
 export const useLayoutStore = defineStore('layout', () => {
-   const stored = useCookie<StoredLayout>(LAYOUT_COOKIE, {
-      default: defaultLayout,
-      maxAge: 60 * 60 * 24 * 365,
-      sameSite: 'lax',
-      // 纯前端偏好，不需要 httpOnly（客户端要读写），也不能加密（SSR 要读内容）
-   });
+   // 嵌入模式：布局只存在内存里且默认收起文件栏，避免改动写回独立做题页的 cookie
+   const stored: Ref<StoredLayout> = isChallengeEmbedRoute()
+      ? ref<StoredLayout>({ ...defaultLayout(), filesVisible: false })
+      : useCookie<StoredLayout>(LAYOUT_COOKIE, {
+           default: defaultLayout,
+           maxAge: 60 * 60 * 24 * 365,
+           sameSite: 'lax',
+           // 纯前端偏好，不需要 httpOnly（客户端要读写），也不能加密（SSR 要读内容）
+        });
 
    const layout = computed<StoredLayout>(() => stored.value ?? defaultLayout());
 
