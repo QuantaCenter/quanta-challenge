@@ -101,6 +101,13 @@ export const useMarkdown = (options?: {
       return withCodeHeader ? wrapCodeBlock(body, language) : body;
    };
 
+   // 文章排版下表格外包一层滚动容器：表格本身保持 100% 宽，列多时由容器横向滚动
+   if (withCodeHeader) {
+      const renderTable = renderer.table.bind(renderer);
+      renderer.table = (token) =>
+         `<div class="article-table">${renderTable(token)}</div>`;
+   }
+
    // 代码块以外的原生 HTML 一律转义为代码展示
    renderer.html = ({ text, block }) =>
       block

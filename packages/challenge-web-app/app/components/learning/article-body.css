@@ -354,16 +354,22 @@
 
 /* ---------- 表格 ---------- */
 
-/* 列多时横向滚动，而不是把整页撑宽 */
+/* 列多时由外层容器横向滚动，而不是把整页撑宽；表格本身始终占满宽度 */
+.article-body .article-table {
+   margin: 0 0 var(--ab-gap-block);
+   overflow-x: auto;
+}
+
 .article-body table {
-   display: block;
-   width: max-content;
-   max-width: 100%;
+   width: 100%;
    margin: 0 0 var(--ab-gap-block);
    border-collapse: collapse;
    font-size: 0.9375rem;
    line-height: 1.6;
-   overflow-x: auto;
+}
+
+.article-body .article-table > table {
+   margin: 0;
 }
 
 .article-body th,
