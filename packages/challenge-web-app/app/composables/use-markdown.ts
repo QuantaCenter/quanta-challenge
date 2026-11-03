@@ -52,7 +52,8 @@ export const useMarkdown = (options?: {
    /** 开启后支持 `<Playground>` 演练块，渲染结果从 `blocks` 取用 */
    playground?: boolean;
 }) => {
-   const containerKey = 'markdown-container';
+   // 同一组件可以分别解析文章、题面等内容，模板引用不能重复注册。
+   const containerKey = `markdown-container-${useId()}`;
    const container = useTemplateRef<HTMLElement>(containerKey);
    const html = ref('');
    const blocks = ref<TMarkdownBlock[]>([]);
