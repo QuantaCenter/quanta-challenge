@@ -97,6 +97,7 @@ const {
    language: files[0]?.language ?? 'html',
    containerRef: 'playground-editor',
    options: {
+      fontFamily: 'FiraCode Nerd Font Mono, monospace',
       fontSize: 13,
       lineHeight: 22,
       lineNumbers: 'on',
