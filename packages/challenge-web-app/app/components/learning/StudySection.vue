@@ -13,7 +13,7 @@ const { data: section, pending, error, refresh } = await useAsyncData(
    () => `learning-section-${props.courseId}-${props.sectionId}`,
    () => sectionLoader.load(props.courseId, props.sectionId),
 );
-const { html, update } = useMarkdown({ codeHeader: true });
+const { html, blocks, update } = useMarkdown({ codeHeader: true, playground: true });
 watch(() => section.value?.articleContent, content => update(content ?? ''), { immediate: true });
 const end = useTemplateRef('end');
 const reachedEnd = ref(false);
@@ -86,7 +86,10 @@ onBeforeUnmount(() => {
          {{ section.title }}
       </h1>
       <template v-if="section.type === 'article'">
-         <ArticleBody :html="html" class="w-full max-w-[52rem] self-center" />
+         <ArticleBody
+            :html="html"
+            :blocks="blocks"
+            class="w-full max-w-[52rem] self-center" />
          <div ref="end" class="h-px w-full" aria-hidden="true"></div>
       </template>
       <StSpace v-else direction="vertical" gap="1rem" fill-x>

@@ -9,6 +9,7 @@ import {
    insertCodeBlock,
    insertHorizontalRule,
    insertLink,
+   insertPlayground,
    insertTable,
    toggleInlineWrap,
    toggleLinePrefix,
@@ -25,8 +26,10 @@ const props = withDefaults(
       /** 抽屉标题 */
       drawerTitle?: string;
       width?: string;
+      /** 允许正文使用 `<Playground>` 演练块 */
+      playground?: boolean;
    }>(),
-   { drawerTitle: '编辑题目详情', width: '60rem' },
+   { drawerTitle: '编辑题目详情', width: '60rem', playground: false },
 );
 
 const { containerKey, onEditorContentChanged, setEditorContent, onEditorReady } =
@@ -39,7 +42,7 @@ const { containerKey, onEditorContentChanged, setEditorContent, onEditorReady } 
          wrappingStrategy: 'advanced',
       },
    });
-const { html, update } = useMarkdown();
+const { html, blocks, update } = useMarkdown({ playground: props.playground });
 const debounceUpdate = useDebounceFn(update, 200);
 const message = useMessage();
 const { $trpc } = useNuxtApp();
@@ -253,6 +256,9 @@ const runAction = (id: MarkdownToolbarAction) => {
       case 'hr':
          applyEdit(insertHorizontalRule);
          break;
+      case 'playground':
+         applyEdit(insertPlayground);
+         break;
    }
 };
 
@@ -275,6 +281,7 @@ const onImageFileChosen = (event: Event) => {
             <MarkdownToolbar
                :uploading="uploadingImage"
                :char-count="charCount"
+               :playground="props.playground"
                @action="runAction" />
             <input
                ref="image-file-input"
@@ -295,7 +302,7 @@ const onImageFileChosen = (event: Event) => {
                </template>
                <template #end>
                   <div class="min-w-0 min-h-0 w-full h-full overflow-auto p-4">
-                     <StMarkdownPreview :html="html" />
+                     <StMarkdownPreview :html="html" :blocks="blocks" />
                   </div>
                </template>
             </StSplitPanel>

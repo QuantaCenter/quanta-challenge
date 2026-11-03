@@ -168,7 +168,7 @@ const handleSubmit = async () => {
                         <StTextarea
                            v-model:value="formdata.articleContent"
                            rows="12"
-                           placeholder="支持 Markdown，学员阅读后点击「完成」即记为已学"
+                           placeholder="支持 Markdown 与 <Playground> 演练块，学员阅读后点击「完成」即记为已学"
                            :outer-class />
                      </StFormItem>
 
@@ -216,5 +216,6 @@ const handleSubmit = async () => {
       v-model:opened="markdownOpened"
       v-model:markdown="formdata.articleContent"
       width="70vw"
+      playground
       drawer-title="编辑小节正文" />
 </template>

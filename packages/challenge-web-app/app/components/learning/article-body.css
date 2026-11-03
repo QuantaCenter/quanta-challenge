@@ -11,6 +11,15 @@
    margin-top: 0;
 }
 
+/* 片段渲染时正文被演练块切开，首尾外边距交给容器与演练块自身 */
+.article-body__fragment > *:first-child {
+   margin-top: 0;
+}
+
+.article-body__fragment > *:last-child {
+   margin-bottom: 0;
+}
+
 .article-body h1,
 .article-body h2,
 .article-body h3,
@@ -287,6 +296,10 @@
 }
 
 .article-body--dense .article-code {
+   margin: 0.75em 0;
+}
+
+.article-body--dense .st-playground {
    margin: 0.75em 0;
 }
 

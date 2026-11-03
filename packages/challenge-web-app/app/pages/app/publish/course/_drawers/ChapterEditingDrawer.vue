@@ -146,5 +146,6 @@ const handleSubmit = async () => {
       :key="formKey"
       v-model:opened="markdownOpened"
       v-model:markdown="formdata.introduction"
+      playground
       drawer-title="编辑章节导读" />
 </template>

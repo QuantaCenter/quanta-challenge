@@ -1,6 +1,12 @@
-import { marked, Renderer } from 'marked';
+import { Marked, Renderer } from 'marked';
 import githubDark from 'shiki/themes/github-dark.mjs';
 import { useShiki } from './use-shiki';
+import {
+   createPlaygroundExtension,
+   splitMarkdownBlocks,
+   type IPlaygroundSpec,
+   type TMarkdownBlock,
+} from '~/utils/markdown-playground';
 import langBash from 'shiki/langs/bash.mjs';
 import langCss from 'shiki/langs/css.mjs';
 import langHtml from 'shiki/langs/html.mjs';
@@ -41,14 +47,20 @@ const CODE_LANGUAGES = [
    langVue,
 ];
 
-export const useMarkdown = (options?: { codeHeader?: boolean }) => {
+export const useMarkdown = (options?: {
+   codeHeader?: boolean;
+   /** 开启后支持 `<Playground>` 演练块，渲染结果从 `blocks` 取用 */
+   playground?: boolean;
+}) => {
    const containerKey = 'markdown-container';
    const container = useTemplateRef<HTMLElement>(containerKey);
    const html = ref('');
+   const blocks = ref<TMarkdownBlock[]>([]);
 
    let hasMounted = false;
 
    const withCodeHeader = options?.codeHeader ?? false;
+   const withPlayground = options?.playground ?? false;
 
    // 主题必须和下面 codeToHtml 用的一致，否则会被当成未注册主题
    const { highlighter } = useShiki({
@@ -97,13 +109,23 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
 
    let lastContent = '';
 
+   const playgroundSpecs: IPlaygroundSpec[] = [];
+   const parser = new Marked();
+   if (withPlayground) {
+      parser.use({ extensions: [createPlaygroundExtension(playgroundSpecs)] });
+   }
+
    const update = async (content: string) => {
       lastContent = content;
-      html.value = await marked.parse(content, {
+      playgroundSpecs.length = 0;
+      html.value = await parser.parse(content, {
          gfm: true,
          breaks: true,
          renderer: renderer,
       });
+      if (withPlayground) {
+         blocks.value = splitMarkdownBlocks(html.value, playgroundSpecs);
+      }
       if (hasMounted && container.value) {
          container.value.innerHTML = html.value;
       }
@@ -125,6 +147,7 @@ export const useMarkdown = (options?: { codeHeader?: boolean }) => {
    return {
       containerKey,
       html,
+      blocks,
       update,
    };
 };

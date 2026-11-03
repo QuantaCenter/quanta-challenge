@@ -4,6 +4,7 @@ import {
    insertCodeBlock,
    insertHorizontalRule,
    insertLink,
+   insertPlayground,
    insertTable,
    toggleInlineWrap,
    toggleLinePrefix,
@@ -129,4 +130,14 @@ test('链接：选中文字作文本，选中网址作目标，无选区给模�
    const empty = apply('', insertLink('', 0, 0));
    assert.equal(empty.next, '[链接文本](https://)');
    assert.equal(empty.picked, '链接文本');
+});
+
+test('演练块：前后补空行，插入三文件模板并选中标题占位', () => {
+   const result = apply('intro', insertPlayground('intro', 5, 5));
+   assert.equal(result.picked, '演练标题');
+   assert.ok(result.next.startsWith('intro\n\n<Playground title="演练标题"'));
+   assert.ok(result.next.endsWith('</Playground>\n'));
+   for (const fence of ['```html', '```css', '```js']) {
+      assert.ok(result.next.includes(fence));
+   }
 });

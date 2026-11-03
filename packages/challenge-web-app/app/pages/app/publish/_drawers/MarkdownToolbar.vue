@@ -13,6 +13,7 @@ import {
    LoadingFour,
    OrderedList,
    Pic,
+   PlayOne,
    Quote,
    Redo,
    Strikethrough,
@@ -28,6 +29,8 @@ const props = defineProps<{
    uploading?: boolean;
    /** 正文字数（不含空白） */
    charCount?: number;
+   /** 展示「插入演练」按钮（仅课程图文小节需要） */
+   playground?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -43,7 +46,7 @@ interface IToolbarItem {
 }
 
 /** 分组之间用竖线分隔 */
-const groups: IToolbarItem[][] = [
+const groups = computed<IToolbarItem[][]>(() => [
    [
       { id: 'undo', label: '撤销', icon: Undo, shortcut: 'Z' },
       { id: 'redo', label: '重做', icon: Redo, shortcut: 'Shift+Z' },
@@ -71,8 +74,11 @@ const groups: IToolbarItem[][] = [
       { id: 'table', label: '表格', icon: InsertTable },
       { id: 'codeBlock', label: '代码块', icon: CodeBrackets },
       { id: 'hr', label: '分割线', icon: DividingLine },
+      ...(props.playground
+         ? [{ id: 'playground' as const, label: '插入演练', icon: PlayOne }]
+         : []),
    ],
-];
+]);
 
 // 修饰键只在客户端确定，避免 SSR / 水合时提示文案不一致
 const modKey = ref('Ctrl');

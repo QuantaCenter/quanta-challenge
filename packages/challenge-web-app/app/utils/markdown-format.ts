@@ -24,7 +24,8 @@ export type MarkdownToolbarAction =
    | 'image'
    | 'table'
    | 'codeBlock'
-   | 'hr';
+   | 'hr'
+   | 'playground';
 
 /** 一次替换：用 insert 替换 [from, to)，并选中替换后文档里的 [selectFrom, selectTo) */
 export interface MarkdownEdit {
@@ -263,6 +264,40 @@ export const insertHorizontalRule = (
    start: number,
    end: number
 ): MarkdownEdit => insertStandaloneBlock(text, start, end, '---', [3, 3]);
+
+const PLAYGROUND_TEMPLATE_TITLE = '演练标题';
+
+/** `title="` 之前的固定前缀长度，用于把选区落在标题占位上 */
+const PLAYGROUND_TITLE_OFFSET = '<Playground title="'.length;
+
+const PLAYGROUND_TEMPLATE = [
+   `<Playground title="${PLAYGROUND_TEMPLATE_TITLE}" height="18rem">`,
+   '```html',
+   '<button id="demo">点我</button>',
+   '```',
+   '```css',
+   '#demo {',
+   '   padding: 0.5rem 1rem;',
+   '}',
+   '```',
+   '```js',
+   "document.querySelector('#demo').addEventListener('click', () => {",
+   "   console.log('按钮被点击了');",
+   '});',
+   '```',
+   '</Playground>',
+].join('\n');
+
+/** 演练块：插入 html / css / js 三文件模板并选中标题占位 */
+export const insertPlayground = (
+   text: string,
+   start: number,
+   end: number
+): MarkdownEdit =>
+   insertStandaloneBlock(text, start, end, PLAYGROUND_TEMPLATE, [
+      PLAYGROUND_TITLE_OFFSET,
+      PLAYGROUND_TITLE_OFFSET + PLAYGROUND_TEMPLATE_TITLE.length,
+   ]);
 
 /**
  * 链接：
