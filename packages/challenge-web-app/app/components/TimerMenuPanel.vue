@@ -175,7 +175,7 @@ const progressPercent = computed(() => {
    <div class="w-full">
       <div v-if="!currentMode">
          <div class="p-4">
-            <h3 class="text-lg font-semibold text-white mb-4">
+            <h3 class="text-lg font-bold text-white mb-4">
                选择计时模式
             </h3>
 
@@ -184,7 +184,7 @@ const progressPercent = computed(() => {
                class="w-full p-4 mb-3 bg-accent-500 hover:bg-accent-400 cursor-pointer rounded-lg transition-all duration-200 text-left group">
                <div class="flex items-center justify-between">
                   <div>
-                     <div class="text-white font-medium mb-1">正计时</div>
+                     <div class="text-white mb-1">正计时</div>
                      <div class="text-accent-200 text-sm">从零开始计时</div>
                   </div>
                   <Timer
@@ -197,7 +197,7 @@ const progressPercent = computed(() => {
                class="w-full p-4 bg-accent-500 hover:bg-accent-400 cursor-pointer rounded-lg transition-all duration-200 text-left group">
                <div class="flex items-center justify-between">
                   <div>
-                     <div class="text-white font-medium mb-1">倒计时</div>
+                     <div class="text-white mb-1">倒计时</div>
                      <div class="text-accent-200 text-sm">设置时间倒数</div>
                   </div>
                   <Timer
@@ -210,7 +210,7 @@ const progressPercent = computed(() => {
       <div v-else-if="currentMode === 'stopwatch'">
          <div class="p-4">
             <div class="flex items-center justify-between mb-4">
-               <h3 class="text-lg font-semibold text-white">正计时</h3>
+               <h3 class="text-lg font-bold text-white">正计时</h3>
                <button
                   @click="backToModeSelection"
                   class="text-accent-200 cursor-pointer hover:text-white transition-colors text-sm">
@@ -238,14 +238,14 @@ const progressPercent = computed(() => {
                <button
                   v-if="timerStatus !== 'running'"
                   @click="startTimer"
-                  class="flex-1 py-3 bg-success hover:bg-success/80 cursor-pointer rounded-lg text-background font-medium transition-colors flex items-center justify-center gap-2">
+                  class="flex-1 py-3 bg-success hover:bg-success/80 cursor-pointer rounded-lg text-background transition-colors flex items-center justify-center gap-2">
                   <PlayOne class="text-lg" />
                   {{ timerStatus === 'paused' ? '继续' : '开始' }}
                </button>
                <button
                   v-else
                   @click="pauseTimer"
-                  class="flex-1 py-3 cursor-pointer bg-primary hover:bg-primary/80 rounded-lg text-white font-medium transition-colors flex items-center justify-center gap-2">
+                  class="flex-1 py-3 cursor-pointer bg-primary hover:bg-primary/80 rounded-lg text-white transition-colors flex items-center justify-center gap-2">
                   <Pause class="text-lg" />
                   暂停
                </button>
@@ -261,7 +261,7 @@ const progressPercent = computed(() => {
       <div v-else-if="currentMode === 'countdown'">
          <div class="p-4">
             <div class="flex items-center justify-between mb-4">
-               <h3 class="text-lg font-semibold text-white">倒计时</h3>
+               <h3 class="text-lg font-bold text-white">倒计时</h3>
                <button
                   @click="backToModeSelection"
                   class="text-accent-200 cursor-pointer hover:text-white transition-colors text-sm">
@@ -312,7 +312,7 @@ const progressPercent = computed(() => {
                      v-for="time in quickTimes"
                      :key="time"
                      @click="setCountdownTime(time)"
-                     class="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors cursor-pointer"
+                     class="px-3 py-1.5 rounded-lg text-sm transition-colors cursor-pointer"
                      :class="{
                         'bg-primary text-white': countdownMinutes === time,
                         'bg-accent-500 text-accent-200 hover:bg-accent-400 hover:text-white':
@@ -343,14 +343,14 @@ const progressPercent = computed(() => {
                <button
                   v-if="timerStatus !== 'running'"
                   @click="startTimer"
-                  class="flex-1 py-3 bg-warning hover:bg-warning/80 cursor-pointer rounded-lg text-background font-medium transition-colors flex items-center justify-center gap-2">
+                  class="flex-1 py-3 bg-warning hover:bg-warning/80 cursor-pointer rounded-lg text-background transition-colors flex items-center justify-center gap-2">
                   <PlayOne class="text-lg" />
                   {{ timerStatus === 'paused' ? '继续' : '开始' }}
                </button>
                <button
                   v-else
                   @click="pauseTimer"
-                  class="flex-1 py-3 bg-primary hover:bg-primary/80 rounded-lg cursor-pointer text-white font-medium transition-colors flex items-center justify-center gap-2">
+                  class="flex-1 py-3 bg-primary hover:bg-primary/80 rounded-lg cursor-pointer text-white transition-colors flex items-center justify-center gap-2">
                   <Pause class="text-lg" />
                   暂停
                </button>

@@ -156,7 +156,7 @@ const deleteTag = async (tid: number) => {
             </template>
 
             <template #cell-label="{ row }">
-               <div class="st-font-body-bold text-white truncate">
+               <div class="st-font-body-normal text-white truncate">
                   {{ row.label }}
                </div>
             </template>

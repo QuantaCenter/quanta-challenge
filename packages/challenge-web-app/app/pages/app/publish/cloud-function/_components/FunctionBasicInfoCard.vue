@@ -38,7 +38,7 @@ const outerClass = 'border !py-3 !px-4 !rounded-[0.5rem] w-full';
 
          <StSpace align="center" justify="between" class="w-full">
             <StSpace direction="vertical" gap="0.25rem">
-               <span class="st-font-body-bold text-accent-100">
+               <span class="st-font-body-normal text-accent-100">
                   KV 按用户隔离
                </span>
                <span class="st-font-caption text-accent-400">
@@ -50,7 +50,7 @@ const outerClass = 'border !py-3 !px-4 !rounded-[0.5rem] w-full';
 
          <StSpace align="center" justify="between" class="w-full">
             <StSpace direction="vertical" gap="0.25rem">
-               <span class="st-font-body-bold text-accent-100">
+               <span class="st-font-body-normal text-accent-100">
                   单次调用超时
                </span>
                <span class="st-font-caption text-accent-400">
@@ -65,7 +65,7 @@ const outerClass = 'border !py-3 !px-4 !rounded-[0.5rem] w-full';
 
          <StSpace align="center" justify="between" class="w-full">
             <StSpace direction="vertical" gap="0.25rem">
-               <span class="st-font-body-bold text-accent-100">启用状态</span>
+               <span class="st-font-body-normal text-accent-100">启用状态</span>
                <span class="st-font-caption text-accent-400">
                   停用后拒绝所有调用（历史与版本保留）
                </span>

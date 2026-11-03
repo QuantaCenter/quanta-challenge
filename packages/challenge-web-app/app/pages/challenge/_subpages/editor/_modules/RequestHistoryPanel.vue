@@ -72,7 +72,7 @@ const statusClass = (entry: IRequestHistoryEntry) => {
                      {{ entry.pathname }}
                   </span>
                   <span
-                     class="st-font-tooltip font-bold shrink-0"
+                     class="st-font-tooltip shrink-0"
                      :class="statusClass(entry)">
                      {{
                         entry.failed

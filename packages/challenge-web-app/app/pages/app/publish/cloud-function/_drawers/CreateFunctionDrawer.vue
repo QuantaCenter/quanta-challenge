@@ -103,7 +103,7 @@ const submit = async () => {
 
             <StSpace align="center" justify="between" class="w-full">
                <StSpace direction="vertical" gap="0.25rem">
-                  <span class="st-font-body-bold text-accent-100">
+                  <span class="st-font-body-normal text-accent-100">
                      KV 按用户隔离
                   </span>
                   <span class="st-font-caption text-accent-400">
@@ -115,7 +115,7 @@ const submit = async () => {
 
             <StSpace align="center" justify="between" class="w-full">
                <StSpace direction="vertical" gap="0.25rem">
-                  <span class="st-font-body-bold text-accent-100">
+                  <span class="st-font-body-normal text-accent-100">
                      单次调用超时
                   </span>
                   <span class="st-font-caption text-accent-400">

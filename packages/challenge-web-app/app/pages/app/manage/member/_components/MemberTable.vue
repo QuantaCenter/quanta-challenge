@@ -104,7 +104,7 @@ const columns: ITableColumn[] = [
                object="cover"
                class="rounded-lg shrink-0" />
             <div class="flex flex-col overflow-hidden">
-               <span class="st-font-body-bold text-white truncate">
+               <span class="st-font-body-normal text-white truncate">
                   {{ row.displayName }}
                </span>
                <span class="st-font-caption text-accent-300 truncate">

@@ -117,7 +117,7 @@ const achievementList = computed(() => {
             <template #cell-name="{ row }">
                <NuxtLink
                   :to="`/app/manage/achievement/detail/${row.id}`"
-                  class="block st-font-body-bold text-white truncate cursor-pointer hover:text-primary transition-colors">
+                  class="block st-font-body-normal text-white truncate cursor-pointer hover:text-primary transition-colors">
                   {{ row.name }}
                </NuxtLink>
             </template>

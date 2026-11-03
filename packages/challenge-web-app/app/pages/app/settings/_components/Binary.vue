@@ -4,7 +4,7 @@ const modelValue = defineModel<boolean>({ default: false });
 
 <template>
    <StSpace fill-x align="center" justify="between" class="flex">
-      <span class="text-base font-medium text-accent-100">
+      <span class="text-base text-accent-100">
          <slot />
       </span>
       <StSwitch v-model="modelValue" />

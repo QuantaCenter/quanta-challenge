@@ -13,6 +13,8 @@ export interface ICloudFunctionStat {
 
 defineProps<{
    items: ICloudFunctionStat[];
+   /** 数值使用数字专用字体（Manrope）并等宽对齐 */
+   numericFont?: boolean;
 }>();
 </script>
 
@@ -25,7 +27,9 @@ defineProps<{
          <div class="st-font-caption tracking-wider text-accent-300">
             {{ item.label }}
          </div>
-         <div class="st-font-secondary-bold mt-1" :class="item.color">
+         <div
+            class="st-font-secondary-bold mt-1"
+            :class="[item.color, { 'font-family-manrope tabular-nums': numericFont }]">
             {{ item.value }}
          </div>
       </div>

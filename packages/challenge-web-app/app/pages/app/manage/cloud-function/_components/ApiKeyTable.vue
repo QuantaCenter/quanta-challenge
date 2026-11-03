@@ -88,7 +88,7 @@ const copyText = async (text: string, tip: string) => {
          :skeleton-count="3">
          <template #cell-name="{ row }">
             <StSpace direction="vertical" gap="0.125rem">
-               <span class="st-font-body-bold text-white">{{ row.name }}</span>
+               <span class="st-font-body-normal text-white">{{ row.name }}</span>
                <span class="st-font-caption text-accent-400">
                   {{ dayjs(row.createdAt).format('YYYY-MM-DD') }}
                </span>

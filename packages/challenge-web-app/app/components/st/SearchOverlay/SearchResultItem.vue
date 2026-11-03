@@ -203,13 +203,13 @@ const handleClick = () => {
             <!-- 标题行 -->
             <StSpace gap="0.5rem" align="center" fill-x no-wrap>
                <!-- 标题（命中关键词高亮） -->
-               <h3 class="text-white text-sm font-medium truncate flex-1">
+               <h3 class="text-white text-sm truncate flex-1">
                   <template
                      v-for="(segment, index) in titleSegments"
                      :key="index">
                      <mark
                         v-if="segment.hit"
-                        class="bg-primary/25 text-primary rounded-sm px-0.5 font-medium">
+                        class="bg-primary/25 text-primary rounded-sm px-0.5">
                         {{ segment.text }}
                      </mark>
                      <template v-else>{{ segment.text }}</template>

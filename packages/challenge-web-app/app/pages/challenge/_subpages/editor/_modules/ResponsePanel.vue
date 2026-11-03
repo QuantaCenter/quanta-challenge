@@ -285,7 +285,7 @@ const copyHeadersAsKv = () =>
          <StSpace align="center" gap="0.625rem" class="w-full">
             <template v-if="response">
                <span
-                  class="px-2 py-0.5 rounded-[0.375rem] st-font-tooltip font-bold shrink-0"
+                  class="px-2 py-0.5 rounded-[0.375rem] st-font-tooltip shrink-0"
                   :class="statusClass(response.status)">
                   {{ response.status }} {{ response.statusText }}
                </span>

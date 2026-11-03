@@ -356,7 +356,7 @@ const handlerViewVersion = () => {
                direction="vertical"
                gap="1.25rem"
                class="bg-accent-600 rounded-xl p-6 min-w-[380px] max-w-[460px] border border-accent-500 text-white">
-               <h2 class="text-xl font-semibold text-accent-50">定时发布</h2>
+               <h2 class="text-xl font-bold text-accent-50">定时发布</h2>
                <span class="text-accent-100 text-sm">
                   到达设定时间后题目将自动发布；立即发布会清除定时。
                </span>

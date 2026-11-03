@@ -67,7 +67,7 @@ onMounted(() => {
             : '!w-[9rem] overflow-hidden border-accent-500'
       ">
       <template #selected-preview>
-         <span :class="['font-medium', selectedColor]">
+         <span :class="[selectedColor]">
             {{ selectedLabel }}
          </span>
       </template>

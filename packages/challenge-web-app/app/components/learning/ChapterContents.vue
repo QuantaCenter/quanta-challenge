@@ -8,7 +8,7 @@ const emit = defineEmits<{ select: [sectionId: string] }>();
 
 <template>
    <section class="w-full rounded-xl border border-accent-500 p-5" aria-label="本章目录">
-      <h2 class="mb-4 text-lg font-medium">本章目录</h2>
+      <h2 class="mb-4 text-lg">本章目录</h2>
       <CourseDirectory
          v-if="chapter.sections.length"
          :chapters="[chapter]"

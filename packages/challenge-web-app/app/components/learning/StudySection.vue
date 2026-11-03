@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
    </StSpace>
    <StSpace v-else direction="vertical" gap="1.5rem" fill-x>
       <h1
-         class="text-2xl font-medium"
+         class="text-2xl"
          :class="{ 'w-full border-b border-accent-500 pb-4': section.type === 'article' }">
          {{ section.title }}
       </h1>
@@ -95,12 +95,12 @@ onBeforeUnmount(() => {
          </p>
          <p v-if="!section.problem" class="text-accent-300">当前题目暂不可用，请稍后再试。</p>
          <template v-else>
-            <h2 class="text-lg font-medium">{{ section.problem.title }}</h2>
+            <h2 class="text-lg">{{ section.problem.title }}</h2>
             <NuxtLink
                :to="`/challenge/editor/${section.problem.pid}`"
                target="_blank"
                rel="noopener"
-               class="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm font-medium text-white transition-opacity hover:opacity-80">
+               class="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm text-white transition-opacity hover:opacity-80">
                前往做题
                <ArrowRight aria-hidden="true" />
             </NuxtLink>

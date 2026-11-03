@@ -243,7 +243,7 @@ const displayName = computed(
                   <div class="flex items-center gap-2">
                      <Key class="text-lg text-accent-300" />
                      <span class="text-accent-300">授权账号</span>
-                     <span class="ml-auto font-medium">{{ displayName }}</span>
+                     <span class="ml-auto">{{ displayName }}</span>
                   </div>
                   <div class="flex items-start gap-2">
                      <span class="text-accent-300 w-14 shrink-0">应用</span>

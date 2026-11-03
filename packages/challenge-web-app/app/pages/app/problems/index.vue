@@ -317,7 +317,7 @@ const {
                                  !onlyCurrentWeek,
                            }">
                            <Calendar class="text-[1.25rem]" />
-                           <span class="font-family-manrope font-bold">本周任务</span>
+                           <span class="font-family-manrope">本周任务</span>
                         </StSpace>
                         <StSpace
                            gap="0.5rem"
@@ -331,7 +331,7 @@ const {
                                  !onlyUncompleted,
                            }">
                            <Round class="text-[1.25rem]" />
-                           <span class="font-family-manrope font-bold">未完成</span>
+                           <span class="font-family-manrope">未完成</span>
                         </StSpace>
                         <StSpace
                            v-if="hasActiveAdvanced"
@@ -340,7 +340,7 @@ const {
                            @click="resetAdvanced"
                            class="ml-auto h-[3.5rem] px-5 rounded-full cursor-pointer shrink-0 text-nowrap whitespace-nowrap text-accent-300 hover:text-white hover:bg-accent-600 transition-colors">
                            <Clear class="text-[1.25rem]" />
-                           <span class="font-family-manrope font-bold">清除筛选</span>
+                           <span class="font-family-manrope">清除筛选</span>
                         </StSpace>
                      </StSpace>
                   </div>
@@ -451,7 +451,7 @@ const {
                            : 'bg-accent-600 text-accent-100 border-accent-500/40 hover:bg-accent-500'
                      ">
                      <span
-                        class="flex items-center gap-2 font-family-manrope font-bold">
+                        class="flex items-center gap-2 font-family-manrope">
                         <Calendar class="text-[1.25rem]" />
                         本周任务
                      </span>
@@ -466,7 +466,7 @@ const {
                            : 'bg-accent-600 text-accent-100 border-accent-500/40 hover:bg-accent-500'
                      ">
                      <span
-                        class="flex items-center gap-2 font-family-manrope font-bold">
+                        class="flex items-center gap-2 font-family-manrope">
                         <Round class="text-[1.25rem]" />
                         未完成
                      </span>
