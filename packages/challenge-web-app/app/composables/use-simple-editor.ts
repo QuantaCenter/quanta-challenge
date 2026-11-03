@@ -51,11 +51,39 @@ const setEnvironment = () => {
    // 已有环境（例如答题页的 Volar worker）时不覆盖
    if (self.MonacoEnvironment?.getWorker) return;
    self.MonacoEnvironment = {
+      // 语言服务必须用各自的 worker：通用 editor.worker 会走 AMD 的 loadForeignModule，ESM 下没有 require.toUrl
       getWorker: (_, label) => {
          if (label === 'typescript' || label === 'javascript') {
             return new Worker(
                new URL(
                   'monaco-editor/esm/vs/language/typescript/ts.worker.js',
+                  import.meta.url
+               ),
+               { type: 'module' }
+            );
+         }
+         if (label === 'css' || label === 'scss' || label === 'less') {
+            return new Worker(
+               new URL(
+                  'monaco-editor/esm/vs/language/css/css.worker.js',
+                  import.meta.url
+               ),
+               { type: 'module' }
+            );
+         }
+         if (label === 'html' || label === 'handlebars' || label === 'razor') {
+            return new Worker(
+               new URL(
+                  'monaco-editor/esm/vs/language/html/html.worker.js',
+                  import.meta.url
+               ),
+               { type: 'module' }
+            );
+         }
+         if (label === 'json') {
+            return new Worker(
+               new URL(
+                  'monaco-editor/esm/vs/language/json/json.worker.js',
                   import.meta.url
                ),
                { type: 'module' }
