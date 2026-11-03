@@ -11,6 +11,8 @@ const props = withDefaults(defineProps<{
    showPercentage?: boolean;
    precision?: number;
    color?: string;
+   /** 进度满（100%）时进度环使用的颜色；传空字符串则始终使用 `color`。 */
+   completeColor?: string;
    trackColor?: string;
    linecap?: 'round' | 'butt' | 'square';
    startAngle?: number;
@@ -28,6 +30,7 @@ const props = withDefaults(defineProps<{
    showPercentage: true,
    precision: 0,
    color: 'var(--color-primary)',
+   completeColor: 'var(--color-success)',
    trackColor: 'var(--color-accent-500)',
    linecap: 'round',
    startAngle: -90,
@@ -48,6 +51,9 @@ const circumference = computed(() => 2 * Math.PI * radius.value);
 const precision = computed(() => Number.isFinite(props.precision)
    ? Math.min(4, Math.max(0, Math.trunc(props.precision))) : 0);
 const text = computed(() => `${percentage.value.toFixed(precision.value)}%`);
+// 按目标进度判断：动画期间颜色随进度环一起过渡，而不是等到走完才突变
+const ringColor = computed(() =>
+   percentage.value >= 100 && props.completeColor ? props.completeColor : props.color);
 const cssLength = (value: number | string) => typeof value === 'number' ? `${value}px` : value;
 const dimension = computed(() => typeof props.size === 'number'
    ? cssLength(Number.isFinite(props.size) && props.size > 0 ? props.size : 96)
@@ -113,7 +119,7 @@ onBeforeUnmount(() => {
                   cy="50"
                   :r="radius"
                   fill="none"
-                  :stroke="color"
+                  :stroke="ringColor"
                   :stroke-width="strokeWidth"
                   :stroke-linecap="linecap"
                   :stroke-dasharray="circumference"
@@ -121,12 +127,12 @@ onBeforeUnmount(() => {
                   :transform="clockwise ? undefined : 'translate(0 100) scale(1 -1)'"
                   :opacity="visiblePercentage === 0 ? 0 : 1"
                   :style="progressStyle"
-                  class="transition-[stroke-dashoffset,opacity] ease-out motion-reduce:transition-none" />
+                  class="transition-[stroke-dashoffset,opacity,stroke] ease-out motion-reduce:transition-none" />
             </g>
          </svg>
          <span
             v-if="showPercentage && labelPosition === 'center'"
-            class="pointer-events-none absolute inset-0 flex items-center justify-center font-family-manrope font-medium tabular-nums text-accent-100"
+            class="pointer-events-none absolute inset-0 flex items-center justify-center font-family-manrope tabular-nums text-accent-100"
             :style="labelStyle">
             <slot name="label" :percentage="percentage" :text="text">
                {{ text }}
@@ -135,7 +141,7 @@ onBeforeUnmount(() => {
       </div>
       <span
          v-if="showPercentage && labelPosition !== 'center'"
-         class="font-family-manrope font-medium tabular-nums text-accent-100"
+         class="font-family-manrope tabular-nums text-accent-100"
          :style="labelStyle">
          <slot name="label" :percentage="percentage" :text="text">
             {{ text }}
