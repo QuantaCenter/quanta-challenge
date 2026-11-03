@@ -119,17 +119,17 @@ const handleSubmit = async () => {
                </StForm>
             </StSpace>
          </StSpace>
-         <StSpace justify="end" gap="0.75rem" class="p-4 pt-0 w-full">
+         <StSpace justify="end" gap="0.75rem" class="p-4 pt-0 w-full max-md:pb-[max(1rem,env(safe-area-inset-bottom))]">
             <StButton
                bordered
                theme="secondary"
-               class="py-[0.375rem] px-[1.25rem] !rounded-[0.375rem]"
+               class="py-[0.375rem] px-[1.25rem] !rounded-[0.375rem] max-md:flex-1 max-md:!py-2.5"
                @click="opened = false">
                取消
             </StButton>
             <StButton
                :loading="submitting"
-               class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]"
+               class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem] max-md:flex-1 max-md:!py-2.5"
                @click="handleSubmit">
                <div class="flex gap-2 items-center">
                   <SaveOne class="text-[1.25rem]" />

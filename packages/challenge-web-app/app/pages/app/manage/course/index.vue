@@ -77,13 +77,19 @@ const rows = computed(() => {
    );
 });
 
+// 移动端只留「课程」「操作」两列：状态并入课程单元格，两侧内边距收窄
 const columns: ITableColumn[] = [
-   { key: 'course', title: '课程', skeletonClass: 'h-12 w-[16rem] rounded-lg' },
-   { key: 'status', title: '状态', width: '7rem' },
+   {
+      key: 'course',
+      title: '课程',
+      class: 'max-md:!pl-3',
+      skeletonClass: 'h-12 w-[16rem] max-w-full rounded-lg',
+   },
+   { key: 'status', title: '状态', width: '7rem', class: 'max-md:hidden' },
    { key: 'content', title: '内容', width: '7.5rem', class: 'max-md:hidden' },
    { key: 'learners', title: '学员', width: '5.5rem', class: 'max-md:hidden' },
    { key: 'updatedAt', title: '最近编辑', width: '8.5rem', class: 'max-md:hidden' },
-   { key: 'action', title: '操作', width: '8.5rem', align: 'center' },
+   { key: 'action', title: '操作', width: '8.5rem', align: 'center', class: 'max-md:!w-[7.25rem] max-md:!pr-3' },
 ];
 
 const editCourse = (course: AdminCourseRow) => navigateTo(`/app/publish/course/${course.id}`);
@@ -229,23 +235,29 @@ const actionButtonClass =
             clickable-rows
             @row-click="editCourse">
             <template #cell-course="{ row }">
-               <StSpace align="center" gap="0.875rem" class="min-w-0">
+               <StSpace align="center" gap="0.875rem" class="min-w-0 max-md:!gap-2.5">
                   <StImage
                      :src="row.coverImage ? `/api/static/${row.coverImage.name}` : ''"
                      :alt="`${row.title}封面`"
                      width="3rem"
                      height="3rem"
-                     class="shrink-0 overflow-hidden rounded-lg">
+                     class="shrink-0 overflow-hidden rounded-lg max-sm:hidden">
                      <template #fallback="{ style }">
                         <StSpace fill center class="rounded-lg bg-accent-500 text-accent-300" :style="style">
                            <BookOpen size="1.25rem" />
                         </StSpace>
                      </template>
                   </StImage>
-                  <StSpace direction="vertical" gap="0.125rem" class="min-w-0 flex-1">
+                  <StSpace direction="vertical" gap="0.125rem" class="min-w-0 flex-1 max-md:!gap-1">
                      <span class="st-font-body-normal text-white truncate w-full">{{ row.title }}</span>
-                     <span class="st-font-caption text-accent-400 truncate w-full">
+                     <span class="st-font-caption text-accent-400 truncate w-full max-md:hidden">
                         {{ row.summary || '暂无课程简介' }}
+                     </span>
+                     <span class="flex min-w-0 items-center gap-2 md:hidden">
+                        <CourseStatusBadge :status="row.status" />
+                        <span class="st-font-caption truncate text-accent-400">
+                           {{ row.chapterCount }} 章 · {{ row.sectionCount }} 节
+                        </span>
                      </span>
                   </StSpace>
                </StSpace>
@@ -272,7 +284,7 @@ const actionButtonClass =
             </template>
 
             <template #cell-action="{ row }">
-               <StSpace align="center" justify="center" gap="0.5rem" @click.stop>
+               <StSpace align="center" justify="center" gap="0.5rem" class="max-md:!gap-1" @click.stop>
                   <button
                      type="button"
                      title="编辑课程"
@@ -304,7 +316,7 @@ const actionButtonClass =
             </template>
 
             <template #skeleton-action="{ itemClass }">
-               <StSpace align="center" justify="center" gap="0.75rem">
+               <StSpace align="center" justify="center" gap="0.75rem" class="max-md:!gap-2">
                   <StSkeletonItem v-for="i in 3" :key="i" class="size-5 rounded-md" :class="itemClass" />
                </StSpace>
             </template>

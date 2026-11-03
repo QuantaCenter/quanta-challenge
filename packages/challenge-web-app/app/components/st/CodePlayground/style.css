@@ -382,3 +382,22 @@
    content: '×';
    color: var(--color-error, #fa2f32);
 }
+
+/* ---------- 触屏 ---------- */
+
+/* 粗指针设备放大工具按钮与文件标签的点击区域 */
+@media (pointer: coarse) {
+   .st-playground__icon-button {
+      width: 2.25rem;
+      height: 2.25rem;
+   }
+
+   .st-playground__icon-button.is-small {
+      width: 1.75rem;
+      height: 1.75rem;
+   }
+
+   .st-playground__tab {
+      padding: 0 0.875rem;
+   }
+}

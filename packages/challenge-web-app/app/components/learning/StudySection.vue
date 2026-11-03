@@ -101,8 +101,8 @@ onBeforeUnmount(() => {
       <p class="text-accent-300">内容加载失败，或当前内容尚未解锁。</p>
       <StButton bordered size="sm" @click="refresh()">重试</StButton>
    </StSpace>
-   <StSpace v-else direction="vertical" gap="1.5rem" fill-x>
-      <h1 class="w-full border-b border-accent-500 pb-4 text-2xl">
+   <StSpace v-else direction="vertical" gap="1.5rem" fill-x class="max-md:!gap-4">
+      <h1 class="w-full border-b border-accent-500 pb-4 text-2xl break-words max-md:pb-3 max-md:text-xl">
          {{ section.title }}
       </h1>
       <template v-if="section.type === 'article'">
@@ -140,6 +140,7 @@ onBeforeUnmount(() => {
             bordered
             size="sm"
             :loading="saving"
+            class="max-md:w-full max-md:!py-2.5"
             @click="complete(true)">
             <Refresh class="mr-2" />
             检查通过状态

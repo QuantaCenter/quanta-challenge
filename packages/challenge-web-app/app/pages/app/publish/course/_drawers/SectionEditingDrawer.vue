@@ -23,6 +23,8 @@ const emits = defineEmits<{ saved: [text: string] }>();
 const { $trpc } = useNuxtApp();
 const message = useMessage();
 const isEditing = computed(() => !!props.section);
+// 移动端抽屉只有 90dvh，正文框矮一些，给标题与类型留出位置
+const desktop = useMediaQuery('(min-width: 768px)');
 
 const outerClass = 'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
 
@@ -167,7 +169,7 @@ const handleSubmit = async () => {
                         </template>
                         <StTextarea
                            v-model:value="formdata.articleContent"
-                           rows="12"
+                           :rows="desktop ? 12 : 8"
                            placeholder="支持 Markdown 与 <Playground> 演练块，学员阅读后点击「完成」即记为已学"
                            :outer-class />
                      </StFormItem>
@@ -188,17 +190,17 @@ const handleSubmit = async () => {
                </StForm>
             </StSpace>
          </StSpace>
-         <StSpace justify="end" gap="0.75rem" class="p-4 pt-0 w-full">
+         <StSpace justify="end" gap="0.75rem" class="p-4 pt-0 w-full max-md:pb-[max(1rem,env(safe-area-inset-bottom))]">
             <StButton
                bordered
                theme="secondary"
-               class="py-[0.375rem] px-[1.25rem] !rounded-[0.375rem]"
+               class="py-[0.375rem] px-[1.25rem] !rounded-[0.375rem] max-md:flex-1 max-md:!py-2.5"
                @click="opened = false">
                取消
             </StButton>
             <StButton
                :loading="submitting"
-               class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem]"
+               class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.375rem] max-md:flex-1 max-md:!py-2.5"
                @click="handleSubmit">
                <div class="flex gap-2 items-center">
                   <SaveOne class="text-[1.25rem]" />

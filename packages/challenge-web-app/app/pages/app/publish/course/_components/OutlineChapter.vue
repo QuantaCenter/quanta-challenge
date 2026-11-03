@@ -82,12 +82,13 @@ const locked = computed(() => !!props.busyId);
             :is="expanded ? Down : Right"
             class="shrink-0 text-accent-300 text-[1.125rem]" />
          <span
-            class="shrink-0 rounded-md bg-primary/15 px-2 py-0.5 st-font-caption font-bold text-primary">
+            class="shrink-0 rounded-md bg-primary/15 px-2 py-0.5 st-font-caption font-bold text-primary max-sm:hidden">
             {{ chapterLabel }}
          </span>
          <StSpace direction="vertical" gap="0.125rem" class="min-w-0 flex-1">
             <h3 class="st-font-body-bold truncate text-white">{{ chapter.title }}</h3>
-            <span class="st-font-caption text-accent-400">
+            <span class="st-font-caption truncate text-accent-400">
+               <span class="font-bold text-primary sm:hidden">{{ chapterLabel }} · </span>
                {{ chapter.stages.length }} 个阶段 · {{ sectionCount }} 个小节
                <template v-if="chapter.introduction"> · 含导读</template>
             </span>
@@ -118,7 +119,7 @@ const locked = computed(() => !!props.busyId);
          <section
             v-for="(stage, stageIndex) in chapter.stages"
             :key="stage.id"
-            class="relative flex flex-col gap-2 rounded-lg border border-dashed border-accent-500 p-3"
+            class="relative flex flex-col gap-2 rounded-lg border border-dashed border-accent-500 p-3 max-md:p-2.5"
             :class="{ 'opacity-60 pointer-events-none': isBusy(stage.id) }">
             <div class="flex items-center gap-2">
                <span class="st-font-caption font-bold text-accent-200">阶段 {{ stageIndex + 1 }}</span>
@@ -146,11 +147,12 @@ const locked = computed(() => !!props.busyId);
                <li
                   v-for="(section, sectionIndex) in stage.sections"
                   :key="section.id"
-                  class="group flex items-center gap-3 rounded-lg bg-accent-600/70 px-3 py-2.5 transition-colors hover:bg-accent-600 cursor-pointer"
+                  class="group flex items-center gap-3 rounded-lg bg-accent-600/70 px-3 py-2.5 transition-colors hover:bg-accent-600 cursor-pointer max-md:gap-2 max-md:pr-1.5"
                   :class="{ 'opacity-60 pointer-events-none': isBusy(section.id) }"
                   @click="emits('editSection', stage.id, stageLocation(stageIndex), section)">
+                  <!-- 窄屏省掉类型图标，类型已写在副标题里 -->
                   <span
-                     class="flex size-8 shrink-0 items-center justify-center rounded-lg"
+                     class="flex size-8 shrink-0 items-center justify-center rounded-lg max-sm:hidden"
                      :class="
                         section.type === 'article'
                            ? 'bg-primary/15 text-primary'

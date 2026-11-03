@@ -45,22 +45,22 @@ async function loadMore() {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[61.75rem] px-4 pb-24 my-6 max-md:my-4">
+         class="w-full max-w-[61.75rem] px-4 pb-24 my-6 max-md:my-4 max-md:!gap-4">
          <h1 class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
             学习课程
          </h1>
 
-         <h2 class="text-xl font-bold max-md:text-lg">
+         <h2 class="text-xl font-bold max-md:text-base">
             全部课程
          </h2>
 
          <StSkeleton :loading="pending" class="w-full">
             <template #loading>
-               <div class="grid w-full grid-cols-1 gap-6 sm:grid-cols-2">
+               <div class="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 max-md:gap-3">
                   <StSkeletonItem
                      v-for="i in 3"
                      :key="i"
-                     class="h-[7.5rem] w-full"
+                     class="h-[7.5rem] w-full max-md:h-[6.5rem]"
                      rounded="lg" />
                </div>
             </template>
@@ -84,39 +84,41 @@ async function loadMore() {
 
             <div
                v-else
-               class="grid w-full grid-cols-1 gap-6 sm:grid-cols-2">
+               class="grid w-full grid-cols-1 gap-6 sm:grid-cols-2 max-md:gap-3">
                <NuxtLink
                   v-for="course in courses"
                   :key="course.id"
                   :to="`/app/learning/${course.id}`"
                   class="h-full rounded-xl focus-visible:outline-2 focus-visible:outline-secondary">
-                  <StCard class="h-full !rounded-xl !p-3 transition-all hover:ring-secondary/50">
+                  <StCard class="h-full !rounded-xl !p-3 transition-all hover:ring-secondary/50 active:scale-[0.99] md:active:scale-100">
                      <template #header>
                         <span class="sr-only">{{ course.title }}</span>
                      </template>
-                     <StSpace fill-x align="center" gap="1rem" class="min-w-0 flex-1">
-                        <StImage
-                           :src="course.coverImage ? `/api/static/${course.coverImage.name}` : ''"
-                           :alt="`${course.title}封面`"
-                           width="6rem"
-                           height="6rem"
-                           class="shrink-0 overflow-hidden rounded-lg">
-                           <template #fallback="{ style }">
-                              <StSpace
-                                 fill
-                                 center
-                                 class="rounded-lg bg-accent-500 text-accent-300"
-                                 :style="style">
-                                 <BookOpen size="2rem" />
-                              </StSpace>
-                           </template>
-                        </StImage>
+                     <StSpace fill-x align="center" gap="1rem" class="min-w-0 flex-1 max-md:!gap-3">
+                        <div class="size-24 shrink-0 max-md:size-20">
+                           <StImage
+                              :src="course.coverImage ? `/api/static/${course.coverImage.name}` : ''"
+                              :alt="`${course.title}封面`"
+                              width="100%"
+                              height="100%"
+                              class="overflow-hidden rounded-lg">
+                              <template #fallback="{ style }">
+                                 <StSpace
+                                    fill
+                                    center
+                                    class="rounded-lg bg-accent-500 text-accent-300"
+                                    :style="style">
+                                    <BookOpen size="2rem" />
+                                 </StSpace>
+                              </template>
+                           </StImage>
+                        </div>
                         <StSpace
                            direction="vertical"
                            justify="center"
                            gap="0.5rem"
-                           class="min-w-0 flex-1">
-                           <h3 class="line-clamp-2 font-bold">
+                           class="min-w-0 flex-1 max-md:!gap-1.5">
+                           <h3 class="line-clamp-2 font-bold max-md:line-clamp-1">
                               {{ course.title }}
                            </h3>
                            <p class="st-font-caption h-10 w-full shrink-0 line-clamp-2 break-words leading-5 text-accent-300">
@@ -127,7 +129,7 @@ async function loadMore() {
                               align="center"
                               gap="1rem"
                               wrap
-                              class="st-font-caption text-accent-300">
+                              class="st-font-caption text-accent-300 max-md:!gap-x-3 max-md:!gap-y-1 max-md:text-xs">
                               <StSpace align="center" gap="0.375rem">
                                  <Bookshelf aria-hidden="true" />
                                  <span>{{ course.chapters.length }} 章</span>
@@ -158,6 +160,7 @@ async function loadMore() {
             <StButton
                bordered
                :loading="loadingMore"
+               class="max-md:w-full"
                @click="loadMore">
                加载更多
             </StButton>

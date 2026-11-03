@@ -86,7 +86,8 @@ useEventListener(window, 'message', (event: MessageEvent) => {
          </div>
       </header>
 
-      <div class="relative h-[min(80vh,48rem)] min-h-[32rem] w-full">
+      <!-- 小屏不内嵌做题环境，只留一张引导卡片，无需占满一屏高度 -->
+      <div class="relative h-[min(80vh,48rem)] min-h-[32rem] w-full max-md:h-auto max-md:min-h-[11rem]">
          <iframe
             v-if="status === 'ready'"
             ref="frame"
@@ -117,7 +118,7 @@ useEventListener(window, 'message', (event: MessageEvent) => {
                :href="standaloneUrl"
                target="_blank"
                rel="noopener"
-               class="inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm text-white transition-opacity hover:opacity-80">
+               class="inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-5 py-2 text-sm text-white transition-opacity hover:opacity-80 max-md:w-full max-md:py-2.5">
                前往做题
                <ShareThree aria-hidden="true" />
             </a>

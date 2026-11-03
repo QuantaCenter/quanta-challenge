@@ -187,8 +187,8 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
 
             <!-- 课程大纲 -->
             <section v-show="activeTab === 'outline'" class="w-full">
-               <StSpace justify="between" align="center" gap="1rem" class="mb-4 w-full">
-                  <StSpace align="center" gap="0.625rem">
+               <StSpace justify="between" align="center" gap="1rem" class="mb-4 w-full max-md:mb-3">
+                  <StSpace align="center" gap="0.625rem" class="min-w-0">
                      <ListTwo class="text-[1.375rem] text-accent-200" />
                      <h2 class="st-font-third-bold text-white">课程大纲</h2>
                      <span class="st-font-caption text-accent-400 max-md:hidden">
@@ -229,7 +229,7 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
                <button
                   v-else
                   type="button"
-                  class="group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-accent-500 py-14 text-accent-300 transition-colors hover:border-primary/60 hover:text-primary cursor-pointer"
+                  class="group flex w-full flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-accent-500 py-14 px-6 text-center text-accent-300 transition-colors hover:border-primary/60 hover:text-primary cursor-pointer max-md:py-10"
                   @click="openChapterDrawer()">
                   <span
                      class="flex size-14 items-center justify-center rounded-2xl bg-accent-600 transition-colors group-hover:bg-primary/15">
@@ -247,7 +247,7 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
             </section>
 
             <!-- 基本信息 -->
-            <StSpace v-show="activeTab === 'info'" direction="vertical" gap="2rem" fill-x>
+            <StSpace v-show="activeTab === 'info'" direction="vertical" gap="2rem" fill-x class="max-md:!gap-4">
                <section class="w-full rounded-2xl border border-accent-500 p-6 max-md:p-4">
                   <StSpace align="center" gap="0.625rem" class="mb-5">
                      <SettingTwo class="text-[1.375rem] text-accent-200" />
@@ -258,12 +258,12 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
                         <CourseInfoFields v-model:formdata="info" />
                      </StSpace>
                   </StForm>
-                  <StSpace justify="end" align="center" gap="1rem" class="mt-6 w-full">
-                     <span v-if="infoDirty" class="st-font-caption text-warning">有未保存的修改</span>
+                  <StSpace justify="end" align="center" gap="1rem" class="mt-6 w-full max-md:mt-5 max-md:flex-col-reverse max-md:!items-stretch max-md:!gap-2">
+                     <span v-if="infoDirty" class="st-font-caption text-warning max-md:text-center">有未保存的修改</span>
                      <StButton
                         :loading="savingInfo"
                         :disabled="!infoDirty"
-                        class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.5rem]"
+                        class="py-[0.375rem] px-[1.25rem] text-accent-100 !rounded-[0.5rem] max-md:!py-2.5"
                         @click="handleSaveInfo">
                         <div class="flex gap-2 items-center">
                            <Save class="text-[1.25rem]" />
@@ -284,7 +284,7 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
                   <StButton
                      bordered
                      theme="danger"
-                     class="py-[0.375rem] px-[1rem] shrink-0"
+                     class="py-[0.375rem] px-[1rem] shrink-0 max-md:w-full max-md:!py-2.5"
                      @click="removeCourse">
                      <div class="flex gap-2 items-center">
                         <Delete class="text-[1.25rem]" />

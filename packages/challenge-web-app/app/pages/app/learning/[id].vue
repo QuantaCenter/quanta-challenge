@@ -102,7 +102,7 @@ async function enroll() {
       <StSpace
          direction="vertical"
          gap="1.5rem"
-         class="w-full max-w-[68rem] px-4 pb-24 my-6 max-md:my-4">
+         class="w-full max-w-[68rem] px-4 pb-24 my-6 max-md:my-4 max-md:!gap-4">
          <NuxtLink
             to="/app/learning"
             class="inline-flex w-fit items-center gap-2 text-accent-300 transition-colors hover:text-white">
@@ -131,20 +131,18 @@ async function enroll() {
             </StSpace>
 
             <div v-else class="grid w-full grid-cols-[minmax(0,1fr)_20rem] items-start gap-6 max-lg:grid-cols-1">
-               <StSpace direction="vertical" fill-x gap="2rem" class="min-w-0">
-                  <StSpace
-                     fill-x
-                     align="center"
-                     gap="1.5rem"
-                     class="max-md:flex-col max-md:!items-start">
+               <StSpace direction="vertical" fill-x gap="2rem" class="min-w-0 max-md:!gap-5">
+                  <!-- 桌面：封面占两行，按钮落在右下；移动端：封面与标题并排，按钮通栏放在下方 -->
+                  <div
+                     class="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-3 md:grid-rows-[auto_1fr] max-md:gap-x-4 max-md:gap-y-4">
                      <div
                         data-testid="course-cover"
-                        class="shrink-0 rounded-xl shadow-[0_4px_18px_rgba(229,229,229,0.22)] transition-all duration-500 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_8px_28px_rgba(229,229,229,0.34)] motion-reduce:translate-none motion-reduce:scale-none motion-reduce:transition-none">
+                        class="size-48 shrink-0 rounded-xl shadow-[0_4px_18px_rgba(229,229,229,0.22)] transition-all duration-500 ease-out hover:-translate-y-1 hover:scale-[1.02] hover:shadow-[0_8px_28px_rgba(229,229,229,0.34)] motion-reduce:translate-none motion-reduce:scale-none motion-reduce:transition-none md:row-span-2 max-md:size-24 max-md:shadow-[0_2px_12px_rgba(229,229,229,0.18)]">
                         <StImage
                            :src="course.coverImage ? `/api/static/${course.coverImage.name}` : ''"
                            :alt="`${course.title}封面`"
-                           width="12rem"
-                           height="12rem"
+                           width="100%"
+                           height="100%"
                            class="overflow-hidden rounded-xl">
                            <template #fallback="{ style }">
                               <StSpace
@@ -157,45 +155,42 @@ async function enroll() {
                            </template>
                         </StImage>
                      </div>
-                     <StSpace
-                        direction="vertical"
-                        gap="0.75rem"
-                        class="min-h-[12rem] min-w-0 flex-1 max-md:min-h-0">
-                        <h1 class="text-2xl leading-snug">
+                     <div class="flex min-w-0 flex-col gap-3 max-md:justify-center max-md:gap-1.5">
+                        <h1 class="text-2xl leading-snug break-words max-md:line-clamp-2 max-md:text-lg">
                            {{ course.title }}
                         </h1>
-                        <p class="st-font-body-normal line-clamp-2 w-full break-words leading-relaxed text-accent-300">
+                        <p class="st-font-body-normal line-clamp-2 w-full break-words leading-relaxed text-accent-300 max-md:text-sm max-md:leading-normal">
                            {{ course.summary || '暂无课程简介' }}
                         </p>
-                        <StButton
-                           :loading="enrolling || starting"
-                           class="mt-auto !px-5 !py-1.5 max-md:mt-2"
-                           @click="course.enrolled ? startLearning() : enroll()">
-                           {{ course.enrolled ? '开始学习' : '获取课程' }}
-                        </StButton>
-                     </StSpace>
-                  </StSpace>
+                     </div>
+                     <StButton
+                        :loading="enrolling || starting"
+                        class="self-end justify-self-start !px-5 !py-1.5 max-md:col-span-2 max-md:w-full max-md:!py-2.5"
+                        @click="course.enrolled ? startLearning() : enroll()">
+                        {{ course.enrolled ? '开始学习' : '获取课程' }}
+                     </StButton>
+                  </div>
 
                   <StTabs v-model="activeTab" :options="tabs" />
 
                   <div
-                     class="w-full rounded-xl bg-accent-600 p-6">
+                     class="w-full rounded-xl bg-accent-600 p-6 max-md:p-4">
                      <section
                         v-if="activeTab === 'introduction'"
                         aria-label="课程导读"
-                        class="min-h-[12rem]">
+                        class="min-h-[12rem] max-md:min-h-[8rem]">
                         <ArticleBody :html="introductionHtml" />
                      </section>
                      <section
                         v-else
                         aria-label="课程目录"
-                        class="min-h-[12rem]">
+                        class="min-h-[12rem] max-md:min-h-[8rem]">
                         <CourseDirectory :chapters="directoryChapters" :show-progress-percentage="false" />
                      </section>
                   </div>
                </StSpace>
-               <aside aria-label="课程信息与推荐" class="flex min-w-0 flex-col gap-6">
-                  <div class="rounded-xl bg-accent-600 px-3 py-5">
+               <aside aria-label="课程信息与推荐" class="flex min-w-0 flex-col gap-6 max-md:gap-5">
+                  <div class="rounded-xl bg-accent-600 px-3 py-5 max-md:py-4">
                   <dl class="grid grid-cols-3 gap-3 text-center">
                      <div>
                         <dt class="text-xs text-accent-300">章节/子节</dt>
@@ -219,12 +214,13 @@ async function enroll() {
                   </dl>
                   </div>
                   <section aria-label="推荐课程">
-                     <h2 class="mb-4 text-base">推荐课程</h2>
+                     <h2 class="mb-4 text-base max-md:mb-3">推荐课程</h2>
                      <StSpace
                         v-if="course.recommendations.length"
                         direction="vertical"
                         gap="1rem"
-                        fill-x>
+                        fill-x
+                        class="max-md:!gap-3">
                         <NuxtLink
                            v-for="item in course.recommendations"
                            :key="item.id"

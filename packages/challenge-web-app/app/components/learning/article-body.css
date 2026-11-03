@@ -439,6 +439,20 @@
 /* ---------- 移动端 ---------- */
 
 @media (max-width: 767.98px) {
+   .article-body {
+      padding-left: 0;
+   }
+
+   /* 移动端顶部有站点顶栏 + 学习进度栏两层吸顶 */
+   .article-body h1,
+   .article-body h2,
+   .article-body h3,
+   .article-body h4,
+   .article-body h5,
+   .article-body h6 {
+      scroll-margin-top: 8rem;
+   }
+
    .article-body h1 {
       font-size: 1.5rem;
    }
@@ -485,5 +499,18 @@
    .article-body--dense code {
       font-size: 0.8125em;
       word-break: break-all;
+   }
+}
+
+/* 触屏：放大代码块复制按钮的点击区域 */
+@media (pointer: coarse) {
+   .article-body .article-code__bar {
+      padding-top: 0.25rem;
+      padding-bottom: 0.25rem;
+   }
+
+   .article-body .article-code__copy {
+      width: 2rem;
+      height: 2rem;
    }
 }
