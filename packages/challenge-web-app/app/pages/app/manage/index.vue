@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+   BookOpen,
    Box,
    Code,
    GoldMedalTwo,
@@ -29,6 +30,13 @@ const options: ProcessOption[] = [
       url: '/app/publish/problem/mine',
       icon: TableReport,
       iconColor: '#C1EF3F',
+   },
+   {
+      title: '课程管理',
+      description: '查看全部课程的发布状态与学员数，编辑大纲、发布或下架课程',
+      url: '/app/manage/course',
+      icon: BookOpen,
+      iconColor: '#14E87E',
    },
    {
       title: '成就管理',

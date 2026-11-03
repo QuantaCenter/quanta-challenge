@@ -33,6 +33,8 @@ const props = withDefaults(
       multiple?: boolean;
       max?: number;
       limit?: number;
+      /** 已选题目的展示信息（编辑回填时用，否则只能显示 #pid） */
+      presets?: IProblemPickerProblem[];
    }>(),
    { multiple: true, limit: 8 },
 );
@@ -58,6 +60,13 @@ const activeIndex = ref(0);
 
 /** 已选题目的展示信息 */
 const selectedInfo = reactive(new Map<number, IProblemPickerProblem>());
+watch(
+   () => props.presets,
+   (presets) => {
+      for (const problem of presets ?? []) selectedInfo.set(problem.pid, problem);
+   },
+   { immediate: true },
+);
 const selectedProblems = computed(() =>
    value.value.map(
       (pid) =>
