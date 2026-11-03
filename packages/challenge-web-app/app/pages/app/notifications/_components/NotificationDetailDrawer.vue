@@ -217,7 +217,7 @@ onUnmounted(() => {
                   @click="$emit('prev')"
                   aria-label="上一条"
                   title="上一条"
-                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm font-medium backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                   <Left size="1.125rem" />
                   <span>上一条</span>
                </button>
@@ -227,7 +227,7 @@ onUnmounted(() => {
                   @click="$emit('next')"
                   aria-label="下一条"
                   title="下一条"
-                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm font-medium backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
+                  class="flex items-center gap-2 px-4 py-2 rounded-lg border bg-accent-500/80 border-accent-400/40 text-accent-100 text-sm backdrop-blur-sm shadow-lg transition-all hover:bg-primary hover:text-white hover:border-primary active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer">
                   <span>下一条</span>
                   <Right size="1.125rem" />
                </button>

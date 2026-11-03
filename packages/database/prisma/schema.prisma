@@ -46,6 +46,8 @@ model User {
   notifications             Notification[]
   appeals                   Appeal[]
   scorePenalties            ScorePenalty[]
+  courseEnrollments         CourseEnrollment[]
+  sectionComments           SectionComment[]
 
   @@map("users")
 }
@@ -150,6 +152,7 @@ model Image {
   Problem             Problems[]
   Achievement         Achievement[]
   UserInfo            UserInfo[]
+  courses             Course[]
 
   @@map("images")
 }
@@ -208,6 +211,7 @@ model BaseProblems {
   ProblemVersions           Problems[]                  @relation("ProblemVersions")
   ProblemVersionTransitions ProblemVersionTransitions[]
   DailyProblem              DailyProblem[]
+  courseSections            CourseSection[]
 
   @@map("base_problems")
 }
@@ -393,6 +397,7 @@ model JudgeRecords {
   user                User                   @relation(fields: [userId], references: [id])
   ShadowFile          ShadowFile[]
   TemplateJudgeRecord TemplateJudgeRecords[]
+  sectionProgress     SectionProgress[]
 
   @@map("judge_records")
 }
@@ -780,6 +785,183 @@ model ScorePenalty {
 
   @@index([userId])
   @@map("score_penalties")
+}
+
+enum CourseStatus {
+  draft
+  published
+  unpublished
+
+  @@map("LearningCourseStatus")
+}
+
+enum CourseSectionType {
+  article
+  problem
+}
+
+enum SectionCommentReferenceType {
+  text
+}
+
+/// 课程简介可在获取前展示；封面使用现有图片资源。
+model Course {
+  id           String       @id @default(cuid())
+  title        String
+  summary      String       @default("")
+  description  String       @default("")
+  coverImageId String?
+  status       CourseStatus @default(draft)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  coverImage  Image?             @relation(fields: [coverImageId], references: [id], onDelete: SetNull)
+  chapters    CourseChapter[]
+  enrollments CourseEnrollment[]
+
+  @@index([status, createdAt])
+  @@map("learning_courses")
+}
+
+model CourseChapter {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  /// 进入章节时展示的导读，不计入学习进度。
+  introduction String @default("")
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  stages LearningStage[]
+
+  @@unique([courseId, position])
+  @@map("course_chapters")
+}
+
+/// 同一阶段内的节同时解锁，完成全部节后解锁下一阶段。
+model LearningStage {
+  id        String   @id @default(cuid())
+  chapterId String
+  position  Int
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  chapter  CourseChapter   @relation(fields: [chapterId], references: [id], onDelete: Restrict)
+  sections CourseSection[]
+
+  @@unique([chapterId, position])
+  @@map("learning_stages")
+}
+
+model CourseSection {
+  id             String            @id @default(cuid())
+  stageId        String
+  title          String
+  position       Int
+  type           CourseSectionType
+  articleContent String?
+  baseProblemId  Int?
+  /// 正文发生变化时递增，用于判断评论引用是否需要重新定位。
+  contentVersion Int               @default(1)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  stage       LearningStage     @relation(fields: [stageId], references: [id], onDelete: Restrict)
+  baseProblem BaseProblems?     @relation(fields: [baseProblemId], references: [id], onDelete: Restrict)
+  progress    SectionProgress[]
+  comments    SectionComment[]
+
+  @@unique([stageId, position])
+  @@index([baseProblemId])
+  @@map("course_sections")
+}
+
+model CourseEnrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course            @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  progress SectionProgress[]
+  rating   CourseRating?
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+  @@map("course_enrollments")
+}
+
+/// 只记录完成的节；题目完成可关联通过的判题记录。
+model SectionProgress {
+  id            String   @id @default(cuid())
+  enrollmentId  String
+  sectionId     String
+  completedAt   DateTime @default(now())
+  judgeRecordId Int?
+
+  enrollment  CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  section     CourseSection    @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  judgeRecord JudgeRecords?    @relation(fields: [judgeRecordId], references: [id], onDelete: SetNull)
+
+  @@unique([enrollmentId, sectionId])
+  @@index([sectionId])
+  @@index([judgeRecordId])
+  @@map("section_progress")
+}
+
+model CourseRating {
+  id           String   @id @default(cuid())
+  enrollmentId String   @unique
+  score        Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollment CourseEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("course_ratings")
+}
+
+model SectionComment {
+  id        String    @id @default(cuid())
+  sectionId String
+  authorId  String
+  parentId  String?
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  section   CourseSection            @relation(fields: [sectionId], references: [id], onDelete: Restrict)
+  author    User                     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  parent    SectionComment?          @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Restrict)
+  replies   SectionComment[]         @relation("CommentReplies")
+  reference SectionCommentReference?
+
+  @@index([sectionId, createdAt, id])
+  @@index([parentId, createdAt, id])
+  @@index([authorId])
+  @@map("section_comments")
+}
+
+/// 文本引用保留原文及上下文，即使位置失效也可展示。
+model SectionCommentReference {
+  id             String                      @id @default(cuid())
+  commentId      String                      @unique
+  type           SectionCommentReferenceType
+  quotedText     String
+  prefix         String?
+  suffix         String?
+  startOffset    Int?
+  endOffset      Int?
+  contentVersion Int
+  contentTarget  String
+
+  comment SectionComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@map("section_comment_references")
 }
 
 enum TimerTaskStatus {

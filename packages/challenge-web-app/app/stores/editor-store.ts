@@ -1,7 +1,10 @@
+import { isChallengeEmbedRoute } from '~/composables/use-challenge-embed';
+
 export const useEditorStore = defineStore('editor', () => {
    const detailWindowOpened = ref(false);
    const hasProjectInitialized = ref(false);
-   const terminalVisible = ref(true);
+   /** 嵌入模式空间有限，终端默认收起（仍可从侧边栏或快捷键打开） */
+   const terminalVisible = ref(!isChallengeEmbedRoute());
 
    /**
     * 开发容器启动失败的原因；null 表示尚未失败。

@@ -237,7 +237,7 @@ const cursorOptions = [
          class="w-[min(40rem,calc(100vw-2rem))] rounded-xl border border-accent-500 bg-accent-600 text-accent-100 shadow-xl overflow-hidden"
       >
          <div class="flex items-center justify-between px-6 py-5 border-b border-accent-500">
-            <h2 class="text-lg font-semibold">编辑器设置</h2>
+            <h2 class="text-lg font-bold">编辑器设置</h2>
             <StButton
                size="sm"
                aria-label="关闭"

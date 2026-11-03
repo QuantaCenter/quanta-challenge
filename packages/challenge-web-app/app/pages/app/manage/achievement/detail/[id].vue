@@ -108,37 +108,37 @@ const handleReturn = () => {
                <div class="grid grid-cols-3 gap-x-[1rem] gap-y-[2rem] w-full max-md:grid-cols-2 max-md:gap-y-[1.25rem]">
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">成就 ID</div>
-                     <div class="text-white font-bold font-family-manrope">
+                     <div class="text-white font-family-manrope">
                         {{ detail?.id }}
                      </div>
                   </StSpace>
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">成就分</div>
-                     <div class="text-white font-bold font-family-manrope">
+                     <div class="text-white font-family-manrope">
                         {{ detail?.score }}
                      </div>
                   </StSpace>
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">签到成就</div>
-                     <div class="text-white font-bold">
+                     <div class="text-white">
                         {{ detail?.isCheckinAchievement ? '是' : '否' }}
                      </div>
                   </StSpace>
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">创建时间</div>
-                     <div class="text-white font-bold font-family-manrope">
+                     <div class="text-white font-family-manrope">
                         {{ createdAt }}
                      </div>
                   </StSpace>
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">创建者</div>
-                     <div class="text-white font-bold">
+                     <div class="text-white">
                         {{ detail?.authorName ?? '未知' }}
                      </div>
                   </StSpace>
                   <StSpace direction="vertical" gap="0.5rem">
                      <div class="text-accent-200">已获得人数</div>
-                     <div class="text-white font-bold font-family-manrope">
+                     <div class="text-white font-family-manrope">
                         {{ detail?.achievedUserCount }}
                      </div>
                   </StSpace>

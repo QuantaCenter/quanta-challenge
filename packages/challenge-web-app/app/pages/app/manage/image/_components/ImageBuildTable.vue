@@ -72,7 +72,7 @@ const actionClass =
          <StSpace direction="vertical" gap="0.125rem" class="min-w-0">
             <button
                type="button"
-               class="truncate text-left st-font-body-bold text-white transition-colors hover:text-secondary cursor-pointer"
+               class="truncate text-left st-font-body-normal text-white transition-colors hover:text-secondary cursor-pointer"
                @click="emits('view', row)">
                {{ row.name }}
             </button>

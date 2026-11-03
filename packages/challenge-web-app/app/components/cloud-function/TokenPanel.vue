@@ -84,7 +84,7 @@ onUnmounted(() => {
 
 <template>
    <div class="p-4">
-      <h3 class="mb-1 text-base font-semibold text-white">云函数调用凭证</h3>
+      <h3 class="mb-1 text-base font-bold text-white">云函数调用凭证</h3>
       <p class="mb-4 text-xs leading-relaxed text-accent-200">
          用户代码里用下面的<strong class="text-white">完整地址</strong> + 令牌请求。
       </p>

@@ -131,7 +131,7 @@ const focusInput = () => {
          <StSpace fill-x align="center" justify="between" gap="0.5rem"
             class="h-[2.15rem] px-1 text-accent-200">
             <StSpace align="center" gap="0.5rem" class="min-w-0 text-xs">
-               <span class="text-sm font-medium text-accent-100 shrink-0">控制台</span>
+               <span class="text-sm text-accent-100 shrink-0">控制台</span>
                <StSpace v-if="counts.errors || levelFilter === 'error'" align="center" gap="0.25rem"
                   :title="levelFilter === 'error' ? '显示全部输出' : '只看错误'"
                   class="shrink-0 h-[1.25rem] px-1.5 rounded-[0.375rem] text-red-300 cursor-pointer transition-colors border"

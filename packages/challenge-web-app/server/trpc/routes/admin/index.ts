@@ -2,6 +2,7 @@ import { router } from '../../trpc';
 import { achievementRouter } from './achievement';
 import { appealAdminRouter } from './appeal';
 import { cloudFunctionAdminRouter } from './cloud-function';
+import { courseAdminRouter } from './course';
 import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
 import { notificationAdminRouter } from './notification';
@@ -20,6 +21,7 @@ export const adminRouter = router({
    achievement: achievementRouter,
    user: userRouter,
    cloudFunction: cloudFunctionAdminRouter,
+   course: courseAdminRouter,
    notification: notificationAdminRouter,
    appeal: appealAdminRouter,
    scheduledTask: scheduledTaskAdminRouter,

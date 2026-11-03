@@ -149,6 +149,15 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 学习页的题目小节用 iframe 嵌入做题页：子页面的 WebContainer 要求父页面同样跨源隔离
+      '/app/learning/study/**': {
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
       // 快照镜像构建页同样需要跨源隔离
       '/app/publish/image': {
          security: {

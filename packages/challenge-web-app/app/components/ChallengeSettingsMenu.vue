@@ -7,6 +7,7 @@ const opened = defineModel<boolean>('opened', { default: false });
 
 /** 水合安全判定：SSR 与客户端首帧恒为 false，mounted 后移动端改用抽屉 */
 const isMobile = useIsMobile();
+const { embedded } = useChallengeEmbed();
 
 const props = defineProps<{
    /** 传入做题页题目 id 才显示「重置题目」；无 id（如提交记录页）则只有空设置面板 */
@@ -116,9 +117,10 @@ const handleReset = async () => {
          <div
             v-if="!isMobile"
             v-show="opened"
-            class="absolute top-1/2 -translate-y-1/2 left-[calc(100%+0.5rem)] w-72 p-4 bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50">
+            class="absolute left-[calc(100%+0.5rem)] w-72 p-4 bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50"
+            :class="embedded ? 'bottom-0' : 'top-1/2 -translate-y-1/2'">
             <template v-if="props.problemId">
-               <h3 class="text-accent-100 font-medium mb-2">重置题目</h3>
+               <h3 class="text-accent-100 mb-2">重置题目</h3>
                <p class="text-accent-200 text-xs mb-3 leading-5">
                   按住滑块拖到最右侧即可重置。你对题目的全部修改将被清空，恢复为初始模板。
                </p>
@@ -147,7 +149,7 @@ const handleReset = async () => {
       <StDrawer v-if="isMobile" v-model:opened="opened" global fit width="18rem">
          <div class="w-72 max-w-full mx-auto p-4 max-md:pt-10 max-md:pb-4">
             <template v-if="props.problemId">
-               <h3 class="text-accent-100 font-medium mb-2">重置题目</h3>
+               <h3 class="text-accent-100 mb-2">重置题目</h3>
                <p class="text-accent-200 text-xs mb-3 leading-5">
                   按住滑块拖到最右侧即可重置。你对题目的全部修改将被清空，恢复为初始模板。
                </p>

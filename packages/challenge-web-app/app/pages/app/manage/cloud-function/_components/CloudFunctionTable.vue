@@ -79,7 +79,7 @@ const columns: ITableColumn[] = [
             <StSpace direction="vertical" gap="0.125rem" class="min-w-0">
                <NuxtLink
                   :to="`/app/publish/cloud-function/${row.name}`"
-                  class="truncate font-mono st-font-body-bold text-white transition-colors hover:text-secondary">
+                  class="truncate font-mono st-font-body-normal text-white transition-colors hover:text-secondary">
                   {{ row.name }}
                </NuxtLink>
                <span class="truncate st-font-body-normal text-accent-300">

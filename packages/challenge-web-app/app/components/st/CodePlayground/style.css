@@ -1,0 +1,403 @@
+.st-playground {
+   --pg-bg: #1c1c1c;
+   --pg-surface: #222222;
+   --pg-line: rgba(255, 255, 255, 0.08);
+   --pg-muted: var(--color-accent-400, #6d6d6d);
+   --pg-text: var(--color-accent-200, #cacaca);
+   --pg-strong: var(--color-accent-100, #e5e5e5);
+
+   margin: 1.75em 0;
+   border: 1px solid var(--pg-line);
+   border-radius: 0.75rem;
+   background-color: var(--pg-bg);
+   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+   overflow: hidden;
+   line-height: 1.5;
+}
+
+/* ---------- 顶栏 ---------- */
+
+.st-playground__header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   gap: 0.75rem;
+   height: 2.75rem;
+   padding: 0 0.5rem 0 0.875rem;
+   border-bottom: 1px solid var(--pg-line);
+   background-color: var(--pg-surface);
+}
+
+.st-playground__heading {
+   display: flex;
+   align-items: center;
+   gap: 0.5rem;
+   min-width: 0;
+}
+
+.st-playground__heading-icon {
+   display: inline-flex;
+   flex-shrink: 0;
+   color: var(--color-primary, #fa7c0e);
+   font-size: 1rem;
+}
+
+.st-playground__title {
+   overflow: hidden;
+   color: var(--pg-strong);
+   font-size: 0.875rem;
+   font-weight: 600;
+   text-overflow: ellipsis;
+   white-space: nowrap;
+}
+
+.st-playground__toolbar {
+   display: flex;
+   flex-shrink: 0;
+   align-items: center;
+   gap: 0.25rem;
+}
+
+.st-playground__segmented {
+   display: flex;
+   gap: 0.125rem;
+   padding: 0.125rem;
+   border-radius: 0.5rem;
+   background-color: rgba(255, 255, 255, 0.04);
+}
+
+.st-playground__divider {
+   width: 1px;
+   height: 1rem;
+   margin: 0 0.25rem;
+   background-color: var(--pg-line);
+}
+
+.st-playground__icon-button {
+   position: relative;
+   display: inline-flex;
+   align-items: center;
+   justify-content: center;
+   width: 1.75rem;
+   height: 1.75rem;
+   border-radius: 0.375rem;
+   color: var(--pg-muted);
+   cursor: pointer;
+   transition:
+      color 0.15s ease,
+      background-color 0.15s ease,
+      transform 0.1s ease;
+}
+
+.st-playground__icon-button:hover:not(:disabled) {
+   background-color: rgba(255, 255, 255, 0.08);
+   color: var(--pg-strong);
+}
+
+.st-playground__icon-button:active:not(:disabled) {
+   transform: scale(0.92);
+}
+
+.st-playground__icon-button:disabled {
+   cursor: default;
+   opacity: 0.4;
+}
+
+.st-playground__icon-button:focus-visible {
+   outline: 2px solid var(--color-primary, #fa7c0e);
+   outline-offset: 1px;
+}
+
+.st-playground__icon-button.is-active {
+   background-color: rgba(255, 255, 255, 0.1);
+   color: var(--pg-strong);
+}
+
+.st-playground__icon-button.is-small {
+   width: 1.375rem;
+   height: 1.375rem;
+}
+
+.st-playground__icon-button.has-dot::after {
+   content: '';
+   position: absolute;
+   top: 0.25rem;
+   right: 0.25rem;
+   width: 0.375rem;
+   height: 0.375rem;
+   border-radius: 9999px;
+   background-color: var(--color-primary, #fa7c0e);
+}
+
+.st-playground__run {
+   color: var(--color-primary, #fa7c0e);
+}
+
+.st-playground__run:hover:not(:disabled) {
+   background-color: rgba(250, 124, 14, 0.14);
+   color: var(--color-primary, #fa7c0e);
+}
+
+.st-playground__run.is-pending {
+   background-color: rgba(250, 124, 14, 0.16);
+   box-shadow: inset 0 0 0 1px rgba(250, 124, 14, 0.5);
+}
+
+/* ---------- 主体与布局 ---------- */
+
+.st-playground__body {
+   display: flex;
+   flex-direction: column;
+}
+
+.st-playground__pane {
+   display: flex;
+   flex-direction: column;
+   min-width: 0;
+   min-height: 0;
+}
+
+.st-playground__output {
+   display: flex;
+   flex-direction: column;
+   min-width: 0;
+   min-height: 0;
+   border-top: 1px solid var(--pg-line);
+}
+
+.is-horizontal .st-playground__body {
+   flex-direction: row;
+}
+
+.is-horizontal .st-playground__editor,
+.is-horizontal .st-playground__output {
+   flex: 1 1 50%;
+}
+
+.is-horizontal .st-playground__output {
+   border-top: 0;
+   border-left: 1px solid var(--pg-line);
+}
+
+.is-horizontal .st-playground__preview,
+.is-horizontal .st-playground__console:not(.is-docked) {
+   flex: 1 1 auto;
+}
+
+.is-horizontal .st-playground__frame-wrap,
+.is-horizontal .st-playground__console:not(.is-docked) .st-playground__console-body {
+   flex: 1 1 auto;
+}
+
+.st-playground__console.is-docked {
+   flex: 0 0 auto;
+   border-top: 1px solid var(--pg-line);
+}
+
+/* ---------- 面板标题栏 ---------- */
+
+.st-playground__bar {
+   display: flex;
+   flex: 0 0 2rem;
+   align-items: center;
+   gap: 0.5rem;
+   height: 2rem;
+   padding: 0 0.375rem 0 0.75rem;
+   border-bottom: 1px solid var(--pg-line);
+   background-color: var(--pg-surface);
+   color: var(--pg-muted);
+   font-size: 0.75rem;
+}
+
+.st-playground__editor .st-playground__bar {
+   padding-left: 0.25rem;
+}
+
+.st-playground__bar-title {
+   color: var(--pg-text);
+   font-weight: 500;
+}
+
+.st-playground__bar-hint {
+   margin-left: auto;
+   padding-right: 0.375rem;
+   white-space: nowrap;
+}
+
+.st-playground__count {
+   min-width: 1.125rem;
+   padding: 0 0.3125rem;
+   border-radius: 9999px;
+   background-color: rgba(255, 255, 255, 0.08);
+   color: var(--pg-text);
+   font-size: 0.6875rem;
+   line-height: 1.125rem;
+   text-align: center;
+}
+
+/* ---------- 编辑器 ---------- */
+
+.st-playground__tabs {
+   display: flex;
+   align-self: stretch;
+   min-width: 0;
+   overflow-x: auto;
+   scrollbar-width: none;
+}
+
+.st-playground__tabs::-webkit-scrollbar {
+   display: none;
+}
+
+.st-playground__tab {
+   position: relative;
+   display: inline-flex;
+   flex-shrink: 0;
+   align-items: center;
+   gap: 0.375rem;
+   padding: 0 0.625rem;
+   color: var(--pg-muted);
+   font-family: var(--font-family-fira-code, monospace);
+   font-size: 0.75rem;
+   cursor: pointer;
+   transition: color 0.15s ease;
+}
+
+.st-playground__tab:hover {
+   color: var(--pg-text);
+}
+
+.st-playground__tab.is-active {
+   color: var(--pg-strong);
+}
+
+.st-playground__tab.is-active::after {
+   content: '';
+   position: absolute;
+   right: 0.625rem;
+   bottom: -1px;
+   left: 0.625rem;
+   height: 2px;
+   border-radius: 2px;
+   background-color: var(--color-primary, #fa7c0e);
+}
+
+.st-playground__file-icon {
+   flex-shrink: 0;
+   width: 0.875rem;
+   height: 0.875rem;
+   opacity: 0.6;
+   transition: opacity 0.15s ease;
+}
+
+.st-playground__tab:hover .st-playground__file-icon,
+.st-playground__tab.is-active .st-playground__file-icon {
+   opacity: 1;
+}
+
+.st-playground__monaco-wrap {
+   position: relative;
+   flex: 1 1 auto;
+   min-height: 0;
+   background-color: var(--pg-bg);
+}
+
+.st-playground__monaco {
+   position: absolute;
+   inset: 0;
+}
+
+/* ---------- 预览 ---------- */
+
+.st-playground__frame-wrap {
+   min-height: 0;
+   background-color: #ffffff;
+}
+
+.st-playground__frame {
+   display: block;
+   width: 100%;
+   height: 100%;
+   border: 0;
+   background-color: #ffffff;
+   color-scheme: light;
+}
+
+/* ---------- 控制台 ---------- */
+
+.st-playground__console-body {
+   min-height: 0;
+   padding: 0.25rem 0;
+   background-color: var(--pg-bg);
+   font-family: var(--font-family-fira-code, monospace);
+   font-size: 0.75rem;
+   line-height: 1.6;
+   overflow: auto;
+   overscroll-behavior: contain;
+}
+
+.st-playground__console-empty {
+   padding: 0.375rem 0.875rem;
+   color: var(--pg-muted);
+   font-family: var(--font-family-sans, sans-serif);
+}
+
+.st-playground__console-line {
+   position: relative;
+   padding: 0.25rem 0.875rem 0.25rem 1.75rem;
+   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+   color: var(--pg-text);
+   white-space: pre-wrap;
+   overflow-wrap: anywhere;
+}
+
+.st-playground__console-line::before {
+   content: '›';
+   position: absolute;
+   left: 0.875rem;
+   color: var(--pg-muted);
+}
+
+.st-playground__console-line.is-info::before {
+   content: 'i';
+   color: #3b9cf0;
+}
+
+.st-playground__console-line.is-warn {
+   background-color: rgba(255, 190, 49, 0.07);
+   color: var(--color-warning, #ffbe31);
+}
+
+.st-playground__console-line.is-warn::before {
+   content: '!';
+   color: var(--color-warning, #ffbe31);
+}
+
+.st-playground__console-line.is-error {
+   background-color: rgba(250, 47, 50, 0.08);
+   color: #ff7a7c;
+}
+
+.st-playground__console-line.is-error::before {
+   content: '×';
+   color: var(--color-error, #fa2f32);
+}
+
+/* ---------- 触屏 ---------- */
+
+/* 粗指针设备放大工具按钮与文件标签的点击区域 */
+@media (pointer: coarse) {
+   .st-playground__icon-button {
+      width: 2.25rem;
+      height: 2.25rem;
+   }
+
+   .st-playground__icon-button.is-small {
+      width: 1.75rem;
+      height: 1.75rem;
+   }
+
+   .st-playground__tab {
+      padding: 0 0.875rem;
+   }
+}

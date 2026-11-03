@@ -1,7 +1,12 @@
 <script setup lang="ts">
 import useAuthStore from '~/stores/auth-store';
 import { useEditorStore } from '~/stores/editor-store';
-import { HamburgerButton, Redo, Return, Undo } from '@icon-park/vue-next';
+import {
+   HamburgerButton,
+   Redo,
+   Return,
+   Undo,
+} from '@icon-park/vue-next';
 
 const store = useEditorStore();
 
@@ -10,6 +15,8 @@ const route = useRoute();
 const isRecordMode = computed(() => route.path.startsWith('/challenge/record'));
 const path = useParam<string[]>('path', { required: true });
 const problemId = computed(() => Number(path.value?.[1] ?? 0));
+
+const { embedded, withEmbed } = useChallengeEmbed();
 
 // 路由变化后自动收起抽屉
 watch(
@@ -62,8 +69,9 @@ onUnmounted(() => detachDrawerTouchLock?.());
 <template>
    <StMessageProvider>
       <div
-         class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden">
-         <StMiniSidebar class="max-md:hidden">
+         class="flex h-screen w-full bg-[#111111] max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden"
+         :class="embedded ? 'p-1.5 gap-1.5' : 'p-3 gap-3'">
+         <StMiniSidebar class="max-md:hidden" :compact="embedded" :hide-header="embedded">
             <ChallengeSidebarContent />
          </StMiniSidebar>
 
@@ -71,7 +79,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
             class="hidden max-md:flex h-11 shrink-0 items-center gap-1.5 bg-[#1F1F1F] rounded-lg px-1.5">
             <NuxtLink
                v-if="isRecordMode"
-               :to="`/challenge/editor/${problemId}`"
+               :to="withEmbed(`/challenge/editor/${problemId}`)"
                aria-label="返回题目"
                class="h-9 px-3 shrink-0 flex items-center gap-1 rounded-md bg-accent-600 text-white text-sm active:bg-accent-500 transition-colors cursor-pointer">
                <Return class="text-[1.1rem]" />
@@ -140,7 +148,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
                      : '-translate-x-full invisible'
                "
                style="width: 88vw; max-width: calc(100vw - 0.5rem)">
-               <StMiniSidebar v-if="isMobile" hide-tooltips
+               <StMiniSidebar v-if="isMobile" hide-tooltips :hide-header="embedded"
                   class="w-16 shrink-0 overflow-hidden">
                   <ChallengeSidebarContent />
                </StMiniSidebar>

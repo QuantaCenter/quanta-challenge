@@ -161,7 +161,7 @@ const handleAppeal = async (appeal: Appeal, approve: boolean) => {
                            size="2.25rem"
                            class="shrink-0" />
                         <div class="min-w-0">
-                           <div class="st-font-body-bold text-white truncate">
+                           <div class="st-font-body-normal text-white truncate">
                               {{ appeal.user.displayName || appeal.user.name }}
                            </div>
                            <div

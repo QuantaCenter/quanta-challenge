@@ -593,8 +593,9 @@ const resolvedPid = computed(() => resolvedCurrentPid.value?.pid ?? null);
 const isOutdatedVersion = computed(
    () => resolvedPid.value != null && resolvedPid.value !== props.id,
 );
+const { embedded, withEmbed } = useChallengeEmbed();
 if (isOutdatedVersion.value) {
-   await navigateTo(`/challenge/editor/${resolvedPid.value}`, {
+   await navigateTo(withEmbed(`/challenge/editor/${resolvedPid.value}`), {
       replace: true,
    });
 }
@@ -732,6 +733,14 @@ const { enable: preventLeaveEnabled } = usePreventLeave({
       fileChangeSync.forceSync();
    },
 });
+
+// 嵌入时宿主切换小节会直接移除 iframe，不会触发 beforeunload；趁页面隐藏时把挂起的改动推上去
+if (import.meta.client && embedded.value) {
+   useEventListener(window, 'pagehide', () => void fileChangeSync.forceSync());
+   useEventListener(document, 'visibilitychange', () => {
+      if (document.visibilityState === 'hidden') void fileChangeSync.forceSync();
+   });
+}
 
 // 错误提示组件的「重试」会整页 reload：先关掉离开拦截，避免浏览器弹"确认离开"框
 useEventBus('editor-env-retry').on(() => {

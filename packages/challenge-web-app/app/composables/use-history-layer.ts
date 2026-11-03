@@ -22,6 +22,7 @@ const onPopState = () => {
 };
 
 export function useHistoryLayer() {
+   const routerHistory = useRouter().options.history;
    const layer: HistoryLayer = {
       close: () => {},
       viaPopstate: false,
@@ -37,7 +38,7 @@ export function useHistoryLayer() {
          bound = true;
       }
       stack.push(layer);
-      history.pushState({ stHistoryLayer: true }, '');
+      history.pushState({ ...history.state, stHistoryLayer: true }, '');
    };
 
    /** 弹层关闭时调用：移出全局栈；主动关闭时回退自己压入的历史记录 */
@@ -59,7 +60,8 @@ export function useHistoryLayer() {
       // 由返回键触发的关闭：popstate 已完成回退，不再调用 history.back()
       if (!viaPopstate && import.meta.client) {
          suppressCount++;
-         history.back();
+         // 只回收弹层记录，避免 Vue Router 的异步 pop 导航覆盖随后发起的页面跳转。
+         routerHistory.go(-1, false);
       }
    };
 

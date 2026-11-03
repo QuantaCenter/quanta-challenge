@@ -1,8 +1,16 @@
 <script setup lang="ts">
 import { useMessage } from '~/components/st/Message/use-message';
+import type { TMarkdownBlock } from '~/utils/markdown-playground';
 
-/** 文章正文（Markdown 已渲染成 HTML）：只负责排版，不参与解析。 */
-defineProps<{ html?: string; dense?: boolean }>();
+/**
+ * 文章正文（Markdown 已渲染）：只负责排版，不参与解析。
+ * 传 `blocks` 时按片段渲染，演练块会变成真实组件；否则整段走 `html`。
+ */
+defineProps<{
+   html?: string;
+   blocks?: TMarkdownBlock[];
+   dense?: boolean;
+}>();
 
 const message = useMessage();
 const resetTimers = new WeakMap<HTMLElement, ReturnType<typeof setTimeout>>();
@@ -52,10 +60,26 @@ const onCopy = async (event: MouseEvent) => {
 
 <template>
    <div
-      v-html="html"
       class="article-body st-selectable"
       :class="{ 'article-body--dense': dense }"
-      @click="onContentClick" />
+      @click="onContentClick">
+      <template v-if="blocks?.length">
+         <template
+            v-for="(block, index) in blocks"
+            :key="
+               block.kind === 'playground'
+                  ? `pg-${index}-${block.spec.signature}`
+                  : `md-${index}`
+            ">
+            <div
+               v-if="block.kind === 'html'"
+               v-html="block.html"
+               class="article-body__fragment" />
+            <StCodePlayground v-else :spec="block.spec" />
+         </template>
+      </template>
+      <div v-else v-html="html" class="article-body__fragment" />
+   </div>
 </template>
 
 <style src="./article-body.css" />

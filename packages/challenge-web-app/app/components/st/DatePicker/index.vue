@@ -618,7 +618,7 @@ const teleported = useClientTeleport();
                               :class="[
                                  'w-full h-7 text-xs transition-colors',
                                  {
-                                    'bg-primary text-black font-bold':
+                                    'bg-primary text-black':
                                        isHourSelected(startTime, hour),
                                     'text-white hover:bg-accent-600':
                                        !isHourSelected(startTime, hour),
@@ -637,7 +637,7 @@ const teleported = useClientTeleport();
                               :class="[
                                  'w-full h-7 text-xs transition-colors',
                                  {
-                                    'bg-primary text-black font-bold':
+                                    'bg-primary text-black':
                                        isMinuteSelected(startTime, minute),
                                     'text-white hover:bg-accent-600':
                                        !isMinuteSelected(startTime, minute),
@@ -668,7 +668,7 @@ const teleported = useClientTeleport();
                               :class="[
                                  'w-full h-7 text-xs transition-colors',
                                  {
-                                    'bg-primary text-black font-bold':
+                                    'bg-primary text-black':
                                        isHourSelected(endTime, hour),
                                     'text-white hover:bg-accent-600':
                                        !isHourSelected(endTime, hour) &&
@@ -691,7 +691,7 @@ const teleported = useClientTeleport();
                               :class="[
                                  'w-full h-7 text-xs transition-colors',
                                  {
-                                    'bg-primary text-black font-bold':
+                                    'bg-primary text-black':
                                        isMinuteSelected(endTime, minute),
                                     'text-white hover:bg-accent-600':
                                        !isMinuteSelected(endTime, minute) &&
@@ -727,7 +727,7 @@ const teleported = useClientTeleport();
                            :class="[
                               'w-full h-7 text-xs transition-colors',
                               {
-                                 'bg-primary text-black font-bold':
+                                 'bg-primary text-black':
                                     isHourSelected(singleTime, hour),
                                  'text-white hover:bg-accent-600':
                                     !isHourSelected(singleTime, hour) &&
@@ -750,7 +750,7 @@ const teleported = useClientTeleport();
                            :class="[
                               'w-full h-7 text-xs transition-colors',
                               {
-                                 'bg-primary text-black font-bold':
+                                 'bg-primary text-black':
                                     isMinuteSelected(singleTime, minute),
                                  'text-white hover:bg-accent-600':
                                     !isMinuteSelected(singleTime, minute) &&
@@ -826,7 +826,7 @@ const teleported = useClientTeleport();
                      :class="[
                         'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
                         {
-                           'bg-primary text-black font-bold': isSelectedYear(year),
+                           'bg-primary text-black': isSelectedYear(year),
                            'border border-primary':
                               isCurrentYear(year) && !isSelectedYear(year),
                            'text-white hover:bg-accent-600': !isSelectedYear(year),
@@ -847,7 +847,7 @@ const teleported = useClientTeleport();
                      :class="[
                         'h-9 flex items-center justify-center rounded-md text-sm transition-colors',
                         {
-                           'bg-primary text-black font-bold':
+                           'bg-primary text-black':
                               isSelectedMonth(month),
                            'border border-primary':
                               isCurrentMonth(month) && !isSelectedMonth(month),
@@ -889,7 +889,7 @@ const teleported = useClientTeleport();
                         {
                            'text-accent-400': !day.isCurrentMonth,
                            'text-white': day.isCurrentMonth,
-                           'bg-primary text-black font-bold': isSelected(
+                           'bg-primary text-black': isSelected(
                               day.fullDate
                            ),
                            'bg-primary/20 text-white':

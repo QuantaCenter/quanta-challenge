@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+   BookOpen,
    Box,
    Code,
    GoldMedalTwo,
@@ -18,6 +19,13 @@ const options = [
       url: '/app/publish/problem',
       icon: TableReport,
       iconColor: '#C1EF3F',
+   },
+   {
+      title: '发布课程',
+      description: '创建学习课程，编排章节、阶段与图文 / 实践题小节后发布给成员',
+      url: '/app/publish/course',
+      icon: BookOpen,
+      iconColor: '#14E87E',
    },
    {
       title: '构建快照镜像',
