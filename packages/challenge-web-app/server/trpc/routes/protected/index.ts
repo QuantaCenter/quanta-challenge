@@ -11,6 +11,7 @@ import { fileSyncRouter } from './file-sync';
 import { notificationRouter } from './notification';
 import { settingRouter } from './setting';
 import { verifyRoute } from './verify';
+import { learningRouter } from './learning';
 
 export const protectedRouter = router({
    problem: problemRouter,
@@ -25,4 +26,5 @@ export const protectedRouter = router({
    setting: settingRouter,
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
+   learning: learningRouter,
 });
