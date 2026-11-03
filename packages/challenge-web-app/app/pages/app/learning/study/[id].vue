@@ -141,7 +141,7 @@ function beginChapter() {
 
 <template>
    <div
-      class="mx-auto my-6 w-full px-6 pb-24 xl:-translate-x-10 transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none max-md:my-4 max-md:px-4"
+      class="mx-auto my-6 w-full px-6 pb-24 md:pb-0 xl:-translate-x-10 transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none max-md:my-4 max-md:px-4"
       :class="directoryCollapsed ? 'md:max-w-[63rem]' : 'md:max-w-[78.5rem]'">
       <!-- 移动端：吸顶的课程进度条，目录收进底部抽屉 -->
       <div
@@ -219,7 +219,7 @@ function beginChapter() {
             :inert="directoryCollapsed && desktop"
             class="min-w-0 border-r border-accent-600 transition-opacity duration-500 ease-in-out motion-reduce:transition-none max-md:hidden md:sticky md:top-[6.5rem] md:overflow-hidden"
             :class="{ 'md:pointer-events-none md:opacity-0': directoryCollapsed }">
-         <aside class="p-6 md:max-h-[calc(100vh-8rem)] md:w-[calc(22rem-1px)] md:overflow-auto">
+         <aside class="p-6 md:max-h-[calc(100vh-8rem)] md:w-[calc(22rem-1px)] md:overflow-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
             <StSpace direction="vertical" gap="0.75rem" fill-x>
                <h2 class="text-xl">{{ course.title }}</h2>
                <span class="text-xs text-accent-300">已完成 {{ completedCount }}/{{ allSections.length }} 节</span>
