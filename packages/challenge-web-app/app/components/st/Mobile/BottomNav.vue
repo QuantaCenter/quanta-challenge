@@ -35,6 +35,7 @@ const isActive = (to: string) =>
 
 <template>
    <nav
+      v-if="!route.path.startsWith('/app/learning/study/')"
       class="fixed bottom-4 left-1/2 -translate-x-1/2 z-[1000] md:hidden">
       <div
          class="flex items-center gap-1 px-2 py-2 rounded-full bg-accent-600/60 backdrop-blur-2xl backdrop-saturate-150 border border-accent-500/60 shadow-lg shadow-black/50">

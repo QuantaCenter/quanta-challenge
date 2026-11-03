@@ -356,9 +356,6 @@ const consoleStyle = computed(() => {
                      {{ file.name }}
                   </button>
                </div>
-               <span class="st-playground__bar-hint">
-                  {{ pending ? '等待运行…' : '修改后自动运行' }}
-               </span>
             </div>
             <div class="st-playground__monaco-wrap">
                <div :ref="containerKey" class="st-playground__monaco"></div>
