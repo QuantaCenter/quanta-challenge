@@ -256,7 +256,7 @@ const methodsToProvide = {
             flexBasis: hideEnd ? '100%' : basis.start,
             pointerEvents: isDragging ? 'none' : 'auto',
          }"
-         class="flex-shrink-0">
+         class="min-w-0 min-h-0 flex-shrink-0">
          <slot name="start" v-bind="methodsToProvide.start"></slot>
       </div>
       <!-- RESIZER -->
@@ -303,7 +303,7 @@ const methodsToProvide = {
             flexBasis: basis.end,
             pointerEvents: isDragging ? 'none' : 'auto',
          }"
-         class="flex-shrink-0">
+         class="min-w-0 min-h-0 flex-shrink-0">
          <slot name="end" v-bind="methodsToProvide.end"></slot>
       </div>
    </div>
