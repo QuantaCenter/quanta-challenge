@@ -7,7 +7,9 @@
 @import url('../fonts/Manrope-Bold/result.css');
 
 @import 'tailwindcss';
+@source "../../pages/app/learning";
 @source "../../components/st/CircularProgress";
+@source "../../components/learning";
 
 @theme {
    --color-primary: #fa7c0e;
