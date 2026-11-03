@@ -35,6 +35,13 @@ const completedCount = computed(() => allSections.value.filter(section => sectio
 const finished = computed(() => allSections.value.length > 0 && allSections.value.every(section => section.completed));
 const { html, update } = useMarkdown({ codeHeader: true });
 watch(() => locked.value ? '' : selectedChapter.value?.introduction ?? '', content => update(content), { immediate: true });
+const nextChapter = computed(() => {
+   const next = nextSection.value;
+   if (!next) return undefined;
+   const owner = chapters.value.find(chapter => chapter.sections.some(section => section.id === next.id));
+   // 下一节与当前小节同章时返回 undefined，按普通小节切换处理
+   return owner && owner.id !== selectedChapter.value?.id ? owner : undefined;
+});
 useSeoMeta({ title: () => `${course.value?.title ?? '课程学习'} - Quanta Challenge` });
 
 function selectChapter(chapterId: string) {
@@ -61,6 +68,11 @@ async function selectSection(sectionId: string) {
       if (request === selectionRequest) switching.value = false;
    }
 }
+function goNext() {
+   // 下一节刚好是下一章的第一节：先进入该章的章节导读，而不是直接跳进小节
+   if (nextChapter.value) return selectChapter(nextChapter.value.id);
+   if (nextSection.value) return selectSection(nextSection.value.id);
+}
 async function syncProgress() {
    await refresh();
    void refreshNuxtData([`learning-course-${id.value}`, 'learning-courses']);
@@ -75,7 +87,7 @@ function beginChapter() {
 
 <template>
    <div
-      class="mx-auto my-6 w-full px-6 pb-24 transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none max-md:my-4 max-md:px-4"
+      class="mx-auto my-6 w-full px-6 pb-24 xl:-translate-x-10 transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none max-md:my-4 max-md:px-4"
       :class="directoryCollapsed ? 'md:max-w-[55rem]' : 'md:max-w-[78.5rem]'">
       <div class="mb-6 flex items-center gap-3">
          <NuxtLink
@@ -116,7 +128,7 @@ function beginChapter() {
             :class="{ 'md:pointer-events-none md:opacity-0': directoryCollapsed }">
          <aside class="rounded-xl bg-accent-600 p-6 md:max-h-[calc(100vh-8rem)] md:w-[22rem] md:overflow-auto">
             <StSpace direction="vertical" gap="0.75rem" fill-x>
-               <h2 class="text-xl font-medium">{{ course.title }}</h2>
+               <h2 class="text-xl">{{ course.title }}</h2>
                <StSpace fill-x align="center" justify="between" gap="0.5rem">
                   <span class="text-xs text-accent-300">已完成 {{ completedCount }}/{{ allSections.length }} 节</span>
                   <button
@@ -183,7 +195,7 @@ function beginChapter() {
                      <BookOpen />
                      章节导读
                   </span>
-                  <h1 class="text-2xl font-medium">{{ selectedChapter.title }}</h1>
+                  <h1 class="text-2xl">{{ selectedChapter.title }}</h1>
                   <ArticleBody v-if="selectedChapter.introduction" :html="html" class="w-full" />
                   <p v-else class="text-accent-300">按左侧目录顺序开始本章学习。</p>
                   <ChapterContents :chapter="selectedChapter" @select="selectSection" />
@@ -217,7 +229,7 @@ function beginChapter() {
                      size="sm"
                      bordered
                      :disabled="!nextSection?.unlocked"
-                     @click="nextSection && selectSection(nextSection.id)">
+                     @click="goNext">
                      下一节
                      <ArrowRight class="ml-2" />
                   </StButton>

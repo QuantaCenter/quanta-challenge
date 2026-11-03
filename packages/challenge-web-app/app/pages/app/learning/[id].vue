@@ -15,22 +15,38 @@ const route = useRoute();
 const { $trpc } = useNuxtApp();
 const message = useMessage();
 const enrolling = ref(false);
+/**
+ * 点击「开始学习」后进入 loading，且成功跳转后**不主动退出**：
+ * 学习页是 `await useAsyncData`，路由会先于页面数据就绪完成切换，
+ * 此时若提前取消 loading，按钮会在旧页面上闪回原样，衔接生硬。
+ * 保持到本页被新页面替换（卸载）为止；仅在导航失败时恢复。
+ */
+const starting = ref(false);
+
 const id = computed(() => String(route.params.id));
-watch(id, () => { activeTab.value = 'introduction'; });
+watch(id, () => { 
+   activeTab.value = 'introduction';
+   starting.value = false;
+});
+
 const { data: course, pending, error, refresh } = await useAsyncData(
    () => `learning-course-${id.value}`,
    () => $trpc.protected.learning.get.query({ id: id.value }),
 );
+
 const { html: introductionHtml, update: renderIntroduction } = useMarkdown({ codeHeader: true });
 watch(
    () => course.value?.description || course.value?.summary || '暂无课程导读。',
    (content) => renderIntroduction(content),
    { immediate: true },
 );
+
 useSeoMeta({ title: () => course.value ? `${course.value.title} - 学习课程 - Quanta Challenge` : '课程简介 - Quanta Challenge' });
+
 const totalSections = computed(() => course.value?.chapters.reduce(
    (sum, chapter) => sum + chapter.stages.reduce((n, stage) => n + stage._count.sections, 0), 0,
 ) ?? 0);
+
 const directoryChapters = computed(() => {
    const completed = new Set(course.value?.completedSectionIds ?? []);
    return (course.value?.chapters ?? []).map(chapter => ({
@@ -50,6 +66,19 @@ const estimatedMinutes = computed(() => course.value?.chapters.reduce(
       ), 0,
    ), 0,
 ) ?? 0);
+
+async function startLearning() {
+   if (starting.value) return;
+   starting.value = true;
+   try {
+      const failure = await navigateTo(`/app/learning/study/${id.value}`);
+      // 返回值非空表示导航被取消或重复（成功时为 undefined）
+      if (failure) starting.value = false;
+   } catch (error) {
+      starting.value = false;
+      message.error('无法进入学习页', error instanceof Error ? error.message : '请稍后重试');
+   }
+}
 
 async function enroll() {
    if (!course.value || course.value.enrolled || enrolling.value) return;
@@ -132,16 +161,16 @@ async function enroll() {
                         direction="vertical"
                         gap="0.75rem"
                         class="min-h-[12rem] min-w-0 flex-1 max-md:min-h-0">
-                        <h1 class="text-2xl font-medium leading-snug">
+                        <h1 class="text-2xl leading-snug">
                            {{ course.title }}
                         </h1>
                         <p class="st-font-body-normal line-clamp-2 w-full break-words leading-relaxed text-accent-300">
                            {{ course.summary || '暂无课程简介' }}
                         </p>
                         <StButton
-                           :loading="enrolling"
+                           :loading="enrolling || starting"
                            class="mt-auto !px-5 !py-1.5 max-md:mt-2"
-                           @click="course.enrolled ? navigateTo(`/app/learning/study/${id}`) : enroll()">
+                           @click="course.enrolled ? startLearning() : enroll()">
                            {{ course.enrolled ? '开始学习' : '获取课程' }}
                         </StButton>
                      </StSpace>
@@ -183,14 +212,14 @@ async function enroll() {
                      </div>
                      <div>
                         <dt class="text-xs text-accent-300">学习状态</dt>
-                        <dd class="mt-2 text-sm font-medium leading-7" :class="course.enrolled ? 'text-success' : 'text-accent-200'">
+                        <dd class="mt-2 text-sm leading-7" :class="course.enrolled ? 'text-success' : 'text-accent-200'">
                            {{ course.enrolled ? '学习中' : '未开始' }}
                         </dd>
                      </div>
                   </dl>
                   </div>
                   <section aria-label="推荐课程">
-                     <h2 class="mb-4 text-base font-medium">推荐课程</h2>
+                     <h2 class="mb-4 text-base">推荐课程</h2>
                      <StSpace
                         v-if="course.recommendations.length"
                         direction="vertical"
@@ -214,7 +243,7 @@ async function enroll() {
                               </template>
                            </StImage>
                            <StSpace direction="vertical" gap="0.25rem" class="min-w-0 flex-1">
-                              <h3 class="line-clamp-2 text-sm font-medium transition-colors group-hover:text-primary">
+                              <h3 class="line-clamp-2 text-sm transition-colors group-hover:text-primary">
                                  {{ item.title }}
                               </h3>
                               <p class="line-clamp-2 text-xs leading-relaxed text-accent-300">

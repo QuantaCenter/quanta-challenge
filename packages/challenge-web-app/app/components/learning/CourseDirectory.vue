@@ -39,6 +39,65 @@ const emit = defineEmits<{
    chapter: [id: string];
    section: [id: string];
 }>();
+
+/**
+ * 章节行（徽标 + 标题 + 进度环）整行作为高亮区域，左右边界与小节行完全一致：
+ * 向两侧各延伸 `edgePadding`，内容仍留在原位。
+ */
+const chapterRowStyle = computed(() => {
+   if (!props.interactive) return undefined;
+   const padding = Number.isFinite(props.edgePadding) ? Math.max(0, props.edgePadding) : 0;
+   return {
+      marginLeft: `-${padding}px`,
+      width: `calc(100% + ${padding * 2}px)`,
+      paddingLeft: `${padding}px`,
+      paddingRight: `calc(${padding}px + ${props.itemPaddingRight})`,
+   };
+});
+
+function isChapterClickable(chapter: DirectoryChapter) {
+   return props.interactive && chapter.unlocked !== false;
+}
+
+/** 当前正处于该章节的序章（章节导读）：没有选中任何小节，且选中的是这一章。 */
+function isChapterActive(chapter: DirectoryChapter) {
+   return props.interactive && !props.activeSectionId && props.activeChapterId === chapter.id;
+}
+
+/** 与小节行一致：当前项常驻高亮底色，悬停时再提亮一档；未解锁章节没有任何 hover 反馈。 */
+function chapterRowClass(chapter: DirectoryChapter) {
+   if (!props.interactive) return undefined;
+   // 负的纵向外边距抵消内边距，高亮区域变高但不改变目录原有的纵向节奏
+   return [
+      'group relative -my-1.5 rounded-lg py-1.5 transition-colors',
+      isChapterActive(chapter) ? 'bg-accent-500' : '',
+      isChapterClickable(chapter)
+         ? isChapterActive(chapter) ? 'hover:bg-accent-400' : 'hover:bg-accent-500'
+         : '',
+   ];
+}
+
+function chapterButtonClass(chapter: DirectoryChapter) {
+   if (!props.interactive) return undefined;
+   return [
+      // 按钮的伪元素铺满整行，使整行都可点击，同时保持语义化 button 以支持键盘操作。
+      // 实际悬停的是按钮（而非外层行），所以手形光标必须设在按钮上，否则会被默认光标盖住
+      'after:absolute after:inset-0 after:rounded-lg',
+      isChapterClickable(chapter) ? 'cursor-pointer' : '',
+      isChapterActive(chapter) ? 'text-primary' : isChapterClickable(chapter) ? 'group-hover:text-primary' : '',
+   ];
+}
+
+/** 小节按钮：当前项悬停时底色再提亮一档，其余项悬停高亮；未解锁项无 hover。 */
+function sectionButtonClass(section: DirectoryChapter['sections'][number]) {
+   if (!props.interactive) return { '!pl-0': !props.showBranches };
+   return [
+      'enabled:cursor-pointer',
+      props.activeSectionId === section.id
+         ? 'bg-accent-500 enabled:hover:bg-accent-400'
+         : 'enabled:hover:bg-accent-500',
+   ];
+}
 function percentage(chapter: DirectoryChapter) {
    return chapter.sections.length
       ? chapter.sections.filter(section => section.completed).length / chapter.sections.length * 100
@@ -50,21 +109,28 @@ function percentage(chapter: DirectoryChapter) {
    <StEmptyStatus v-if="!chapters.length" content="暂无章节" class="min-h-[10rem]" />
    <ul v-else class="w-full divide-y divide-accent-500">
       <li v-for="(chapter, index) in chapters" :key="chapter.id" class="my-0 py-4 first:pt-0 last:pb-0">
-         <StSpace v-if="showChapterHeader" align="center" gap="0.5rem" fill-x class="min-w-0">
+         <StSpace
+            v-if="showChapterHeader"
+            align="center"
+            gap="0.5rem"
+            fill-x
+            class="min-w-0"
+            :class="chapterRowClass(chapter)"
+            :style="chapterRowStyle">
             <span
                v-if="showChapterBadge"
                :aria-label="`第 ${index + 1} 章`"
-               class="inline-flex h-6 w-9 shrink-0 items-center justify-center rounded-full bg-accent-500 px-2 text-xs font-bold font-family-manrope tabular-nums text-accent-200">
+               class="inline-flex h-6 w-9 shrink-0 items-center justify-center rounded-full bg-accent-500 px-2 text-xs font-family-manrope tabular-nums text-accent-200">
                {{ index + 1 }}
             </span>
-            <h2 class="my-0 min-w-0 flex-1 break-words text-lg font-medium">
+            <h2 class="my-0 min-w-0 flex-1 break-words text-lg">
                <component
                   :is="interactive ? 'button' : 'span'"
                   :type="interactive ? 'button' : undefined"
                   :disabled="interactive && chapter.unlocked === false"
-                  :aria-current="interactive && !activeSectionId && activeChapterId === chapter.id ? 'page' : undefined"
+                  :aria-current="isChapterActive(chapter) ? 'page' : undefined"
                   class="text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-                  :class="{ 'text-primary': interactive && !activeSectionId && activeChapterId === chapter.id, 'hover:text-primary': interactive }"
+                  :class="chapterButtonClass(chapter)"
                   @click="interactive && chapter.unlocked !== false && emit('chapter', chapter.id)">
                   {{ chapter.title }}
                </component>
@@ -102,7 +168,7 @@ function percentage(chapter: DirectoryChapter) {
                   :aria-current="interactive && activeSectionId === section.id ? 'page' : undefined"
                   :style="sectionStyle"
                   class="flex min-h-10 w-full items-center gap-2 rounded-lg py-2 pl-6 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45"
-                  :class="{ 'bg-accent-500': interactive && activeSectionId === section.id, 'hover:bg-accent-500': interactive, '!pl-0': !interactive && !showBranches }"
+                  :class="sectionButtonClass(section)"
                   @click="interactive && section.unlocked !== false && emit('section', section.id)">
                   <FileText v-if="section.type === 'article'" aria-hidden="true" class="shrink-0 text-base text-accent-300" />
                   <FileCode v-else aria-hidden="true" class="shrink-0 text-base text-primary" />
