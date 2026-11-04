@@ -13,6 +13,7 @@ import { useSimpleEditor } from '~/composables/use-simple-editor';
 import { extensionIconMapping } from '~/components/st/FileSystemTree/config';
 import {
    buildPlaygroundDocument,
+   createPreviewLeaveGuard,
    PLAYGROUND_MESSAGE_SOURCE,
    type IPlaygroundSpec,
 } from '~/utils/markdown-playground';
@@ -76,6 +77,9 @@ const layout = computed<TLayout>(() =>
 const codes = ref(files.map((file) => file.code));
 const activeIndex = ref(0);
 const runToken = ref(0);
+// 每次运行的 iframe 用不同的 name，用于识别 source 为 null 的卸载消息
+const instanceId = useId();
+const frameName = computed(() => `st-playground-${instanceId}-${runToken.value}`);
 const previewDocument = ref('');
 const entries = ref<IConsoleEntry[]>([]);
 const pending = ref(false);
@@ -126,7 +130,17 @@ const {
    },
 });
 
+// 预览被脚本跳转到别的页面后重建 iframe，保留控制台输出
+const leaveGuard = createPreviewLeaveGuard(() => {
+   pushEntry(
+      'warn',
+      '预览页面跳转到了其他地址，已恢复演练内容。脚本中的 location.href = "#id" 也会这样跳转，页内定位请改用 location.hash 或 scrollIntoView()',
+   );
+   runToken.value += 1;
+});
+
 const run = () => {
+   leaveGuard.reset();
    entries.value = [];
    pending.value = false;
    previewDocument.value = buildPlaygroundDocument(
@@ -193,21 +207,42 @@ const revealConsole = (level: TConsoleLevel) => {
    if (important || props.spec.console === 'auto') consoleOpened.value = true;
 };
 
-const onMessage = (event: MessageEvent) => {
-   const data = event.data as
-      | { source?: string; level?: string; text?: string }
-      | null;
-   if (!data || data.source !== PLAYGROUND_MESSAGE_SOURCE) return;
-   if (preview.value && event.source !== preview.value.contentWindow) return;
-   const level = CONSOLE_LEVELS.includes(data.level as TConsoleLevel)
-      ? (data.level as TConsoleLevel)
-      : 'log';
+const pushEntry = (level: TConsoleLevel, text: string) => {
    entryId += 1;
    entries.value = [
       ...entries.value.slice(1 - MAX_CONSOLE_ENTRIES),
-      { id: entryId, level, text: String(data.text ?? '') },
+      { id: entryId, level, text },
    ];
    revealConsole(level);
+};
+
+interface IPreviewMessage {
+   source?: string;
+   type?: string;
+   allowed?: boolean;
+   frame?: string;
+   level?: string;
+   text?: string;
+}
+
+const isFromPreview = (event: MessageEvent, data: IPreviewMessage) => {
+   const frame = preview.value;
+   if (!frame) return true;
+   if (event.source === frame.contentWindow) return true;
+   // 文档卸载时发出的消息到达时 source 可能已为 null（Chromium），改按 iframe 的 name 识别
+   return event.source === null && !!data.frame && data.frame === frame.name;
+};
+
+const onMessage = (event: MessageEvent) => {
+   const data = event.data as IPreviewMessage | null;
+   if (!data || data.source !== PLAYGROUND_MESSAGE_SOURCE) return;
+   if (!isFromPreview(event, data)) return;
+   if (data.type === 'ready') return leaveGuard.ready();
+   if (data.type === 'leave') return leaveGuard.leave(data.allowed === true);
+   const level = CONSOLE_LEVELS.includes(data.level as TConsoleLevel)
+      ? (data.level as TConsoleLevel)
+      : 'log';
+   pushEntry(level, String(data.text ?? ''));
 };
 
 watch(
@@ -220,7 +255,10 @@ watch(
 );
 
 onMounted(() => window.addEventListener('message', onMessage));
-onBeforeUnmount(() => window.removeEventListener('message', onMessage));
+onBeforeUnmount(() => {
+   window.removeEventListener('message', onMessage);
+   leaveGuard.reset();
+});
 
 const editorPaneHeight = `calc(${BAR_HEIGHT} + ${props.spec.editorHeight})`;
 const outputPaneHeight = computed(() => {
@@ -376,10 +414,12 @@ const consoleStyle = computed(() => {
                   <iframe
                      ref="preview"
                      :key="runToken"
+                     :name="frameName"
                      :srcdoc="previewDocument"
                      class="st-playground__frame"
                      sandbox="allow-scripts allow-forms allow-modals allow-popups"
-                     title="演练预览"></iframe>
+                     title="演练预览"
+                     @load="leaveGuard.load()"></iframe>
                </div>
             </div>
 

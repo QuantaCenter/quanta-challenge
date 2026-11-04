@@ -65,9 +65,23 @@ const PLACEHOLDER_SPLIT_PATTERN = new RegExp(`<!--${PLACEHOLDER_PREFIX}:(\\d+)--
 /** 宿主与预览 iframe 之间的消息标识 */
 export const PLAYGROUND_MESSAGE_SOURCE = 'st-playground-preview';
 
-/** 预览 iframe 里最先执行的桥接脚本：把 console、运行错误与 CSP 拦截回传给宿主。 */
+/**
+ * 预览 iframe 里最先执行的桥接脚本：把 console、运行错误与 CSP 拦截回传给宿主。
+ *
+ * 另外防止预览跳出演练文档。srcdoc 文档的相对地址按父页面解析：`#id` 会变成「文章页地址#id」，
+ * `/path`、空 href、表单的相对 action 都指向本站，跳转后会把网站页面整个载入预览。
+ * - 页内锚点：改为在 iframe 自身地址上替换片段，只在预览内滚动，`:target` 与 hashchange
+ *   照常生效，也不会给文章页增加历史记录。
+ * - 站内链接 / 表单提交：拦截并在控制台提示。
+ * 作者自己 preventDefault、新窗口打开、带修饰键的点击、下载链接与 method="dialog" 不受影响。
+ *
+ * 脚本发起的跳转（`location.href = ...`、`form.submit()`）无法提前拦截：沙箱文档是不透明源，
+ * Navigation API 不派发事件。因此文档就绪时上报 ready、卸载时上报 leave，由宿主发现预览已离开
+ * 演练文档后重建（见 `createPreviewLeaveGuard`）。站外链接与表单属于作者有意为之，leave 时标记放行。
+ */
 const PREVIEW_BRIDGE = `(function(){
-var send=function(level,text){try{parent.postMessage({source:'${PLAYGROUND_MESSAGE_SOURCE}',level:level,text:text},'*')}catch(e){}};
+var post=function(data){data.source='${PLAYGROUND_MESSAGE_SOURCE}';try{parent.postMessage(data,'*')}catch(e){}};
+var send=function(level,text){post({level:level,text:text})};
 var inspect=function(v,depth,seen){
 if(v===null)return 'null';
 var t=typeof v;
@@ -100,7 +114,112 @@ window.addEventListener('unhandledrejection',function(event){send('error','Unhan
 document.addEventListener('securitypolicyviolation',function(event){
 send('warn','被页面安全策略拦截：'+event.violatedDirective+'（'+(event.blockedURI||'inline')+'）')
 });
+var siteOrigin='';
+try{siteOrigin=new URL(document.baseURI).origin}catch(e){}
+var allowLeave=false;
+var classify=function(raw){
+var url;
+try{url=new URL(raw,document.baseURI)}catch(e){return 'other'}
+if(siteOrigin&&siteOrigin!=='null'&&url.origin===siteOrigin)return 'site';
+return /^https?:$/.test(url.protocol)?'external':'other';
+};
+var isSelf=function(target){target=(target||'').trim().toLowerCase();return !target||target==='_self'};
+var SITE_HINT='站内地址会把网站页面载入预览';
+window.addEventListener('click',function(event){
+if(event.defaultPrevented||event.button!==0||event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+var link=event.target&&event.target.closest?event.target.closest('a[href],area[href]'):null;
+if(!link||link.hasAttribute('download')||!isSelf(link.getAttribute('target')))return;
+var href=(link.getAttribute('href')||'').trim();
+if(href.charAt(0)==='#'){
+event.preventDefault();
+location.replace(location.href.split('#')[0]+href);
+return;
+}
+var kind=classify(href);
+if(kind==='site'){
+event.preventDefault();
+send('warn','已拦截跳转：'+(href||'（空地址）')+'。'+SITE_HINT+'，页内定位请使用 #id');
+return;
+}
+if(kind==='external')allowLeave=true;
+});
+window.addEventListener('submit',function(event){
+if(event.defaultPrevented)return;
+var form=event.target,submitter=event.submitter;
+if(!form||!form.getAttribute)return;
+var pick=function(override,attr){return submitter&&submitter.hasAttribute&&submitter.hasAttribute(override)?submitter.getAttribute(override):form.getAttribute(attr)};
+if((pick('formmethod','method')||'').trim().toLowerCase()==='dialog'||!isSelf(pick('formtarget','target')))return;
+var action=(pick('formaction','action')||'').trim();
+if(!action)return;
+var kind=classify(action);
+if(kind==='site'){
+event.preventDefault();
+send('warn','已拦截表单提交：'+action+'。'+SITE_HINT+'，可在 submit 事件中调用 event.preventDefault()');
+return;
+}
+if(kind==='external')allowLeave=true;
+});
+window.addEventListener('pagehide',function(){post({type:'leave',allowed:allowLeave,frame:window.name});allowLeave=false});
+post({type:'ready'});
 })();`;
+
+/** 预览离开演练文档后，等待新文档上报 ready 的最长时间 */
+const LEAVE_TIMEOUT = 1500;
+/** 新文档 load 后仍未收到 ready 时再等的时间：Chromium 中 ready 可能晚于 load 到达 */
+const LOAD_GRACE = 300;
+
+/**
+ * 宿主侧的离开守卫：桥接脚本在文档卸载时上报 leave，新的演练文档就绪时上报 ready。
+ * leave 之后迟迟等不到 ready，说明 iframe 已载入别的页面（脚本跳转、form.submit() 等），
+ * 由 `onEscape` 负责重建预览；重新载入演练文档本身（如无 action 的表单、location.reload()）不受影响。
+ *
+ * leave 在文档卸载时发出，Chromium 中到达宿主时 `event.source` 已为 null，
+ * 因此消息里带上 iframe 的 name（`frame`），宿主据此识别来源。
+ */
+export const createPreviewLeaveGuard = (
+   onEscape: () => void,
+   { timeout = LEAVE_TIMEOUT, grace = LOAD_GRACE } = {},
+) => {
+   let leaving = false;
+   let timer: ReturnType<typeof setTimeout> | undefined;
+
+   const clear = () => {
+      if (timer !== undefined) clearTimeout(timer);
+      timer = undefined;
+   };
+   const arm = (delay: number) => {
+      clear();
+      timer = setTimeout(() => {
+         timer = undefined;
+         if (!leaving) return;
+         leaving = false;
+         onEscape();
+      }, delay);
+   };
+
+   return {
+      /** 演练文档卸载；allowed 为 true 表示作者有意打开站外页面 */
+      leave(allowed = false) {
+         if (allowed) return;
+         leaving = true;
+         arm(timeout);
+      },
+      /** 新的演练文档已执行桥接脚本 */
+      ready() {
+         leaving = false;
+         clear();
+      },
+      /** iframe 触发 load */
+      load() {
+         if (leaving) arm(grace);
+      },
+      /** 重新运行或组件卸载 */
+      reset() {
+         leaving = false;
+         clear();
+      },
+   };
+};
 
 const parseAttributes = (raw: string) => {
    const attributes: Record<string, string> = {};

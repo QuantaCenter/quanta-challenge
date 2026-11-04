@@ -4,6 +4,7 @@ import { Marked } from 'marked';
 import {
    buildPlaygroundDocument,
    createPlaygroundExtension,
+   createPreviewLeaveGuard,
    parsePlayground,
    splitMarkdownBlocks,
    type IPlaygroundSpec,
@@ -127,33 +128,218 @@ test('预览文档：片段模式拼出完整文档，并转义闭合标签', ()
    );
 });
 
-test('桥接脚本：console 参数按 Node 风格格式化后回传', () => {
+type TAttrs = Record<string, string>;
+type THandler = (event: unknown) => void;
+
+const SITE_BASE = 'https://site.test/learning/study/1';
+
+/** 在桩环境里执行桥接脚本，记录发往宿主的消息与事件处理器 */
+const loadBridge = (frameName = '') => {
    const doc = buildPlaygroundDocument([
       { name: 'script.js', language: 'javascript', code: '' },
    ]);
    const bridge = doc.match(/<script>([\s\S]*?)<\/script>/)?.[1] ?? '';
-   const sent: { level: string; text: string }[] = [];
-   const fakeConsole: Record<string, () => void> = {
+   const handlers: Record<string, THandler> = {};
+   const sent: Record<string, unknown>[] = [];
+   const replaced: string[] = [];
+   const fakeConsole: Record<string, (...args: unknown[]) => void> = {
       log: () => {},
       warn: () => {},
    };
-   const listener = { addEventListener: () => {} };
-   new Function('parent', 'window', 'document', 'console', bridge)(
-      { postMessage: (data: { level: string; text: string }) => sent.push(data) },
-      listener,
-      listener,
+   new Function('parent', 'window', 'document', 'console', 'location', bridge)(
+      { postMessage: (data: Record<string, unknown>) => sent.push(data) },
+      {
+         name: frameName,
+         addEventListener: (type: string, fn: THandler) => {
+            handlers[type] = fn;
+         },
+      },
+      { baseURI: SITE_BASE, addEventListener: () => {} },
       fakeConsole,
+      { href: 'about:srcdoc#old', replace: (url: string) => replaced.push(url) },
    );
 
+   const element = (attrs: TAttrs) => ({
+      getAttribute: (name: string) => attrs[name] ?? null,
+      hasAttribute: (name: string) => name in attrs,
+   });
+   const dispatch = (type: string, event: Record<string, unknown>) => {
+      const record = {
+         defaultPrevented: false,
+         prevented: false,
+         preventDefault() {
+            this.prevented = true;
+         },
+         ...event,
+      };
+      handlers[type]!(record);
+      return record.prevented;
+   };
+
+   return {
+      sent,
+      replaced,
+      console: fakeConsole,
+      warnings: () =>
+         sent.filter((m) => m.level === 'warn').map((m) => String(m.text)),
+      click: (attrs: TAttrs | null, init: Record<string, unknown> = {}) =>
+         dispatch('click', {
+            button: 0,
+            target: { closest: () => (attrs ? element(attrs) : null) },
+            ...init,
+         }),
+      submit: (
+         form: TAttrs,
+         submitter: TAttrs | null = null,
+         init: Record<string, unknown> = {},
+      ) =>
+         dispatch('submit', {
+            target: element(form),
+            submitter: submitter ? element(submitter) : null,
+            ...init,
+         }),
+      pagehide: () => handlers.pagehide!({}),
+   };
+};
+
+test('桥接脚本：console 参数按 Node 风格格式化后回传', () => {
+   const bridge = loadBridge();
    const circular: Record<string, unknown> = { id: 1 };
    circular.self = circular;
-   fakeConsole.log!.call(null, 'var:', [3, 3, 3], { name: 'Ada', tags: ['a'] });
-   fakeConsole.warn!.call(null, circular, new Map([['k', 1]]));
+   bridge.console.log!('var:', [3, 3, 3], { name: 'Ada', tags: ['a'] });
+   bridge.console.warn!(circular, new Map([['k', 1]]));
 
-   assert.deepEqual(sent, [
-      { source: 'st-playground-preview', level: 'log', text: "var: [ 3, 3, 3 ] { name: 'Ada', tags: [ 'a' ] }" },
-      { source: 'st-playground-preview', level: 'warn', text: "{ id: 1, self: [Circular] } Map(1) { 'k' => 1 }" },
-   ]);
+   assert.deepEqual(
+      bridge.sent.filter((message) => !message.type),
+      [
+         { source: 'st-playground-preview', level: 'log', text: "var: [ 3, 3, 3 ] { name: 'Ada', tags: [ 'a' ] }" },
+         { source: 'st-playground-preview', level: 'warn', text: "{ id: 1, self: [Circular] } Map(1) { 'k' => 1 }" },
+      ],
+   );
+});
+
+test('桥接脚本：启动时上报 ready，卸载时带 iframe name 上报 leave', () => {
+   const bridge = loadBridge('pg-1');
+   assert.deepEqual(bridge.sent[0], { source: 'st-playground-preview', type: 'ready' });
+
+   bridge.pagehide();
+   assert.deepEqual(bridge.sent.at(-1), {
+      source: 'st-playground-preview',
+      type: 'leave',
+      allowed: false,
+      frame: 'pg-1',
+   });
+});
+
+test('桥接脚本：页内锚点在 iframe 自身地址上替换片段', () => {
+   const bridge = loadBridge();
+   assert.equal(bridge.click({ href: ' #section ' }), true);
+   assert.equal(bridge.click({ href: '#', target: '_self' }), true);
+   assert.deepEqual(bridge.replaced, ['about:srcdoc#section', 'about:srcdoc#']);
+
+   assert.equal(bridge.click({ href: '#x', target: '_blank' }), false);
+   assert.equal(bridge.click({ href: '#x' }, { metaKey: true }), false);
+   assert.equal(bridge.click({ href: '#x' }, { button: 1 }), false);
+   assert.equal(bridge.click({ href: '#x' }, { defaultPrevented: true }), false);
+   assert.equal(bridge.click(null), false);
+   assert.equal(bridge.replaced.length, 2);
+   assert.deepEqual(bridge.warnings(), []);
+});
+
+test('桥接脚本：站内链接被拦截并提示，站外链接放行并在离开时标记', () => {
+   const bridge = loadBridge();
+   for (const href of ['/foo', '', '?q=1', 'other', 'https://site.test/app']) {
+      assert.equal(bridge.click({ href }), true, href);
+   }
+   assert.equal(bridge.warnings().length, 5);
+   assert.match(bridge.warnings()[0]!, /已拦截跳转：\/foo/);
+   assert.match(bridge.warnings()[1]!, /已拦截跳转：（空地址）/);
+
+   for (const attrs of [
+      { href: '/foo', target: '_blank' },
+      { href: '/foo', download: '' },
+      { href: 'javascript:void 0' },
+      { href: 'mailto:a@b.c' },
+   ]) {
+      assert.equal(bridge.click(attrs), false, JSON.stringify(attrs));
+   }
+   bridge.pagehide();
+   assert.equal(bridge.sent.at(-1)?.allowed, false);
+
+   assert.equal(bridge.click({ href: 'https://example.com/' }), false);
+   bridge.pagehide();
+   assert.equal(bridge.sent.at(-1)?.allowed, true);
+   bridge.pagehide();
+   assert.equal(bridge.sent.at(-1)?.allowed, false);
+   assert.equal(bridge.warnings().length, 5);
+});
+
+test('桥接脚本：表单提交到站内地址被拦截，其余放行', () => {
+   const bridge = loadBridge();
+   assert.equal(bridge.submit({ action: '/foo' }), true);
+   assert.equal(bridge.submit({}, { formaction: '/foo' }), true);
+   assert.equal(bridge.submit({ action: '#' }), true);
+   assert.match(bridge.warnings()[0]!, /已拦截表单提交：\/foo/);
+
+   // 无 action 时提交到 about:srcdoc 本身，属于重新载入演练
+   assert.equal(bridge.submit({}), false);
+   assert.equal(bridge.submit({ action: '  ' }), false);
+   assert.equal(bridge.submit({ action: '/foo' }, { formaction: '' }), false);
+   assert.equal(bridge.submit({ action: '/foo', method: 'DIALOG' }), false);
+   assert.equal(bridge.submit({ action: '/foo' }, { formmethod: 'dialog' }), false);
+   assert.equal(bridge.submit({ action: '/foo', target: '_blank' }), false);
+   assert.equal(bridge.submit({ action: '/foo' }, { formtarget: '_blank' }), false);
+   assert.equal(bridge.submit({ action: '/foo' }, null, { defaultPrevented: true }), false);
+   assert.equal(bridge.warnings().length, 3);
+
+   assert.equal(bridge.submit({ action: 'https://example.com/form' }), false);
+   bridge.pagehide();
+   assert.equal(bridge.sent.at(-1)?.allowed, true);
+});
+
+test('离开守卫：等不到新的演练文档时恢复，重新载入与站外放行不受影响', (t) => {
+   t.mock.timers.enable({ apis: ['setTimeout'] });
+   let escapes = 0;
+   const guard = createPreviewLeaveGuard(() => {
+      escapes += 1;
+   });
+
+   // 重新载入演练文档：ready 先到或在 load 后宽限期内到达
+   guard.leave();
+   guard.ready();
+   guard.load();
+   guard.leave();
+   guard.load();
+   t.mock.timers.tick(299);
+   guard.ready();
+   t.mock.timers.tick(5000);
+   assert.equal(escapes, 0);
+
+   // 跳到别的页面：load 后宽限期内没有 ready
+   guard.leave();
+   guard.load();
+   t.mock.timers.tick(300);
+   assert.equal(escapes, 1);
+   guard.load();
+   t.mock.timers.tick(5000);
+   assert.equal(escapes, 1);
+
+   // 卸载后一直没有 load（如 Firefox 打不开 about:srcdoc?query）
+   guard.leave();
+   t.mock.timers.tick(1499);
+   assert.equal(escapes, 1);
+   t.mock.timers.tick(1);
+   assert.equal(escapes, 2);
+
+   // 站外放行、单独的 load、重新运行都不触发
+   guard.leave(true);
+   guard.load();
+   guard.load();
+   t.mock.timers.tick(5000);
+   guard.leave();
+   guard.reset();
+   t.mock.timers.tick(5000);
+   assert.equal(escapes, 2);
 });
 
 test('预览文档：作者写了完整文档时注入而不嵌套', () => {
