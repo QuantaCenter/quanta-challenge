@@ -105,6 +105,36 @@ interface JudgeErrorResult {
 
 ## 判题脚本 API
 
+### 首个失败测试点的诊断截图
+
+前端判题在首个测试点未达到通过分数或抛出异常时，自动截取当时页面，并在判题机侧将 PNG
+压缩成 WebP（quality 85，保留原尺寸），再传输与存储。
+截图在下一个测试点开始前完成，文件名为 `first-failure-<UUID>.webp`，放在该失败测试点的
+`cacheFiles` 中。audit 与 judge 模式均支持；全部通过时不截图。
+
+该功能复用截图比对的附件链路：`cacheFiles` → JRTP Buffer 传输 → 调度器文件存储 →
+Image / ShadowFile → `JudgeRecords.info[].cacheFiles` 中的静态文件名。
+现有 WebUI 的 `StJudgeResultItem` 会以 `/api/static/<文件名>` 展示附件，无需数据库迁移或改判题脚本。
+诊断截图只调用保存逻辑，不参与模板图相似度计算，也不替换 audit 模式的题目封面截图。
+
+每次判题只尝试截取一次，超时上限 2 秒，文件上限 5 MB。页面已关闭、截图超时或图片过大时，
+文件大小上限在 WebP 编码后检查。编码失败也会记录服务端警告，并保留原始分数和失败原因。
+此时不再改截后续测试点，也不回退存储未压缩的 PNG。
+脚本在注册测试点前就崩溃、导航失败或判题整体硬超时，不属于已结算的失败测试点，不生成此附件。
+后端服务题目没有浏览器页面，不受影响。
+
+验证命令：
+
+```sh
+pnpm --filter @challenge/judge-machine-agent exec tsx --test test/failure-screenshot.test.ts
+```
+
+真实浏览器与 VM2 回归测试需要指定已安装的 Chromium/Chrome 可执行文件：
+
+```sh
+JUDGE_TEST_BROWSER=/path/to/chrome pnpm --filter @challenge/judge-machine-agent exec tsx --test test/failure-screenshot.browser.test.ts
+```
+
 判题脚本在 VM2 沙箱中执行，沙箱只注入两个句柄（`page` 与 `$`），入口必须是
 `export default defineTestHandler(...)`（判题机把 `export default ` 文本改写成 `const run = `）：
 

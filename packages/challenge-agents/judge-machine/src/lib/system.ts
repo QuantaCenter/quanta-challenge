@@ -1,6 +1,7 @@
 import z from 'zod';
 import type { Page } from 'playwright';
 import { diff, Jimp } from 'jimp';
+import sharp from 'sharp';
 
 type BuildProxyProps<
    Mode extends 'pick' | 'omit',
@@ -168,8 +169,22 @@ export class System {
    constructor(
       public readonly mode: 'audit' | 'judge',
       public readonly info: Record<string, string> = {},
-      public readonly resourceBaseUrl: string = ''
+      public readonly resourceBaseUrl: string = '',
+      private readonly failureScreenshot?: () => Promise<Buffer>
    ) {}
+
+   /** 诊断截图只保存，不参与基准图比对；失败不能覆盖原测试结果。 */
+   async captureFailureScreenshot() {
+      if (!this.failureScreenshot) return;
+      try {
+         const screenshot = await this.failureScreenshot();
+         // 在判题机侧编码，传输和落盘都使用 WebP；保留原尺寸以便排查文字和布局。
+         const buffer = await sharp(screenshot).webp({ quality: 85, effort: 4 }).toBuffer();
+         await this.saveImage(buffer, `first-failure-${generateUUID()}.webp`);
+      } catch (error) {
+         console.warn('Failed to capture first failing checkpoint:', error);
+      }
+   }
 
    async saveOrCompare(type: SaveType) {
       SaveSchema.parse(type);
@@ -230,7 +245,7 @@ export class System {
 
    async saveImage(
       buffer: Buffer,
-      name: `${string}.png` = `${generateUUID()}.png`
+      name: `${string}.png` | `${string}.webp` = `${generateUUID()}.png`
    ) {
       if (buffer.length > 5 * 1024 * 1024) {
          throw new Error('Image size exceeds 5MB limit');
@@ -289,6 +304,7 @@ export const defineTestHandler = (
       const { _checkPoints } = system;
       system._checkPoints = [];
       const results: ITestResult[] = [];
+      let failureCaptured = false;
       for (const checkPoint of _checkPoints) {
          let score = 0;
          try {
@@ -319,6 +335,13 @@ export const defineTestHandler = (
                status: 'fail',
                cacheFiles: system.getAndCleanupFiles(),
             });
+         }
+         const result = results[results.length - 1]!;
+         if (result.status === 'fail' && !failureCaptured) {
+            // 必须在下一个测试点改变页面之前完成；首次尝试失败也不改截后续测试点。
+            failureCaptured = true;
+            await system.captureFailureScreenshot();
+            Object.assign(result.cacheFiles, system.getAndCleanupFiles());
          }
       }
       return {

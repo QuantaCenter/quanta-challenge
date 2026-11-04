@@ -100,7 +100,8 @@ export class JudgeService extends Singleton {
          const system = new System(
             payload.mode,
             payload.info,
-            this.resourceBaseUrl
+            this.resourceBaseUrl,
+            () => page.screenshot({ type: 'png', fullPage: true, timeout: 2_000 })
          );
          const vm = new VM({
             sandbox: {
