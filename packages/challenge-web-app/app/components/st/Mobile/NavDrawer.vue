@@ -160,7 +160,7 @@ const teleported = useClientTeleport();
                         class="st-mobile-drawer-item"
                         :class="{ 'bg-accent-600 text-white': isActive('/app/learning') }">
                         <BookOpen />
-                        <span>学习课程</span>
+                        <span>学习</span>
                      </NuxtLink>
                      <NuxtLink
                         v-if="role !== 'USER'"
