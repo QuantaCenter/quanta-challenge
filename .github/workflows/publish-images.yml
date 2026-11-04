@@ -92,6 +92,8 @@ jobs:
           context: .
           file: ${{ matrix.dockerfile }}
           push: true
+          build-args: |
+            NUXT_ASSET_VERSION=${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           tags: ${{ matrix.image }}:${{ needs.detect.outputs.tag }}
           labels: |
             org.opencontainers.image.title=${{ matrix.short }}

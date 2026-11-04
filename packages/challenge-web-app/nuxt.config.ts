@@ -1,5 +1,6 @@
 import tailwindcss from '@tailwindcss/vite';
 import { existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 const devCertPath = fileURLToPath(
@@ -107,8 +108,7 @@ export default defineNuxtConfig({
    },
 
    security: {
-      // 避免发布后缓存的资源与页面摘要不一致，导致浏览器拦截做题页脚本。
-      sri: false,
+      sri: true,
       xssValidator: false,
       rateLimiter: false,
 
@@ -144,6 +144,7 @@ export default defineNuxtConfig({
          },
       },
       '/challenge/**': {
+         headers: { 'Cache-Control': 'private, no-cache' },
          security: {
             headers: {
                crossOriginOpenerPolicy: 'same-origin',
@@ -153,6 +154,7 @@ export default defineNuxtConfig({
       },
       // 学习页的题目小节用 iframe 嵌入做题页：子页面的 WebContainer 要求父页面同样跨源隔离
       '/app/learning/study/**': {
+         headers: { 'Cache-Control': 'private, no-cache' },
          security: {
             headers: {
                crossOriginOpenerPolicy: 'same-origin',
@@ -208,6 +210,11 @@ export default defineNuxtConfig({
    },
 
    app: {
+      // 每次发布独立资源目录，防止相同 chunk 文件名命中上一版的强缓存。
+      // 本地生产构建也生成独立版本；开发模式维持 Nuxt 默认路径。
+      buildAssetsDir: process.env.NODE_ENV === 'production'
+         ? `/_nuxt/${env('NUXT_ASSET_VERSION', randomUUID())}/`
+         : '/_nuxt/',
       pageTransition: {
          name: 'page',
          mode: 'out-in',

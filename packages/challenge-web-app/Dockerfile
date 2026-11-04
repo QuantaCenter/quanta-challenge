@@ -77,6 +77,9 @@ WORKDIR /app/packages/challenge-web-app
 RUN pnpm exec nuxi prepare
 
 # 构建应用
+# CI 每次构建传入唯一版本，保证 HTML、动态导入和静态资源使用同一目录。
+ARG NUXT_ASSET_VERSION
+ENV NUXT_ASSET_VERSION=${NUXT_ASSET_VERSION}
 RUN pnpm build
 
 # 生成 Prisma 客户端
