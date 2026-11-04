@@ -6,6 +6,7 @@ import CourseDirectory from '~/components/learning/CourseDirectory.vue';
 import ChapterContents from '~/components/learning/ChapterContents.vue';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useLearningSection } from '~/composables/use-learning-section';
+import { getLearningEntry } from '~/utils/learning-entry';
 
 const route = useRoute();
 const { $trpc } = useNuxtApp();
@@ -22,6 +23,14 @@ const directoryOpen = ref(false);
 const directoryCollapsed = ref(false);
 const desktop = useMediaQuery('(min-width: 768px)');
 const chapters = computed(() => course.value?.chapters ?? []);
+async function resumeLearning() {
+   // 显式指定的章节或小节保留原位置，仅课程入口自动续学。
+   if (route.query.section || route.query.chapter) return;
+   const query = getLearningEntry(chapters.value);
+   if (query) await navigateTo({ path: route.path, query: { ...route.query, ...query } }, { replace: true });
+}
+await resumeLearning();
+watch([course, () => route.fullPath], () => { void resumeLearning(); });
 const allSections = computed(() => chapters.value.flatMap(chapter => chapter.sections));
 const selectedSection = computed(() => allSections.value.find(section => section.id === route.query.section));
 const sectionIndex = computed(() => allSections.value.findIndex(section => section.id === selectedSection.value?.id));
@@ -129,7 +138,7 @@ function goNext() {
 }
 async function syncProgress() {
    await refresh();
-   void refreshNuxtData([`learning-course-${id.value}`, 'learning-courses']);
+   void refreshNuxtData([`learning-course-${id.value}`, 'learning-courses', 'recent-learning']);
 }
 function beginChapter() {
    const chapter = selectedChapter.value;

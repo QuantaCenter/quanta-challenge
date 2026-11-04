@@ -7,27 +7,16 @@ import {
    Trophy,
    User,
 } from '@icon-park/vue-next';
-import useAuthStore from '~/stores/auth-store';
 
 const route = useRoute();
-const authStore = useAuthStore();
-
-// [learning-preview] 学习课程暂未全量开放：仅对管理员及以上展示入口。
-// 只是视觉隐藏，路由与接口不做权限限制；全量开放时删除 adminOnly 标记即可。
-const isAdmin = computed(() => (authStore.user?.role ?? 'USER') !== 'USER');
-
-const allItems = [
+const items = [
    { to: '/app/dashboard', label: '仪表盘', icon: DashboardTwo },
    { to: '/app/rankings', label: '排行榜', icon: Ranking },
    { to: '/app/problems', label: '题目', icon: TableReport },
-   { to: '/app/learning', label: '学习课程', icon: BookOpen, adminOnly: true },
+   { to: '/app/learning', label: '学习课程', icon: BookOpen },
    { to: '/app/achievements', label: '成就', icon: Trophy },
    { to: '/app/space', label: '我的', icon: User },
 ];
-
-const items = computed(() =>
-   allItems.filter((item) => !item.adminOnly || isAdmin.value)
-);
 
 const isActive = (to: string) =>
    route.path === to || route.path.startsWith(`${to}/`);

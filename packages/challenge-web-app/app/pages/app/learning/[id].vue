@@ -87,7 +87,7 @@ async function enroll() {
    try {
       await $trpc.protected.learning.enroll.mutate({ id: courseId });
       if (course.value?.id === courseId) course.value.enrolled = true;
-      void refreshNuxtData('learning-courses');
+      void refreshNuxtData(['learning-courses', 'recent-learning']);
       message.success('已获取课程');
    } catch (error) {
       message.error('获取课程失败', error instanceof Error ? error.message : '请稍后重试');

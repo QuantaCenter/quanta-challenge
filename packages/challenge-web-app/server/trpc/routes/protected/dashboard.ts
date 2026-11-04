@@ -3,6 +3,7 @@ import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import { rankService } from '../../services/rank';
 import { problemStatService } from '../../services/problem-stat';
+import { selectRecentLearning } from '../../../utils/recent-learning';
 
 const getRecentSubmissions = protectedProcedure.query(async ({ ctx }) => {
    const { userId } = ctx.user;
@@ -68,7 +69,45 @@ const getSubmissionStatus = protectedProcedure.query(async ({ ctx }) => {
    return statusCount;
 });
 
+const getRecentLearning = protectedProcedure.query(async ({ ctx }) => {
+   const where = { userId: ctx.user.userId, course: { status: 'published' as const } };
+   // 完成状态依赖当前课程的小节总数，必须在判断完成状态、排序后再限制条数。
+   const enrollments = await prisma.courseEnrollment.findMany({
+      where,
+      select: {
+         id: true,
+         enrolledAt: true,
+         // 章节被移动后，仅统计仍属于当前课程的小节进度。
+         progress: {
+            select: { completedAt: true, section: { select: { stage: { select: { chapter: { select: { courseId: true } } } } } } },
+         },
+         course: {
+            select: {
+               id: true,
+               title: true,
+               chapters: { select: { stages: { select: { _count: { select: { sections: true } } } } } },
+            },
+         },
+      },
+   });
+   return selectRecentLearning(enrollments.map(({ course, progress, enrolledAt }) => {
+      const currentProgress = progress.filter(item => item.section.stage.chapter.courseId === course.id);
+      const total = course.chapters.reduce((count, chapter) => count + chapter.stages.reduce((sum, stage) => sum + stage._count.sections, 0), 0);
+      const completed = currentProgress.length;
+      return {
+         id: course.id,
+         title: course.title,
+         total,
+         completed,
+         percent: total ? Math.floor(completed / total * 100) : 0,
+         finished: total > 0 && completed === total,
+         lastLearnedAt: new Date(Math.max(enrolledAt.getTime(), ...currentProgress.map(item => item.completedAt.getTime()))),
+      };
+   }));
+});
+
 export const dashboardRouter = router({
    getRecentSubmissions,
    getSubmissionStatus,
+   getRecentLearning,
 });
