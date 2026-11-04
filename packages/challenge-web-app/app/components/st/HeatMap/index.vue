@@ -159,7 +159,9 @@ const showZeroTip = (date: string) => {
    );
 };
 
-const handleCellEnter = (event: MouseEvent, month: number, day: number) => {
+const handleCellEnter = (event: PointerEvent, month: number, day: number) => {
+   // 触屏走点击逻辑（handleCellTap），这里只处理鼠标悬停
+   if (event.pointerType === 'touch') return;
    // 数据还没到时每个格子都是 0，不能弹"本日没有提交记录"
    if (props.loading) return;
    // 有记录的日期由 StPopover 负责，保持原来的即时显示
@@ -171,14 +173,46 @@ const handleCellEnter = (event: MouseEvent, month: number, day: number) => {
    zeroTimer = setTimeout(() => showZeroTip(date), ZERO_HOVER_DELAY);
 };
 
+const handleCellLeave = (event: PointerEvent) => {
+   if (event.pointerType === 'touch') return;
+   hideZeroTip();
+};
+
+// 与 StPopover 的 tapToggle 一致：click 不一定带 pointerType，记录最近一次 pointerdown
+let lastPointerType = '';
+
+const handleCellTap = (event: MouseEvent, month: number, day: number) => {
+   if (lastPointerType !== 'touch') return;
+   if (props.loading) return;
+   if (getCountByDate(month, day) > 0) return;
+
+   const anchor = event.currentTarget as HTMLElement;
+   if (zeroTipVisible.value && zeroAnchor === anchor) {
+      hideZeroTip();
+      return;
+   }
+   clearZeroTimer();
+   zeroAnchor = anchor;
+   showZeroTip(getDateId(month, day));
+};
+
+const onDocumentPointerDown = (event: PointerEvent) => {
+   lastPointerType = event.pointerType;
+   if (event.pointerType !== 'touch' || !zeroAnchor) return;
+   if (zeroAnchor.contains(event.target as Node)) return;
+   hideZeroTip();
+};
+
 onMounted(() => {
    // 横向滚动或页面滚动后气泡的坐标就失效了，直接收起
    window.addEventListener('scroll', hideZeroTip, true);
+   document.addEventListener('pointerdown', onDocumentPointerDown, true);
 });
 
 onUnmounted(() => {
    clearZeroTimer();
    window.removeEventListener('scroll', hideZeroTip, true);
+   document.removeEventListener('pointerdown', onDocumentPointerDown, true);
 });
 const teleported = useClientTeleport();
 </script>
@@ -208,8 +242,10 @@ const teleported = useClientTeleport();
                         getCountByDate(cell.month, cell.day) ? StPopover : 'div'
                      "
                      placement="top"
-                     @mouseenter="handleCellEnter($event, cell.month, cell.day)"
-                     @mouseleave="hideZeroTip">
+                     :tap-toggle="getCountByDate(cell.month, cell.day) ? true : undefined"
+                     @pointerenter="handleCellEnter($event, cell.month, cell.day)"
+                     @pointerleave="handleCellLeave"
+                     @click="handleCellTap($event, cell.month, cell.day)">
                      <template #popper="{ triggered }">
                         <PopperContent
                            :month="cell.month"

@@ -22,7 +22,7 @@ export interface IPlaygroundSpec {
    height: string;
    /** 编辑器高度（CSS 长度） */
    editorHeight: string;
-   /** 默认布局；学员可在组件右上角切换，容器过窄时固定为上下 */
+   /** PC 端默认布局（移动端默认上下）；学员可在组件右上角切换，容器过窄时固定为上下 */
    layout: 'horizontal' | 'vertical';
    /** 是否展示预览；关闭后控制台成为唯一输出区 */
    preview: boolean;

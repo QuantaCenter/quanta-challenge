@@ -73,19 +73,21 @@ const handleLogout = async () => {
 
 const isActive = (to: string) => route.path === to || route.path.startsWith(`${to}/`);
 
-// 抽屉打开时锁定背景滚动
+// 抽屉打开时锁定背景滚动。
+// 必须锁在 html 上：html 已设置 overflow-x，overflow 由 html 传递给视口，
+// 若改 body，body 会自成滚动容器，页面内 sticky 元素改以 body 为参照而失效。
 watch(
    () => props.open,
    (open) => {
       if (import.meta.client) {
-         document.body.style.overflow = open ? 'hidden' : '';
+         document.documentElement.style.overflow = open ? 'hidden' : '';
       }
    }
 );
 
 onUnmounted(() => {
    if (import.meta.client) {
-      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
    }
 });
 

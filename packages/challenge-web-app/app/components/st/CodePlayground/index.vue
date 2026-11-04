@@ -62,8 +62,13 @@ const consoleBody = useTemplateRef<HTMLElement>('console-body');
 const preview = useTemplateRef<HTMLIFrameElement>('preview');
 
 const { width } = useElementSize(root);
+const isMobile = useIsMobile();
 const canSplit = computed(() => width.value >= SPLIT_MIN_WIDTH);
-const preferredLayout = ref<TLayout>(props.spec.layout);
+/** 学员手动切换过的布局；未切换时 PC 端用作者配置，移动端默认上下 */
+const userLayout = ref<TLayout | null>(null);
+const preferredLayout = computed<TLayout>(
+   () => userLayout.value ?? (isMobile.value ? 'vertical' : props.spec.layout),
+);
 const layout = computed<TLayout>(() =>
    canSplit.value ? preferredLayout.value : 'vertical',
 );
@@ -271,7 +276,7 @@ const consoleStyle = computed(() => {
                      :class="{ 'is-active': preferredLayout === option.value }"
                      :aria-checked="preferredLayout === option.value"
                      :aria-label="option.label"
-                     @click="preferredLayout = option.value">
+                     @click="userLayout = option.value">
                      <svg
                         viewBox="0 0 24 24"
                         width="15"
@@ -373,7 +378,7 @@ const consoleStyle = computed(() => {
                      :key="runToken"
                      :srcdoc="previewDocument"
                      class="st-playground__frame"
-                     sandbox="allow-scripts allow-modals allow-popups"
+                     sandbox="allow-scripts allow-forms allow-modals allow-popups"
                      title="演练预览"></iframe>
                </div>
             </div>
