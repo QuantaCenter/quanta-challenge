@@ -107,6 +107,8 @@ export default defineNuxtConfig({
    },
 
    security: {
+      // 避免发布后缓存的资源与页面摘要不一致，导致浏览器拦截做题页脚本。
+      sri: false,
       xssValidator: false,
       rateLimiter: false,
 
