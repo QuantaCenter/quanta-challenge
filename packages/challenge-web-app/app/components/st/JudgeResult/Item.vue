@@ -24,6 +24,14 @@ const bgColorClass = computed(() => {
 const icon = computed(() => {
    return props.data.status === 'pass' ? CheckOne : CloseOne;
 });
+
+function previewImage(event: Event) {
+   const image = event.currentTarget as HTMLImageElement;
+   globalImage.open(image.currentSrc || image.src, {
+      source: image,
+      alt: image.alt,
+   });
+}
 </script>
 
 <template>
@@ -46,11 +54,17 @@ const icon = computed(() => {
          <StSpace fill-x gap="0.5rem">
             <img
                v-for="([name, url], idx) in fileUrls"
-               class="h-[15rem] rounded-sm"
+               class="h-[15rem] rounded-sm cursor-zoom-in focus-visible:outline-2 focus-visible:outline-primary"
                :key="idx"
                :src="url"
                :alt="name"
-               :title="name" />
+               :title="name"
+               role="button"
+               tabindex="0"
+               :aria-label="`预览图片：${name}`"
+               @click="previewImage"
+               @keydown.enter.prevent="previewImage"
+               @keydown.space.prevent="previewImage" />
          </StSpace>
       </StSpace>
    </StSpace>
