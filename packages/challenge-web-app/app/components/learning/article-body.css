@@ -20,7 +20,6 @@
    --ab-gap: 1.25em;
    --ab-gap-block: 1.5em;
 
-   padding-left: 0.5em;
    color: var(--ab-text);
    font-family: var(--font-family-sans, 'Microsoft YaHei', sans-serif);
    font-size: 1rem;

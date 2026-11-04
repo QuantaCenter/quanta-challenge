@@ -6,7 +6,7 @@ const showMosaic = computed(() => percent.value >= 10 && percent.value < 100);
 
 <template>
    <div class="flex min-w-0 flex-1 items-stretch gap-1">
-      <span class="st-font-tooltip flex shrink-0 items-center justify-center rounded-full bg-secondary px-2 py-1 text-accent-700">
+      <span class="st-font-tooltip flex shrink-0 items-center justify-center rounded-full bg-secondary px-2 py-1 font-light text-accent-700">
          {{ percent }}%
       </span>
       <div

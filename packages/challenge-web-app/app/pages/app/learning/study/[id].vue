@@ -228,7 +228,7 @@ function beginChapter() {
             :inert="directoryCollapsed && desktop"
             class="min-w-0 border-r border-accent-600 transition-opacity duration-500 ease-in-out motion-reduce:transition-none max-md:hidden md:sticky md:top-[6.5rem] md:overflow-hidden"
             :class="{ 'md:pointer-events-none md:opacity-0': directoryCollapsed }">
-         <aside class="p-6 md:max-h-[calc(100vh-8rem)] md:w-[calc(22rem-1px)] md:overflow-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
+         <aside class="p-6 md:max-h-[min(80dvh,calc(100dvh-12rem))] md:w-[calc(22rem-1px)] md:overflow-auto md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
             <StSpace direction="vertical" gap="0.75rem" fill-x>
                <h2 class="text-xl">{{ course.title }}</h2>
                <span class="text-xs text-accent-300">已完成 {{ completedCount }}/{{ allSections.length }} 节</span>
