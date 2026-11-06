@@ -19,7 +19,15 @@ qpc init my-problem --type frontend --name "购物车合计" --difficulty easy -
 cd my-problem
 ```
 
-难度：`easy | medium | hard | very_hard`。
+难度：`easy | medium | hard | very_hard`。总分（`totalScore`，即各检查点之和）按难度取值：
+
+| difficulty | totalScore |
+| --- | --- |
+| `easy` | 50 ~ 80 |
+| `medium` | 100 ~ 150 |
+| `hard` | 200 起，上不封顶 |
+| `very_hard` | 200 起，上不封顶 |
+
 验收：目录里有 `problem.config.ts`、`judge.js`、`template/`、`answer/`、`AGENTS.md`。
 
 ## 2. 阅读脚本编写手册
@@ -34,6 +42,15 @@ qpc agent config     # 配置字段
 - 题面：写清"学生要做什么"和每个检查点关注的行为。题面里写的**每个可观察要求**，判题脚本都要能验证；判题脚本验证的每件事，题面里都要写明。
 - `answer/`：完整实现，必须满分。
 - `template/`：保留结构与 TODO，学生从这里开始，应当明显低分。
+  - **一个 TODO 一个块**：每条待办单独一行注释，放在它要改的代码位置旁边，下面留空行给学生作答；不要把全部步骤塞进一个多行注释块里，学生不该再自己拆分步骤。
+
+  ```js
+  // TODO 1: 点击 #inc 时让 #count 加一
+
+  // TODO 2: 计数达到 3 时让 #tip 显示"已达标"
+
+  // TODO 3: 计数为 0 时禁用 #reset
+  ```
 - `judge.js`：见 `qpc agent judge-frontend` / `qpc agent judge-backend`。
 
 ## 4. 指定标签
