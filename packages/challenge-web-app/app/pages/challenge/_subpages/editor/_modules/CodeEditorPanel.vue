@@ -10,9 +10,10 @@ import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
 import type { WebContainer } from '@webcontainer/api';
 import type { editor } from 'monaco-editor';
 import {
-   hasBinarySnapshotExtension,
-   toSnapshotDataUrl,
-} from '@challenge/shared/snapshot-content';
+   snapshotBinaryBytes,
+   snapshotDownloadUrl,
+   snapshotImageUrl,
+} from '~/utils/snapshot-preview';
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
 import { useMessage } from '~/components/st/Message/use-message';
@@ -227,7 +228,9 @@ onEditorInstanceReady(() => {
          if (!fs) return;
          const models = objectMap(fs, ({ value }) => value.content);
          Object.keys(models)
-            .filter((k) => k.endsWith('.svg') || hasBinarySnapshotExtension(k))
+            .filter((k) =>
+               k.endsWith('.svg') || snapshotBinaryBytes(k, models[k])
+            )
             .forEach((key) => delete models[key]);
 
          createModels(models);
@@ -263,7 +266,8 @@ const setModel = (path: string | null, forceRecreate = false) => {
       const normalizedPath = normalizePath(path);
 
       // 二进制文件不进 Monaco：编辑会把文本写回 WebContainer，损坏原文件
-      if (hasBinarySnapshotExtension(normalizedPath)) {
+      const content = props.defaultFs?.[normalizedPath]?.content;
+      if (snapshotBinaryBytes(normalizedPath, content)) {
          instance.setModel(null);
          currentFilePath.value = normalizedPath;
          return;
@@ -299,17 +303,29 @@ const setModel = (path: string | null, forceRecreate = false) => {
    });
 };
 
-const isBinaryFile = computed(
-   () =>
-      !!currentFilePath.value &&
-      hasBinarySnapshotExtension(currentFilePath.value)
-);
+const isBinaryFile = computed(() => {
+   if (!currentFilePath.value) return false;
+   const path = normalizePath(currentFilePath.value);
+   return !!snapshotBinaryBytes(path, props.defaultFs?.[path]?.content);
+});
 
 const imagePreviewSrc = computed(() => {
    if (!isBinaryFile.value) return undefined;
    const normalizedPath = normalizePath(currentFilePath.value!);
    const content = props.defaultFs?.[normalizedPath]?.content;
-   return content ? toSnapshotDataUrl(normalizedPath, content) : undefined;
+   return snapshotImageUrl(normalizedPath, content);
+});
+
+const binaryDownloadUrl = computed(() => {
+   if (!currentFilePath.value) return undefined;
+   const path = normalizePath(currentFilePath.value);
+   return snapshotDownloadUrl(path, props.defaultFs?.[path]?.content);
+});
+const binarySize = computed(() => {
+   if (!currentFilePath.value) return 0;
+   const path = normalizePath(currentFilePath.value);
+   const bytes = snapshotBinaryBytes(path, props.defaultFs?.[path]?.content);
+   return bytes?.byteLength ?? 0;
 });
 
 const closeCurrentTab = () => {
@@ -403,14 +419,21 @@ defineExpose({
             fill
             center
             class="absolute top-0 left-0 size-full p-4 bg-[#1C1C1C]">
-            <img
-               v-if="imagePreviewSrc"
-               :src="imagePreviewSrc"
-               :alt="currentFilePath"
-               class="max-w-full max-h-full object-contain" />
-            <span v-else class="st-font-body-normal text-accent-400">
-               该文件无法预览
-            </span>
+            <StSpace direction="vertical" center gap="0.75rem" class="max-w-full max-h-full">
+               <img
+                  v-if="imagePreviewSrc"
+                  :src="imagePreviewSrc"
+                  :alt="currentFilePath"
+                  class="max-w-full max-h-[70%] object-contain" />
+               <span class="st-font-body-normal text-accent-400">
+                  {{ currentFilePath && getBaseName(currentFilePath) }} · {{ binarySize }} 字节
+               </span>
+               <a
+                  v-if="binaryDownloadUrl"
+                  :href="binaryDownloadUrl"
+                  :download="currentFilePath && getBaseName(currentFilePath)"
+                  class="text-primary">下载文件</a>
+            </StSpace>
          </StSpace>
       </StSpace>
    </StSpace>

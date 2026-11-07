@@ -461,7 +461,7 @@ export class FileSystemOperator {
             // 复制操作
             if (copiedItem.type === 'file') {
                // 复制文件
-               const content = await wc.fs.readFile(copiedPathForWC, 'utf-8');
+               const content = await wc.fs.readFile(copiedPathForWC);
                await wc.fs.writeFile(destPathForWC, content);
             } else {
                // 复制文件夹（递归）
@@ -522,7 +522,7 @@ export class FileSystemOperator {
          if (item.isDirectory()) {
             await this._copyDirectory(wc, sourceItemPath, destItemPath);
          } else {
-            const content = await wc.fs.readFile(sourceItemPath, 'utf-8');
+            const content = await wc.fs.readFile(sourceItemPath);
             await wc.fs.writeFile(destItemPath, content);
          }
       }

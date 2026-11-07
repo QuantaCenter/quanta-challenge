@@ -1,6 +1,7 @@
 import type { WebContainer } from '@webcontainer/api';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
-import { hasBinarySnapshotExtension } from '@challenge/shared/snapshot-content';
+import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
+import { encodeSnapshotFile } from '~/utils/snapshot-file';
 
 type ChangeTreeItem = { path: string; children?: ChangeTreeItem[] };
 
@@ -49,7 +50,7 @@ export class FileSystemDispatcher {
    }
 
    private async _handleFsEvent(event: string, path: string) {
-      if (event === 'rename') {
+      if (event === 'rename' || event === 'change') {
          // 规范化路径后添加到变更集合
          const normalizedPath = normalizePath(`/${path}`);
          if (!this._isTrackedPath(normalizedPath)) return;
@@ -192,14 +193,16 @@ export class FileSystemDispatcher {
             // 悬空文件夹，终止该分支的遍历
             continue;
          } else if (existsInWc && fsNode && fsNode.type === 'file') {
-            // 二进制文件按 base64 入库，文本 diff 不适用，跳过
-            if (hasBinarySnapshotExtension(normalizedPath)) {
-               continue;
-            }
-            // wc 与树中都存在：对比内容，捕获终端造成的内容修改（如 echo > file）
             try {
-               const content = await wc.fs.readFile(pathForWC, 'utf-8');
-               if (content !== fsNode.content) {
+               const bytes = await wc.fs.readFile(pathForWC);
+               const content = encodeSnapshotFile(normalizedPath, bytes);
+               const previous = decodeSnapshotContent(
+                  normalizedPath, fsNode.content ?? ''
+               );
+               const previousBytes = typeof previous === 'string'
+                  ? new TextEncoder().encode(previous)
+                  : previous;
+               if (content !== encodeSnapshotFile(normalizedPath, previousBytes)) {
                   this._detectedContentChanges.push({
                      type: 'change',
                      path: normalizedPath,
@@ -248,11 +251,8 @@ export class FileSystemDispatcher {
             addedItems.push({ path, kind: 'folder' });
          } catch {
             try {
-               // 二进制文件不入库
-               if (hasBinarySnapshotExtension(path)) {
-                  continue;
-               }
-               const content = await wc.fs.readFile(pathForWC, 'utf-8');
+               const bytes = await wc.fs.readFile(pathForWC);
+               const content = encodeSnapshotFile(path, bytes);
                addedItems.push({ path, kind: 'file', content });
             } catch {
                // 路径已再次消失，忽略
@@ -341,15 +341,9 @@ export class FileSystemDispatcher {
          if (entry.isDirectory()) {
             await this._collectFolderFiles(wc, childPath, changes);
          } else {
-            // 二进制文件不入库
-            if (hasBinarySnapshotExtension(childPath)) {
-               continue;
-            }
             try {
-               const content = await wc.fs.readFile(
-                  childPath.slice(1),
-                  'utf-8'
-               );
+               const bytes = await wc.fs.readFile(childPath.slice(1));
+               const content = encodeSnapshotFile(childPath, bytes);
                changes.push({ type: 'create', path: childPath, content });
             } catch {
                // 读取失败，跳过
@@ -388,7 +382,6 @@ export class FileSystemDispatcher {
    }
 
    private async _addNodeToFsTree(path: string, isFolder: boolean) {
-      const wc = await this.getWebContainerInstance();
       const normalizedPath = normalizePath(path);
       const pathParts = splitPath(normalizedPath);
       const name = getBaseName(normalizedPath);

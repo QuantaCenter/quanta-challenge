@@ -12,6 +12,49 @@ export class LocalStore implements IStore {
       fs.mkdir(this.storePath, { recursive: true });
    }
 
+   private assetPath(key: string): string {
+      if (!/^assets\/[0-9a-f-]+\.bin$/.test(key)) throw new Error('Invalid asset key');
+      return path.join(this.storePath, key);
+   }
+
+   async saveAsset(key: string, buffer: Buffer): Promise<void> {
+      const target = this.assetPath(key);
+      await fs.mkdir(path.dirname(target), { recursive: true });
+      await fs.writeFile(target, buffer, { flag: 'wx' });
+   }
+
+   async readAsset(key: string): Promise<Buffer> {
+      return fs.readFile(this.assetPath(key));
+   }
+
+   async deleteAsset(key: string): Promise<void> {
+      await fs.rm(this.assetPath(key), { force: true });
+   }
+
+   async listOldAssets(before: Date, limit: number, after = ''): Promise<string[]> {
+      const directory = path.join(this.storePath, 'assets');
+      let entries: string[];
+      try {
+         entries = await fs.readdir(directory);
+      } catch (error) {
+         if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
+         throw error;
+      }
+      const result: string[] = [];
+      for (const name of entries.sort()) {
+         const key = `assets/${name}`;
+         if (key <= after || !/^assets\/[0-9a-f-]+\.bin$/.test(key)) continue;
+         try {
+            const stat = await fs.stat(this.assetPath(key));
+            if (stat.isFile() && stat.mtime < before) result.push(key);
+         } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+         }
+         if (result.length >= limit) break;
+      }
+      return result;
+   }
+
    async save(buffer: Buffer, name: string) {
       const fileId = crypto.randomUUID();
       const extension = path.extname(name);

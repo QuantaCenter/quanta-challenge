@@ -4,7 +4,7 @@ import type { IProgressStep } from '~/components/st/Progress/type';
 import { useTerminal } from '../../../_composables/use-terminal';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import { useParam } from '~/composables/use-param';
-import { acceptedBinaryExtensions } from '~/configs/accepted-pack-extension';
+import { encodeSnapshotFile } from '~/utils/snapshot-file';
 
 const props = defineProps<{
    getWcInstance: () => Promise<WebContainer>;
@@ -146,12 +146,8 @@ const runPackStep = async (distDir: string) => {
             continue;
          }
 
-         const extension = file.name.split('.').pop()!;
-         const encoding = acceptedBinaryExtensions.includes(extension)
-            ? 'base64'
-            : 'utf-8';
          pathContentMap[toSnapshotPath(path)] =
-            await instance.fs.readFile(path, encoding);
+            encodeSnapshotFile(path, await instance.fs.readFile(path));
       }
 
       return pathContentMap;
