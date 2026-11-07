@@ -23,6 +23,11 @@ const imageBuildMaxCompressedBytes = envInt(
    160 * 1024 * 1024,
 );
 
+const problemUploadMaxRequestBytes = envInt(
+   'PROBLEM_UPLOAD_MAX_REQUEST_BYTES',
+   160 * 1024 * 1024,
+);
+
 const envSecret = (key: string) => {
    const value = process.env[key];
    if (value) return value;
@@ -179,11 +184,24 @@ export default defineNuxtConfig({
             },
          },
       },
-      // octet-stream 请求体受 maxRequestSizeInBytes 限制；上限值与 runtimeConfig.public.imageBuild.maxCompressedBytes 同源
       '/api/image-builds/upload': {
          security: {
             requestSizeLimiter: {
                maxRequestSizeInBytes: imageBuildMaxCompressedBytes,
+            },
+         },
+      },
+      '/api/trpc/admin.problem.upload': {
+         security: {
+            requestSizeLimiter: {
+               maxRequestSizeInBytes: problemUploadMaxRequestBytes,
+            },
+         },
+      },
+      '/api/trpc/admin.problem.reupload': {
+         security: {
+            requestSizeLimiter: {
+               maxRequestSizeInBytes: problemUploadMaxRequestBytes,
             },
          },
       },
@@ -333,7 +351,9 @@ export default defineNuxtConfig({
          serverUrl: env('JUDGE_SERVER', 'http://localhost:1888'),
       },
       llm: {
-         apiKey: '',
+         // responsesUrl 默认指向 DeepSeek，兼容直接配置 DEEPSEEK_API_KEY 的本地环境；
+         // 显式覆盖仍优先使用 NUXT_LLM_API_KEY
+         apiKey: env('NUXT_LLM_API_KEY', env('DEEPSEEK_API_KEY', '')),
          responsesUrl: 'https://api.deepseek.com/responses',
          model: 'deepseek-flash',
       },
