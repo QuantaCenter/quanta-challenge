@@ -24,7 +24,6 @@ import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
 import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
-import { canSkipQualityReview } from '../../../utils/judge-quality';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -206,7 +205,6 @@ const createAuditTask = async (options: {
    judgeRecordId: number;
    judgeScript: string;
    fsSnapshot: UploadInput['referenceAnswerSnapshot'];
-   skipQualityReview?: boolean;
 }) => {
    await enqueueJudgeQuality(options.problemId, options);
 };
@@ -761,7 +759,6 @@ const reuploadProcedure = protectedAdminProcedure
 
       const scriptUnchanged = Boolean(currentScript) &&
          (judgeScript === currentScript || judgeScript === currentJudgeScript);
-      const skipQualityReview = canSkipQualityReview(current?.status, currentScript, currentJudgeScript, judgeScript);
 
       await ensureCoverThumbhash(input.coverImageId);
       // 未传入时沿用当前版本的值
@@ -902,7 +899,6 @@ const reuploadProcedure = protectedAdminProcedure
          judgeRecordId,
          judgeScript,
          fsSnapshot: input.referenceAnswerSnapshot,
-         skipQualityReview,
       });
 
       return {

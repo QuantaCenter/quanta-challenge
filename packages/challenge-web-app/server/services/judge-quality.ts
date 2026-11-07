@@ -39,8 +39,7 @@ export async function assertJudgeQuality(problemId: number, db: QualityDatabase 
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
    });
 
-   const passed = review?.status === 'passed' && qualityPassed(validateQualityReport(review.report));
-   if (!passed && review?.status !== 'skipped') {
+   if (!review || review.status !== 'passed' || !qualityPassed(validateQualityReport(review.report))) {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: '判题脚本尚未通过当前内容版本的 AI 质量审核，请重新提交审核。' });
    }
 }
@@ -54,7 +53,6 @@ export type QualityAuditPayload = {
    judgeRecordId: number;
    judgeScript: string;
    fsSnapshot?: Record<string, string>;
-   skipQualityReview?: boolean;
 };
 
 export async function enqueueJudgeQuality(problemId: number, payload: QualityAuditPayload) {

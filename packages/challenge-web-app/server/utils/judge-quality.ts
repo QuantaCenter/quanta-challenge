@@ -20,17 +20,6 @@ export function qualityPassed(report: QualityReport) {
    return report.status === 'pass';
 }
 
-export function canSkipQualityReview(
-   status: string | undefined,
-   currentScript: string | undefined,
-   extractedCurrentScript: string | null,
-   submittedScript: string,
-) {
-   const scriptUnchanged = Boolean(currentScript) &&
-      (submittedScript === currentScript || submittedScript === extractedCurrentScript);
-   return scriptUnchanged && (status === 'ready' || status === 'published');
-}
-
 export function previousQualityFeedback(status: string, rawReport: unknown): QualityReport | undefined {
    if (status !== 'rejected' && status !== 'needs_review') return undefined;
 
