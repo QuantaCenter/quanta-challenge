@@ -100,6 +100,7 @@ export const collectOrphanAssetFiles = async (before: Date, limit = 100) => {
 export const prepareAssets = async (
    files: { path: string; content: string }[],
    userId: string,
+   options?: { deferExistingVerification?: boolean },
 ) => {
    const candidates = new Map<string, Candidate>();
    const prepared: PreparedFile[] = [];
@@ -139,8 +140,11 @@ export const prepareAssets = async (
                asset: existing ?? undefined,
             };
             candidates.set(sha256, candidate);
-            if (existing) await verify(existing, bytes.length);
-            else await store.saveAsset(candidate.storageKey, bytes);
+            if (existing && !options?.deferExistingVerification) {
+               await verify(existing, bytes.length);
+            } else if (!existing) {
+               await store.saveAsset(candidate.storageKey, bytes);
+            }
          }
          prepared.push({ ...file, candidate });
       }
@@ -149,12 +153,25 @@ export const prepareAssets = async (
       throw error;
    }
    return {
-      async bind(tx: Prisma.TransactionClient) {
+      async bind(tx: Prisma.TransactionClient, options?: { reusableAssets: Asset[] }) {
+         const projectAssets = new Map<string, Asset>();
+         for (const asset of options?.reusableAssets ?? []) {
+            if (!projectAssets.has(asset.sha256)) projectAssets.set(asset.sha256, asset);
+         }
          const sorted = [...candidates.values()].sort((a, b) =>
             a.sha256.localeCompare(b.sha256),
          );
          for (const candidate of sorted) {
-            if (candidate.asset) continue;
+            const projectAsset = projectAssets.get(candidate.sha256);
+            if (projectAsset) {
+               await verify(projectAsset, candidate.bytes.length);
+               candidate.asset = projectAsset;
+               continue;
+            }
+            if (candidate.asset) {
+               await verify(candidate.asset, candidate.bytes.length);
+               continue;
+            }
             await lockStorageKey(tx, candidate.storageKey);
             await verify({
                id: candidate.id,
