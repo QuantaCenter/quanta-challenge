@@ -106,6 +106,7 @@ qpc upload --write
 | --- | --- | --- |
 | `AUDIT_CHECKPOINT_FAILED` | 参考解没拿满分 | 看 ✖ 检查点的原因，修 judge.js 或 answer/ → `qpc check` 本地满分 → 再 `qpc upload --write` |
 | `AUDIT_SCRIPT_ERROR` | 判题脚本整体失败 | 同上，先用 `qpc check` 复现 |
+| `AUDIT_QUALITY_REJECTED` | AI 质量审核未通过或需复核 | 根据审核原因检查题面和判题脚本后重新提交 |
 | `AUDIT_INFRA_ERROR` | 平台故障，与题目无关 | **不要改题**，原样重跑 `qpc upload --write`（最多 3 次） |
 
 验收：输出 "审计通过"，并显示 "当前版本：#<pid>"。

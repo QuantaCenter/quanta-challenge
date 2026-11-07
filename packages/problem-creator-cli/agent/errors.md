@@ -19,9 +19,10 @@
 | --- | --- | --- |
 | `AUDIT_CHECKPOINT_FAILED` | 线上审核时参考解没拿满分 | 看输出里 ✖ 的检查点原因 → 修 judge.js / answer/ → `qpc check` 本地满分 → `qpc upload --write` |
 | `AUDIT_SCRIPT_ERROR` | 判题脚本整体失败（超时、语法错误、用了沙箱里没有的全局） | 同上，先用 `qpc check` 复现 |
+| `AUDIT_QUALITY_REJECTED` | AI 质量审核未通过或需要复核 | 根据输出的原因检查题面和判题脚本，再重新提交审核 |
 | `AUDIT_INFRA_ERROR` | 平台侧故障（审计任务丢失、判题机崩溃、数据库竞态），与题目无关 | 原样重跑 `qpc upload --write`，最多 3 次；仍失败联系平台管理员 |
 | `NOT_CURRENT_VERSION` | 发布的不是当前版本 | 用错误提示里的当前版本 pid：`qpc publish <currentPid>` |
-| 审计超时 | 180 秒内没出结果 | `qpc status <pid> --watch` 继续等；长时间无结果按平台故障处理 |
+| 审计超时 | 300 秒内没出结果 | `qpc status <pid> --watch` 继续等；长时间无结果按平台故障处理 |
 | 写回失败（警告） | 上传已成功，只是 problemId 没写回配置 | **不要重传**，手动把 `problemId` 填进配置 |
 
 ## 预检 / 本地判题

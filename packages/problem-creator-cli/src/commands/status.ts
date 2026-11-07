@@ -4,6 +4,7 @@ import {
    auditRecordOf,
    createAdminApi,
    isAuditSettled,
+   qualityReviewOf,
 } from '../services/admin-api';
 import { auditToJson, renderAuditDetail } from '../ui/report';
 import { sleep } from '../utils/async';
@@ -59,7 +60,7 @@ export const runStatus = async (
       if (ctx.runtime.signal?.aborted) return;
       const detail = await api.getAuditDetail(problemId);
       const record = auditRecordOf(detail);
-      const signature = `${detail.status}|${record?.result ?? 'none'}|${record?.score ?? 0}`;
+      const signature = `${detail.status}|${record?.result ?? 'none'}|${record?.score ?? 0}|${qualityReviewOf(detail)?.status ?? 'none'}`;
       if (signature !== lastSignature) {
          lastSignature = signature;
          ctx.logger.blank();
