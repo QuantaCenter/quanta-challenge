@@ -3,6 +3,8 @@ import { Prisma, PrismaClient, type VirtualFiles } from '@prisma/client';
 import type { DefaultArgs } from '@prisma/client/runtime/library';
 import { TRPCError } from '@trpc/server';
 import { observer } from './achievement';
+import { expandFile, snapshotBytes } from './file-assets';
+import { createHash } from 'node:crypto';
 
 type Tx = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -12,7 +14,8 @@ type Tx = Omit<
 export interface IFile {
    name: string;
    path: string;
-   content: string;
+   content: string | null;
+   assetId?: string | null;
 }
 
 export interface ICreateProjectOptions {
@@ -74,6 +77,7 @@ const create = async (options: ICreateProjectOptions) => {
                ({
                   path: file.path,
                   content: file.content,
+                  assetId: file.assetId ?? null,
                   ownerId: options.userId,
                   fileSystemFsid: fileSystem.fsid,
                } satisfies Omit<
@@ -164,11 +168,12 @@ const fork = async (options: IForkProjectOptions) => {
 
       // 克隆虚拟文件到新文件系统
       await tx.$executeRaw`
-         INSERT INTO "virtual_files" (vid, path, content, "ownerId", "fileSystemFsid", "createdAt", "updatedAt")
+         INSERT INTO "virtual_files" (vid, path, content, "assetId", "ownerId", "fileSystemFsid", "createdAt", "updatedAt")
          SELECT 
             gen_random_uuid() AS vid,
             path, 
             content, 
+            "assetId",
             ${options.userId}, 
             ${newFileSystemId},
             NOW(),
@@ -208,15 +213,18 @@ const normalizeFilePath = (path: string) =>
       .replace(/^project(\/|$)/, '')
       .replace(/\/+$/, '');
 
+const fileHash = (file: { path: string; content: string }) =>
+   createHash('sha256').update(snapshotBytes(file.path, file.content)).digest('hex');
+
 /** 两组文件路径和内容完全一致（忽略路径前缀写法差异） */
 const isSameFiles = (
-   a: Pick<IFile, 'path' | 'content'>[],
-   b: Pick<IFile, 'path' | 'content'>[],
+   a: { path: string; content: string }[],
+   b: { path: string; content: string }[],
 ) => {
    if (a.length !== b.length) return false;
-   const map = new Map(a.map((file) => [normalizeFilePath(file.path), file.content]));
+   const map = new Map(a.map((file) => [normalizeFilePath(file.path), fileHash(file)]));
    if (map.size !== b.length) return false;
-   return b.every((file) => map.get(normalizeFilePath(file.path)) === file.content);
+   return b.every((file) => map.get(normalizeFilePath(file.path)) === fileHash(file));
 };
 
 /** 读取某个题目版本的作答模板文件 */
@@ -224,10 +232,10 @@ const getTemplateFiles = async (problemId: number) => {
    const template = await prisma.projects.findFirst({
       where: { problemId, isTemplate: true },
       select: {
-         FileSystem: { select: { files: { select: { path: true, content: true } } } },
+         FileSystem: { select: { files: { select: { path: true, content: true, assetId: true } } } },
       },
    });
-   return template?.FileSystem[0]?.files ?? [];
+   return Promise.all((template?.FileSystem[0]?.files ?? []).map(expandFile));
 };
 
 export const projectService = {

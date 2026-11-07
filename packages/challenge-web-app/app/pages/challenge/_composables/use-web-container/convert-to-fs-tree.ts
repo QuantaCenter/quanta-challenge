@@ -1,8 +1,5 @@
 import type { DirectoryNode, FileSystemTree } from '@webcontainer/api';
-import {
-   decodeSnapshotContent,
-   hasBinarySnapshotExtension,
-} from '@challenge/shared/snapshot-content';
+import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
 import { normalizePath, splitPath } from '~/utils/path-utils';
 
 const writeFile = (
@@ -16,12 +13,6 @@ const writeFile = (
          typeof contents === 'string'
             ? decodeSnapshotContent(fileName, contents)
             : contents;
-      if (typeof decoded === 'string' && hasBinarySnapshotExtension(fileName)) {
-         console.warn(
-            `[webcontainer] ${fileName} 不是合法的 base64，按文本写入：`,
-            decoded.slice(0, 64)
-         );
-      }
       fs[fileName] = { file: { contents: decoded } };
       return;
    }

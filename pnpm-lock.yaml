@@ -423,6 +423,9 @@ importers:
       es-module-lexer:
         specifier: ^1.7.0
         version: 1.7.0
+      h3:
+        specifier: ^1.15.11
+        version: 1.15.11
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1

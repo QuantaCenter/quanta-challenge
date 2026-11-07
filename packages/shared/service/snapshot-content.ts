@@ -80,6 +80,52 @@ export const base64ToUint8Array = (base64: string): Uint8Array => {
    return bytes;
 };
 
+/** 严格提取 base64 data URL 的字节；格式无效时返回 undefined。 */
+export const parseSnapshotBase64DataUrl = (
+   content: string
+): Uint8Array | undefined => {
+   const match = /^data:[^,\s]*;base64,([A-Za-z0-9+/]*={0,2})$/i.exec(content);
+   if (!match) return undefined;
+   const payload = match[1] ?? '';
+   if (payload.length % 4 !== 0) return undefined;
+   try {
+      const bytes = base64ToUint8Array(payload);
+      if (btoa(atob(payload)) !== payload) return undefined;
+      return bytes;
+   } catch {
+      return undefined;
+   }
+};
+
+const INVALID_TEXT_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+
+/** 将原始字节编码为无损快照内容。 */
+export const encodeSnapshotBytes = (
+   bytes: Uint8Array,
+   forceBinary = false
+): string => {
+   try {
+      const text = new TextDecoder('utf-8', {
+         fatal: true,
+         ignoreBOM: true,
+      }).decode(bytes);
+      if (
+         !forceBinary &&
+         !INVALID_TEXT_CHARACTERS.test(text) &&
+         !text.startsWith('data:')
+      ) {
+         return text;
+      }
+   } catch {
+      // 非 UTF-8 内容使用二进制编码。
+   }
+   let binary = '';
+   for (let i = 0; i < bytes.length; i += 8192) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
+   }
+   return `data:application/octet-stream;base64,${btoa(binary)}`;
+};
+
 /** data URL 与二进制扩展名的 base64 都解码为字节，其余按原样返回 */
 export const decodeSnapshotContent = (
    filePath: string,
@@ -97,6 +143,8 @@ export const decodeSnapshotContent = (
             return payload;
          }
       }
+      const strictBytes = parseSnapshotBase64DataUrl(content);
+      if (strictBytes) return strictBytes;
       const base64 = normalizeBase64(payload);
       return base64 ? base64ToUint8Array(base64) : content;
    }

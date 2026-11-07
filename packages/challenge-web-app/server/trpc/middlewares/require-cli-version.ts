@@ -1,8 +1,8 @@
 import { getHeader } from 'h3';
 import {
-   MIN_CLI_VERSION,
    isCliVersionSatisfied,
    parseCliVersionFromUserAgent,
+   resolveMinimumCliVersion,
 } from '@challenge/shared/cli-version';
 import { TRPCError } from '@trpc/server';
 import { middleware } from '../trpc';
@@ -15,8 +15,7 @@ export const requireCliVersion = middleware(async ({ ctx, next }) => {
    const current =
       getHeader(ctx.event, CLI_VERSION_HEADER) ||
       parseCliVersionFromUserAgent(getHeader(ctx.event, 'user-agent'));
-   const required =
-      useRuntimeConfig().quanta.minCliVersion || MIN_CLI_VERSION;
+   const required = resolveMinimumCliVersion(useRuntimeConfig().quanta.minCliVersion);
 
    if (current && !isCliVersionSatisfied(current, required)) {
       throw new TRPCError({
