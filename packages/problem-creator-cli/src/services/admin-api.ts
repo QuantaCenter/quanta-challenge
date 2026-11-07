@@ -51,6 +51,12 @@ export interface AuditRecord {
    createdAt?: string;
 }
 
+export interface QualityReview {
+   status: string;
+   report?: unknown;
+   errorCode?: string | null;
+}
+
 export interface AuditDetail {
    pid: number;
    title: string;
@@ -61,6 +67,7 @@ export interface AuditDetail {
    tags: Array<{ name: string; color: string }>;
    imageName?: string;
    TemplateJudgeRecord?: Array<{ judgeRecord: AuditRecord }>;
+   QualityReviews?: QualityReview[];
    JudgeFile?: Array<{ judgeScript: string }>;
    BaseProblem?: { id: number; currentPid: number | null };
 }
@@ -118,7 +125,7 @@ export interface AdminApi {
       message: string;
    }>;
    /**
-    * 更新已有基础题目（baseId）：只改基本信息（标题/描述/标签/难度/封面）时原地生效（mode=quick），
+    * 更新已有基础题目（baseId）：只改标题/题面/标签/难度/封面等信息时原地生效（mode=quick），
     * 否则创建新版本并进入审核（mode=audit）。旧版服务端不返回 mode，按 audit 处理。
     */
    reuploadProblem(input: UploadProblemInput & { baseId: number }): Promise<{
@@ -232,6 +239,22 @@ interface RawTag {
 /** 取本题版本的判题记录（服务端按关系返回，[0] 即当前版本那条） */
 export const auditRecordOf = (detail: AuditDetail): AuditRecord | undefined =>
    detail.TemplateJudgeRecord?.[0]?.judgeRecord;
+
+/** 服务端按时间倒序返回 AI 审核记录；旧服务端可能不返回该字段。 */
+export const qualityReviewOf = (
+   detail: AuditDetail,
+): QualityReview | undefined => detail.QualityReviews?.[0];
+
+export const qualityReviewReason = (
+   review: QualityReview | undefined,
+): string | undefined => {
+   const report = review?.report;
+   if (!report || typeof report !== 'object' || !('reason' in report))
+      return undefined;
+   return typeof report.reason === 'string' && report.reason.trim()
+      ? report.reason
+      : undefined;
+};
 
 /** 审计是否已到终局：status 离开 draft 即算结束（失败时调度器只改 status 不补判题记录）。 */
 export const isAuditSettled = (detail: AuditDetail): boolean => {

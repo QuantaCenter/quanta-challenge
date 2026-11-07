@@ -47,7 +47,8 @@ const fetchPublishDetails = async () => {
       navigateTo('/app/publish/problem');
    }
    // 轮询
-   if (detail.value?.status === 'draft') {
+   const qualityStatus = detail.value?.QualityReviews[0]?.status ?? '';
+   if (detail.value?.status === 'draft' || ['pending', 'running'].includes(qualityStatus)) {
       setTimeout(() => {
          fetchPublishDetails();
       }, 1000);
@@ -81,6 +82,31 @@ const failedReason = computed<string>(() => {
       return '';
    }
 });
+
+const latestQualityReview = computed(() => detail.value?.QualityReviews[0]);
+const qualityWarning = computed(() => {
+   const review = latestQualityReview.value;
+   if (!review) return '';
+
+   if (review.status === 'pending' || review.status === 'running') {
+      return 'AI 质量审核正在进行。';
+   }
+   if (review.status === 'stale') {
+      return '题目内容已变化，请重新提交审核。';
+   }
+   if (review.status === 'error') {
+      return `AI 质量审核未完成${review.errorCode ? `（${review.errorCode}）` : ''}，请重新提交审核。`;
+   }
+   if (review.status !== 'rejected' && review.status !== 'needs_review') return '';
+
+   const report = review.report;
+   const reason = report && typeof report === 'object' && 'reason' in report && typeof report.reason === 'string'
+      ? report.reason
+      : '请检查判题脚本并重新提交审核。';
+   const label = review.status === 'rejected' ? 'AI 质量审核未通过' : 'AI 质量审核需要人工复核';
+   return `${label}：${reason}`;
+});
+
 const judgeResult = computed(() => {
    const judgeRecord = detail.value?.TemplateJudgeRecord[0]?.judgeRecord;
    // @ts-ignore
@@ -535,7 +561,7 @@ const handlerViewVersion = () => {
                </DataItem>
             </StSpace>
             <!-- Raw 4 -->
-            <StSpace v-if="failedReason" fill-x justify="between">
+            <StSpace v-if="failedReason || qualityWarning" fill-x justify="between">
                <DataItem title="失败原因" class="w-full">
                   <StSkeleton :loading="!detail">
                      <template #loading>
@@ -543,7 +569,8 @@ const handlerViewVersion = () => {
                      </template>
                      <div
                         class="p-4 rounded-sm bg-accent-600 w-full font-normal font-family-fira-code">
-                        <span class="text-error">{{ failedReason }}</span>
+                        <p v-if="qualityWarning" class="whitespace-pre-wrap text-error">{{ qualityWarning }}</p>
+                        <p v-if="failedReason" class="whitespace-pre-wrap text-error">{{ failedReason }}</p>
                      </div>
                   </StSkeleton>
                </DataItem>

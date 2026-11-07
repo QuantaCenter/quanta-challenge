@@ -41,6 +41,11 @@ services:
       - OBSERVATION_SERVER_URL=${OBSERVATION_SERVER_URL:-http://observation:9310}
       - OBSERVATION_REPORT_TOKEN=${OBS_REPORT_TOKEN:-}
       - RELEASE_VERSION=${RELEASE_VERSION:-}
+      - NUXT_LLM_API_KEY=${NUXT_LLM_API_KEY:-${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}}
+      - NUXT_LLM_RESPONSES_URL=${NUXT_LLM_RESPONSES_URL:-${LLM_RESPONSES_URL:-https://api.deepseek.com/responses}}
+      - NUXT_LLM_MODEL=${NUXT_LLM_MODEL:-${JUDGE_QUALITY_MODEL:-deepseek-flash}}
+      - NUXT_TIMER_QUALITY_CONCURRENCY=${NUXT_TIMER_QUALITY_CONCURRENCY:-3}
+      - NUXT_TIMER_CONCURRENCY=${NUXT_TIMER_CONCURRENCY:-3}
       # Sentry：DSN 直指 observation 服务的 Envelope 端点。服务端 SDK（sentry.server.config.ts）
       # 启动时直读 process.env；浏览器端事件走 tunnel 代理，DSN 仅作事件元数据。
       # 未设置 SENTRY_DSN 时服务端监控完全静默，浏览器端用构建期默认值。

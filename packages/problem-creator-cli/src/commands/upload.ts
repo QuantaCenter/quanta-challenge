@@ -16,6 +16,8 @@ import {
    auditRecordOf,
    createAdminApi,
    isAuditSettled,
+   qualityReviewOf,
+   qualityReviewReason,
    readAuditResults,
 } from '../services/admin-api';
 import {
@@ -67,7 +69,7 @@ export const registerUploadCommand = (registry: CommandRegistry): void => {
       )
       .option('--new', '强制新建题目（忽略配置里的 problemId）')
       .option('--write', '把本次使用的题目 id 写回配置')
-      .option('--timeout <seconds>', '审计等待超时（秒）', '180')
+      .option('--timeout <seconds>', '审计等待超时（秒）', '300')
       .option('--interval <seconds>', '审计状态轮询间隔（秒）', '2')
       .action(async (dir: string, options: Omit<UploadOptions, 'dir'>) => {
          const ctx = await context();
@@ -355,7 +357,11 @@ type WriteBackStatus = 'ok' | 'failed' | 'skipped';
 
 export interface AuditFailure {
    /** 机读错误码，与 `qpc agent errors` 对应 */
-   code: 'AUDIT_INFRA_ERROR' | 'AUDIT_SCRIPT_ERROR' | 'AUDIT_CHECKPOINT_FAILED';
+   code:
+      | 'AUDIT_INFRA_ERROR'
+      | 'AUDIT_QUALITY_REJECTED'
+      | 'AUDIT_SCRIPT_ERROR'
+      | 'AUDIT_CHECKPOINT_FAILED';
    /** 平台侧故障：与题目内容无关，原样重试即可 */
    retryable: boolean;
    summary: string;
@@ -368,6 +374,41 @@ const INFRA_ERROR_PATTERN =
 /** 把审计失败分成三类，避免把平台故障误报成"题目有问题"而诱导改题。 */
 export const classifyAuditFailure = (detail: AuditDetail): AuditFailure => {
    const retry = `与题目内容无关，不要修改题目：原样重跑 \`qpc upload --write\`（最多 3 次）；仍失败请联系平台管理员。详见 \`qpc agent errors\`。`;
+   const qualityReview = qualityReviewOf(detail);
+   if (
+      qualityReview?.status === 'rejected' ||
+      qualityReview?.status === 'needs_review'
+   ) {
+      const reason = qualityReviewReason(qualityReview);
+      return {
+         code: 'AUDIT_QUALITY_REJECTED',
+         retryable: false,
+         summary: reason
+            ? `AI 质量审核未通过（${reason}）`
+            : 'AI 质量审核未通过',
+         nextAction:
+            '根据 AI 质量审核原因检查题面和判题脚本，修正后重新提交完整审核。',
+      };
+   }
+   if (qualityReview?.status === 'stale') {
+      return {
+         code: 'AUDIT_QUALITY_REJECTED',
+         retryable: false,
+         summary: '题目内容在 AI 审核期间发生变化',
+         nextAction: '确认当前题面和判题脚本后，重新提交完整审核。',
+      };
+   }
+   if (qualityReview?.status === 'error') {
+      return {
+         code: 'AUDIT_INFRA_ERROR',
+         retryable: true,
+         summary: qualityReview.errorCode
+            ? `AI 质量审核未完成（${qualityReview.errorCode}）`
+            : 'AI 质量审核未完成',
+         nextAction: retry,
+      };
+   }
+
    const record = auditRecordOf(detail);
    if (!record) {
       return {
@@ -424,7 +465,7 @@ export const waitForAudit = async (
    intervalSeconds?: string,
 ): Promise<AuditDetail> => {
    const api = createAdminApi(ctx.client);
-   const timeoutMs = parsePositiveSeconds(timeoutSeconds, 180) * 1_000;
+   const timeoutMs = parsePositiveSeconds(timeoutSeconds, 300) * 1_000;
    const intervalMs = parsePositiveSeconds(intervalSeconds, 2) * 1_000;
    ctx.logger.step(`等待审计结果（最多 ${Math.round(timeoutMs / 1000)} 秒）`);
 
@@ -442,7 +483,7 @@ export const waitForAudit = async (
 
    if (!detail) {
       throw new PrecheckError(`等待审计超时（题目 #${problemId}）`, {
-         hint: `可能原因：调度器未运行 / 判题机容器起不来。检查 qpc status ${problemId}，并看调度器日志。`,
+         hint: `审核可能仍在排队或处理中，请先运行 qpc status ${problemId} --watch 查看结果，不要重复上传。`,
       });
    }
 

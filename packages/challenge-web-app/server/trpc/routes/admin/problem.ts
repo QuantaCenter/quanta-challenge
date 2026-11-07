@@ -23,6 +23,7 @@ import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server'
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
+import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -195,7 +196,7 @@ const handleCreateVersion = async (options: {
    return { problemId, judgeRecordId: templateJudgeRecord.judgeRecordId };
 };
 
-// 审计任务必须在事务提交后派发：调度器收到任务会立刻查库，事务未提交时会因查不到题目行直接失败
+// 持久化任务与题目版本在同一事务提交；实际投递由后台处理器完成。
 const createAuditTask = async (options: {
    judgeServerUrl: string;
    traceId: string;
@@ -204,38 +205,8 @@ const createAuditTask = async (options: {
    judgeRecordId: number;
    judgeScript: string;
    fsSnapshot: UploadInput['referenceAnswerSnapshot'];
-}) => {
-   const {
-      judgeServerUrl,
-      traceId,
-      userId,
-      problemId,
-      judgeRecordId,
-      judgeScript,
-      fsSnapshot,
-   } = options;
-   await fetch(`${judgeServerUrl}/task/create`, {
-      method: 'POST',
-      headers: {
-         'Content-Type': 'application/json',
-         'x-trace-id': traceId,
-      },
-      body: JSON.stringify({
-         userId,
-         problemId,
-         judgeRecordId,
-         judgeScript,
-         fsSnapshot,
-         mode: 'audit',
-      }),
-   }).then((res: any) => {
-      if (!res.ok) {
-         throw new TRPCError({
-            code: 'SERVICE_UNAVAILABLE',
-            message: `Failed to create task: ${res.message}`,
-         });
-      }
-   });
+}, tx: TX) => {
+   await enqueueJudgeQuality(options.problemId, options, tx);
 };
 
 // 上传新问题及其详细信息、判题脚本和答题模板。
@@ -261,32 +232,32 @@ const uploadProcedure = protectedAdminProcedure
       await ensureCoverThumbhash(input.coverImageId);
       await ensureSnapshotImageReady(input.snapshotImageId);
 
-      const { problemId, judgeRecordId } = await prisma.$transaction(
+      const { problemId } = await prisma.$transaction(
          async (tx) => {
             // 创建问题
             const baseProblem = await tx.baseProblems.create({
                data: { authorId: userId },
             });
             // 创建问题版本
-            return handleCreateVersion({
+            const version = await handleCreateVersion({
                tx,
                input,
                userId,
                baseProblemId: baseProblem.id,
                judgeScript,
             });
+            await createAuditTask({
+               judgeServerUrl: judge.serverUrl,
+               traceId: ctx.traceId ?? '',
+               userId,
+               problemId: version.problemId,
+               judgeRecordId: version.judgeRecordId,
+               judgeScript,
+               fsSnapshot: input.referenceAnswerSnapshot,
+            }, tx);
+            return version;
          },
       );
-
-      await createAuditTask({
-         judgeServerUrl: judge.serverUrl,
-         traceId: ctx.traceId ?? '',
-         userId,
-         problemId,
-         judgeRecordId,
-         judgeScript,
-         fsSnapshot: input.referenceAnswerSnapshot,
-      });
 
       return {
          message: 'Problem created and task queued successfully',
@@ -319,6 +290,19 @@ const getAuditDetailProcedure = protectedAdminProcedure
             taskStartAt: true,
             taskEndAt: true,
             scheduledPublishAt: true,
+            QualityReviews: {
+               orderBy: { createdAt: 'desc' },
+               take: 5,
+               select: {
+                  id: true,
+                  status: true,
+                  model: true,
+                  report: true,
+                  errorCode: true,
+                  generation: true,
+                  createdAt: true,
+               },
+            },
             tags: {
                select: {
                   name: true,
@@ -428,16 +412,24 @@ const setStatusProcedure = protectedAdminProcedure
 
       const newStatus = publish ? 'published' : 'ready';
 
-      await prisma.problems.update({
-         where: {
-            pid: problemId,
-         },
-         data: {
-            status: newStatus,
-            // 立即发布/取消发布即放弃定时
-            scheduledPublishAt: null,
-         },
-      });
+      await prisma.$transaction(async (tx) => {
+         if (publish) {
+            await assertJudgeQuality(problemId, tx);
+         }
+
+         await tx.problems.update({
+            where: {
+               pid: problemId,
+               status: { in: ['ready', 'published'] },
+               BaseProblem: { OR: [{ currentPid: problemId }, { currentPid: null }] },
+            },
+            data: {
+               status: newStatus,
+               // 立即发布/取消发布即放弃定时
+               scheduledPublishAt: null,
+            },
+         });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       await cancelPublishScheduledTask(problemId);
 
       return { message: `Problem is now ${newStatus}` };
@@ -765,6 +757,9 @@ const reuploadProcedure = protectedAdminProcedure
          });
       }
 
+      const scriptUnchanged = Boolean(currentScript) &&
+         (judgeScript === currentScript || judgeScript === currentJudgeScript);
+
       await ensureCoverThumbhash(input.coverImageId);
       // 未传入时沿用当前版本的值
       const snapshotImageId =
@@ -775,8 +770,7 @@ const reuploadProcedure = protectedAdminProcedure
          await ensureSnapshotImageReady(snapshotImageId);
       }
 
-      // 只改了标题、描述、标签、难度、封面、快照镜像时原地更新当前版本，不重新审核；
-      // 其余字段会影响判题结果，必须创建新版本并审核
+      // 标题、题面和展示元数据可以原地更新；影响判题的内容仍需重新审核。
       const auditReasons: AuditReason[] = [];
       if (!current) {
          auditReasons.push('status');
@@ -788,7 +782,7 @@ const reuploadProcedure = protectedAdminProcedure
             auditReasons.push('status');
          }
          // CLI 传的是源码（提取后应等于库里的值），Web 回传的是库里已提取的代码（再提取后比较）
-         if (judgeScript !== currentScript && judgeScript !== currentJudgeScript) {
+         if (!scriptUnchanged) {
             auditReasons.push('judgeScript');
          }
          const templateFiles = Object.entries(input.answerTemplateSnapshot).map(
@@ -873,7 +867,7 @@ const reuploadProcedure = protectedAdminProcedure
       }
 
       // 创建新问题版本
-      const { problemId, judgeRecordId } = await prisma.$transaction(
+      const { problemId } = await prisma.$transaction(
          async (tx) => {
             const version = await handleCreateVersion({
                tx,
@@ -893,19 +887,18 @@ const reuploadProcedure = protectedAdminProcedure
                   },
                });
             }
+            await createAuditTask({
+               judgeServerUrl: judge.serverUrl,
+               traceId,
+               userId,
+               problemId: version.problemId,
+               judgeRecordId: version.judgeRecordId,
+               judgeScript,
+               fsSnapshot: input.referenceAnswerSnapshot,
+            }, tx);
             return version;
          },
       );
-
-      await createAuditTask({
-         judgeServerUrl: judge.serverUrl,
-         traceId,
-         userId,
-         problemId,
-         judgeRecordId,
-         judgeScript,
-         fsSnapshot: input.referenceAnswerSnapshot,
-      });
 
       return {
          message: 'Problem re-uploaded successfully',

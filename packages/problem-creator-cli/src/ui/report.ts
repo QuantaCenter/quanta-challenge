@@ -1,6 +1,11 @@
 import type { Logger } from '../core/logger';
 import type { Finding, Severity, ValidationReport } from '../domain/validate';
-import { type AuditDetail, readAuditResults } from '../services/admin-api';
+import {
+   type AuditDetail,
+   qualityReviewOf,
+   qualityReviewReason,
+   readAuditResults,
+} from '../services/admin-api';
 import { formatBytes } from '../utils/paths';
 
 const SEVERITY_LABEL: Record<Severity, string> = {
@@ -85,6 +90,8 @@ export const renderAuditDetail = (
    const { colors } = logger;
    const record = detail.TemplateJudgeRecord?.[0]?.judgeRecord;
    const { results, errorMessage } = readAuditResults(record);
+   const qualityReview = qualityReviewOf(detail);
+   const qualityReason = qualityReviewReason(qualityReview);
    const score = record?.score ?? 0;
 
    logger.step(`题目 #${detail.pid} ${detail.title}`);
@@ -94,6 +101,23 @@ export const renderAuditDetail = (
       ['审计得分', `${score} / ${detail.totalScore}`],
       ['审计结果', record?.result ?? 'unknown'],
    ]);
+
+   if (
+      qualityReview &&
+      ['rejected', 'needs_review', 'error', 'stale'].includes(
+         qualityReview.status,
+      )
+   ) {
+      if (
+         (qualityReview.status === 'rejected' ||
+            qualityReview.status === 'needs_review') &&
+         qualityReason
+      ) {
+         logger.error(`AI 质量审核：${qualityReason}`);
+      } else if (qualityReview.errorCode)
+         logger.error(`AI 质量审核未完成：${qualityReview.errorCode}`);
+      else logger.error(`AI 质量审核状态：${qualityReview.status}`);
+   }
 
    for (const [index, item] of results.entries()) {
       const mark = item.status === 'pass' ? colors.green('✔') : colors.red('✖');
@@ -128,11 +152,21 @@ export const validationToJson = (
 
 export const auditToJson = (detail: AuditDetail): Record<string, unknown> => {
    const record = detail.TemplateJudgeRecord?.[0]?.judgeRecord;
+   const qualityReview = qualityReviewOf(detail);
    return {
       problemId: detail.pid,
       title: detail.title,
       status: detail.status,
       totalScore: detail.totalScore,
+      ...(qualityReview
+         ? {
+              qualityReview: {
+                 status: qualityReview.status,
+                 reason: qualityReviewReason(qualityReview) ?? null,
+                 errorCode: qualityReview.errorCode ?? null,
+              },
+           }
+         : {}),
       audit: record
          ? {
               result: record.result,

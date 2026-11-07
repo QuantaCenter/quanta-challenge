@@ -332,6 +332,11 @@ export default defineNuxtConfig({
       judge: {
          serverUrl: env('JUDGE_SERVER', 'http://localhost:1888'),
       },
+      llm: {
+         apiKey: '',
+         responsesUrl: 'https://api.deepseek.com/responses',
+         model: 'deepseek-flash',
+      },
       quanta: {
          // 出题 CLI 的最低版本，留空用 @challenge/shared/cli-version 的内置值
          minCliVersion: env('QUANTA_MIN_CLI_VERSION', ''),
@@ -360,6 +365,8 @@ export default defineNuxtConfig({
          smtpPassword: env('EMAIL_SMTP_PASSWORD', ''),
       },
       timer: {
+         qualityConcurrency: envInt('TIMER_QUALITY_CONCURRENCY', 3),
+         concurrency: envInt('TIMER_CONCURRENCY', 3),
          // 定时器 Worker 轮询间隔与单次领取批量
          pollIntervalMs: envInt('TIMER_POLL_INTERVAL_MS', 5000),
          batchSize: envInt('TIMER_BATCH_SIZE', 20),

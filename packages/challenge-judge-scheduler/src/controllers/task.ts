@@ -18,7 +18,10 @@ taskRoute.post('/create', zValidator('json', CreateTaskSchema), async (c) => {
    };
    const job = await runWithRequestContext(
       { traceId: data.traceId ?? createTraceId(), userId: data.userId },
-      async () => QueueService.instance.getQueue<Job>('judge-task').add('judge-task', data),
+      async () => QueueService.instance.getQueue<Job>('judge-task').add('judge-task', data, {
+         // The quality queue may retry delivery after a process restart.
+         jobId: `judge-${data.judgeRecordId}`,
+      }),
    );
 
    return c.json(

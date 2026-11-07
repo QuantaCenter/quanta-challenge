@@ -184,7 +184,7 @@ const listAllProcedure = protectedAdminProcedure
    )
    .query(async ({ input }) => {
       const tasks = await prisma.timerTask.findMany({
-         where: input.status ? { status: input.status } : {},
+         where: { handlerId: { not: 'judge-quality' }, ...(input.status ? { status: input.status } : {}) },
          orderBy: { createdAt: 'desc' },
          take: 100,
       });
@@ -231,7 +231,7 @@ const cancelProcedure = protectedAdminProcedure
          where: { id: input.id },
          select: { status: true, handlerId: true, payload: true },
       });
-      if (!task || task.status !== 'pending') {
+      if (!task || task.status !== 'pending' || task.handlerId === 'judge-quality') {
          throw new TRPCError({
             code: 'BAD_REQUEST',
             message: '任务不存在或已不在待执行状态',
@@ -261,7 +261,7 @@ const retryProcedure = protectedAdminProcedure
    .input(TaskIdSchema)
    .mutation(async ({ input }) => {
       const result = await prisma.timerTask.updateMany({
-         where: { id: input.id, status: 'failed' },
+         where: { id: input.id, status: 'failed', handlerId: { not: 'judge-quality' } },
          data: { status: 'pending', runAt: dayjs().toDate(), error: null },
       });
       if (result.count === 0) {
@@ -278,7 +278,7 @@ const removeProcedure = protectedAdminProcedure
    .input(TaskIdSchema)
    .mutation(async ({ input }) => {
       const result = await prisma.timerTask.deleteMany({
-         where: { id: input.id, status: { in: ['done', 'failed'] } },
+         where: { id: input.id, status: { in: ['done', 'failed'] }, handlerId: { not: 'judge-quality' } },
       });
       if (result.count === 0) {
          throw new TRPCError({

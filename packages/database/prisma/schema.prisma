@@ -246,6 +246,7 @@ model Problems {
   tags            Tags[]
 
   AuditRecord                 AuditRecords[]
+  QualityReviews              ProblemQualityReview[]
   StatusTransitions           StatusTransitions[]
   JudgeFile                   JudgeFiles[]
   Project                     Projects[]
@@ -316,6 +317,23 @@ enum Status {
 }
 
 // 审核记录表
+model ProblemQualityReview {
+  id            String   @id @default(cuid())
+  problemId     Int
+  inputHash     String
+  status        String
+  model         String
+  report        Json?
+  errorCode     String?
+  generation    Json?
+  createdAt     DateTime @default(now())
+  completedAt   DateTime?
+  problem       Problems @relation(fields: [problemId], references: [pid], onDelete: Cascade)
+
+  @@index([problemId, inputHash, createdAt])
+  @@map("problem_quality_reviews")
+}
+
 model AuditRecords {
   rid       Int      @id @default(autoincrement())
   problemId Int

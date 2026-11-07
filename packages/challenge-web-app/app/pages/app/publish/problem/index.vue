@@ -598,7 +598,7 @@ const handleSubmit = async () => {
                   </div>
                </template>
                <template v-else>
-                  <div>只修改了标题、描述、标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。</div>
+                  <div>只修改了标题、题面、标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。</div>
                   <div class="text-accent-300">
                      用户的完成状态、作答文件和提交记录都不受影响。
                   </div>
