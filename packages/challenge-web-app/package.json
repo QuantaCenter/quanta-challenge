@@ -3,6 +3,7 @@
    "private": true,
    "type": "module",
    "scripts": {
+      "test:judge-quality": "node --experimental-strip-types --test tests/judge-quality.test.ts tests/judge-quality-retry.test.ts tests/judge-quality-provider.test.ts",
       "test:oauth": "node --experimental-strip-types --test tests/quanta-oauth.test.ts tests/quanta-oauth-accounts.test.ts tests/quanta-oauth-client.test.ts tests/quanta-oauth-rpc.test.ts",
       "test:observation": "node --experimental-strip-types --test tests/navigation-observation.test.ts",
       "lint:oauth": "biome check --diagnostic-level=warn --error-on-warnings .",
@@ -52,6 +53,7 @@
       "clsx": "^2.1.1",
       "color": "^5.0.0",
       "dayjs": "^1.11.13",
+      "diff": "^9.0.0",
       "es-module-lexer": "^1.7.0",
       "highlight.js": "^11.11.1",
       "ioredis": "^5.6.1",
@@ -85,7 +87,7 @@
       "vue-router": "^5.4.0",
       "xterm": "^5.3.0",
       "xterm-addon-fit": "^0.8.0",
-      "zod": "^4.0.5"
+      "zod": "^4.6.7"
    },
    "devDependencies": {
       "@biomejs/biome": "2.5.15",

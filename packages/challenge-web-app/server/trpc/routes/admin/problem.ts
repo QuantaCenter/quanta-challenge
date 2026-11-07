@@ -23,6 +23,7 @@ import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server'
 import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
+import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -35,6 +36,7 @@ type UploadInput = z.infer<typeof UploadSchema>;
 type AuditReason =
    | 'status'
    | 'judgeScript'
+   | 'content'
    | 'answerTemplate'
    | 'totalScore'
    | 'runtime'
@@ -205,37 +207,7 @@ const createAuditTask = async (options: {
    judgeScript: string;
    fsSnapshot: UploadInput['referenceAnswerSnapshot'];
 }) => {
-   const {
-      judgeServerUrl,
-      traceId,
-      userId,
-      problemId,
-      judgeRecordId,
-      judgeScript,
-      fsSnapshot,
-   } = options;
-   await fetch(`${judgeServerUrl}/task/create`, {
-      method: 'POST',
-      headers: {
-         'Content-Type': 'application/json',
-         'x-trace-id': traceId,
-      },
-      body: JSON.stringify({
-         userId,
-         problemId,
-         judgeRecordId,
-         judgeScript,
-         fsSnapshot,
-         mode: 'audit',
-      }),
-   }).then((res: any) => {
-      if (!res.ok) {
-         throw new TRPCError({
-            code: 'SERVICE_UNAVAILABLE',
-            message: `Failed to create task: ${res.message}`,
-         });
-      }
-   });
+   await enqueueJudgeQuality(options.problemId, options);
 };
 
 // 上传新问题及其详细信息、判题脚本和答题模板。
@@ -319,6 +291,19 @@ const getAuditDetailProcedure = protectedAdminProcedure
             taskStartAt: true,
             taskEndAt: true,
             scheduledPublishAt: true,
+            QualityReviews: {
+               orderBy: { createdAt: 'desc' },
+               take: 5,
+               select: {
+                  id: true,
+                  status: true,
+                  model: true,
+                  report: true,
+                  errorCode: true,
+                  generation: true,
+                  createdAt: true,
+               },
+            },
             tags: {
                select: {
                   name: true,
@@ -428,16 +413,24 @@ const setStatusProcedure = protectedAdminProcedure
 
       const newStatus = publish ? 'published' : 'ready';
 
-      await prisma.problems.update({
-         where: {
-            pid: problemId,
-         },
-         data: {
-            status: newStatus,
-            // 立即发布/取消发布即放弃定时
-            scheduledPublishAt: null,
-         },
-      });
+      await prisma.$transaction(async (tx) => {
+         if (publish) {
+            await assertJudgeQuality(problemId, tx);
+         }
+
+         await tx.problems.update({
+            where: {
+               pid: problemId,
+               status: { in: ['ready', 'published'] },
+               BaseProblem: { OR: [{ currentPid: problemId }, { currentPid: null }] },
+            },
+            data: {
+               status: newStatus,
+               // 立即发布/取消发布即放弃定时
+               scheduledPublishAt: null,
+            },
+         });
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       await cancelPublishScheduledTask(problemId);
 
       return { message: `Problem is now ${newStatus}` };
@@ -721,6 +714,8 @@ const reuploadProcedure = protectedAdminProcedure
                CurrentProblem: {
                   select: {
                      pid: true,
+                     title: true,
+                     detail: true,
                      status: true,
                      totalScore: true,
                      bootCommand: true,
@@ -775,8 +770,7 @@ const reuploadProcedure = protectedAdminProcedure
          await ensureSnapshotImageReady(snapshotImageId);
       }
 
-      // 只改了标题、描述、标签、难度、封面、快照镜像时原地更新当前版本，不重新审核；
-      // 其余字段会影响判题结果，必须创建新版本并审核
+      // 仅展示元数据可以原地更新；题面会影响反馈准确性，必须创建新版本审核。
       const auditReasons: AuditReason[] = [];
       if (!current) {
          auditReasons.push('status');
@@ -786,6 +780,9 @@ const reuploadProcedure = protectedAdminProcedure
             (a?.trim() || null) === (b?.trim() || null);
          if (!['ready', 'published'].includes(current.status)) {
             auditReasons.push('status');
+         }
+         if (input.title !== current.title || input.detail !== current.detail) {
+            auditReasons.push('content');
          }
          // CLI 传的是源码（提取后应等于库里的值），Web 回传的是库里已提取的代码（再提取后比较）
          if (judgeScript !== currentScript && judgeScript !== currentJudgeScript) {

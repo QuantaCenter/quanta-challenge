@@ -18,6 +18,9 @@ services:
       # 使用 http：开发环境走本地 HTTP，写 https 会让 cookie 的 secure 属性与协议不符
       - APP_SERVER=http://localhost:3000
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888
+      - NUXT_LLM_API_KEY=${NUXT_LLM_API_KEY:-${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}}
+      - NUXT_LLM_RESPONSES_URL=${NUXT_LLM_RESPONSES_URL:-${LLM_RESPONSES_URL:-https://api.deepseek.com/responses}}
+      - NUXT_LLM_MODEL=${NUXT_LLM_MODEL:-${JUDGE_QUALITY_MODEL:-deepseek-flash}}
       # 从 docker/.env 读取，避免把管理员口令写进版本库（可用 SUPER_ADMIN_PASSWORD 等覆盖）
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:-stillsoda}
       - SUPER_PASSWORD=${SUPER_ADMIN_PASSWORD:-stillsoda123}

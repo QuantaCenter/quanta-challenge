@@ -332,6 +332,11 @@ export default defineNuxtConfig({
       judge: {
          serverUrl: env('JUDGE_SERVER', 'http://localhost:1888'),
       },
+      llm: {
+         apiKey: '',
+         responsesUrl: 'https://api.deepseek.com/responses',
+         model: 'deepseek-flash',
+      },
       quanta: {
          // 出题 CLI 的最低版本，留空用 @challenge/shared/cli-version 的内置值
          minCliVersion: env('QUANTA_MIN_CLI_VERSION', ''),

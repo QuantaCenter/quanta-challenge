@@ -1,12 +1,14 @@
+import { Prisma } from '@prisma/client';
 import prisma from '~~/lib/prisma';
 import { logger } from '~~/server/utils/logger';
 import { dispatchTimerTask, registerTimerHandler } from '../utils/timer';
+import { assertJudgeQuality } from './judge-quality';
 
 const HANDLER_ID = 'publish-scheduled-problem';
 
 // 条件更新防止与改期/立即发布并发冲突，未命中则静默跳过
-const publishIfDue = async (problemId: number) => {
-   const problem = await prisma.problems.findUnique({
+const publishIfDue = async (problemId: number) => prisma.$transaction(async (tx) => {
+   const problem = await tx.problems.findUnique({
       where: { pid: problemId },
       select: {
          status: true,
@@ -27,7 +29,11 @@ const publishIfDue = async (problemId: number) => {
    const isCurrentVersion =
       !problem.BaseProblem.currentPid ||
       problem.BaseProblem.currentPid === problemId;
-   const { count } = await prisma.problems.updateMany({
+   if (isCurrentVersion) {
+      await assertJudgeQuality(problemId, tx);
+   }
+
+   const { count } = await tx.problems.updateMany({
       where: {
          pid: problemId,
          status: 'ready',
@@ -47,7 +53,7 @@ const publishIfDue = async (problemId: number) => {
          '定时发布执行完成',
       );
    }
-};
+}, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
 export const registerPublishScheduledProblemHandler = () => {
    registerTimerHandler<{ problemId: number }>(HANDLER_ID, async (payload) => {
