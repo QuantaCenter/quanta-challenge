@@ -7,6 +7,7 @@ import { observer } from '../../services/achievement';
 import { logger } from '~~/server/utils/logger';
 import { prepareAssets } from '../../services/file-assets';
 import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
+import type { VirtualFiles } from '@prisma/client';
 
 const movedContent = (file: { path: string; content: string | null }) => {
    if (file.content === null || file.content.startsWith('data:')) return file.content;
@@ -94,7 +95,7 @@ const syncFileChangesProcedure = protectedProcedure
       }
 
       const writes = changes.filter((change) => change.type === 'change' || change.type === 'create');
-      const assets = await prepareAssets(writes, userId);
+      const assets = await prepareAssets(writes, userId, { deferExistingVerification: true });
       let committed = false;
       try {
          await prisma.$transaction(async (tx) => {
@@ -131,7 +132,7 @@ const syncFileChangesProcedure = protectedProcedure
                include: {
                   FileSystem: {
                      include: {
-                        files: true,
+                        files: { include: { asset: true } },
                      },
                   },
                },
@@ -145,9 +146,12 @@ const syncFileChangesProcedure = protectedProcedure
             }
 
             const fileSystemId = project.FileSystem[0].fsid;
-            const preparedWrites = await assets.bind(tx);
+            const reusableAssets = project.FileSystem[0].files.flatMap((file) =>
+               file.asset ? [file.asset] : [],
+            );
+            const preparedWrites = await assets.bind(tx, { reusableAssets });
             let writeIndex = 0;
-            const existingFiles = new Map(
+            const existingFiles = new Map<string, VirtualFiles>(
                project.FileSystem[0].files.map((f) => [
                   toProjectPath(f.path),
                   f,
