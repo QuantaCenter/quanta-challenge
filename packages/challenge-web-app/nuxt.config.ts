@@ -365,7 +365,8 @@ export default defineNuxtConfig({
          smtpPassword: env('EMAIL_SMTP_PASSWORD', ''),
       },
       timer: {
-         qualityConcurrency: envInt('TIMER_QUALITY_CONCURRENCY', 1),
+         qualityConcurrency: envInt('TIMER_QUALITY_CONCURRENCY', 3),
+         concurrency: envInt('TIMER_CONCURRENCY', 3),
          // 定时器 Worker 轮询间隔与单次领取批量
          pollIntervalMs: envInt('TIMER_POLL_INTERVAL_MS', 5000),
          batchSize: envInt('TIMER_BATCH_SIZE', 20),

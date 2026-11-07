@@ -83,7 +83,7 @@ test('AI review dispatch is transactional, retryable and does not dispatch rejec
       assert.equal(await prisma.problemQualityReview.count({ where: { problemId: approved.problem.pid } }), 1);
 
       startTimerWorker({
-         pollIntervalMs: 50, batchSize: 5, retryBackoffMs: 10, maxRetryBackoffMs: 20,
+         pollIntervalMs: 50, batchSize: 5, concurrency: 3, retryBackoffMs: 10, maxRetryBackoffMs: 20,
          isolatedHandlers: [{ handlerId: 'judge-quality', concurrency: 1, leaseMs: 300_000, clearPayload: true }],
       });
       await waitUntil(async () => (await prisma.timerTask.findFirstOrThrow({ where: { handlerId: 'judge-quality' } })).status === 'done');

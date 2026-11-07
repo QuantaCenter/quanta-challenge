@@ -208,11 +208,7 @@ async function poll(batchSize: number, channel?: IsolatedTimerHandler): Promise<
       });
     }
     const rows = await claimDueTasks(batchSize, channel?.handlerId);
-    if (channel) {
-      await Promise.all(rows.map(executeTask));
-    } else {
-      for (const row of rows) await executeTask(row);
-    }
+    await Promise.all(rows.map(executeTask));
   } catch (err) {
     logger.error({ err }, '[timer] 轮询定时任务失败');
   }
@@ -223,6 +219,8 @@ export type TimerWorkerOptions = {
   pollIntervalMs: number;
   /** 单次轮询最多领取的任务数 */
   batchSize: number;
+  /** 普通任务单实例最大并发数 */
+  concurrency: number;
   /** 失败重试退避基数毫秒数 */
   retryBackoffMs: number;
   /** 重试退避上限毫秒数 */
@@ -247,6 +245,10 @@ function shouldClearPayload(handlerId: string): boolean {
   return workerConfig.isolatedHandlers?.some(channel => channel.handlerId === handlerId && channel.clearPayload) ?? false;
 }
 
+function boundedConcurrency(value: number): number {
+  return Number.isFinite(value) ? Math.min(20, Math.max(1, Math.floor(value))) : 1;
+}
+
 /**
  * 启动定时任务 Worker：按 pollIntervalMs 间隔轮询数据库。
  * 幂等，可安全地在 Nitro 插件中调用；轮询本身有重入保护。
@@ -256,21 +258,22 @@ export function startTimerWorker(options: TimerWorkerOptions): void {
 
   workerConfig = options;
   const { pollIntervalMs, batchSize } = options;
+  const normalBatchSize = Math.min(batchSize, boundedConcurrency(options.concurrency));
 
   interval = setInterval(() => {
     if (polling) return;
     polling = true;
-    void poll(batchSize).finally(() => {
+    void poll(normalBatchSize).finally(() => {
       polling = false;
     });
   }, pollIntervalMs);
   // 不阻止进程退出
   interval.unref?.();
 
-  logger.info(`[timer] 定时任务 Worker 已启动，每 ${pollIntervalMs / 1000}s 轮询一次，单批最多 ${batchSize} 个任务`);
+  logger.info(`[timer] 定时任务 Worker 已启动，每 ${pollIntervalMs / 1000}s 轮询一次，普通任务并发上限 ${normalBatchSize}`);
   // 启动即先拉取一次，避免重启后积压任务等到下一个周期
   polling = true;
-  void poll(batchSize).finally(() => {
+  void poll(normalBatchSize).finally(() => {
     polling = false;
   });
 
@@ -279,9 +282,7 @@ export function startTimerWorker(options: TimerWorkerOptions): void {
     const pollChannel = () => {
       if (channelPolling) return;
       channelPolling = true;
-      const concurrency = Number.isFinite(channel.concurrency)
-        ? Math.min(20, Math.max(1, Math.floor(channel.concurrency)))
-        : 1;
+      const concurrency = boundedConcurrency(channel.concurrency);
       void poll(concurrency, channel).finally(() => { channelPolling = false; });
     };
     const channelInterval = setInterval(pollChannel, pollIntervalMs);

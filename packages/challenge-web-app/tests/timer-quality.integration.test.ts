@@ -44,7 +44,7 @@ test('transactional enqueue, isolated consumption and stale claim fencing', asyn
       const qualityId = await dispatchTimerTask('judge-quality', { private: 'reference answer' });
       const normalId = await dispatchTimerTask('test-normal');
       startTimerWorker({
-         pollIntervalMs: 50, batchSize: 5, retryBackoffMs: 10, maxRetryBackoffMs: 20,
+         pollIntervalMs: 50, batchSize: 5, concurrency: 3, retryBackoffMs: 10, maxRetryBackoffMs: 20,
          isolatedHandlers: [{ handlerId: 'judge-quality', concurrency: 1, leaseMs: 300_000, clearPayload: true }],
       });
 
@@ -66,6 +66,62 @@ test('transactional enqueue, isolated consumption and stale claim fencing', asyn
       releaseQuality();
       stopTimerWorker();
       await prisma.timerTask.deleteMany({ where: { handlerId: { in: ['judge-quality', 'test-normal'] } } });
+      await prisma.$disconnect();
+   }
+});
+
+test('normal and isolated channels each run at most three tasks concurrently', async () => {
+   const databaseUrl = new URL(process.env.DATABASE_URL ?? '');
+   assert.equal(process.env.TIMER_INTEGRATION_TEST, '1');
+   assert.equal(databaseUrl.hostname, '127.0.0.1');
+   assert.equal(databaseUrl.pathname, '/quanta_timer_test');
+
+   const handlerIds = ['test-concurrent-normal', 'test-concurrent-isolated'];
+   await prisma.timerTask.deleteMany({ where: { handlerId: { in: handlerIds } } });
+   let releaseTasks!: () => void;
+   const blocked = new Promise<void>(resolve => { releaseTasks = resolve; });
+   const started = { normal: 0, isolated: 0 };
+
+   registerTimerHandler(handlerIds[0]!, async () => {
+      started.normal++;
+      await blocked;
+   });
+   registerTimerHandler(handlerIds[1]!, async () => {
+      started.isolated++;
+      await blocked;
+   });
+
+   try {
+      for (let index = 0; index < 4; index++) {
+         await dispatchTimerTask(handlerIds[0]!);
+         await dispatchTimerTask(handlerIds[1]!);
+      }
+
+      startTimerWorker({
+         pollIntervalMs: 50,
+         batchSize: 20,
+         concurrency: 3,
+         retryBackoffMs: 10,
+         maxRetryBackoffMs: 20,
+         isolatedHandlers: [{ handlerId: handlerIds[1]!, concurrency: 3, leaseMs: 300_000, clearPayload: false }],
+      });
+
+      await waitUntil(async () => started.normal === 3 && started.isolated === 3);
+      const pending = await prisma.timerTask.groupBy({
+         by: ['handlerId'],
+         where: { handlerId: { in: handlerIds }, status: 'pending' },
+         _count: true,
+      });
+      assert.deepEqual(pending.map(row => row._count).sort(), [1, 1]);
+
+      releaseTasks();
+      await waitUntil(async () => await prisma.timerTask.count({
+         where: { handlerId: { in: handlerIds }, status: 'done' },
+      }) === 8);
+   } finally {
+      releaseTasks();
+      stopTimerWorker();
+      await prisma.timerTask.deleteMany({ where: { handlerId: { in: handlerIds } } });
       await prisma.$disconnect();
    }
 });
