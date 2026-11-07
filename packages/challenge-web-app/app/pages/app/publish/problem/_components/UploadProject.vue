@@ -4,6 +4,11 @@ import type { IDirectory } from '~/components/st/DropUploader/walk-file-list';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import { normalizePath, getBaseName, joinPath } from '~/utils/path-utils';
 import { buildFileSystemTree } from '~/utils/fs-tree';
+import {
+   snapshotBinaryBytes,
+   snapshotDownloadUrl,
+   snapshotImageUrl,
+} from '~/utils/snapshot-preview';
 
 const props = defineProps<{
    placeholder?: string;
@@ -54,16 +59,15 @@ const previewCode = ref('');
 const previewCodeLang = ref('plaintext');
 const currentFilePath = ref<string>();
 const previewImageBase64 = ref<string>();
+const previewDownloadUrl = ref<string>();
+const previewBinarySize = ref(0);
 const handleFileOrFolderClick = (target: IFileSystemItem) => {
    if (target.type === 'folder') return;
-   if (target.content?.startsWith('data:image')) {
-      previewImageBase64.value = target.content;
-      currentFilePath.value = target.path;
-      previewCode.value = '';
-      return;
-   }
-   previewImageBase64.value = undefined;
-   previewCode.value = target.content || '';
+   const bytes = snapshotBinaryBytes(target.path, target.content);
+   previewImageBase64.value = snapshotImageUrl(target.path, target.content);
+   previewDownloadUrl.value = snapshotDownloadUrl(target.path, target.content);
+   previewBinarySize.value = bytes?.byteLength ?? 0;
+   previewCode.value = bytes ? '' : target.content || '';
    previewCodeLang.value = detectLanguage(target.name);
    currentFilePath.value = target.path;
 };
@@ -136,13 +140,19 @@ watch(projectFs, restoreFileSystemItem, { immediate: true, deep: true });
          </StSpace>
          <StScrollable fill scroll class="bg-accent-600 rounded-[0.25rem] p-2">
             <StCodePreview
-               v-show="!previewImageBase64"
+               v-show="!previewDownloadUrl"
                :code="previewCode"
                :language="previewCodeLang" />
-            <StSpace v-if="previewImageBase64" fill center>
+            <StSpace v-if="previewDownloadUrl" fill center direction="vertical" gap="0.5rem">
                <img
+                  v-if="previewImageBase64"
                   :src="previewImageBase64"
                   class="max-h-[20rem] max-w-[20rem] object-contain max-md:max-w-full" />
+               <span>{{ currentFilePath && getBaseName(currentFilePath) }} · {{ previewBinarySize }} 字节</span>
+               <a
+                  :href="previewDownloadUrl"
+                  :download="currentFilePath && getBaseName(currentFilePath)"
+                  class="text-primary">下载文件</a>
             </StSpace>
          </StScrollable>
       </StSpace>

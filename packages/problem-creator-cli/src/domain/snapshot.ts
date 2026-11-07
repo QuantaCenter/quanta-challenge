@@ -1,22 +1,15 @@
 import { readFile } from 'node:fs/promises';
-import { extname, join } from 'node:path';
+import { join } from 'node:path';
+
+import {
+   encodeSnapshotBytes,
+   hasBinarySnapshotExtension,
+   parseSnapshotBase64DataUrl,
+} from '@challenge/shared/snapshot-content';
 
 import { CliError } from '../core/errors';
 import { walkFiles } from '../utils/fs';
 import { joinSnapshotKey } from '../utils/paths';
-
-/** 二进制扩展名，与 web-app 的 acceptedBinaryExtensions 对齐；二进制须以 base64 传输，按 utf8 读会静默损坏文件。 */
-export const BINARY_EXTENSIONS = new Set([
-   'png',
-   'jpg',
-   'jpeg',
-   'gif',
-   'bmp',
-   'tiff',
-   'webp',
-   'ico',
-   'cur',
-]);
 
 /** 这些目录/文件永远不进快照：构建产物与依赖不是题目内容 */
 export const DEFAULT_IGNORE = new Set([
@@ -38,16 +31,6 @@ export interface SnapshotResult {
    /** 二进制扩展名但内容是 data URL 文本、已还原成真实字节的文件（相对路径） */
    decodedDataUrls: string[];
 }
-
-const DATA_URL_PATTERN = /^data:[^,]*;base64,/i;
-
-/** 内容是 `data:...;base64,` 文本时返回解出的字节，否则返回 undefined */
-const decodeDataUrlBuffer = (buffer: Buffer): Buffer | undefined => {
-   const head = buffer.subarray(0, 128).toString('latin1');
-   if (!DATA_URL_PATTERN.test(head)) return undefined;
-   const text = buffer.toString('latin1').trim();
-   return Buffer.from(text.slice(text.indexOf(',') + 1), 'base64');
-};
 
 export interface SnapshotOptions {
    /** 挂载路径，默认 `project`（等于 judgeUploadPath） */
@@ -85,18 +68,19 @@ export const collectSnapshot = async (
       } catch (error) {
          throw new CliError(`快照读取失败：${absolutePath}`, { cause: error });
       }
-      const extension = extname(relativePath).slice(1).toLowerCase();
-      const isBinary = BINARY_EXTENSIONS.has(extension);
-      if (isBinary) {
-         const decoded = decodeDataUrlBuffer(buffer);
+      if (hasBinarySnapshotExtension(relativePath)) {
+         const decoded = parseSnapshotBase64DataUrl(
+            buffer.toString('utf8').trim(),
+         );
          if (decoded) {
-            buffer = decoded;
+            buffer = Buffer.from(decoded);
             decodedDataUrls.push(relativePath);
          }
       }
-      files[joinSnapshotKey(mountPath, relativePath)] = isBinary
-         ? buffer.toString('base64')
-         : buffer.toString('utf8');
+      files[joinSnapshotKey(mountPath, relativePath)] = encodeSnapshotBytes(
+         buffer,
+         hasBinarySnapshotExtension(relativePath),
+      );
       totalBytes += buffer.byteLength;
    }
 

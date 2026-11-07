@@ -5,6 +5,20 @@ import { projectService } from '../../services/project';
 import { observer } from '../../services/achievement';
 import { router } from '../../trpc';
 import { TRPCError } from '@trpc/server';
+import { expandFile, readProjectAsset } from '../../services/file-assets';
+import type { Prisma } from '@prisma/client';
+
+type ProjectWithFiles = Prisma.ProjectsGetPayload<{
+   include: { FileSystem: { include: { files: true } } };
+}>;
+
+const expandProject = async (project: ProjectWithFiles) => ({
+   ...project,
+   FileSystem: await Promise.all(project.FileSystem.map(async (fs) => ({
+      ...fs,
+      files: await Promise.all(fs.files.map(expandFile)),
+   }))),
+});
 
 // 获取或创建项目
 const GetOrForkProjectSchema = z.object({
@@ -15,6 +29,16 @@ const getOrForkProjectProcedure = protectedProcedure
    .input(GetOrForkProjectSchema)
    .query(async ({ ctx, input }) => {
       const { userId } = ctx.user;
+      const isAdmin = ctx.user.role === 'ADMIN' || ctx.user.role === 'SUPER_ADMIN';
+      const accessible = await prisma.problems.findFirst({
+         where: {
+            pid: input.problemId,
+            isDeprecated: false,
+            ...(isAdmin ? {} : { OR: [{ status: 'published' }, { BaseProblem: { authorId: userId } }] }),
+         },
+         select: { pid: true },
+      });
+      if (!accessible) throw new TRPCError({ code: 'NOT_FOUND', message: 'Problem not found' });
       const project = await prisma.projects.findFirst({
          where: {
             ownerId: userId,
@@ -30,7 +54,7 @@ const getOrForkProjectProcedure = protectedProcedure
          },
       });
       if (project) {
-         return project;
+         return expandProject(project);
       }
 
       const [templateProject, previousProject] = await Promise.all([
@@ -89,7 +113,7 @@ const getOrForkProjectProcedure = protectedProcedure
             },
          },
       });
-      return result;
+      return expandProject(result);
    });
 
 // 获取问题详情
@@ -428,11 +452,12 @@ const resetProjectProcedure = protectedProcedure
             },
          });
          await tx.$executeRaw`
-            INSERT INTO "virtual_files" (vid, path, content, "ownerId", "fileSystemFsid", "createdAt", "updatedAt")
+            INSERT INTO "virtual_files" (vid, path, content, "assetId", "ownerId", "fileSystemFsid", "createdAt", "updatedAt")
             SELECT
                gen_random_uuid() AS vid,
                path,
                content,
+               "assetId",
                ${userId},
                (
                   SELECT fsid FROM "file_systems" WHERE "projectId" = ${userProject.pid}
@@ -454,7 +479,15 @@ const resetProjectProcedure = protectedProcedure
       return { success: true };
    });
 
+const getProjectAssetProcedure = protectedProcedure
+   .input(z.object({ projectId: z.string(), assetId: z.string() }))
+   .query(async ({ ctx, input }) => {
+      const content = await readProjectAsset(ctx.user.userId, input.projectId, input.assetId);
+      return { content };
+   });
+
 export const problemRouter = router({
+   getProjectAsset: getProjectAssetProcedure,
    getOrForkProject: getOrForkProjectProcedure,
    getProblemDetail: getProblemDetailProcedure,
    getCurrentProblemPid: getCurrentProblemPidProcedure,
