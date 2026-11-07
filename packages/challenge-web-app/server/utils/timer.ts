@@ -8,6 +8,8 @@ export type TimerTaskSnapshot = {
   handlerId: string;
   /** 本次执行是第几次尝试（从 1 开始） */
   attempts: number;
+  /** 仅供需要租约保护的处理器验证当前领取是否仍有效。 */
+  claimedAt: Date;
 };
 
 export type TimerHandler<P = unknown> = (
@@ -16,6 +18,23 @@ export type TimerHandler<P = unknown> = (
 ) => void | Promise<void>;
 
 const handlers = new Map<string, TimerHandler<never>>();
+
+/** Lock and verify the current claim before committing a task's side effects. */
+export async function withTimerTaskLease<T>(
+  task: TimerTaskSnapshot,
+  action: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<{ id: string }[]>`
+      SELECT "id" FROM "timer_tasks"
+      WHERE "id" = ${task.taskId} AND "status" = 'running'
+        AND "updatedAt" = ${task.claimedAt}::timestamptz AT TIME ZONE 'UTC'
+      FOR UPDATE
+    `;
+    if (!rows.length) throw new Error('TIMER_LEASE_LOST');
+    return action(tx);
+  });
+}
 
 /**
  * 注册定时任务处理器（重复注册同 ID 会覆盖旧处理器）。
@@ -51,7 +70,8 @@ export type DispatchTimerOptions = {
 export async function dispatchTimerTask<P = unknown>(
   handlerId: string,
   payload?: P,
-  options: DispatchTimerOptions = {}
+  options: DispatchTimerOptions = {},
+  db: Pick<Prisma.TransactionClient, 'timerTask'> = prisma,
 ): Promise<string> {
   if (!handlers.has(handlerId)) {
     throw new Error(`[timer] 未注册的定时任务处理器: ${handlerId}`);
@@ -62,7 +82,7 @@ export async function dispatchTimerTask<P = unknown>(
       ? dayjs().add(options.delayMs, 'millisecond').toDate()
       : dayjs().toDate());
 
-  const task = await prisma.timerTask.create({
+  const task = await db.timerTask.create({
     data: {
       handlerId,
       payload:
@@ -82,6 +102,7 @@ type ClaimedRow = {
   payload: unknown;
   attempts: number;
   maxAttempts: number;
+  updatedAt: Date;
 };
 
 /**
@@ -92,17 +113,23 @@ type ClaimedRow = {
  * 与 now()（timestamptz）直接比较会被按会话时区（如 Asia/Shanghai）转换，
  * 导致任务提前最多 8 小时被执行，故必须用 now() AT TIME ZONE 'UTC' 对齐到 UTC 挂钟时间。
  */
-async function claimDueTasks(batchSize: number): Promise<ClaimedRow[]> {
+async function claimDueTasks(batchSize: number, handlerId?: string): Promise<ClaimedRow[]> {
+  const isolatedIds = workerConfig.isolatedHandlers?.map(channel => channel.handlerId) ?? [];
+  const handlerFilter = handlerId
+    ? Prisma.sql`"handlerId" = ${handlerId}`
+    : isolatedIds.length
+      ? Prisma.sql`"handlerId" NOT IN (${Prisma.join(isolatedIds)})`
+      : Prisma.sql`TRUE`;
   return prisma.$queryRaw<ClaimedRow[]>`
-    UPDATE "timer_tasks" SET "status" = 'running', "updatedAt" = now()
+    UPDATE "timer_tasks" SET "status" = 'running', "updatedAt" = now() AT TIME ZONE 'utc'
     WHERE "id" IN (
       SELECT "id" FROM "timer_tasks"
-      WHERE "status" = 'pending' AND "runAt" <= now() AT TIME ZONE 'utc'
+      WHERE "status" = 'pending' AND "runAt" <= now() AT TIME ZONE 'utc' AND ${handlerFilter}
       ORDER BY "runAt"
       LIMIT ${batchSize}
       FOR UPDATE SKIP LOCKED
     )
-    RETURNING "id", "handlerId", "payload", "attempts", "maxAttempts"
+    RETURNING "id", "handlerId", "payload", "attempts", "maxAttempts", "updatedAt"
   `;
 }
 
@@ -120,10 +147,14 @@ async function executeTask(row: ClaimedRow): Promise<void> {
       taskId: row.id,
       handlerId: row.handlerId,
       attempts: row.attempts + 1,
+      claimedAt: row.updatedAt,
     });
-    await prisma.timerTask.update({
-      where: { id: row.id },
-      data: { status: 'done', executedAt: dayjs().toDate(), error: null },
+    await prisma.timerTask.updateMany({
+      where: { id: row.id, status: 'running', updatedAt: row.updatedAt },
+      data: {
+        status: 'done', executedAt: dayjs().toDate(), error: null,
+        ...(shouldClearPayload(row.handlerId) ? { payload: Prisma.DbNull } : {}),
+      },
     });
   } catch (err) {
     await failTask(row, err);
@@ -135,10 +166,14 @@ async function failTask(row: ClaimedRow, err: unknown): Promise<void> {
   const attempts = row.attempts + 1;
 
   if (attempts >= row.maxAttempts) {
-    await prisma.timerTask.update({
-      where: { id: row.id },
-      data: { status: 'failed', attempts, error: message },
+    const result = await prisma.timerTask.updateMany({
+      where: { id: row.id, status: 'running', updatedAt: row.updatedAt },
+      data: {
+        status: 'failed', attempts, error: message,
+        ...(shouldClearPayload(row.handlerId) ? { payload: Prisma.DbNull } : {}),
+      },
     });
+    if (!result.count) return;
     logger.error(
       `[timer] 任务 ${row.id}（${row.handlerId}）执行失败，已达最大尝试次数 ${row.maxAttempts}: ${message}`
     );
@@ -149,8 +184,8 @@ async function failTask(row: ClaimedRow, err: unknown): Promise<void> {
     workerConfig.retryBackoffMs * attempts,
     workerConfig.maxRetryBackoffMs
   );
-  await prisma.timerTask.update({
-    where: { id: row.id },
+  const result = await prisma.timerTask.updateMany({
+    where: { id: row.id, status: 'running', updatedAt: row.updatedAt },
     data: {
       status: 'pending',
       attempts,
@@ -158,16 +193,25 @@ async function failTask(row: ClaimedRow, err: unknown): Promise<void> {
       runAt: dayjs().add(backoff, 'millisecond').toDate(),
     },
   });
+  if (!result.count) return;
   logger.warn(
     `[timer] 任务 ${row.id}（${row.handlerId}）执行失败，${Math.round(backoff / 1000)}s 后第 ${attempts + 1} 次重试: ${message}`
   );
 }
 
-async function poll(batchSize: number): Promise<void> {
+async function poll(batchSize: number, channel?: IsolatedTimerHandler): Promise<void> {
   try {
-    const rows = await claimDueTasks(batchSize);
-    for (const row of rows) {
-      await executeTask(row);
+    if (channel?.leaseMs) {
+      await prisma.timerTask.updateMany({
+        where: { handlerId: channel.handlerId, status: 'running', updatedAt: { lt: new Date(Date.now() - channel.leaseMs) } },
+        data: { status: 'pending' },
+      });
+    }
+    const rows = await claimDueTasks(batchSize, channel?.handlerId);
+    if (channel) {
+      await Promise.all(rows.map(executeTask));
+    } else {
+      for (const row of rows) await executeTask(row);
     }
   } catch (err) {
     logger.error({ err }, '[timer] 轮询定时任务失败');
@@ -183,11 +227,25 @@ export type TimerWorkerOptions = {
   retryBackoffMs: number;
   /** 重试退避上限毫秒数 */
   maxRetryBackoffMs: number;
+  /** 隔离处理的任务类型：不占用普通定时任务消费通道。 */
+  isolatedHandlers?: IsolatedTimerHandler[];
+};
+
+export type IsolatedTimerHandler = {
+  handlerId: string;
+  concurrency: number;
+  leaseMs: number;
+  clearPayload: boolean;
 };
 
 let workerConfig: TimerWorkerOptions;
 let interval: ReturnType<typeof setInterval> | null = null;
 let polling = false;
+const isolatedIntervals: ReturnType<typeof setInterval>[] = [];
+
+function shouldClearPayload(handlerId: string): boolean {
+  return workerConfig.isolatedHandlers?.some(channel => channel.handlerId === handlerId && channel.clearPayload) ?? false;
+}
 
 /**
  * 启动定时任务 Worker：按 pollIntervalMs 间隔轮询数据库。
@@ -215,10 +273,28 @@ export function startTimerWorker(options: TimerWorkerOptions): void {
   void poll(batchSize).finally(() => {
     polling = false;
   });
+
+  for (const channel of options.isolatedHandlers ?? []) {
+    let channelPolling = false;
+    const pollChannel = () => {
+      if (channelPolling) return;
+      channelPolling = true;
+      const concurrency = Number.isFinite(channel.concurrency)
+        ? Math.min(20, Math.max(1, Math.floor(channel.concurrency)))
+        : 1;
+      void poll(concurrency, channel).finally(() => { channelPolling = false; });
+    };
+    const channelInterval = setInterval(pollChannel, pollIntervalMs);
+    channelInterval.unref?.();
+    isolatedIntervals.push(channelInterval);
+    pollChannel();
+  }
 }
 
 export function stopTimerWorker(): void {
   if (!interval) return;
   clearInterval(interval);
   interval = null;
+  for (const channelInterval of isolatedIntervals) clearInterval(channelInterval);
+  isolatedIntervals.length = 0;
 }

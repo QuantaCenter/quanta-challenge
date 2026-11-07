@@ -21,6 +21,7 @@ services:
       - NUXT_LLM_API_KEY=${NUXT_LLM_API_KEY:-${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}}
       - NUXT_LLM_RESPONSES_URL=${NUXT_LLM_RESPONSES_URL:-${LLM_RESPONSES_URL:-https://api.deepseek.com/responses}}
       - NUXT_LLM_MODEL=${NUXT_LLM_MODEL:-${JUDGE_QUALITY_MODEL:-deepseek-flash}}
+      - NUXT_TIMER_QUALITY_CONCURRENCY=${NUXT_TIMER_QUALITY_CONCURRENCY:-1}
       # 从 docker/.env 读取，避免把管理员口令写进版本库（可用 SUPER_ADMIN_PASSWORD 等覆盖）
       - SUPER_ACCOUNT=${SUPER_ADMIN_ACCOUNT:-stillsoda}
       - SUPER_PASSWORD=${SUPER_ADMIN_PASSWORD:-stillsoda123}

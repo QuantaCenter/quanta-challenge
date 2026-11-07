@@ -4,6 +4,7 @@
    "type": "module",
    "scripts": {
       "test:judge-quality": "node --experimental-strip-types --test tests/judge-quality.test.ts tests/judge-quality-retry.test.ts tests/judge-quality-provider.test.ts",
+      "test:judge-quality:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test --test-concurrency=1 tests/timer-quality.integration.test.ts tests/judge-quality-queue.integration.test.ts",
       "test:oauth": "node --experimental-strip-types --test tests/quanta-oauth.test.ts tests/quanta-oauth-accounts.test.ts tests/quanta-oauth-client.test.ts tests/quanta-oauth-rpc.test.ts",
       "test:observation": "node --experimental-strip-types --test tests/navigation-observation.test.ts",
       "lint:oauth": "biome check --diagnostic-level=warn --error-on-warnings .",
@@ -98,6 +99,7 @@
       "@vueuse/nuxt": "^13.6.0",
       "shiki": "^3.8.1",
       "tailwindcss": "^4.1.11",
+      "tsx": "^4.20.3",
       "typescript": "^5.8.3",
       "vue-tsc": "^3.3.12"
    }

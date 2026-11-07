@@ -5,6 +5,7 @@ import { previousQualityFeedback, qualityHash, qualityPassed, validateQualityRep
 import { generateJudgeQuality } from '../utils/judge-quality-provider';
 import { createReviewDiff } from '../utils/judge-quality-diff';
 import { QualityGenerationError, type ReviewAttempt } from '../utils/judge-quality-retry';
+import { dispatchTimerTask, withTimerTaskLease, type TimerTaskSnapshot } from '../utils/timer';
 
 type QualityDatabase = Pick<Prisma.TransactionClient, 'problems' | 'problemQualityReview'>;
 
@@ -55,36 +56,34 @@ export type QualityAuditPayload = {
    fsSnapshot?: Record<string, string>;
 };
 
-export async function enqueueJudgeQuality(problemId: number, payload: QualityAuditPayload) {
-   const current = await snapshot(problemId);
+export async function enqueueJudgeQuality(problemId: number, payload: QualityAuditPayload, tx: Prisma.TransactionClient) {
+   const current = await snapshot(problemId, tx);
    if (current.script !== payload.judgeScript) throw new Error('QUALITY_SCRIPT_MISMATCH');
-   return prisma.problemQualityReview.create({
+   const review = await tx.problemQualityReview.create({
       data: {
          problemId,
          inputHash: current.hash,
          model: useRuntimeConfig().llm.model,
          status: 'pending',
-         taskStatus: 'pending',
-         taskPayload: payload as Prisma.InputJsonValue,
       },
       select: { id: true },
-   }).catch((error) => {
-      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-         throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: '该版本已有 AI 审核任务，请等待完成。' });
-      }
-      throw error;
    });
+   // Delivery failures can be ambiguous: keep retrying the idempotent scheduler job
+   // instead of marking the audit failed while that job might already be running.
+   await dispatchTimerTask('judge-quality', { ...payload, reviewId: review.id }, { maxAttempts: 2_147_483_647 }, tx);
+   return review;
 }
 
-export async function reviewJudgeQuality(problemId: number, queuedId: string) {
+export async function reviewJudgeQuality(problemId: number, queuedId: string, task: TimerTaskSnapshot) {
    const current = await snapshot(problemId);
    const review = await prisma.problemQualityReview.findUniqueOrThrow({ where: { id: queuedId } });
 
    if (review.problemId !== problemId || review.inputHash !== current.hash) {
-      await prisma.problemQualityReview.update({ where: { id: review.id }, data: { status: 'stale', completedAt: new Date() } });
+      await withTimerTaskLease(task, tx => tx.problemQualityReview.update({ where: { id: review.id }, data: { status: 'stale', completedAt: new Date() } }));
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: '审核内容已变化，请重新提交。' });
    }
-   await prisma.problemQualityReview.update({ where: { id: review.id }, data: { status: 'running', errorCode: null, completedAt: null } });
+   if (review.status === 'passed') return review.id;
+   await withTimerTaskLease(task, tx => tx.problemQualityReview.update({ where: { id: review.id }, data: { status: 'running', errorCode: null, completedAt: null } }));
    const attempts: ReviewAttempt[] = [];
 
    try {
@@ -135,7 +134,7 @@ export async function reviewJudgeQuality(problemId: number, queuedId: string) {
          status = report.status === 'reject' ? 'rejected' : 'needs_review';
       }
 
-      await prisma.problemQualityReview.update({
+      await withTimerTaskLease(task, tx => tx.problemQualityReview.update({
          where: { id: review.id },
          data: {
             status,
@@ -143,7 +142,7 @@ export async function reviewJudgeQuality(problemId: number, queuedId: string) {
             generation: attempts as unknown as Prisma.InputJsonValue,
             completedAt: new Date(),
          },
-      });
+      }));
       if (status !== 'passed') {
          throw new TRPCError({ code: 'PRECONDITION_FAILED', message: `AI 质量审核未通过（${status}），请查看审核报告并修正后重新提交。` });
       }
@@ -162,7 +161,7 @@ export async function reviewJudgeQuality(problemId: number, queuedId: string) {
          errorCode = (error as Error).message;
       }
 
-      await prisma.problemQualityReview.update({
+      await withTimerTaskLease(task, tx => tx.problemQualityReview.update({
          where: { id: review.id },
          data: {
             status: 'error',
@@ -170,7 +169,7 @@ export async function reviewJudgeQuality(problemId: number, queuedId: string) {
             generation: attempts as unknown as Prisma.InputJsonValue,
             completedAt: new Date(),
          },
-      });
+      }));
       throw new TRPCError({ code: 'SERVICE_UNAVAILABLE', message: `AI 质量审核未完成（${errorCode}），本次不执行判题脚本，请稍后重试。` });
    }
 }

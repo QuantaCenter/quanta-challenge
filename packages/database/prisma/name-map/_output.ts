@@ -131,7 +131,7 @@ export const realNameFieldsMap = {
    "problems": new Set(["pid","baseId","title","detail","isDeprecated","difficulty","totalScore","status","createdAt","updatedAt","coverImageId","bootCommand","initCommand","buildCommand","judgeUploadPath","enableCloudFunction","problemType","serviceImage","servicePort","snapshotImageId","taskStartAt","taskEndAt","scheduledPublishAt","tags","AuditRecord","QualityReviews","StatusTransitions","JudgeFile","Project","ProblemDefaultCover","JudgeRecord","TemplateJudgeRecord","CoverImage","SnapshotImage","BaseProblem","CurrentOfBase","ProblemVersionTransitions","ProblemVersionTransitionsTo","JudgeStatus"] as const),
    "problem_version_transitions": new Set(["id","baseProblemId","fromId","toId","changeByUserId","changeByType","createdAt","base","from","to","user"] as const),
    "problem_default_covers": new Set(["id","problemId","imageId","createdAt","updatedAt","problem","image"] as const),
-   "problem_quality_reviews": new Set(["id","problemId","inputHash","status","model","report","errorCode","taskStatus","taskPayload","generation","claimedAt","createdAt","completedAt","problem"] as const),
+   "problem_quality_reviews": new Set(["id","problemId","inputHash","status","model","report","errorCode","generation","createdAt","completedAt","problem"] as const),
    "audit_records": new Set(["rid","problemId","result","reason","score","timeCost","createdAt","problem"] as const),
    "status_transitions": new Set(["id","problemId","fromStatus","toStatus","changeByType","changeByUserId","createdAt","problem","user"] as const),
    "template_judge_records": new Set(["id","judgeRecordId","problemId","createdAt","problem","judgeRecord"] as const),

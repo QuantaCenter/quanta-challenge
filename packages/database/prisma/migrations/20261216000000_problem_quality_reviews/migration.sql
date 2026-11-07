@@ -6,10 +6,7 @@ CREATE TABLE "problem_quality_reviews" (
   "model" TEXT NOT NULL,
   "report" JSONB,
   "errorCode" TEXT,
-  "taskStatus" TEXT NOT NULL DEFAULT 'done',
-  "taskPayload" JSONB,
   "generation" JSONB,
-  "claimedAt" TIMESTAMP(3),
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "completedAt" TIMESTAMP(3),
   CONSTRAINT "problem_quality_reviews_pkey" PRIMARY KEY ("id"),
@@ -17,7 +14,16 @@ CREATE TABLE "problem_quality_reviews" (
 );
 CREATE INDEX "problem_quality_reviews_problemId_inputHash_createdAt_idx"
 ON "problem_quality_reviews"("problemId", "inputHash", "createdAt");
-CREATE INDEX "problem_quality_reviews_taskStatus_createdAt_idx" ON "problem_quality_reviews"("taskStatus", "createdAt");
--- A partial unique index prevents concurrent paid reviews for the same version.
-CREATE UNIQUE INDEX "problem_quality_reviews_active_problem_key" ON "problem_quality_reviews"("problemId")
-WHERE "taskStatus" IN ('pending', 'running');
+
+-- One active AI audit per problem version; completed tasks retain no payload.
+CREATE UNIQUE INDEX "timer_tasks_active_judge_quality_problem_idx"
+ON "timer_tasks" (("payload"->>'problemId'))
+WHERE "handlerId" = 'judge-quality' AND "status" IN ('pending', 'running');
+
+CREATE INDEX "timer_tasks_pending_judge_quality_run_at_idx"
+ON "timer_tasks" ("runAt")
+WHERE "handlerId" = 'judge-quality' AND "status" = 'pending';
+
+CREATE INDEX "timer_tasks_running_judge_quality_updated_at_idx"
+ON "timer_tasks" ("updatedAt")
+WHERE "handlerId" = 'judge-quality' AND "status" = 'running';

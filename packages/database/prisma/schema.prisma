@@ -325,16 +325,12 @@ model ProblemQualityReview {
   model         String
   report        Json?
   errorCode     String?
-  taskStatus    String   @default("done")
-  taskPayload   Json?
   generation    Json?
-  claimedAt     DateTime?
   createdAt     DateTime @default(now())
   completedAt   DateTime?
   problem       Problems @relation(fields: [problemId], references: [pid], onDelete: Cascade)
 
   @@index([problemId, inputHash, createdAt])
-  @@index([taskStatus, createdAt])
   @@map("problem_quality_reviews")
 }
 
