@@ -357,7 +357,11 @@ type WriteBackStatus = 'ok' | 'failed' | 'skipped';
 
 export interface AuditFailure {
    /** 机读错误码，与 `qpc agent errors` 对应 */
-   code: 'AUDIT_INFRA_ERROR' | 'AUDIT_QUALITY_REJECTED' | 'AUDIT_SCRIPT_ERROR' | 'AUDIT_CHECKPOINT_FAILED';
+   code:
+      | 'AUDIT_INFRA_ERROR'
+      | 'AUDIT_QUALITY_REJECTED'
+      | 'AUDIT_SCRIPT_ERROR'
+      | 'AUDIT_CHECKPOINT_FAILED';
    /** 平台侧故障：与题目内容无关，原样重试即可 */
    retryable: boolean;
    summary: string;
@@ -371,13 +375,19 @@ const INFRA_ERROR_PATTERN =
 export const classifyAuditFailure = (detail: AuditDetail): AuditFailure => {
    const retry = `与题目内容无关，不要修改题目：原样重跑 \`qpc upload --write\`（最多 3 次）；仍失败请联系平台管理员。详见 \`qpc agent errors\`。`;
    const qualityReview = qualityReviewOf(detail);
-   if (qualityReview?.status === 'rejected' || qualityReview?.status === 'needs_review') {
+   if (
+      qualityReview?.status === 'rejected' ||
+      qualityReview?.status === 'needs_review'
+   ) {
       const reason = qualityReviewReason(qualityReview);
       return {
          code: 'AUDIT_QUALITY_REJECTED',
          retryable: false,
-         summary: reason ? `AI 质量审核未通过（${reason}）` : 'AI 质量审核未通过',
-         nextAction: '根据 AI 质量审核原因检查题面和判题脚本，修正后重新提交完整审核。',
+         summary: reason
+            ? `AI 质量审核未通过（${reason}）`
+            : 'AI 质量审核未通过',
+         nextAction:
+            '根据 AI 质量审核原因检查题面和判题脚本，修正后重新提交完整审核。',
       };
    }
    if (qualityReview?.status === 'stale') {

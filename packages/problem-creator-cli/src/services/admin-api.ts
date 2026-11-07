@@ -242,13 +242,19 @@ export const auditRecordOf = (detail: AuditDetail): AuditRecord | undefined =>
    detail.TemplateJudgeRecord?.[0]?.judgeRecord;
 
 /** 服务端按时间倒序返回 AI 审核记录；旧服务端可能不返回该字段。 */
-export const qualityReviewOf = (detail: AuditDetail): QualityReview | undefined =>
-   detail.QualityReviews?.[0];
+export const qualityReviewOf = (
+   detail: AuditDetail,
+): QualityReview | undefined => detail.QualityReviews?.[0];
 
-export const qualityReviewReason = (review: QualityReview | undefined): string | undefined => {
+export const qualityReviewReason = (
+   review: QualityReview | undefined,
+): string | undefined => {
    const report = review?.report;
-   if (!report || typeof report !== 'object' || !('reason' in report)) return undefined;
-   return typeof report.reason === 'string' && report.reason.trim() ? report.reason : undefined;
+   if (!report || typeof report !== 'object' || !('reason' in report))
+      return undefined;
+   return typeof report.reason === 'string' && report.reason.trim()
+      ? report.reason
+      : undefined;
 };
 
 /** 审计是否已到终局：status 离开 draft 即算结束（失败时调度器只改 status 不补判题记录）。 */

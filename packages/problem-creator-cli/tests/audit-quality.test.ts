@@ -12,24 +12,38 @@ const failedAudit: AuditDetail = {
    status: 'invalid',
    difficulty: 'easy',
    tags: [],
-   TemplateJudgeRecord: [{
-      judgeRecord: {
-         id: 1,
-         result: 'failed',
-         score: 0,
-         type: 'audit',
-         info: { errorMessage: 'AI 质量审核或判题投递未完成，请查看质量报告后重新提交。' },
+   TemplateJudgeRecord: [
+      {
+         judgeRecord: {
+            id: 1,
+            result: 'failed',
+            score: 0,
+            type: 'audit',
+            info: {
+               errorMessage:
+                  'AI 质量审核或判题投递未完成，请查看质量报告后重新提交。',
+            },
+         },
       },
-   }],
+   ],
 };
 
 test('quality rejection appears in the unified audit result with its full reason', () => {
    const detail: AuditDetail = {
       ...failedAudit,
-      QualityReviews: [{ status: 'rejected', report: { status: 'reject', reason: '提示直接输出大量坐标。' } }],
+      QualityReviews: [
+         {
+            status: 'rejected',
+            report: { status: 'reject', reason: '提示直接输出大量坐标。' },
+         },
+      ],
    };
    const output: string[] = [];
-   const logger = createLogger({ color: false, stdout: line => output.push(line), stderr: line => output.push(line) });
+   const logger = createLogger({
+      color: false,
+      stdout: (line) => output.push(line),
+      stderr: (line) => output.push(line),
+   });
 
    assert.equal(renderAuditDetail(logger, detail), false);
    assert.match(output.join(''), /AI 质量审核：提示直接输出大量坐标。/);
@@ -44,7 +58,9 @@ test('quality rejection appears in the unified audit result with its full reason
 test('model errors are infrastructure failures, and old server responses still work', () => {
    const unavailable: AuditDetail = {
       ...failedAudit,
-      QualityReviews: [{ status: 'error', errorCode: 'QUALITY_RATE_LIMITED', report: null }],
+      QualityReviews: [
+         { status: 'error', errorCode: 'QUALITY_RATE_LIMITED', report: null },
+      ],
    };
    const failure = classifyAuditFailure(unavailable);
    assert.equal(failure.code, 'AUDIT_INFRA_ERROR');
@@ -53,10 +69,14 @@ test('model errors are infrastructure failures, and old server responses still w
 
    const oldServer: AuditDetail = {
       ...failedAudit,
-      TemplateJudgeRecord: [{ judgeRecord: {
-         ...failedAudit.TemplateJudgeRecord![0]!.judgeRecord,
-         info: { errorMessage: '脚本运行异常' },
-      } }],
+      TemplateJudgeRecord: [
+         {
+            judgeRecord: {
+               ...failedAudit.TemplateJudgeRecord![0]!.judgeRecord,
+               info: { errorMessage: '脚本运行异常' },
+            },
+         },
+      ],
    };
    assert.equal(classifyAuditFailure(oldServer).code, 'AUDIT_SCRIPT_ERROR');
    assert.equal('qualityReview' in auditToJson(oldServer), false);
