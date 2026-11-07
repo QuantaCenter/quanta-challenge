@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { previousQualityFeedback, qualityHash, qualityPassed, validateQualityReport } from '../server/utils/judge-quality.ts';
+import { canSkipQualityReview, previousQualityFeedback, qualityHash, qualityPassed, validateQualityReport } from '../server/utils/judge-quality.ts';
 import { createReviewDiff } from '../server/utils/judge-quality-diff.ts';
 
 test('only a valid passing report passes the gate', () => {
@@ -18,19 +18,29 @@ test('only a valid passing report passes the gate', () => {
    }
 
    assert.notEqual(qualityHash({ script: 'one' }), qualityHash({ script: 'two' }));
+   assert.equal(
+      qualityHash({ title: '原标题', detail: '原题面', script: 'same' }),
+      qualityHash({ title: '新标题', detail: '新题面', script: 'same' }),
+   );
 });
 
-test('review diff includes only changed fields and describes additions and removals', () => {
-   const previous = { title: '题目', detail: '原题面', script: 'first\nold\nlast\n' };
-   const current = { title: '题目', detail: '新题面', script: 'first\nnew\nlast\n' };
+test('only an unchanged script from an approved version can skip AI review', () => {
+   assert.equal(canSkipQualityReview('published', 'script', 'script', 'script'), true);
+   assert.equal(canSkipQualityReview('ready', 'source', 'extracted', 'extracted'), true);
+   assert.equal(canSkipQualityReview('published', 'script', 'script', 'changed'), false);
+   assert.equal(canSkipQualityReview('invalid', 'script', 'script', 'script'), false);
+   assert.equal(canSkipQualityReview('draft', 'script', 'script', 'script'), false);
+   assert.equal(canSkipQualityReview('ready', undefined, null, 'script'), false);
+});
+
+test('review diff describes script additions and removals', () => {
+   const previous = 'first\nold\nlast\n';
+   const current = 'first\nnew\nlast\n';
    const diff = createReviewDiff(previous, current);
 
    assert.ok(diff);
-   assert.match(diff, /--- previous\/detail/);
-   assert.match(diff, /-原题面/);
-   assert.match(diff, /\+新题面/);
+   assert.match(diff, /--- previous\/script/);
    assert.match(diff, /-old\n\+new/);
-   assert.doesNotMatch(diff, /previous\/title/);
    assert.equal(createReviewDiff(previous, previous), undefined);
 });
 

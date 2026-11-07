@@ -24,6 +24,7 @@ import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
 import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
+import { canSkipQualityReview } from '../../../utils/judge-quality';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -36,7 +37,6 @@ type UploadInput = z.infer<typeof UploadSchema>;
 type AuditReason =
    | 'status'
    | 'judgeScript'
-   | 'content'
    | 'answerTemplate'
    | 'totalScore'
    | 'runtime'
@@ -206,6 +206,7 @@ const createAuditTask = async (options: {
    judgeRecordId: number;
    judgeScript: string;
    fsSnapshot: UploadInput['referenceAnswerSnapshot'];
+   skipQualityReview?: boolean;
 }) => {
    await enqueueJudgeQuality(options.problemId, options);
 };
@@ -714,8 +715,6 @@ const reuploadProcedure = protectedAdminProcedure
                CurrentProblem: {
                   select: {
                      pid: true,
-                     title: true,
-                     detail: true,
                      status: true,
                      totalScore: true,
                      bootCommand: true,
@@ -760,6 +759,10 @@ const reuploadProcedure = protectedAdminProcedure
          });
       }
 
+      const scriptUnchanged = Boolean(currentScript) &&
+         (judgeScript === currentScript || judgeScript === currentJudgeScript);
+      const skipQualityReview = canSkipQualityReview(current?.status, currentScript, currentJudgeScript, judgeScript);
+
       await ensureCoverThumbhash(input.coverImageId);
       // 未传入时沿用当前版本的值
       const snapshotImageId =
@@ -770,7 +773,7 @@ const reuploadProcedure = protectedAdminProcedure
          await ensureSnapshotImageReady(snapshotImageId);
       }
 
-      // 仅展示元数据可以原地更新；题面会影响反馈准确性，必须创建新版本审核。
+      // 标题、题面和展示元数据可以原地更新；影响判题的内容仍需重新审核。
       const auditReasons: AuditReason[] = [];
       if (!current) {
          auditReasons.push('status');
@@ -781,11 +784,8 @@ const reuploadProcedure = protectedAdminProcedure
          if (!['ready', 'published'].includes(current.status)) {
             auditReasons.push('status');
          }
-         if (input.title !== current.title || input.detail !== current.detail) {
-            auditReasons.push('content');
-         }
          // CLI 传的是源码（提取后应等于库里的值），Web 回传的是库里已提取的代码（再提取后比较）
-         if (judgeScript !== currentScript && judgeScript !== currentJudgeScript) {
+         if (!scriptUnchanged) {
             auditReasons.push('judgeScript');
          }
          const templateFiles = Object.entries(input.answerTemplateSnapshot).map(
@@ -902,6 +902,7 @@ const reuploadProcedure = protectedAdminProcedure
          judgeRecordId,
          judgeScript,
          fsSnapshot: input.referenceAnswerSnapshot,
+         skipQualityReview,
       });
 
       return {

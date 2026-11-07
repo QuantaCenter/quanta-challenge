@@ -110,8 +110,6 @@ const detailLoading = ref(false);
 
 // 编辑时的原始数据，用于判断本次修改能否不经审核直接生效（以服务端判定为准）
 interface IEditBaseline {
-   title: string;
-   detail: string;
    isCurrent: boolean;
    status: string;
    hasDefaultCover: boolean;
@@ -134,7 +132,6 @@ const auditReasonLabels = {
    version: '基于历史版本编辑',
    status: '当前版本尚未通过审核',
    judgeScript: '判题脚本',
-   content: '题目标题 / 题面（AI 提示语一致性审核）',
    answerTemplate: '作答模板',
    totalScore: '题目总分',
    runtime: '题型 / 命令 / 镜像 / 端口 / 云函数',
@@ -159,7 +156,6 @@ const auditReasons = computed<AuditReason[]>(() => {
    const reasons: AuditReason[] = [];
    if (!base.isCurrent) reasons.push('version');
    if (!['ready', 'published'].includes(base.status)) reasons.push('status');
-   if (value.title !== base.title || value.detail !== base.detail) reasons.push('content');
    if (value.judgeScript !== base.judgeScript) reasons.push('judgeScript');
    if (!isSameSnapshot(value.answerTemplate, base.answerTemplate)) {
       reasons.push('answerTemplate');
@@ -247,8 +243,6 @@ const fetchProblemDetail = async () => {
       }
 
       baseline.value = {
-         title: draft.value.title,
-         detail: draft.value.detail,
          isCurrent: problem.BaseProblem.currentPid === fromId,
          status: problem.status,
          hasDefaultCover: problem.ProblemDefaultCover.length > 0,
@@ -604,7 +598,7 @@ const handleSubmit = async () => {
                   </div>
                </template>
                <template v-else>
-                  <div>只修改了标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。修改标题或题面需要重新进行 AI 质量审核。</div>
+                  <div>只修改了标题、题面、标签、难度、封面或快照镜像，保存后直接生效，无需重新审核。</div>
                   <div class="text-accent-300">
                      用户的完成状态、作答文件和提交记录都不受影响。
                   </div>

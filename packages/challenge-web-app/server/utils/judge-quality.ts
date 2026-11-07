@@ -7,8 +7,9 @@ export const qualityReportSchema = z.object({
 }).strict();
 export type QualityReport = z.infer<typeof qualityReportSchema>;
 
-export function qualityHash(value: unknown) {
-   return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+export function qualityHash(value: { title?: string; detail?: string; [key: string]: unknown }) {
+   const { title: _title, detail: _detail, ...reviewedContent } = value;
+   return createHash('sha256').update(JSON.stringify(reviewedContent)).digest('hex');
 }
 
 export function validateQualityReport(raw: unknown) {
@@ -17,6 +18,17 @@ export function validateQualityReport(raw: unknown) {
 
 export function qualityPassed(report: QualityReport) {
    return report.status === 'pass';
+}
+
+export function canSkipQualityReview(
+   status: string | undefined,
+   currentScript: string | undefined,
+   extractedCurrentScript: string | null,
+   submittedScript: string,
+) {
+   const scriptUnchanged = Boolean(currentScript) &&
+      (submittedScript === currentScript || submittedScript === extractedCurrentScript);
+   return scriptUnchanged && (status === 'ready' || status === 'published');
 }
 
 export function previousQualityFeedback(status: string, rawReport: unknown): QualityReport | undefined {

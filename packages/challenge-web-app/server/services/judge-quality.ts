@@ -39,7 +39,8 @@ export async function assertJudgeQuality(problemId: number, db: QualityDatabase 
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
    });
 
-   if (!review || review.status !== 'passed' || !qualityPassed(validateQualityReport(review.report))) {
+   const passed = review?.status === 'passed' && qualityPassed(validateQualityReport(review.report));
+   if (!passed && review?.status !== 'skipped') {
       throw new TRPCError({ code: 'PRECONDITION_FAILED', message: '判题脚本尚未通过当前内容版本的 AI 质量审核，请重新提交审核。' });
    }
 }
@@ -53,6 +54,7 @@ export type QualityAuditPayload = {
    judgeRecordId: number;
    judgeScript: string;
    fsSnapshot?: Record<string, string>;
+   skipQualityReview?: boolean;
 };
 
 export async function enqueueJudgeQuality(problemId: number, payload: QualityAuditPayload) {
@@ -112,8 +114,8 @@ export async function reviewJudgeQuality(problemId: number, queuedId: string) {
          // A version can only serve as a baseline if it still matches the reviewed content.
          if (previous.hash === previousReview.inputHash) {
             previousDiff = createReviewDiff(
-               { title: previous.input.title, detail: previous.input.detail, script: previous.script },
-               { title: current.input.title, detail: current.input.detail, script: current.script },
+               previous.script,
+               current.script,
             );
          }
       }

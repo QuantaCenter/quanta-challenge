@@ -125,8 +125,7 @@ export interface AdminApi {
       message: string;
    }>;
    /**
-    * 更新已有基础题目（baseId）：只改标签/难度/封面等展示信息时原地生效（mode=quick），
-    * 修改标题/题面须进行 AI 质量审核，创建新版本（mode=audit）。
+    * 更新已有基础题目（baseId）：只改标题/题面/标签/难度/封面等信息时原地生效（mode=quick），
     * 否则创建新版本并进入审核（mode=audit）。旧版服务端不返回 mode，按 audit 处理。
     */
    reuploadProblem(input: UploadProblemInput & { baseId: number }): Promise<{

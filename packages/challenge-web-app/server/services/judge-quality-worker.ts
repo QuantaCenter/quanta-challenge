@@ -37,10 +37,17 @@ export function startJudgeQualityWorker() {
 
             try {
                if (!payload) throw new Error('QUALITY_AUDIT_PAYLOAD_MISSING');
-               await reviewJudgeQuality(row.problemId, row.id);
+               if (payload.skipQualityReview) {
+                  await prisma.problemQualityReview.update({
+                     where: { id: row.id },
+                     data: { status: 'skipped', completedAt: new Date() },
+                  });
+               } else {
+                  await reviewJudgeQuality(row.problemId, row.id);
+               }
 
                await assertJudgeQuality(row.problemId);
-               const { judgeServerUrl, ...task } = payload;
+               const { judgeServerUrl, skipQualityReview: _skipQualityReview, ...task } = payload;
                const response = await fetch(`${judgeServerUrl}/task/create`, {
                   method: 'POST',
                   headers: {
@@ -64,7 +71,7 @@ export function startJudgeQualityWorker() {
                   data: { taskStatus: 'error', taskPayload: Prisma.DbNull },
                });
                await prisma.problemQualityReview.updateMany({
-                  where: { id: row.id, status: { in: ['pending', 'running', 'passed'] } },
+                  where: { id: row.id, status: { in: ['pending', 'running', 'passed', 'skipped'] } },
                   data: { status: 'error', errorCode, completedAt: new Date() },
                });
 
