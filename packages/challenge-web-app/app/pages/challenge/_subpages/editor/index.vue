@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { encodeSnapshotFile, moveSnapshotFiles } from '~/utils/snapshot-file';
 import { buildFileSystemTree } from '~/utils/fs-tree';
 import {
    normalizePath,
@@ -51,6 +52,7 @@ const fileMoveEmitter = useEventBus<{ oldPath: string; newPath: string }>(
 );
 onMounted(() => {
    fileMoveEmitter.on((data) => {
+      moveSnapshotPaths(data.oldPath, data.newPath);
       fileChangeSync.mv(data.oldPath, data.newPath);
    });
 });
@@ -62,6 +64,7 @@ const fileDeleteEmitter = useEventBus<{
 }>('file-delete-event');
 onMounted(() => {
    fileDeleteEmitter.on((data) => {
+      removeSnapshotPaths(data.path);
       fileChangeSync.rm(data.path);
    });
 });
@@ -80,6 +83,18 @@ onMounted(() => {
 // get and parse project file system
 const pathContentMap = ref<Record<string, { vid: string; content: string }>>();
 const pathTreeNodeMap = ref<Record<string, IFileSystemItem>>();
+const removeSnapshotPaths = (path: string) => {
+   for (const key of Object.keys(pathContentMap.value ?? {})) {
+      if (key === path || key.startsWith(`${path}/`)) {
+         delete pathContentMap.value![key];
+      }
+   }
+};
+const moveSnapshotPaths = (oldPath: string, newPath: string) => {
+   if (pathContentMap.value) {
+      moveSnapshotFiles(pathContentMap.value, oldPath, newPath);
+   }
+};
 const fsTree = ref<IFileSystemItem[]>();
 const mounted = (() => { let r; const p = new Promise<void>(res => { r = res; }); return { promise: p, resolve: r! }; })();
 const getProject = async () => {
@@ -514,12 +529,16 @@ const dirLoader = async (dirPath: string) => {
 
 const fileLoader = async (filePath: string) => {
    const webContainer = await getInstance();
-   const content = await webContainer.fs.readFile(filePath, 'utf-8');
+   const bytes = await webContainer.fs.readFile(filePath);
+   const content = encodeSnapshotFile(filePath, bytes);
 
    const isNewFile = !pathContentMap.value?.[filePath];
 
    if (pathContentMap.value) {
-      pathContentMap.value[filePath] = { content, vid: '' };
+      pathContentMap.value[filePath] = {
+         content,
+         vid: pathContentMap.value[filePath]?.vid ?? '',
+      };
    }
 
    // 更新 pathTreeNodeMap,确保新创建的文件也能被监听到内容变化
@@ -659,12 +678,20 @@ const { operator } = useCommands({
    onFsChange: (changes) => {
       for (const change of changes) {
          if (change.type === 'rm') {
+            removeSnapshotPaths(change.path);
             fileChangeSync.rm(change.path);
          } else if (change.type === 'mv') {
+            moveSnapshotPaths(change.oldPath, change.newPath);
             fileChangeSync.mv(change.oldPath, change.newPath);
          } else if (change.type === 'change') {
+            if (pathContentMap.value?.[change.path]) {
+               pathContentMap.value[change.path].content = change.content;
+            }
             fileChangeSync.change(change.path, change.content);
          } else {
+            if (pathContentMap.value) {
+               pathContentMap.value[change.path] = { content: change.content, vid: '' };
+            }
             fileChangeSync.create(change.path, change.content);
          }
       }

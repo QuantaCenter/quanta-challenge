@@ -52,7 +52,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 | TPL003 | error | 答案模板里没有 `index.html` | 静态服务器根目录必须有入口页，否则判题一直等选择器 |
 | ANS001 | error | 参考解目录不存在 | 审计没有可跑的答案，也拿不到封面 |
 | ANS002 | error | 参考解目录为空 | 同上 |
-| SNAP001 | error | 快照体积超过上限（默认 5 MiB，`QUANTA_MAX_UPLOAD_BYTES`） | 多半把 `dist/`、`node_modules/` 或大图打进去了 |
+| SNAP001 | error | 快照体积超过上限（默认 100 MiB，`QUANTA_MAX_UPLOAD_BYTES`） | 检查是否包含不需要的构建产物或大文件 |
 | SNAP002 | error | 快照文件数超过 500 | 同上 |
 | SNAP003 | info | 跳过了 `node_modules/` / `dist/` 等条目 | 让"我明明放了文件却没上传"变可见 |
 | SNAP004 | warn | 图片扩展名的文件内容是 `data:...;base64,` 文本 | 上传时已还原成真实字节；否则平台只能解开一层，学生环境里拿到的是 data URL 文本 |

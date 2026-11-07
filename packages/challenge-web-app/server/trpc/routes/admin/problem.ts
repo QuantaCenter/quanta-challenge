@@ -24,6 +24,7 @@ import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
 import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
+import { expandFile, withAssetTransaction } from '../../services/file-assets';
 
 type TX = Omit<
    PrismaClient<Prisma.PrismaClientOptions, never, DefaultArgs>,
@@ -111,6 +112,7 @@ const handleCreateVersion = async (options: {
    userId: string;
    baseProblemId: number;
    judgeScript: string;
+   templateFiles: IFile[];
 }) => {
    const { tx, input, userId, baseProblemId, judgeScript } = options;
    // 创建问题版本
@@ -155,16 +157,8 @@ const handleCreateVersion = async (options: {
    });
 
    // 创建模板工程
-   const fs = Object.entries(input.answerTemplateSnapshot).map(
-      ([path, content]) =>
-         ({
-            name: path.split('/').pop() || 'unknown',
-            path,
-            content,
-         }) satisfies IFile,
-   );
    await projectService.create({
-      fs: fs,
+      fs: options.templateFiles,
       tx: tx,
       problemId: problem.pid,
       isTemplate: true,
@@ -232,8 +226,10 @@ const uploadProcedure = protectedAdminProcedure
       await ensureCoverThumbhash(input.coverImageId);
       await ensureSnapshotImageReady(input.snapshotImageId);
 
-      const { problemId } = await prisma.$transaction(
-         async (tx) => {
+      const { problemId } = await withAssetTransaction(
+         input.answerTemplateSnapshot,
+         userId,
+         async (tx, templateFiles) => {
             // 创建问题
             const baseProblem = await tx.baseProblems.create({
                data: { authorId: userId },
@@ -245,6 +241,7 @@ const uploadProcedure = protectedAdminProcedure
                userId,
                baseProblemId: baseProblem.id,
                judgeScript,
+               templateFiles,
             });
             await createAuditTask({
                judgeServerUrl: judge.serverUrl,
@@ -675,6 +672,7 @@ const getDetailProcedure = protectedAdminProcedure
                            select: {
                               path: true,
                               content: true,
+                              assetId: true,
                            },
                         },
                      },
@@ -689,7 +687,16 @@ const getDetailProcedure = protectedAdminProcedure
          },
       });
 
-      return problem;
+      return {
+         ...problem,
+         Project: await Promise.all(problem.Project.map(async (project) => {
+            const FileSystem = await Promise.all(project.FileSystem.map(async (fs) => ({
+               ...fs,
+               files: await Promise.all(fs.files.map(expandFile)),
+            })));
+            return { ...project, FileSystem };
+         })),
+      };
    });
 
 // 创建一个新的模板工程 注意：ReuploadSchema 定义在 schemas/publish-schema.ts 里，与 UploadSchema 共用同一套 跨字段校验（extend 不继承 refine，写在这里会让重新发布绕过"参考答案必填"等校验）。
@@ -867,14 +874,17 @@ const reuploadProcedure = protectedAdminProcedure
       }
 
       // 创建新问题版本
-      const { problemId } = await prisma.$transaction(
-         async (tx) => {
+      const { problemId } = await withAssetTransaction(
+         input.answerTemplateSnapshot,
+         userId,
+         async (tx, templateFiles) => {
             const version = await handleCreateVersion({
                tx,
                input: { ...input, snapshotImageId },
                userId,
                baseProblemId: baseId,
                judgeScript,
+               templateFiles,
             });
             if (currentPid) {
                await tx.problemVersionTransitions.create({

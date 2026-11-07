@@ -5,6 +5,9 @@
    "scripts": {
       "test:judge-quality": "node --experimental-strip-types --test tests/judge-quality.test.ts tests/judge-quality-retry.test.ts tests/judge-quality-provider.test.ts",
       "test:judge-quality:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test --test-concurrency=1 tests/timer-quality.integration.test.ts tests/judge-quality-queue.integration.test.ts",
+      "test:file-assets": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/file-assets.integration.test.ts",
+      "test:file-assets:upload": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/file-assets-upload.integration.test.ts",
+      "test:file-assets:reuse": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/file-assets-project-reuse.integration.test.ts",
       "test:oauth": "node --experimental-strip-types --test tests/quanta-oauth.test.ts tests/quanta-oauth-accounts.test.ts tests/quanta-oauth-client.test.ts tests/quanta-oauth-rpc.test.ts",
       "test:observation": "node --experimental-strip-types --test tests/navigation-observation.test.ts",
       "lint:oauth": "biome check --diagnostic-level=warn --error-on-warnings .",
@@ -56,6 +59,7 @@
       "dayjs": "^1.11.13",
       "diff": "^9.0.0",
       "es-module-lexer": "^1.7.0",
+      "h3": "^1.15.11",
       "highlight.js": "^11.11.1",
       "ioredis": "^5.6.1",
       "jsonwebtoken": "^9.0.2",

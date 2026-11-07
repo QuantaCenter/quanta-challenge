@@ -2,8 +2,8 @@ import { resolveConfigDir } from '../services/credentials';
 
 export const DEFAULT_API_URL = 'http://localhost:3000';
 export const DEFAULT_HTTP_TIMEOUT_MS = 15_000;
-/** 5 MiB：与任务快照的实际体量匹配，超过基本意味着把构建产物打进去了 */
-export const DEFAULT_MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+/** 每份快照的默认大小上限（100 MiB）。 */
+export const DEFAULT_MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 
 export interface EnvConfig {
    /** 生效地址（命令行参数 > QUANTA_API_URL > 凭据文件 > 此默认值，见 createCommandContext） */

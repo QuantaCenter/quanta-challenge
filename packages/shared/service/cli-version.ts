@@ -1,5 +1,5 @@
-/** 服务端要求的最低 CLI 版本，可用 NUXT_QUANTA_MIN_CLI_VERSION 覆盖 */
-export const MIN_CLI_VERSION = '1.2.0';
+/** 服务端要求的最低 CLI 版本，部署配置只能提高此门槛。 */
+export const MIN_CLI_VERSION = '1.2.3';
 
 /** 从 user-agent 取 CLI 版本号（形如 qpc/1.2.0），取不到返回 undefined */
 export const parseCliVersionFromUserAgent = (
@@ -62,6 +62,16 @@ export const compareVersions = (
    if (!parsedA.prerelease) return 1;
    if (!parsedB.prerelease) return -1;
    return comparePrerelease(parsedA.prerelease, parsedB.prerelease);
+};
+
+/** 解析部署配置，且不允许低于内置最低版本。 */
+export const resolveMinimumCliVersion = (configured: string | undefined): string => {
+   const version = configured?.trim() ?? '';
+   if (!/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/.test(version)) {
+      return MIN_CLI_VERSION;
+   }
+   const compared = compareVersions(version, MIN_CLI_VERSION);
+   return compared !== undefined && compared > 0 ? version : MIN_CLI_VERSION;
 };
 
 /** 版本是否达到门槛；缺失或无法解析按不满足处理 */

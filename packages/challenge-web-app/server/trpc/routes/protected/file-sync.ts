@@ -5,6 +5,17 @@ import { router } from '../../trpc';
 import { TRPCError } from '@trpc/server';
 import { observer } from '../../services/achievement';
 import { logger } from '~~/server/utils/logger';
+import { prepareAssets } from '../../services/file-assets';
+import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
+import type { VirtualFiles } from '@prisma/client';
+
+const movedContent = (file: { path: string; content: string | null }) => {
+   if (file.content === null || file.content.startsWith('data:')) return file.content;
+   const decoded = decodeSnapshotContent(file.path, file.content);
+   return typeof decoded === 'string'
+      ? file.content
+      : `data:application/octet-stream;base64,${Buffer.from(decoded).toString('base64')}`;
+};
 
 // 文本列不能存储 NUL 字节，含 \u0000 的内容直接拒绝
 const SyncContentSchema = z
@@ -83,6 +94,9 @@ const syncFileChangesProcedure = protectedProcedure
          });
       }
 
+      const writes = changes.filter((change) => change.type === 'change' || change.type === 'create');
+      const assets = await prepareAssets(writes, userId, { deferExistingVerification: true });
+      let committed = false;
       try {
          await prisma.$transaction(async (tx) => {
             // 锁定项目行：与重置事务（同样先锁项目行）互斥，保证 revision 校验和后续写入不会被并发重置穿插
@@ -118,7 +132,7 @@ const syncFileChangesProcedure = protectedProcedure
                include: {
                   FileSystem: {
                      include: {
-                        files: true,
+                        files: { include: { asset: true } },
                      },
                   },
                },
@@ -132,7 +146,12 @@ const syncFileChangesProcedure = protectedProcedure
             }
 
             const fileSystemId = project.FileSystem[0].fsid;
-            const existingFiles = new Map(
+            const reusableAssets = project.FileSystem[0].files.flatMap((file) =>
+               file.asset ? [file.asset] : [],
+            );
+            const preparedWrites = await assets.bind(tx, { reusableAssets });
+            let writeIndex = 0;
+            const existingFiles = new Map<string, VirtualFiles>(
                project.FileSystem[0].files.map((f) => [
                   toProjectPath(f.path),
                   f,
@@ -199,12 +218,13 @@ const syncFileChangesProcedure = protectedProcedure
                         const newPath = toProjectPath(change.newPath);
                         await tx.virtualFiles.update({
                            where: { vid: file.vid },
-                           data: { path: newPath },
+                           data: { path: newPath, content: movedContent(file) },
                         });
                         existingFiles.delete(change.oldPath);
                         existingFiles.set(newPath, {
                            ...file,
                            path: newPath,
+                           content: movedContent(file),
                         });
                         logger.debug(
                            {
@@ -234,12 +254,13 @@ const syncFileChangesProcedure = protectedProcedure
 
                            await tx.virtualFiles.update({
                               where: { vid: fileData.vid },
-                              data: { path: newDbPath },
+                              data: { path: newDbPath, content: movedContent(fileData) },
                            });
                            existingFiles.delete(filePath);
                            existingFiles.set(newDbPath, {
                               ...fileData,
                               path: newDbPath,
+                              content: movedContent(fileData),
                            });
                         }
                      }
@@ -254,20 +275,23 @@ const syncFileChangesProcedure = protectedProcedure
                   }
 
                   case 'change': {
+                     const body = preparedWrites[writeIndex++]!;
                      // 更新文件内容
                      const file = existingFiles.get(change.path);
                      if (file) {
-                        await tx.virtualFiles.update({
+                        const updated = await tx.virtualFiles.update({
                            where: { vid: file.vid },
-                           data: { content: change.content },
+                           data: { content: body.content, assetId: body.assetId },
                         });
+                        existingFiles.set(change.path, updated);
                      } else {
                         // 如果文件不存在，创建它
                         const newPath = toProjectPath(change.path);
                         const newFile = await tx.virtualFiles.create({
                            data: {
                               path: newPath,
-                              content: change.content,
+                              content: body.content,
+                              assetId: body.assetId,
                               ownerId: userId,
                               fileSystemFsid: fileSystemId,
                            },
@@ -278,6 +302,7 @@ const syncFileChangesProcedure = protectedProcedure
                   }
 
                   case 'create': {
+                     const body = preparedWrites[writeIndex++]!;
                      // 创建新文件
                      const existingFile = existingFiles.get(change.path);
                      if (!existingFile) {
@@ -285,7 +310,8 @@ const syncFileChangesProcedure = protectedProcedure
                         const newFile = await tx.virtualFiles.create({
                            data: {
                               path: newPath,
-                              content: change.content,
+                              content: body.content,
+                              assetId: body.assetId,
                               ownerId: userId,
                               fileSystemFsid: fileSystemId,
                            },
@@ -293,16 +319,18 @@ const syncFileChangesProcedure = protectedProcedure
                         existingFiles.set(newPath, newFile);
                      } else {
                         // 如果文件已存在，更新内容
-                        await tx.virtualFiles.update({
+                        const updated = await tx.virtualFiles.update({
                            where: { vid: existingFile.vid },
-                           data: { content: change.content },
+                           data: { content: body.content, assetId: body.assetId },
                         });
+                        existingFiles.set(change.path, updated);
                      }
                      break;
                   }
                }
             }
          });
+         committed = true;
 
          // 标记缓存失效
          observer.manualMarkDirty(['virtual_files']);
@@ -327,6 +355,8 @@ const syncFileChangesProcedure = protectedProcedure
                   ? error.message
                   : 'Failed to sync file changes',
          });
+      } finally {
+         await assets.cleanup(committed);
       }
    });
 

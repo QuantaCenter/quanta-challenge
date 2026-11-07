@@ -1,3 +1,5 @@
+import { encodeSnapshotFile } from '~/utils/snapshot-file';
+
 export type File = string;
 export interface IDirectory {
    [key: string]: File | IDirectory;
@@ -8,16 +10,6 @@ interface IWalkFileListOptions {
       directories?: string[];
       files?: string[];
    };
-}
-
-export function arrayBufferToBase64(buffer: ArrayBuffer): string {
-   let binary = '';
-   const bytes = new Uint8Array(buffer);
-   const len = bytes.byteLength;
-   for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(bytes[i]!);
-   }
-   return btoa(binary);
 }
 
 export const walkFileList = async (
@@ -48,16 +40,9 @@ export const walkFileList = async (
          currentDir = currentDir[part] as IDirectory;
       }
 
-      currentDir[pathParts[pathParts.length - 1]!] = await (async () => {
-         const mimeType = file.type;
-         if (mimeType && mimeType.startsWith('image/')) {
-            const buffer = await file.arrayBuffer();
-            const b64 = arrayBufferToBase64(buffer);
-            return `data:${mimeType};base64,${b64}`;
-         } else {
-            return file.text();
-         }
-      })();
+      currentDir[pathParts[pathParts.length - 1]!] = encodeSnapshotFile(
+         file.name, new Uint8Array(await file.arrayBuffer())
+      );
    }
    return currentDirectory;
 };

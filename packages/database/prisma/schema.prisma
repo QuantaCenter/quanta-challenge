@@ -29,6 +29,7 @@ model User {
   Tag                       Tags[]
   FileSystem                FileSystems[]
   VirtualFile               VirtualFiles[]
+  uploadedAssets            FileAsset[]
   Project                   Projects[]
   RoleTransition            RoleTransition[]
   UserImage                 UserImage[]
@@ -133,6 +134,23 @@ model WebAuthnCredential {
 
   @@unique([userId, publicKey])
   @@map("webauthn_credentials")
+}
+
+// 通用文件资产
+model FileAsset {
+  id           String   @id @default(cuid())
+  storageKey   String   @unique
+  sizeBytes    BigInt
+  sha256       String
+  mimeType     String   @default("application/octet-stream")
+  uploadedById String
+  createdAt    DateTime @default(now())
+
+  uploadedBy   User           @relation(fields: [uploadedById], references: [id], onDelete: Restrict)
+  virtualFiles VirtualFiles[]
+
+  @@unique([uploadedById, sha256])
+  @@map("file_assets")
 }
 
 // 图片表
@@ -500,16 +518,19 @@ model Projects {
 model VirtualFiles {
   vid       String   @id @default(uuid())
   path      String
-  content   String
+  content   String?
+  assetId   String?
   ownerId   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   owner          User         @relation(fields: [ownerId], references: [id])
+  asset          FileAsset?   @relation(fields: [assetId], references: [id], onDelete: Restrict)
   FileSystem     FileSystems? @relation(fields: [fileSystemFsid], references: [fsid], onDelete: Cascade)
   fileSystemFsid String?
 
   @@index([ownerId])
+  @@index([assetId])
   @@map("virtual_files")
 }
 
