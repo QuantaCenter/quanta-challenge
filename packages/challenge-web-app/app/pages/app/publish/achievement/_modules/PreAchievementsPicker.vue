@@ -8,6 +8,7 @@ const preAchievements = defineModel<number[]>('preAchievements', {
 
 const props = defineProps<{
    outerClass?: string;
+   excludeIds?: number[];
 }>();
 
 const achievementOptions = ref<ISelectOption[]>([]);
@@ -37,6 +38,7 @@ const fetchAchevements = async (): Promise<ISelectOption[]> => {
    const achs = await $trpc.protected.achievement.getAllAchievements.query();
    allAchievements.value = achs;
    return achs
+      .filter((achievement) => !props.excludeIds?.includes(achievement.id))
       .map((dep) => ({
          label: dep.name,
          value: dep.id,

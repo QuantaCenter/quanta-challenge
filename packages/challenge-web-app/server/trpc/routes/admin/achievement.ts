@@ -9,6 +9,7 @@ import { TRPCError } from '@trpc/server';
 import { realNameFieldsMap, validRealNames } from '@challenge/database';
 import { VM } from 'vm2';
 import { observer } from '../../services/achievement';
+import { canEditAchievement, hasAchievementCycle, UpdateAchievementSchema } from '../../services/utils/achievement-edit';
 
 const getAllDepDataLoadersProcedure = protectedAdminProcedure.query(
    async () => {
@@ -147,13 +148,14 @@ const requestDepDataLoaderProcedure = protectedAdminProcedure
    });
 
 const getAllAchievementsProcedure = protectedAdminProcedure.query(
-   async () => {
+   async ({ ctx }) => {
       const achievements = await prisma.achievement.findMany({
          select: {
             id: true,
             name: true,
             description: true,
             score: true,
+            authorId: true,
             createdAt: true,
             badgeImage: {
                select: {
@@ -171,6 +173,7 @@ const getAllAchievementsProcedure = protectedAdminProcedure.query(
          name: achievement.name,
          description: achievement.description,
          score: achievement.score,
+         canEdit: canEditAchievement(ctx.user, achievement.authorId),
          createdAt: achievement.createdAt,
          badgeUrl: `/api/static/${achievement.badgeImage.name}`,
       }));
@@ -183,7 +186,7 @@ const GetAchievementDetailSchema = z.object({
 
 const getAchievementDetailProcedure = protectedAdminProcedure
    .input(GetAchievementDetailSchema)
-   .query(async ({ input }) => {
+   .query(async ({ ctx, input }) => {
       const achievement = await prisma.achievement.findUnique({
          where: { id: input.id },
          select: {
@@ -191,12 +194,14 @@ const getAchievementDetailProcedure = protectedAdminProcedure
             name: true,
             description: true,
             score: true,
+            authorId: true,
             createdAt: true,
             badgeImage: {
                select: {
                   name: true,
                },
             },
+            badgeImageId: true,
             author: {
                select: {
                   name: true,
@@ -261,8 +266,10 @@ const getAchievementDetailProcedure = protectedAdminProcedure
          name: achievement.name,
          description: achievement.description,
          score: achievement.score,
+         canEdit: canEditAchievement(ctx.user, achievement.authorId),
          createdAt: achievement.createdAt,
          badgeUrl: `/api/static/${achievement.badgeImage.name}`,
+         imageId: achievement.badgeImageId,
          authorName:
             achievement.author?.displayName ?? achievement.author?.name ?? null,
          isCheckinAchievement: !!achievement.CheckinAchievement,
@@ -438,10 +445,66 @@ const createAchievementProcedure = protectedAdminProcedure
       }
    });
 
+const updateAchievementProcedure = protectedAdminProcedure
+   .input(UpdateAchievementSchema)
+   .mutation(async ({ ctx, input }) => {
+      await prisma.$transaction(async (tx) => {
+         const achievement = await tx.achievement.findUnique({
+            where: { id: input.id },
+            select: { authorId: true },
+         });
+         if (!achievement) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: '成就不存在' });
+         }
+         if (!canEditAchievement(ctx.user, achievement.authorId)) {
+            throw new TRPCError({ code: 'FORBIDDEN', message: '只能编辑自己发布的成就' });
+         }
+         const [image, duplicate, prerequisites, edges] = await Promise.all([
+            tx.image.findUnique({ where: { id: input.imageId }, select: { id: true } }),
+            tx.achievement.findFirst({
+               where: { name: input.name, id: { not: input.id } },
+               select: { id: true },
+            }),
+            tx.achievement.count({ where: { id: { in: input.preAchievements } } }),
+            tx.achievementPreAchievement.findMany({
+               select: { achievementId: true, preAchievementId: true },
+            }),
+         ]);
+         if (!image) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '成就图标不存在' });
+         }
+         if (duplicate) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '存在相同名称的成就，请更换名称' });
+         }
+         if (prerequisites !== input.preAchievements.length) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '部分前置成就不存在' });
+         }
+         if (hasAchievementCycle(input.id, input.preAchievements, edges)) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '前置成就不能包含自身或形成循环依赖' });
+         }
+         await tx.achievement.update({
+            where: { id: input.id },
+            data: {
+               name: input.name,
+               description: input.description,
+               badgeImageId: input.imageId,
+               AchievementPreAchievement: {
+                  deleteMany: {},
+                  createMany: {
+                     data: input.preAchievements.map((preAchievementId) => ({ preAchievementId })),
+                  },
+               },
+            },
+         });
+      }, { isolationLevel: 'Serializable' });
+      return { achievementId: input.id };
+   });
+
 export const achievementRouter = router({
    getAllDepDataLoaders: getAllDepDataLoadersProcedure,
    requestDepDataLoader: requestDepDataLoaderProcedure,
    getAllAchievements: getAllAchievementsProcedure,
    getAchievementDetail: getAchievementDetailProcedure,
    createAchievement: createAchievementProcedure,
+   updateAchievement: updateAchievementProcedure,
 });

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { Box, GoldMedalTwo, PreviewOpen } from '@icon-park/vue-next';
+import { Box, Edit, GoldMedalTwo, PreviewOpen } from '@icon-park/vue-next';
 import { useMessage } from '~/components/st/Message/use-message';
 import type { ITableColumn } from '~/components/st/Table/type';
+import AchievementEditDrawer from './_drawers/AchievementEditDrawer.vue';
 import { logger } from '~~/lib/logger';
 
 useSeoMeta({ title: '成就管理 - Quanta Challenge' });
@@ -41,7 +42,7 @@ const columns: ITableColumn[] = [
    {
       key: 'action',
       title: '操作',
-      width: '5rem',
+      width: '7rem',
       align: 'center',
       skeletonClass: 'size-8 rounded-md mx-auto',
    },
@@ -56,9 +57,17 @@ const {
    data: achievements,
    pending,
    error,
+   refresh,
 } = useAsyncData('manage-achievements', () =>
    $trpc.admin.achievement.getAllAchievements.query()
 );
+
+const editingAchievementId = ref<number | null>(null);
+const editOpened = ref(false);
+const openEdit = (id: number) => {
+   editingAchievementId.value = id;
+   editOpened.value = true;
+};
 
 // 监听错误
 watch(
@@ -75,6 +84,7 @@ watch(
 const achievementList = computed(() => {
    return (achievements.value ?? []).map((achievement) => ({
       id: achievement.id,
+      canEdit: achievement.canEdit,
       name: achievement.name,
       description: achievement.description,
       score: achievement.score,
@@ -149,6 +159,15 @@ const achievementList = computed(() => {
                      class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-secondary active:scale-95 transition-all cursor-pointer">
                      <PreviewOpen class="text-[1.25rem]" />
                   </NuxtLink>
+                  <button
+                     v-if="row.canEdit"
+                     type="button"
+                     title="编辑成就"
+                     aria-label="编辑成就"
+                     class="flex items-center justify-center size-8 rounded-md text-accent-300 hover:bg-accent-500 hover:text-primary active:scale-95 transition-all cursor-pointer"
+                     @click="openEdit(row.id)">
+                     <Edit class="text-[1.25rem]" />
+                  </button>
                </StSpace>
             </template>
 
@@ -166,6 +185,12 @@ const achievementList = computed(() => {
             </template>
          </StTable>
       </StSpace>
+      <AchievementEditDrawer
+         v-if="editingAchievementId !== null"
+         :key="editingAchievementId"
+         v-model:opened="editOpened"
+         :achievement-id="editingAchievementId"
+         @saved="refresh()" />
    </StSpace>
 </template>
 
@@ -182,7 +207,7 @@ const achievementList = computed(() => {
       width: 4rem !important;
    }
    .achievement-table :deep(col:nth-child(6)) {
-      width: 3.5rem !important;
+      width: 5.5rem !important;
    }
    .achievement-table :deep(th:nth-child(1)),
    .achievement-table :deep(td:nth-child(1)) {
