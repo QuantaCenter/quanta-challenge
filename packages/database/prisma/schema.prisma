@@ -470,6 +470,8 @@ model Tags {
   creatorId   String
   imageId     String?
   color       String?
+  /// 标签用途：题目标签用于题目分类与筛选；实验室标签是实验室模板的技术栈标签（同名唯一，按名称被模板引用）
+  scope       TagScope @default(problem)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -477,7 +479,13 @@ model Tags {
   image   Image?     @relation(fields: [imageId], references: [id])
   Problem Problems[]
 
+  @@index([scope])
   @@map("tags")
+}
+
+enum TagScope {
+  problem
+  lab
 }
 
 // 文件系统表
@@ -521,6 +529,30 @@ model LabProject {
   @@map("lab_projects")
 }
 
+/// 实验室模板分类：实验室页的分类筛选页签、模板卡片右上角的分类标签。
+/// 模板按 id 引用分类（内置模板为 template.json 的 category，自定义模板为 lab_templates.category）。
+/// 内置分类（builtin = true）由迁移预置，可以修改名称、颜色、图标、排序与停用，但不能删除。
+model LabCategory {
+  id          String   @id
+  name        String
+  description String?
+  /// 主题色（HEX）：分类页签选中态 / 悬停边框与卡片分类标签共用
+  color       String
+  /// 页签图标：预置图标名（见 @challenge/shared/lab-templates 的 LAB_CATEGORY_ICON_NAMES）
+  icon        String?
+  /// 排序：越小越靠前
+  sortOrder   Int      @default(0)
+  /// 停用后不再出现在分类页签与发布模板的分类选项中；已归入该分类的模板照常展示
+  enabled     Boolean  @default(true)
+  builtin     Boolean  @default(false)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("lab_categories")
+}
+
 /// 实验室模板配置。
 /// - 内置模板（builtin = true）：id 与模板目录名相同，文件与说明来自 @challenge/shared/lab-templates/templates，
 ///   这里只保存管理员的覆盖配置，覆盖字段为 null 表示沿用 template.json 中的默认值；
@@ -532,9 +564,9 @@ model LabTemplate {
   enabled         Boolean  @default(true)
   name            String?
   description     String?
-  /// basic | framework | chart | backend（仅自定义模板）
+  /// 模板分类 id，对应 lab_categories.id（仅自定义模板）
   category        String?
-  /// 技术栈标签（仅自定义模板）
+  /// 技术栈标签名（仅自定义模板），对应实验室标签（tags.scope = lab）或内置标签
   tags            String[] @default([])
   /// 图标地址（仅自定义模板）
   icon            String?
