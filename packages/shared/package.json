@@ -37,6 +37,9 @@
       "./snapshot-content": {
          "import": "./service/snapshot-content.ts"
       },
+      "./lab-templates": {
+         "import": "./service/lab-templates/index.ts"
+      },
       "./cli-version": {
          "import": "./service/cli-version.ts"
       },
