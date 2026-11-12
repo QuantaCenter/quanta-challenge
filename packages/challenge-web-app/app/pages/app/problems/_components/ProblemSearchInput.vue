@@ -5,6 +5,10 @@ const keyword = defineModel<string>('value', {
    default: '',
 });
 
+withDefaults(defineProps<{ placeholder?: string }>(), {
+   placeholder: '搜索题目...',
+});
+
 const inputRef = ref<HTMLInputElement | null>(null);
 
 const clearKeyword = () => {
@@ -21,7 +25,7 @@ const clearKeyword = () => {
          ref="inputRef"
          v-model="keyword"
          type="text"
-         placeholder="搜索题目..."
+         :placeholder="placeholder"
          class="flex-1 bg-transparent border-none outline-none text-white placeholder:text-accent-400 text-sm" />
       <button
          v-if="keyword"

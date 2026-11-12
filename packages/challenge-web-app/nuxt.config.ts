@@ -28,6 +28,12 @@ const problemUploadMaxRequestBytes = envInt(
    160 * 1024 * 1024,
 );
 
+/**
+ * 实验室单文件上限。项目文件资产统一走 file-assets 服务，那里的单文件上限同为 20MB，
+ * 调大此值时需同步调整 server/trpc/services/file-assets.ts。
+ */
+const labMaxFileBytes = envInt('LAB_MAX_FILE_BYTES', 20 * 1024 * 1024);
+
 const envSecret = (key: string) => {
    const value = process.env[key];
    if (value) return value;
@@ -157,6 +163,16 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 实验室 IDE 同样运行在 WebContainer 中，需要跨源隔离
+      '/lab/**': {
+         headers: { 'Cache-Control': 'private, no-cache' },
+         security: {
+            headers: {
+               crossOriginOpenerPolicy: 'same-origin',
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
       // 学习页的题目小节用 iframe 嵌入做题页：子页面的 WebContainer 要求父页面同样跨源隔离
       '/app/learning/study/**': {
          headers: { 'Cache-Control': 'private, no-cache' },
@@ -188,6 +204,15 @@ export default defineNuxtConfig({
          security: {
             requestSizeLimiter: {
                maxRequestSizeInBytes: imageBuildMaxCompressedBytes,
+            },
+         },
+      },
+      // 实验室文件上传：请求体是原始文件字节，留出少量余量
+      '/api/lab/projects/**': {
+         security: {
+            requestSizeLimiter: {
+               maxRequestSizeInBytes: labMaxFileBytes + 1024 * 1024,
+               maxUploadFileRequestInBytes: labMaxFileBytes + 1024 * 1024,
             },
          },
       },
@@ -313,6 +338,12 @@ export default defineNuxtConfig({
             environment: env('SENTRY_ENVIRONMENT', ''),
             sampleRate: envInt('SENTRY_SAMPLE_RATE', 1),
             tracesSampleRate: Number(env('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
+         },
+         // 实验室项目配额（前后端共用：前端上传前预检、服务端校验）
+         lab: {
+            maxFileBytes: labMaxFileBytes,
+            maxProjectBytes: envInt('LAB_MAX_PROJECT_BYTES', 100 * 1024 * 1024),
+            maxProjectsPerUser: envInt('LAB_MAX_PROJECTS_PER_USER', 50),
          },
          // 快照镜像体积上限（前后端共用：前端上传前预检、服务端与 routeRules 校验）
          imageBuild: {

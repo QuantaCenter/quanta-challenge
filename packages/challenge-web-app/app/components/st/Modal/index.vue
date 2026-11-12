@@ -1,13 +1,28 @@
 <script setup lang="ts">
 import type { RendererElement } from 'vue';
 
-defineProps<{
+const props = defineProps<{
    attachTo?: string | RendererElement;
+   /** 点击遮罩（模态框外部）时关闭 */
+   closeOnMask?: boolean;
 }>();
 
 const opened = defineModel<boolean>('opened', {
    default: true,
 });
+
+/** 仅当按下与抬起都发生在遮罩上才关闭，避免在内容里拖选文字、松开在外面时误关 */
+let pressedOnMask = false;
+const onMaskPointerDown = (event: PointerEvent) => {
+   pressedOnMask = event.target === event.currentTarget;
+};
+const onMaskClick = (event: MouseEvent) => {
+   if (!props.closeOnMask || !opened.value) return;
+   if (pressedOnMask && event.target === event.currentTarget) {
+      opened.value = false;
+   }
+   pressedOnMask = false;
+};
 </script>
 
 <template>
@@ -22,7 +37,9 @@ const opened = defineModel<boolean>('opened', {
          :class="{
             'pointer-events-auto opacity-100': opened,
             'pointer-events-none opacity-0': !opened,
-         }">
+         }"
+         @pointerdown="onMaskPointerDown"
+         @click="onMaskClick">
          <div
             class="transition-all"
             :class="{

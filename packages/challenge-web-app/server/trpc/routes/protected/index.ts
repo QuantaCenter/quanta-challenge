@@ -12,6 +12,7 @@ import { notificationRouter } from './notification';
 import { settingRouter } from './setting';
 import { verifyRoute } from './verify';
 import { learningRouter } from './learning';
+import { labRouter } from './lab';
 
 export const protectedRouter = router({
    problem: problemRouter,
@@ -27,4 +28,5 @@ export const protectedRouter = router({
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
    learning: learningRouter,
+   lab: labRouter,
 });

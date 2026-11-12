@@ -5,6 +5,7 @@ import {
    DashboardTwo,
    Ranking,
    BookOpen,
+   Experiment,
    SettingTwo,
    TableReport,
    Trophy,
@@ -49,6 +50,11 @@ const role = computed(() => authStore.user?.role ?? 'USER');
             <StSidebarSidePopper content="学习">
                <StSidebarNavigationButton to="/app/learning" aria-label="学习课程">
                   <BookOpen />
+               </StSidebarNavigationButton>
+            </StSidebarSidePopper>
+            <StSidebarSidePopper content="实验室">
+               <StSidebarNavigationButton to="/app/lab" aria-label="实验室">
+                  <Experiment />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
             <StSidebarSidePopper v-if="role !== 'USER'" content="发布">

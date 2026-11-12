@@ -3,6 +3,7 @@ import {
    CategoryManagement,
    BookOpen,
    Close,
+   Experiment,
    DashboardTwo,
    Logout,
    Ranking,
@@ -161,6 +162,13 @@ const teleported = useClientTeleport();
                         :class="{ 'bg-accent-600 text-white': isActive('/app/learning') }">
                         <BookOpen />
                         <span>学习</span>
+                     </NuxtLink>
+                     <NuxtLink
+                        to="/app/lab"
+                        class="st-mobile-drawer-item"
+                        :class="{ 'bg-accent-600 text-white': isActive('/app/lab') }">
+                        <Experiment />
+                        <span>实验室</span>
                      </NuxtLink>
                      <NuxtLink
                         v-if="role !== 'USER'"

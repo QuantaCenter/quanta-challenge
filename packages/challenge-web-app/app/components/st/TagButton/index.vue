@@ -24,10 +24,10 @@ const toggleColor = computed(() => {
       return '#6D6D6D';
    }
 });
-const textColorClass = computed(() => {
-   return shouldUseBlackText(props.tag.color ?? '#fff')
-      ? 'text-accent-700'
-      : 'text-white';
+/** 选中态文字色：按实际背景亮度选深 / 浅色（无自定义颜色时背景是浅色 accent-100） */
+const selectedTextClass = computed(() => {
+   if (!props.tag.color) return 'text-accent-600';
+   return shouldUseBlackText(toggleColor.value) ? 'text-accent-700' : 'text-white';
 });
 </script>
 
@@ -36,11 +36,11 @@ const textColorClass = computed(() => {
       gap="0.5rem"
       align="center"
       class="h-[3.5rem] px-6 rounded-full cursor-pointer border-transparent border hover:border-[var(--c)] shrink-0 text-nowrap whitespace-nowrap"
-      :class="{
-         'bg-accent-600 text-accent-100': !props.selected,
-         'bg-accent-100 text-accent-600': props.selected,
-         [textColorClass]: props.selected,
-      }"
+      :class="
+         props.selected
+            ? ['bg-accent-100', selectedTextClass]
+            : 'bg-accent-600 text-accent-100'
+      "
       :style="{
          '--c': props.tag.color ?? '#6D6D6D',
          backgroundColor:
