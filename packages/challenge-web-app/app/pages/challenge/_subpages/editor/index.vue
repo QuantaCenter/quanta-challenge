@@ -26,11 +26,7 @@ import { useManifestSync } from './_composables/use-manifest-sync';
 import { IGNORE_FILE_PATTERNS } from './_configs';
 import { handleCommands } from './_utils/handle-commands';
 import { useEditorShortcuts } from './_composables/use-editor-shortcuts';
-import {
-   deleteCachedSnapshotImage,
-   readCachedSnapshotImage,
-   writeCachedSnapshotImage,
-} from './_utils/snapshot-image-cache';
+import { mountSnapshotImage } from './_utils/mount-snapshot-image';
 import { useMessage } from '~/components/st/Message/use-message';
 import * as Sentry from '@sentry/nuxt';
 
@@ -272,40 +268,6 @@ watch(unsupportedReason, (reason) => {
    }
 });
 
-const downloadSnapshotImage = async (
-   fileName: string,
-   expectedSize: number | null,
-) => {
-   const response = await $authFetch(
-      `/api/static/image-builds/${encodeURIComponent(fileName)}`,
-   );
-   if (!response.ok) {
-      throw new Error(`快照镜像下载失败（HTTP ${response.status}）`);
-   }
-   // 响应带 Content-Encoding，读到的是解压后的字节，进度按原始大小计算
-   if (!response.body || !expectedSize) {
-      return new Uint8Array(await response.arrayBuffer());
-   }
-   const reader = response.body.getReader();
-   const chunks: Uint8Array[] = [];
-   let received = 0;
-   for (; ;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-      received += value.byteLength;
-      const percent = Math.min(99, Math.floor((received / expectedSize) * 100));
-      snapshotStepText.value = `正在拉取快照镜像... ${percent}%`;
-   }
-   const bytes = new Uint8Array(received);
-   let offset = 0;
-   for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-   }
-   return bytes;
-};
-
 /** 题目绑定快照镜像时，在 bootCommand 之前挂载到工作区根；优先使用本地缓存 */
 const loadSnapshotImage = async (): Promise<boolean> => {
    if (!problem.value?.snapshotImageId) return false;
@@ -313,75 +275,19 @@ const loadSnapshotImage = async (): Promise<boolean> => {
    if (!build) {
       throw new Error('题目绑定的快照镜像不存在或已被删除，请联系发布者');
    }
-   if (build.formatVersion !== 0) {
-      throw new Error(`快照镜像「${build.name}」需要使用 WebContainer 重新构建，请联系发布者`);
-   }
-   if (build.status !== 'ready' || !build.fileName) {
-      throw new Error(
-         `题目绑定的快照镜像「${build.name}」尚未构建完成，请联系发布者`,
-      );
-   }
-   const { id, name, fileName, sizeBytes } = build;
-   const instance = await getInstance();
-
-   const mountSnapshot = async (fromCache: boolean): Promise<number> => {
-      let bytes: Uint8Array<ArrayBuffer> | null = null;
-      if (fromCache) {
-         bytes = await readCachedSnapshotImage(fileName);
-         if (bytes && sizeBytes && bytes.byteLength !== sizeBytes) {
-            await deleteCachedSnapshotImage(fileName);
-            bytes = null;
-         }
-         if (!bytes) return -1;
-         snapshotStepText.value = '正在读取缓存...';
-         await terminal.value?.writeTerminal(
-            `[image] 命中本地缓存「${name}」\n`,
-         );
-      } else {
-         snapshotStepText.value = '正在拉取快照镜像...';
-         await terminal.value?.writeTerminal(
-            `[image] 正在拉取快照镜像「${name}」…\n`,
-         );
-         bytes = await downloadSnapshotImage(fileName, sizeBytes);
-         if (bytes.byteLength === 0) {
-            throw new Error(`快照镜像「${name}」内容为空，请联系发布者重新上传`);
-         }
-      }
-      const size = bytes.byteLength;
-      // mount 会转移 buffer，需在此之前复制出要缓存的内容
-      const cacheBlob = fromCache ? null : new Blob([bytes]);
-      await instance.mount(bytes);
-      if (cacheBlob) void writeCachedSnapshotImage(id, fileName, cacheBlob);
-      return size;
-   };
-
-   let size = -1;
-   try {
-      size = await mountSnapshot(true);
-   } catch (error) {
-      console.warn('[challenge] 缓存的快照镜像挂载失败，改为重新下载:', error);
-      await deleteCachedSnapshotImage(fileName);
-   }
-   if (size < 0) {
-      try {
-         size = await mountSnapshot(false);
-      } catch (error: any) {
-         throw new Error(
-            `快照镜像「${name}」加载失败：${error?.message ?? error}`,
-         );
-      }
-   }
-
-   // snapshot 不保留执行权限
-   const fix = await runCommand([
-      'sh',
-      '-c',
-      'chmod +x node_modules/.bin/* 2>/dev/null; true',
-   ]);
-   await fix.exit;
-   await terminal.value?.writeTerminal(
-      `[image] 快照镜像已就绪（${(size / 1024 / 1024).toFixed(1)} MB）\n`,
-   );
+   await mountSnapshotImage({
+      build,
+      getInstance,
+      runCommand: (command) => runCommand(command),
+      fetcher: (url) => $authFetch(url),
+      onProgress: (text) => {
+         snapshotStepText.value = text;
+      },
+      log: (text) => terminal.value?.writeTerminal(text),
+      owner: '题目',
+      contact: '发布者',
+      scope: 'challenge',
+   });
    return true;
 };
 
