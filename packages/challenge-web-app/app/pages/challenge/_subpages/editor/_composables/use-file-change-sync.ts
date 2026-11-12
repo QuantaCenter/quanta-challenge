@@ -4,14 +4,22 @@ import { minimatch } from 'minimatch';
 import { normalizePath } from '~/utils/path-utils';
 
 export interface IUseFileChangeSyncOptions {
-   problemId: number;
+   /** 做题项目的题目 id；传入 send 时可省略 */
+   problemId?: number;
    ignorePatterns?: string[];
    syncInterval?: number;
    /** 返回加载项目时的版本号，随同步请求携带，供服务端拒绝重置前发出的旧请求 */
    getRevision?: () => number | undefined;
+   /** 自定义同步请求（如实验室项目），默认同步到做题项目 */
+   send?: (
+      changes: Change[],
+      revision: number | undefined,
+   ) => Promise<{ processedCount: number }>;
+   /** 版本冲突（项目已被重置）时的提示 */
+   conflictMessage?: string;
 }
 
-type Change =
+export type Change =
    | { type: 'rm'; path: string }
    | { type: 'mv'; oldPath: string; newPath: string }
    | { type: 'change'; path: string; content: string }
@@ -26,7 +34,17 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       ignorePatterns = [],
       syncInterval = DEFAULT_FILE_SYSTEM_SYNC_INTERVAL,
       getRevision,
+      conflictMessage = '题目已被重置，本地未同步的修改已丢弃，请刷新页面',
    } = options;
+   const { $trpc } = useNuxtApp();
+   const send =
+      options.send ??
+      ((changes: Change[], revision: number | undefined) =>
+         $trpc.protected.fileSync.syncFileChanges.mutate({
+            problemId: problemId!,
+            changes,
+            revision,
+         }));
    const changeList: Change[] = [];
 
    const isIgnored = (path: string) => {
@@ -99,7 +117,6 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
    let failedTime = 0;
    const maxFailedTime = 5;
    const message = useMessage();
-   const { $trpc } = useNuxtApp();
 
    // 同步状态
    const lastSyncTime = ref<Date | null>(null);
@@ -108,7 +125,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
 
    let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
-   const syncChangeToServer = async (changes: Change[], problemId: number) => {
+   const syncChangeToServer = async (changes: Change[]) => {
       // 清除之前的状态恢复定时器
       if (statusTimer) {
          clearTimeout(statusTimer);
@@ -121,11 +138,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       try {
          const result = await atLeastTime(
             1000,
-            $trpc.protected.fileSync.syncFileChanges.mutate({
-               problemId,
-               changes,
-               revision: getRevision?.(),
-            })
+            send(changes, getRevision?.())
          );
          console.info(
             `[SYNC] Successfully synced ${result.processedCount} changes to server`
@@ -145,7 +158,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
          if (code === 'CONFLICT') {
             // 变更基于旧版本，重新入队只会无限失败，丢弃并停止自动同步
             console.warn('[SYNC] Project revision mismatch, discarding stale changes');
-            message.error('题目已被重置，本地未同步的修改已丢弃，请刷新页面');
+            message.error(conflictMessage);
             syncStatus.value = 'error';
             failedTime = maxFailedTime;
 
@@ -157,10 +170,14 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
             }, 5000);
             return;
          }
-         if (code === 'BAD_REQUEST') {
-            // 服务端拒绝的变更重试也不会通过，直接丢弃
+         if (code === 'BAD_REQUEST' || code === 'PAYLOAD_TOO_LARGE') {
+            // 服务端拒绝的变更（非法内容、超出空间配额）重试也不会通过，直接丢弃
             console.warn('[SYNC] Changes rejected by server, discarding');
-            message.error('部分文件变更被拒绝，已跳过');
+            message.error(
+               code === 'PAYLOAD_TOO_LARGE'
+                  ? ((error as Error).message || '文件超出空间限制，已跳过同步')
+                  : '部分文件变更被拒绝，已跳过'
+            );
             syncStatus.value = 'error';
 
             // 错误状态保持 5 秒
@@ -195,7 +212,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       changeList.length = 0;
 
       // 调用同步函数
-      await syncChangeToServer(changesToSync, problemId);
+      await syncChangeToServer(changesToSync);
    };
 
    let alive = true;
@@ -210,7 +227,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
          changeList.length = 0;
 
          // 调用同步函数
-         await syncChangeToServer(changesToSync, problemId);
+         await syncChangeToServer(changesToSync);
 
          // 继续下一个周期的同步
          if (failedTime < maxFailedTime) {

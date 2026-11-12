@@ -13,6 +13,8 @@ export interface IUseCommandsOptions {
    fsTree: Ref<IFileSystemItem[] | undefined>;
    /** 监听 WebContainer 文件系统（含终端操作）产生的变更，用于同步到云端 */
    onFsChange?: (changes: DispatcherFsChange[]) => void;
+   /** 返回 true 的路径不参与文件系统 diff（如 node_modules 内部） */
+   ignorePath?: (path: string) => boolean;
 }
 
 export const useCommands = (options: IUseCommandsOptions) => {
@@ -20,7 +22,8 @@ export const useCommands = (options: IUseCommandsOptions) => {
       options.getWebContainerInstance,
       options.fsTree,
       undefined,
-      options.onFsChange
+      options.onFsChange,
+      options.ignorePath
    );
 
    const commandEmitter = useEventBus<CommandData>('right-click-menu-command');
