@@ -1,0 +1,15 @@
+{
+  "name": "React",
+  "description": "React 18 + Vite，函数组件与 Hooks，开箱即用的快速刷新。",
+  "category": "framework",
+  "tags": [
+    "React",
+    "JSX",
+    "Vite"
+  ],
+  "icon": "/icons/react.png",
+  "entry": "src/App.jsx",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 20
+}

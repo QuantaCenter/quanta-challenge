@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>ECharts 仪表盘</title>
+   </head>
+   <body>
+      <header class="header">
+         <div>
+            <h1>数据看板</h1>
+            <p>Apache ECharts · 示例数据</p>
+         </div>
+         <button id="shuffle" type="button">随机数据</button>
+      </header>
+      <main class="grid">
+         <section class="panel panel-wide">
+            <h2>访问趋势</h2>
+            <div id="trend" class="chart"></div>
+         </section>
+         <section class="panel">
+            <h2>通过率</h2>
+            <div id="gauge" class="chart"></div>
+         </section>
+         <section class="panel">
+            <h2>题型提交量</h2>
+            <div id="category" class="chart"></div>
+         </section>
+         <section class="panel panel-wide">
+            <h2>语言占比</h2>
+            <div id="share" class="chart"></div>
+         </section>
+      </main>
+      <script type="module" src="/src/main.js"></script>
+   </body>
+</html>

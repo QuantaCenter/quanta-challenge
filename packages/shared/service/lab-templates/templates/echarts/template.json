@@ -1,0 +1,15 @@
+{
+  "name": "ECharts 仪表盘",
+  "description": "Apache ECharts 数据看板：折线、柱状、饼图与仪表盘联动示例。",
+  "category": "chart",
+  "tags": [
+    "ECharts",
+    "Vite",
+    "图表"
+  ],
+  "icon": "/icons/echarts.svg",
+  "entry": "src/charts.js",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 30
+}

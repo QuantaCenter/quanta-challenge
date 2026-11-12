@@ -1,0 +1,13 @@
+{
+  "name": "空白项目",
+  "description": "不含任何文件的 Node.js 环境，从零开始自由创建文件、安装依赖并在终端里运行。",
+  "category": "basic",
+  "tags": [
+    "Node.js",
+    "终端"
+  ],
+  "icon": "/icons/document.png",
+  "entry": "",
+  "startCommand": "",
+  "order": 90
+}

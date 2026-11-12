@@ -1,0 +1,14 @@
+{
+  "name": "HTML / CSS / JS",
+  "description": "无需构建的静态页面，启动最快，适合练习基础语法与 DOM 操作。",
+  "category": "basic",
+  "tags": [
+    "HTML",
+    "CSS",
+    "JavaScript"
+  ],
+  "icon": "/icons/html.png",
+  "entry": "index.html",
+  "startCommand": "npx --yes serve -l 3000 .",
+  "order": 70
+}

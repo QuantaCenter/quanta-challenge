@@ -1,5 +1,18 @@
 export type LabTemplateCategory = 'basic' | 'framework' | 'chart' | 'backend';
 
+export const LAB_TEMPLATE_CATEGORIES = [
+   'basic',
+   'framework',
+   'chart',
+   'backend',
+] as const satisfies readonly LabTemplateCategory[];
+
+export const isLabTemplateCategory = (
+   value: unknown,
+): value is LabTemplateCategory =>
+   typeof value === 'string' &&
+   (LAB_TEMPLATE_CATEGORIES as readonly string[]).includes(value);
+
 export interface LabTemplate {
    /** 稳定 id：实验室项目的 templateId 字段引用它，不要随意改动 */
    id: string;

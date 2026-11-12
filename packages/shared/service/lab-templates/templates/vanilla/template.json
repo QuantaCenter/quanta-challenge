@@ -1,0 +1,15 @@
+{
+  "name": "Vite + JavaScript",
+  "description": "原生 JavaScript 搭配 Vite，支持 ES Module 与热更新。",
+  "category": "basic",
+  "tags": [
+    "Vite",
+    "JavaScript",
+    "HMR"
+  ],
+  "icon": "/icons/javascript.png",
+  "entry": "src/main.js",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 60
+}
