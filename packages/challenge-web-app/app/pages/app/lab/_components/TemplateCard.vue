@@ -1,14 +1,11 @@
 <script setup lang="ts">
-import {
-   LAB_CATEGORY_COLOR,
-   LAB_CATEGORY_LABEL,
-} from '@challenge/shared/lab-templates';
 import type { LabTemplateItem } from '~/composables/use-lab-projects';
+import type { LabCategoryDisplay } from '~/utils/lab-category-icons';
 import TechTagIcon from './TechTagIcon.vue';
 
 /** 模板卡片：点击触发 select，由页面打开详情弹窗 */
 
-defineProps<{ template: LabTemplateItem }>();
+defineProps<{ template: LabTemplateItem; category: LabCategoryDisplay }>();
 
 defineEmits<{ select: [] }>();
 </script>
@@ -37,8 +34,9 @@ defineEmits<{ select: [] }>();
                </h3>
                <StTag
                   size="small"
-                  :color="LAB_CATEGORY_COLOR[template.category]"
-                  :content="LAB_CATEGORY_LABEL[template.category]"
+                  contrast-text
+                  :color="category.color"
+                  :content="category.name"
                   class="shrink-0" />
             </StSpace>
             <!-- 下：简介 + 技术栈 -->
@@ -52,7 +50,7 @@ defineEmits<{ select: [] }>();
                      v-for="tagName in template.tags"
                      :key="tagName"
                      class="inline-flex h-6 items-center gap-1.5 rounded-md bg-accent-500/60 px-2 text-xs font-medium leading-4 text-accent-200">
-                     <TechTagIcon :name="tagName" />
+                     <TechTagIcon :name="tagName" :icon="template.tagIcons?.[tagName]" />
                      <span class="whitespace-nowrap">{{ tagName }}</span>
                   </span>
                </StSpace>

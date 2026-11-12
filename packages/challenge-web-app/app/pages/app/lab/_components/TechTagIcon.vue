@@ -12,11 +12,15 @@ import {
 import { LAB_TAG_ICON } from '@challenge/shared/lab-templates';
 
 /**
- * 技术栈标签图标：有品牌图标用品牌图标，没有就用 IconPark 补齐。
+ * 技术栈标签图标：实验室标签上传了图标时优先使用，其次用内置的品牌图标，都没有就用 IconPark 补齐。
  * 两种图标占用同一个正方形盒子（默认 0.875rem），保证大小一致。
  */
 
-const props = defineProps<{ name: string }>();
+const props = defineProps<{
+   name: string;
+   /** 实验室标签上传的图标地址 */
+   icon?: string;
+}>();
 
 const FALLBACK_ICON: Record<string, DefineComponent> = {
    API: Api as DefineComponent,
@@ -27,7 +31,7 @@ const FALLBACK_ICON: Record<string, DefineComponent> = {
    终端: Terminal as DefineComponent,
 };
 
-const src = computed(() => LAB_TAG_ICON[props.name]);
+const src = computed(() => props.icon || LAB_TAG_ICON[props.name]);
 const fallback = computed(
    () => FALLBACK_ICON[props.name] ?? (Tag as DefineComponent),
 );

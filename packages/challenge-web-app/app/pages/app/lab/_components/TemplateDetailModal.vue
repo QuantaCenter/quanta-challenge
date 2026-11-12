@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { DefineComponent } from 'vue';
 import { BookOpen, Close, Folder, LoadingFour, Plus, TreeList } from '@icon-park/vue-next';
-import {
-   LAB_CATEGORY_COLOR,
-   LAB_CATEGORY_LABEL,
-} from '@challenge/shared/lab-templates';
 import type { LabTemplateItem } from '~/composables/use-lab-projects';
+import {
+   resolveLabCategory,
+   type LabCategoryDisplay,
+} from '~/utils/lab-category-icons';
 import { buildFileSystemTree } from '~/utils/fs-tree';
 import { formatFileSize } from '~/utils/format-file-size';
 import { useMarkdown } from '~/composables/use-markdown';
@@ -17,9 +17,15 @@ import TechTagIcon from './TechTagIcon.vue';
 
 const props = defineProps<{
    template: LabTemplateItem | null;
+   /** 全部模板分类，用于展示分类标签 */
+   categories: LabCategoryDisplay[];
    /** 已创建的项目数量（用于提示配额） */
    projectCount: number;
 }>();
+
+const category = computed(() =>
+   resolveLabCategory(props.categories, props.template?.category ?? ''),
+);
 
 const opened = defineModel<boolean>('opened', { default: false });
 
@@ -221,8 +227,9 @@ onUnmounted(() => {
                      </h2>
                      <StTag
                         size="small"
-                        :color="LAB_CATEGORY_COLOR[template.category]"
-                        :content="LAB_CATEGORY_LABEL[template.category]" />
+                        contrast-text
+                        :color="category.color"
+                        :content="category.name" />
                   </StSpace>
                   <p class="st-font-caption text-accent-300 leading-5">
                      {{ template.description }}
@@ -233,7 +240,7 @@ onUnmounted(() => {
                         :key="tagName"
                         align="center"
                         gap="0.375rem">
-                        <TechTagIcon :name="tagName" />
+                        <TechTagIcon :name="tagName" :icon="template.tagIcons?.[tagName]" />
                         <span>{{ tagName }}</span>
                      </StSpace>
                   </StSpace>

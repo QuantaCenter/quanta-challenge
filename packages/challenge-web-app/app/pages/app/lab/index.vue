@@ -33,7 +33,15 @@ const {
    refresh: refreshTemplates,
 } = templatesAsync;
 
-await Promise.all([ready, templatesAsync]);
+// 模板分类：分类页签与卡片分类标签；加载失败时卡片显示「未分类」，不阻塞模板列表
+const categoriesAsync = useAsyncData('lab-categories', () =>
+   $trpc.protected.lab.categories.query(),
+);
+const { data: categories, refresh: refreshCategories } = categoriesAsync;
+
+await Promise.all([ready, templatesAsync, categoriesAsync]);
+
+const retryTemplates = () => Promise.all([refreshTemplates(), refreshCategories()]);
 
 const modalOpened = ref(false);
 const activeTemplate = ref<LabTemplateItem | null>(null);
@@ -71,9 +79,10 @@ const openTemplate = (template: LabTemplateItem) => {
 
          <TemplateSection
             :templates="templates ?? []"
+            :categories="categories ?? []"
             :pending="templatesPending && !templates"
             :error="!!templatesError"
-            @retry="refreshTemplates()"
+            @retry="retryTemplates()"
             @select="openTemplate" />
          <StSpacer fill flex no-shrink height="1rem" />
       </StSpace>
@@ -81,6 +90,7 @@ const openTemplate = (template: LabTemplateItem) => {
       <TemplateDetailModal
          v-model:opened="modalOpened"
          :template="activeTemplate"
+         :categories="categories ?? []"
          :project-count="projects?.length ?? 0"
          @created="refresh()" />
    </StSpace>

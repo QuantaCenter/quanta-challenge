@@ -1,20 +1,12 @@
 <script setup lang="ts">
 import type { DefineComponent } from 'vue';
-import {
-   ChartHistogram,
-   CodeBrackets,
-   Components,
-   Ghost,
-   Server,
-   ThreeHexagons,
-} from '@icon-park/vue-next';
-import {
-   LAB_CATEGORY_COLOR,
-   LAB_CATEGORY_LABEL,
-   LAB_CATEGORY_ORDER,
-   type LabTemplateCategory,
-} from '@challenge/shared/lab-templates';
+import { Ghost, ThreeHexagons } from '@icon-park/vue-next';
 import type { LabTemplateItem } from '~/composables/use-lab-projects';
+import {
+   labCategoryIcon,
+   resolveLabCategory,
+   type LabCategoryDisplay,
+} from '~/utils/lab-category-icons';
 import ProblemSearchInput from '../../problems/_components/ProblemSearchInput.vue';
 import ScrollMaskRow from './ScrollMaskRow.vue';
 import TemplateCard from './TemplateCard.vue';
@@ -23,25 +15,29 @@ import TemplateCard from './TemplateCard.vue';
 
 const props = defineProps<{
    templates: LabTemplateItem[];
+   /** 全部模板分类（已按排序），含已停用的 */
+   categories: LabCategoryDisplay[];
    pending: boolean;
    error: boolean;
 }>();
 
 defineEmits<{ select: [template: LabTemplateItem]; retry: [] }>();
 
-const CATEGORY_ICON: Record<LabTemplateCategory, DefineComponent> = {
-   framework: Components as DefineComponent,
-   chart: ChartHistogram as DefineComponent,
-   basic: CodeBrackets as DefineComponent,
-   backend: Server as DefineComponent,
-};
-
-const categories = computed(() =>
-   LAB_CATEGORY_ORDER.filter((category) =>
-      props.templates.some((item) => item.category === category),
+/** 分类页签：只展示启用、且至少有一个模板的分类 */
+const categoryTabs = computed(() =>
+   props.categories.filter(
+      (category) =>
+         category.enabled !== false &&
+         props.templates.some((item) => item.category === category.id),
    ),
 );
-const selectedCategory = ref<LabTemplateCategory | null>(null);
+const selectedCategory = ref<string | null>(null);
+// 选中的分类被停用或不再有模板时回到「全部」
+watch(categoryTabs, (tabs) => {
+   if (selectedCategory.value && !tabs.some((tab) => tab.id === selectedCategory.value)) {
+      selectedCategory.value = null;
+   }
+});
 const keyword = ref('');
 
 const visibleTemplates = computed(() => {
@@ -68,20 +64,18 @@ const visibleTemplates = computed(() => {
          <ScrollMaskRow class="flex-1 max-md:flex-none max-md:w-full">
             <StSpace gap="0.75rem" no-wrap class="w-max">
                <StTagButton
-                  :icon="ThreeHexagons"
+                  :icon="ThreeHexagons as DefineComponent"
                   :tag="{ name: '全部' }"
                   :selected="selectedCategory === null"
                   @click="selectedCategory = null" />
                <StTagButton
-                  v-for="category in categories"
-                  :key="category"
-                  :icon="CATEGORY_ICON[category]"
-                  :tag="{
-                     name: LAB_CATEGORY_LABEL[category],
-                     color: LAB_CATEGORY_COLOR[category],
-                  }"
-                  :selected="selectedCategory === category"
-                  @click="selectedCategory = category" />
+                  v-for="category in categoryTabs"
+                  :key="category.id"
+                  :icon="labCategoryIcon(category.icon)"
+                  :tag="{ name: category.name, color: category.color }"
+                  :selected="selectedCategory === category.id"
+                  contrast-text
+                  @click="selectedCategory = category.id" />
             </StSpace>
          </ScrollMaskRow>
          <div class="flex shrink-0 max-md:w-full">
@@ -120,6 +114,7 @@ const visibleTemplates = computed(() => {
             v-for="item in visibleTemplates"
             :key="item.id"
             :template="item"
+            :category="resolveLabCategory(categories, item.category)"
             @select="$emit('select', item)" />
       </div>
 
