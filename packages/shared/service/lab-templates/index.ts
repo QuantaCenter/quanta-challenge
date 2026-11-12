@@ -5,7 +5,7 @@ export * from './types';
  * 由服务端在运行时读取并组装（见 challenge-web-app 的 server/services/builtin-lab-templates.ts）。
  *
  *   templates/<模板 id>/
- *   ├── template.json   基础信息：name、description、category、tags、icon、entry、
+ *   ├── template.json   基础信息：name、description、category（模板分类 id，见 lab_categories）、tags、icon、entry、
  *   │                   installCommand（可省略）、startCommand、order（列表排序，越小越靠前）
  *   ├── README.md       说明文档，在模板详情的「介绍」与 IDE 的「说明」中展示
  *   └── files/          项目文件，按原样复制到用户项目根目录（可以没有）
