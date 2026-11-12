@@ -53,7 +53,7 @@ const options = [
    },
    {
       title: '创建标签',
-      description: '创建新的题目标签，并为标签配置颜色与图标',
+      description: '创建题目标签或实验室标签，并为标签配置图标',
       url: '/app/publish/create-tag',
       icon: Tag,
       iconColor: '#FE4E4E',

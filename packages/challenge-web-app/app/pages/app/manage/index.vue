@@ -48,7 +48,7 @@ const options: ProcessOption[] = [
    },
    {
       title: '标签管理',
-      description: '查看并管理已有的题目标签',
+      description: '分类管理题目标签与实验室标签（模板卡片上的技术栈标签）',
       url: '/app/manage/tag',
       icon: Tag,
       iconColor: '#FE4E4E',
