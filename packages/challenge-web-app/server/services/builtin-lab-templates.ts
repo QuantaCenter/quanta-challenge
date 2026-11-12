@@ -1,6 +1,6 @@
 import z from 'zod';
 import {
-   LAB_TEMPLATE_CATEGORIES,
+   LAB_CATEGORY_ID_PATTERN,
    type LabTemplate,
 } from '@challenge/shared/lab-templates';
 import {
@@ -38,7 +38,10 @@ const CUSTOM_TEMPLATE_ID_PREFIX = 'custom-';
 const metaSchema = z.strictObject({
    name: z.string().trim().min(1, 'name 不能为空'),
    description: z.string().default(''),
-   category: z.enum(LAB_TEMPLATE_CATEGORIES),
+   /** 模板分类 id（lab_categories.id）；分类不存在时卡片显示为「未分类」 */
+   category: z
+      .string()
+      .regex(LAB_CATEGORY_ID_PATTERN, 'category 只能包含小写字母、数字与连字符'),
    tags: z.array(z.string().trim().min(1)).default([]),
    icon: z.string().min(1, 'icon 不能为空'),
    /** 首次打开的文件（相对项目根），留空则自动选择 */

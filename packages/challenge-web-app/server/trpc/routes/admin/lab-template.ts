@@ -1,6 +1,5 @@
 import { TRPCError } from '@trpc/server';
 import z from 'zod';
-import { LAB_TEMPLATE_CATEGORIES } from '@challenge/shared/lab-templates';
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
@@ -14,6 +13,8 @@ import {
    normalizeLabTemplateFiles,
    toLabTemplateSummary,
 } from '../../services/lab-template';
+import { ensureLabTagsExist } from '../../services/lab-tag';
+import { ensureLabCategoryExists, listLabCategories } from '../../services/lab-category';
 
 const idSchema = z.object({ id: z.string().min(1) });
 
@@ -35,20 +36,23 @@ const builtinInfoSchema = z.object({
    snapshotImageId: snapshotImageIdSchema,
 });
 
+/** 图标地址：站内路径或 https 地址 */
+const iconUrlSchema = z
+   .string()
+   .trim()
+   .max(300)
+   .refine(
+      (value) => !value || /^\/[\w./-]+$/.test(value) || /^https:\/\/\S+$/.test(value),
+      '图标地址需为站内路径（如 /icons/vue.png）或 https 地址',
+   );
+
 /** 自定义模板的完整内容 */
 const customTemplateSchema = builtinInfoSchema.extend({
-   category: z.enum(LAB_TEMPLATE_CATEGORIES),
-   tags: z
-      .array(z.string().trim().min(1).max(20, '标签最多 20 个字符'))
-      .max(8, '标签最多 8 个'),
-   icon: z
-      .string()
-      .trim()
-      .max(300)
-      .refine(
-         (value) => !value || /^\/[\w./-]+$/.test(value) || /^https:\/\/\S+$/.test(value),
-         '图标地址需为站内路径（如 /icons/vue.png）或 https 地址',
-      ),
+   /** 模板分类 id（lab_categories.id） */
+   category: z.string().min(1, '请选择模板分类'),
+   /** 实验室标签名（必须是可用的实验室标签，见 admin.tag.labList） */
+   tags: z.array(z.string().trim().min(1)).max(8, '标签最多 8 个'),
+   icon: iconUrlSchema,
    entry: z.string().trim().max(512),
    readme: z.string().max(50_000, '说明文档最多 50000 个字符'),
    files: z.record(z.string(), z.string()),
@@ -57,7 +61,7 @@ const customTemplateSchema = builtinInfoSchema.extend({
 
 type CustomTemplateInput = z.infer<typeof customTemplateSchema>;
 
-/** 校验并整理自定义模板数据（文件、入口文件、快照镜像） */
+/** 校验并整理自定义模板数据（文件、入口文件、快照镜像、标签） */
 const prepareCustomTemplate = async (input: CustomTemplateInput) => {
    const files = normalizeLabTemplateFiles(input.files);
    const entry = input.entry.replace(/^\/+/, '');
@@ -67,12 +71,17 @@ const prepareCustomTemplate = async (input: CustomTemplateInput) => {
          message: `入口文件「${entry}」不在模板文件中`,
       });
    }
-   await ensureSnapshotImageReady(input.snapshotImageId);
+   const tags = [...new Set(input.tags)];
+   await Promise.all([
+      ensureSnapshotImageReady(input.snapshotImageId),
+      ensureLabTagsExist(tags),
+      ensureLabCategoryExists(input.category),
+   ]);
    return {
       name: input.name,
       description: input.description,
       category: input.category,
-      tags: [...new Set(input.tags)],
+      tags,
       icon: input.icon || null,
       entry,
       installCommand: input.installCommand,
@@ -97,14 +106,19 @@ const requireCustomTemplate = async (id: string) => {
 /** 实验室模板管理：内置模板可停用 / 修改基础信息，自定义模板可发布 / 编辑 / 删除 */
 export const labTemplateAdminRouter = router({
    list: protectedAdminProcedure.query(async () => {
-      const [templates, projectCounts] = await Promise.all([
+      const [templates, projectCounts, categories] = await Promise.all([
          listLabTemplates({ includeDisabled: true }),
          countLabTemplateProjects(),
+         listLabCategories(),
       ]);
+      const categoryMap = new Map(categories.map((category) => [category.id, category]));
       return templates.map((template) => {
          const { readme: _readme, ...summary } = toLabTemplateSummary(template);
+         const category = categoryMap.get(template.category);
          return {
             ...summary,
+            /** 分类展示信息；分类被删除时为 null */
+            categoryInfo: category ? { name: category.name, color: category.color } : null,
             projectCount: projectCounts.get(template.id) ?? 0,
          };
       });

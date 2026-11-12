@@ -1,10 +1,7 @@
 import { randomBytes } from 'crypto';
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
-import {
-   isLabTemplateCategory,
-   type LabTemplate,
-} from '@challenge/shared/lab-templates';
+import type { LabTemplate } from '@challenge/shared/lab-templates';
 import { hasBinarySnapshotExtension } from '@challenge/shared/snapshot-content';
 import prisma from '~~/lib/prisma';
 import {
@@ -54,7 +51,8 @@ export interface ResolvedLabTemplate extends LabTemplate {
    updatedAt: Date | null;
 }
 
-const parseFiles = (value: Prisma.JsonValue | null): Record<string, string> => {
+/** 读取 JSON 字段中的「字符串 -> 字符串」映射（模板文件），非字符串的值忽略 */
+const parseStringRecord = (value: Prisma.JsonValue | null): Record<string, string> => {
    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
    return Object.fromEntries(
       Object.entries(value).filter(
@@ -95,14 +93,14 @@ const resolveCustom = (row: LabTemplateRow): ResolvedLabTemplate => ({
    id: row.id,
    name: row.name || '未命名模板',
    description: row.description ?? '',
-   category: isLabTemplateCategory(row.category) ? row.category : 'basic',
+   category: row.category || 'basic',
    tags: row.tags,
    icon: row.icon || DEFAULT_LAB_TEMPLATE_ICON,
    entry: row.entry ?? '',
    installCommand: row.installCommand || undefined,
    startCommand: row.startCommand ?? '',
    readme: row.readme ?? '',
-   files: parseFiles(row.files),
+   files: parseStringRecord(row.files),
    builtin: false,
    enabled: row.enabled,
    customized: false,

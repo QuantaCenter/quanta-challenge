@@ -9,6 +9,8 @@ import {
    listLabTemplates,
    toLabTemplateSummary,
 } from '../../services/lab-template';
+import { getLabTagIconMap, pickTagIcons } from '../../services/lab-tag';
+import { listLabCategories } from '../../services/lab-category';
 
 const ProjectIdSchema = z.object({ id: z.string().min(1) });
 
@@ -24,13 +26,20 @@ const DescriptionSchema = z
    .max(200, '项目简介最多 200 个字符');
 
 export const labRouter = router({
-   /** 可用的模板（已停用的不返回），不含文件内容 */
+   /** 模板分类（含已停用的，前端据此展示卡片分类标签；分类页签只展示启用的分类） */
+   categories: protectedProcedure.query(() => listLabCategories()),
+
+   /** 可用的模板（已停用的不返回），不含文件内容；tagIcons 为上传了图标的实验室标签 */
    templates: protectedProcedure.query(async () => {
-      const templates = await listLabTemplates();
+      const [templates, tagIconMap] = await Promise.all([
+         listLabTemplates(),
+         getLabTagIconMap(),
+      ]);
       return templates.map((template) => {
          const { id, name, description, category, tags, icon, entry, readme, builtin, fileCount } =
             toLabTemplateSummary(template);
-         return { id, name, description, category, tags, icon, entry, readme, builtin, fileCount };
+         const tagIcons = pickTagIcons(tags, tagIconMap);
+         return { id, name, description, category, tags, tagIcons, icon, entry, readme, builtin, fileCount };
       });
    }),
 
