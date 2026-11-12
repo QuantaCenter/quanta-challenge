@@ -3,6 +3,7 @@ import {
    BookOpen,
    Box,
    Code,
+   Experiment,
    GoldMedalTwo,
    Help,
    History,
@@ -72,6 +73,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/image',
       icon: Box,
       iconColor: '#4CA7FF',
+   },
+   {
+      title: '实验室模板管理',
+      description: '启用或停用实验室模板，修改名称、启动命令与快照镜像，发布自定义模板',
+      url: '/app/manage/lab-template',
+      icon: Experiment,
+      iconColor: '#A78BFA',
    },
    {
       title: '提交记录',

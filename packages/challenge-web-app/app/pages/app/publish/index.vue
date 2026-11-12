@@ -3,6 +3,7 @@ import {
    BookOpen,
    Box,
    Code,
+   Experiment,
    GoldMedalTwo,
    TableReport,
    Tag,
@@ -35,6 +36,13 @@ const options = [
       iconColor: '#4CA7FF',
       // 依赖跨源隔离响应头，需整页加载
       needFullLoad: true,
+   },
+   {
+      title: '发布实验室模板',
+      description: '上传项目文件夹或从实验室项目导入，发布供成员在实验室中一键创建的项目模板',
+      url: '/app/publish/lab-template',
+      icon: Experiment,
+      iconColor: '#A78BFA',
    },
    {
       title: '创建成就',
