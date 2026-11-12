@@ -310,6 +310,21 @@ export default defineNuxtConfig({
             base: './storage/local',
          },
       },
+      // 实验室内置模板：模板文件以普通文件的形式放在 shared 包里，作为服务端资源打包，
+      // 运行时经 useStorage('assets:lab-templates') 读取并组装（见 server/services/builtin-lab-templates.ts）。
+      // 开发环境直接读取磁盘，改动模板文件后无需重启即可生效。
+      serverAssets: [
+         {
+            baseName: 'lab-templates',
+            dir: fileURLToPath(
+               new URL('../shared/service/lab-templates/templates', import.meta.url),
+            ),
+            // 生产构建用 globby 扫描且默认跳过点文件（开发环境的 fs 驱动不会跳过），
+            // 显式匹配点文件与点目录，保证 .gitignore、.vscode/ 这类模板文件两边一致
+            pattern: '**/{*,.*,.*/**/*}',
+            ignore: ['**/node_modules/**', '**/.DS_Store'],
+         },
+      ],
       experimental: {
          tasks: true,
       },
