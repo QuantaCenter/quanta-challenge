@@ -1,17 +1,13 @@
 <script setup lang="ts">
 import { InboxIn, UploadTwo } from '@icon-park/vue-next';
-import {
-   LAB_CATEGORY_COLOR,
-   LAB_CATEGORY_LABEL,
-   LAB_CATEGORY_ORDER,
-   type LabTemplateCategory,
-} from '@challenge/shared/lab-templates';
+import { LAB_ICON_PRESETS } from '@challenge/shared/lab-templates';
 import { hasBinarySnapshotExtension } from '@challenge/shared/snapshot-content';
 import { useMessage } from '~/components/st/Message/use-message';
 import { formatFileSize } from '~/utils/format-file-size';
 import UploadProject from '../problem/_components/UploadProject.vue';
-import TechTagIcon from '../../lab/_components/TechTagIcon.vue';
 import SnapshotImageField from '../../manage/lab-template/_components/SnapshotImageField.vue';
+import LabTagPicker from './_components/LabTagPicker.vue';
+import LabCategoryPicker from './_components/LabCategoryPicker.vue';
 
 /**
  * 发布 / 编辑自定义实验室模板（`?id=` 为编辑）。
@@ -29,44 +25,18 @@ const message = useMessage();
 const outerClass =
    'border !py-4 !px-4 !rounded-[0.5rem] w-full focus-within:!border-primary';
 
-const ICON_PRESETS = [
-   { label: 'Vue', value: '/icons/vue.png' },
-   { label: 'React', value: '/icons/react.png' },
-   { label: 'Nuxt', value: '/icons/nuxt.png' },
-   { label: 'Svelte', value: '/icons/svelte.png' },
-   { label: 'Vite', value: '/icons/vite.png' },
-   { label: 'TypeScript', value: '/icons/typescript.png' },
-   { label: 'JavaScript', value: '/icons/javascript.png' },
-   { label: 'HTML', value: '/icons/html.png' },
-   { label: 'CSS', value: '/icons/css.png' },
-   { label: 'Tailwind CSS', value: '/icons/tailwindcss.png' },
-   { label: 'Sass', value: '/icons/sass.png' },
-   { label: 'Node.js', value: '/icons/nodejs.png' },
-   { label: 'Express', value: '/icons/express.svg' },
-   { label: 'ECharts', value: '/icons/echarts.svg' },
-   { label: 'Chart.js', value: '/icons/chartjs.svg' },
-   { label: 'D3', value: '/icons/d3.svg' },
-   { label: 'WebAssembly', value: '/icons/webassembly.png' },
-   { label: 'Markdown', value: '/icons/markdown.png' },
-   { label: '终端', value: '/icons/console.png' },
-   { label: '文档', value: '/icons/document.png' },
-];
-const iconOptions = ICON_PRESETS.map((item) => ({ ...item, imageUrl: item.value }));
+const iconOptions = LAB_ICON_PRESETS.map((item) => ({ ...item, imageUrl: item.value }));
 const selectedIconLabel = computed(
-   () => ICON_PRESETS.find((item) => item.value === form.icon)?.label ?? form.icon,
+   () => LAB_ICON_PRESETS.find((item) => item.value === form.icon)?.label ?? form.icon,
 );
-
-const categoryOptions = LAB_CATEGORY_ORDER.map((category) => ({
-   label: LAB_CATEGORY_LABEL[category],
-   value: category,
-   color: LAB_CATEGORY_COLOR[category],
-}));
 
 const form = reactive({
    name: '',
    description: '',
-   category: 'framework' as LabTemplateCategory,
-   tagsText: '',
+   /** 模板分类 id：从启用的模板分类中选择（未选择时由分类选择器默认选中第一个） */
+   category: '',
+   /** 技术栈标签：从可用的实验室标签中选择 */
+   tags: [] as string[],
    icon: '/icons/document.png',
    entry: '',
    installCommand: 'npm install',
@@ -75,15 +45,6 @@ const form = reactive({
    snapshotImageId: '',
    enabled: true,
 });
-
-const tags = computed(() => [
-   ...new Set(
-      form.tagsText
-         .split(/[,，]/)
-         .map((tag) => tag.trim())
-         .filter(Boolean),
-   ),
-]);
 
 // ————————————————— 模板文件 —————————————————
 
@@ -215,7 +176,7 @@ const loadDetail = async () => {
          name: detail.name,
          description: detail.description,
          category: detail.category,
-         tagsText: detail.tags.join(', '),
+         tags: [...detail.tags],
          icon: detail.icon,
          entry: detail.entry,
          installCommand: detail.installCommand,
@@ -242,8 +203,8 @@ const validate = () => {
    const name = form.name.trim();
    if (!name || name.length > 40) return '模板名称需为 1～40 个字符';
    if (form.description.trim().length > 200) return '模板简介最多 200 个字符';
-   if (tags.value.length > 8) return '技术栈标签最多 8 个';
-   if (tags.value.some((tag) => tag.length > 20)) return '单个标签最多 20 个字符';
+   if (!form.category) return '请选择模板分类';
+   if (form.tags.length > 8) return '技术栈标签最多 8 个';
    if (form.readme.length > 50_000) return '说明文档最多 50000 个字符';
    return '';
 };
@@ -261,7 +222,7 @@ const submit = async () => {
       name,
       description,
       category: form.category,
-      tags: tags.value,
+      tags: [...form.tags],
       icon: form.icon,
       entry: form.entry,
       installCommand: form.installCommand.trim(),
@@ -331,22 +292,29 @@ const submit = async () => {
                   :outer-class />
             </StFormItem>
             <StFormItem name="category" label="分类" required>
-               <StSlideRadioGroup v-model:value="form.category" :options="categoryOptions" />
+               <template #header-right>
+                  <NuxtLink
+                     to="/app/manage/tag?scope=lab-category"
+                     target="_blank"
+                     class="st-font-caption text-primary hover:underline">
+                     管理模板分类 ↗
+                  </NuxtLink>
+               </template>
+               <LabCategoryPicker v-model:category="form.category" :outer-class />
             </StFormItem>
             <StFormItem name="tags" label="技术栈标签">
-               <StInput
-                  v-model:value="form.tagsText"
-                  placeholder="用逗号分隔，例如：Vue, TypeScript, Vite"
-                  :outer-class />
-               <StSpace v-if="tags.length" align="center" gap="0.5rem" wrap>
-                  <span
-                     v-for="tag in tags"
-                     :key="tag"
-                     class="inline-flex h-6 items-center gap-1.5 rounded-md bg-accent-500/60 px-2 text-xs font-medium text-accent-200">
-                     <TechTagIcon :name="tag" />
-                     <span class="whitespace-nowrap">{{ tag }}</span>
-                  </span>
-               </StSpace>
+               <template #header-right>
+                  <NuxtLink
+                     to="/app/manage/tag?scope=lab"
+                     target="_blank"
+                     class="st-font-caption text-primary hover:underline">
+                     管理实验室标签 ↗
+                  </NuxtLink>
+               </template>
+               <LabTagPicker v-model:tags="form.tags" :max="8" :outer-class="`${outerClass} !py-3`" />
+               <p class="st-font-caption text-accent-400">
+                  最多 8 个，显示在模板卡片底部；标签图标在标签管理中统一设置。
+               </p>
             </StFormItem>
             <StFormItem name="icon" label="图标" required>
                <StSelect

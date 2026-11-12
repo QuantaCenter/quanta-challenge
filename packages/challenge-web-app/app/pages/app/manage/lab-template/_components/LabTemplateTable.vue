@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Box, Delete, Experiment, Undo, Write } from '@icon-park/vue-next';
-import { LAB_CATEGORY_COLOR, LAB_CATEGORY_LABEL } from '@challenge/shared/lab-templates';
+import { LAB_CATEGORY_FALLBACK } from '@challenge/shared/lab-templates';
 import type { ITableColumn } from '~/components/st/Table/type';
 import type { LabTemplateRow } from '../_composables/use-lab-template-admin';
 
@@ -78,8 +78,9 @@ const actionClass =
                   <StTag
                      size="small"
                      class="shrink-0"
-                     :color="LAB_CATEGORY_COLOR[row.category as keyof typeof LAB_CATEGORY_COLOR]"
-                     :content="LAB_CATEGORY_LABEL[row.category as keyof typeof LAB_CATEGORY_LABEL]" />
+                     contrast-text
+                     :color="(row.categoryInfo ?? LAB_CATEGORY_FALLBACK).color"
+                     :content="(row.categoryInfo ?? LAB_CATEGORY_FALLBACK).name" />
                </StSpace>
                <span class="truncate st-font-caption text-accent-300">
                   {{ row.description || '暂无简介' }}
