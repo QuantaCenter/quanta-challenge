@@ -6,14 +6,18 @@ const props = defineProps<{
    color?: string;
    closable?: boolean;
    size?: 'small' | 'base';
+   /** 按 WCAG 对比度选择文字颜色（浅色主题色也会配深色文字），默认沿用全站的亮度阈值 */
+   contrastText?: boolean;
 }>();
 
 defineEmits(['close']);
 
 const textColorClass = computed(() => {
-   return shouldUseBlackText(props.color ?? '#FA7C0E')
-      ? 'text-accent-700'
-      : 'text-white';
+   const color = props.color ?? '#FA7C0E';
+   const dark = props.contrastText
+      ? prefersDarkTextByContrast(color)
+      : shouldUseBlackText(color);
+   return dark ? 'text-accent-700' : 'text-white';
 });
 
 const size = computed(() => props.size ?? 'base');

@@ -10,6 +10,8 @@ const props = defineProps<{
       image?: { name: string } | null;
    };
    selected?: boolean;
+   /** 选中态按 WCAG 对比度选择文字颜色（浅色主题色也会配深色文字），默认沿用全站的亮度阈值 */
+   contrastText?: boolean;
 }>();
 
 const url = computed(() => {
@@ -27,7 +29,10 @@ const toggleColor = computed(() => {
 /** 选中态文字色：按实际背景亮度选深 / 浅色（无自定义颜色时背景是浅色 accent-100） */
 const selectedTextClass = computed(() => {
    if (!props.tag.color) return 'text-accent-600';
-   return shouldUseBlackText(toggleColor.value) ? 'text-accent-700' : 'text-white';
+   const dark = props.contrastText
+      ? prefersDarkTextByContrast(toggleColor.value)
+      : shouldUseBlackText(toggleColor.value);
+   return dark ? 'text-accent-700' : 'text-white';
 });
 </script>
 

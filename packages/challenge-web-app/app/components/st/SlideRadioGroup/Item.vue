@@ -7,9 +7,10 @@ const props = defineProps<{
 }>();
 
 const textColor = computed(() => {
-   return shouldUseBlackText(props.option.color)
-      ? '!text-accent-700'
-      : 'text-white';
+   const dark = props.option.contrastText
+      ? prefersDarkTextByContrast(props.option.color)
+      : shouldUseBlackText(props.option.color);
+   return dark ? '!text-accent-700' : 'text-white';
 });
 </script>
 
