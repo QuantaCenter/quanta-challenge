@@ -11,5 +11,5 @@
   "entry": "src/charts.js",
   "installCommand": "npm install",
   "startCommand": "npm run dev",
-  "order": 30
+  "order": 60
 }

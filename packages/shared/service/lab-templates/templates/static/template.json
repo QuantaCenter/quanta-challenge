@@ -10,5 +10,5 @@
   "icon": "/icons/html.png",
   "entry": "index.html",
   "startCommand": "npx --yes serve -l 3000 .",
-  "order": 70
+  "order": 20
 }

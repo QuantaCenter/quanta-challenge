@@ -358,7 +358,7 @@ export default defineNuxtConfig({
          lab: {
             maxFileBytes: labMaxFileBytes,
             maxProjectBytes: envInt('LAB_MAX_PROJECT_BYTES', 100 * 1024 * 1024),
-            maxProjectsPerUser: envInt('LAB_MAX_PROJECTS_PER_USER', 50),
+            maxProjectsPerUser: envInt('LAB_MAX_PROJECTS_PER_USER', 20),
          },
          // 快照镜像体积上限（前后端共用：前端上传前预检、服务端与 routeRules 校验）
          imageBuild: {

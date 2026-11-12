@@ -11,5 +11,5 @@
   "entry": "src/main.js",
   "installCommand": "npm install",
   "startCommand": "npm run dev",
-  "order": 40
+  "order": 70
 }

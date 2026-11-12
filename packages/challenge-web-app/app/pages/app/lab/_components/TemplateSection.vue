@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import type { DefineComponent } from 'vue';
 import { Ghost, ThreeHexagons } from '@icon-park/vue-next';
+import { watchDebounced } from '@vueuse/core';
 import type { LabTemplateItem } from '~/composables/use-lab-projects';
+import { useViewTransition } from '~/composables/use-view-transition';
+import { useIsMobile } from '~/composables/use-is-mobile';
 import {
    labCategoryIcon,
    resolveLabCategory,
@@ -32,6 +35,21 @@ const categoryTabs = computed(() =>
    ),
 );
 const selectedCategory = ref<string | null>(null);
+const { startViewTransition } = useViewTransition();
+const isMobile = useIsMobile();
+const updateResults = (update: () => void) => {
+   if (isMobile.value) {
+      update();
+   } else {
+      startViewTransition(update);
+   }
+};
+const selectCategory = (category: string | null) => {
+   if (selectedCategory.value === category) return;
+   updateResults(() => {
+      selectedCategory.value = category;
+   });
+};
 // 选中的分类被停用或不再有模板时回到「全部」
 watch(categoryTabs, (tabs) => {
    if (selectedCategory.value && !tabs.some((tab) => tab.id === selectedCategory.value)) {
@@ -39,9 +57,21 @@ watch(categoryTabs, (tabs) => {
    }
 });
 const keyword = ref('');
+const searchQuery = ref('');
+watchDebounced(
+   keyword,
+   (value) => {
+      const query = value.trim().toLowerCase();
+      if (query === searchQuery.value) return;
+      updateResults(() => {
+         searchQuery.value = query;
+      });
+   },
+   { debounce: 300 },
+);
 
 const visibleTemplates = computed(() => {
-   const query = keyword.value.trim().toLowerCase();
+   const query = searchQuery.value;
    return props.templates.filter((item) => {
       if (selectedCategory.value && item.category !== selectedCategory.value) {
          return false;
@@ -67,7 +97,7 @@ const visibleTemplates = computed(() => {
                   :icon="ThreeHexagons as DefineComponent"
                   :tag="{ name: '全部' }"
                   :selected="selectedCategory === null"
-                  @click="selectedCategory = null" />
+                  @click="selectCategory(null)" />
                <StTagButton
                   v-for="category in categoryTabs"
                   :key="category.id"
@@ -75,7 +105,7 @@ const visibleTemplates = computed(() => {
                   :tag="{ name: category.name, color: category.color }"
                   :selected="selectedCategory === category.id"
                   contrast-text
-                  @click="selectedCategory = category.id" />
+                  @click="selectCategory(category.id)" />
             </StSpace>
          </ScrollMaskRow>
          <div class="flex shrink-0 max-md:w-full">
@@ -113,6 +143,7 @@ const visibleTemplates = computed(() => {
          <TemplateCard
             v-for="item in visibleTemplates"
             :key="item.id"
+            :style="{ viewTransitionName: `lab-template-${item.id}` }"
             :template="item"
             :category="resolveLabCategory(categories, item.category)"
             @select="$emit('select', item)" />

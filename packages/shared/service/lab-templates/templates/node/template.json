@@ -11,5 +11,5 @@
   "entry": "server.js",
   "installCommand": "npm install",
   "startCommand": "npm run dev",
-  "order": 80
+  "order": 50
 }

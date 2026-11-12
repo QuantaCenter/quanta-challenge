@@ -2,6 +2,7 @@
 import type { $Enums } from '@prisma/client';
 import Divider from './_components/Divider.vue';
 import DifficultyFilter from './_components/DifficultyFilter.vue';
+import TimeSortToggle from './_components/TimeSortToggle.vue';
 import ProblemSearchInput from './_components/ProblemSearchInput.vue';
 import { useViewTransition } from '~/composables/use-view-transition';
 import { useIsMobile } from '~/composables/use-is-mobile';
@@ -107,6 +108,7 @@ const selectedDifficulty = ref<$Enums.Difficulty | ''>('');
 const searchKeyword = ref('');
 const onlyUncompleted = ref(false);
 const onlyCurrentWeek = ref(false);
+const sortOrder = ref<'asc' | 'desc'>('desc');
 const advancedOpen = ref(false);
 /** 移动端筛选抽屉 */
 const filterDrawerOpened = ref(false);
@@ -115,7 +117,8 @@ const hasActiveAdvanced = computed(
    () =>
       selectedDifficulty.value !== '' ||
       onlyUncompleted.value ||
-      onlyCurrentWeek.value
+      onlyCurrentWeek.value ||
+      sortOrder.value !== 'desc'
 );
 /** 筛选按钮高亮：移动端看抽屉是否打开，桌面端看面板是否展开 */
 const filterButtonActive = computed(
@@ -135,9 +138,10 @@ const resetAdvanced = () => {
    selectedDifficulty.value = '';
    onlyUncompleted.value = false;
    onlyCurrentWeek.value = false;
+   sortOrder.value = 'desc';
 };
 
-watch([selectedDifficulty, onlyUncompleted, onlyCurrentWeek], () => {
+watch([selectedDifficulty, onlyUncompleted, onlyCurrentWeek, sortOrder], () => {
    refreshList();
 });
 
@@ -158,6 +162,7 @@ const currentFilters = () => ({
       ? [...completedProblemIdSet.value]
       : undefined,
    currentWeekOnly: onlyCurrentWeek.value || undefined,
+   sortOrder: sortOrder.value,
 });
 
 // 游标分页 + 触底加载，见 ~/composables/use-infinite-list.ts
@@ -333,6 +338,7 @@ const {
                            <Round class="text-[1.25rem]" />
                            <span class="font-family-manrope">未完成</span>
                         </StSpace>
+                        <TimeSortToggle v-model="sortOrder" />
                         <StSpace
                            v-if="hasActiveAdvanced"
                            gap="0.5rem"
@@ -471,6 +477,10 @@ const {
                         未完成
                      </span>
                   </button>
+               </div>
+               <div class="flex flex-col gap-2 w-full">
+                  <label class="st-font-caption text-accent-200">排序</label>
+                  <TimeSortToggle v-model="sortOrder" class="w-full !rounded-xl" />
                </div>
             </div>
 

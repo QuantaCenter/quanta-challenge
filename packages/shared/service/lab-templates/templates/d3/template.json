@@ -11,5 +11,5 @@
   "entry": "src/bar-chart.js",
   "installCommand": "npm install",
   "startCommand": "npm run dev",
-  "order": 50
+  "order": 80
 }
