@@ -44,7 +44,7 @@ const columns: ITableColumn[] = [
    },
    {
       key: 'references',
-      title: '使用题目',
+      title: '使用情况',
       width: '6.5rem',
       align: 'center',
       skeletonClass: 'h-6 w-[2.5rem] rounded-md mx-auto',
@@ -106,15 +106,23 @@ const actionClass =
          </StSpace>
       </template>
       <template #cell-references="{ row }">
-         <span
-            class="rounded-md px-2 py-0.5 st-font-caption"
-            :class="
-               row.referenceCount
-                  ? 'bg-primary/15 text-primary'
-                  : 'text-accent-400'
-            ">
-            {{ row.referenceCount ? `${row.referenceCount} 道` : '未使用' }}
-         </span>
+         <StSpace
+            v-if="row.referenceCount || row.labTemplateCount"
+            direction="vertical"
+            gap="0.25rem"
+            align="center">
+            <span
+               v-if="row.referenceCount"
+               class="rounded-md px-2 py-0.5 st-font-caption bg-primary/15 text-primary">
+               {{ row.referenceCount }} 道题
+            </span>
+            <span
+               v-if="row.labTemplateCount"
+               class="rounded-md px-2 py-0.5 st-font-caption bg-secondary/15 text-secondary">
+               {{ row.labTemplateCount }} 个模板
+            </span>
+         </StSpace>
+         <span v-else class="st-font-caption text-accent-400">未使用</span>
       </template>
       <template #cell-updatedAt="{ row }">
          <span class="st-font-caption text-accent-300">

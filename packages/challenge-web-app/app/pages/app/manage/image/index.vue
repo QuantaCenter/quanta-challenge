@@ -27,8 +27,9 @@ const stats = computed(() => {
          color: 'text-success',
       },
       {
-         label: '被题目使用',
-         value: list.filter((item) => item.referenceCount > 0).length,
+         label: '使用中',
+         value: list.filter((item) => item.referenceCount > 0 || item.labTemplateCount > 0)
+            .length,
          color: 'text-primary',
       },
       {
