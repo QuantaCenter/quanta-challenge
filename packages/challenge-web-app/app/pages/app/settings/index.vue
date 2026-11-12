@@ -4,7 +4,7 @@ import Section from './_components/Section.vue';
 import Binary from './_components/Binary.vue';
 import { useNuxtApp } from '#app';
 import { useMessage } from '~/components/st/Message/use-message';
-import { UserSettingsKeys } from '~/configs/user_settings';
+import { UserSettingsKeys } from '~/configs/user-settings';
 
 useSeoMeta({ title: '常规设置 - Quanta Challenge' });
 
