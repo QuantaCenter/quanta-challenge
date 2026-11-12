@@ -3,7 +3,6 @@ import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
 import { Delete, Edit, HardDisk, Time } from '@icon-park/vue-next';
-import { getLabTemplate } from '@challenge/shared/lab-templates';
 import { formatFileSize } from '~/utils/format-file-size';
 import type { LabProject } from '~/composables/use-lab-projects';
 
@@ -19,9 +18,8 @@ defineEmits<{
    delete: [];
 }>();
 
-const template = computed(() => getLabTemplate(props.project.templateId));
-const icon = computed(() => template.value?.icon ?? '/icons/document.png');
-const templateName = computed(() => template.value?.name ?? '自定义项目');
+const icon = computed(() => props.project.template?.icon ?? '/icons/document.png');
+const templateName = computed(() => props.project.template?.name ?? '自定义项目');
 </script>
 
 <template>

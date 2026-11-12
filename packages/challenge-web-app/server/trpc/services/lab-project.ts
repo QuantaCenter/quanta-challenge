@@ -1,11 +1,11 @@
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
-import { getLabTemplate } from '@challenge/shared/lab-templates';
 import prisma from '~~/lib/prisma';
 import { logger } from '~~/server/utils/logger';
 import { prepareAssets, releaseUnreferencedAssets } from './file-assets';
 import { applyFileChanges, toProjectPath, type FileChange } from './file-changes';
 import { observer } from './achievement';
+import { findLabTemplate, listLabTemplates } from './lab-template';
 
 /**
  * 实验室项目：用户从模板创建、长期保存在服务端的个人项目。
@@ -71,10 +71,16 @@ const computeFileSystemSize = async (
    return row?.size ?? 0n;
 };
 
-const templateFiles = (templateId: string) => {
-   const template = getLabTemplate(templateId);
+const templateFiles = async (
+   templateId: string,
+   options: { requireEnabled: boolean },
+) => {
+   const template = await findLabTemplate(templateId);
    if (!template) {
-      throw new TRPCError({ code: 'BAD_REQUEST', message: '模板不存在' });
+      throw new TRPCError({ code: 'BAD_REQUEST', message: '模板不存在或已被删除' });
+   }
+   if (options.requireEnabled && !template.enabled) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: '该模板已停用' });
    }
    return Object.entries(template.files).map(([relative, content]) => ({
       path: `${PROJECT_ROOT}/${relative}`,
@@ -102,26 +108,35 @@ const lockProject = async (
 };
 
 const list = async (userId: string) => {
-   const projects = await prisma.labProject.findMany({
-      where: { ownerId: userId },
-      orderBy: { updatedAt: 'desc' },
-      select: {
-         id: true,
-         name: true,
-         description: true,
-         templateId: true,
-         sizeBytes: true,
-         createdAt: true,
-         updatedAt: true,
-         lastOpenedAt: true,
-         fileSystem: { select: { _count: { select: { files: true } } } },
-      },
+   const [projects, templates] = await Promise.all([
+      prisma.labProject.findMany({
+         where: { ownerId: userId },
+         orderBy: { updatedAt: 'desc' },
+         select: {
+            id: true,
+            name: true,
+            description: true,
+            templateId: true,
+            sizeBytes: true,
+            createdAt: true,
+            updatedAt: true,
+            lastOpenedAt: true,
+            fileSystem: { select: { _count: { select: { files: true } } } },
+         },
+      }),
+      listLabTemplates({ includeDisabled: true }),
+   ]);
+   const templateMap = new Map(templates.map((template) => [template.id, template]));
+   return projects.map(({ fileSystem, sizeBytes, ...project }) => {
+      const template = templateMap.get(project.templateId);
+      return {
+         ...project,
+         sizeBytes: Number(sizeBytes),
+         fileCount: fileSystem?._count.files ?? 0,
+         /** 模板被删除时为 null */
+         template: template ? { name: template.name, icon: template.icon } : null,
+      };
    });
-   return projects.map(({ fileSystem, sizeBytes, ...project }) => ({
-      ...project,
-      sizeBytes: Number(sizeBytes),
-      fileCount: fileSystem?._count.files ?? 0,
-   }));
 };
 
 const create = async (options: {
@@ -131,7 +146,7 @@ const create = async (options: {
    description?: string;
 }) => {
    const { maxProjectsPerUser } = getLabLimits();
-   const files = templateFiles(options.templateId);
+   const files = await templateFiles(options.templateId, { requireEnabled: true });
    const sizeBytes = files.reduce(
       (sum, file) => sum + Buffer.byteLength(file.content),
       0,
@@ -198,10 +213,25 @@ const get = async (userId: string, projectId: string) => {
    }
    // 只记录打开时间，不改动 updatedAt（列表按最近修改排序）
    await prisma.$executeRaw`UPDATE lab_projects SET "lastOpenedAt" = NOW() WHERE id = ${projectId}`;
+   // 已停用的模板仍按其配置启动；模板被删除时为 null，由 IDE 按项目内容推断启动方式
+   const template = await findLabTemplate(project.templateId);
 
    const { fileSystem, sizeBytes, ...meta } = project;
    return {
       project: { ...meta, sizeBytes: Number(sizeBytes) },
+      template: template
+         ? {
+              id: template.id,
+              name: template.name,
+              description: template.description,
+              entry: template.entry,
+              installCommand: template.installCommand ?? '',
+              startCommand: template.startCommand,
+              readme: template.readme,
+              snapshotImageId: template.snapshotImageId,
+              snapshotImage: template.snapshotImage,
+           }
+         : null,
       files: (fileSystem?.files ?? []).map((file) => ({
          path: toProjectPath(file.path),
          content: file.content,
@@ -360,7 +390,8 @@ const reset = async (userId: string, projectId: string) => {
    let previousAssetIds: string[] = [];
    await prisma.$transaction(async (tx) => {
       const locked = await lockProject(tx, userId, projectId);
-      const files = templateFiles(locked.templateId);
+      // 已停用的模板仍允许重置，只有模板被删除时才无法重置
+      const files = await templateFiles(locked.templateId, { requireEnabled: false });
       previousAssetIds = await listAssetIds(tx, projectId);
       const fileSystem = await tx.fileSystems.findUniqueOrThrow({
          where: { labProjectId: projectId },

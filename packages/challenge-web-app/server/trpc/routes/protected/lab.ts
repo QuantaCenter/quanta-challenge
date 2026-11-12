@@ -1,8 +1,14 @@
 import z from 'zod';
+import { TRPCError } from '@trpc/server';
 import { protectedProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import { FileChangeSchema } from '../../services/file-changes';
 import { labProjectService } from '../../services/lab-project';
+import {
+   findLabTemplate,
+   listLabTemplates,
+   toLabTemplateSummary,
+} from '../../services/lab-template';
 
 const ProjectIdSchema = z.object({ id: z.string().min(1) });
 
@@ -18,6 +24,27 @@ const DescriptionSchema = z
    .max(200, '项目简介最多 200 个字符');
 
 export const labRouter = router({
+   /** 可用的模板（已停用的不返回），不含文件内容 */
+   templates: protectedProcedure.query(async () => {
+      const templates = await listLabTemplates();
+      return templates.map((template) => {
+         const { id, name, description, category, tags, icon, entry, readme, builtin, fileCount } =
+            toLabTemplateSummary(template);
+         return { id, name, description, category, tags, icon, entry, readme, builtin, fileCount };
+      });
+   }),
+
+   /** 模板文件（模板详情弹窗的「模板结构」预览） */
+   templateFiles: protectedProcedure
+      .input(z.object({ id: z.string().min(1) }))
+      .query(async ({ input }) => {
+         const template = await findLabTemplate(input.id);
+         if (!template || !template.enabled) {
+            throw new TRPCError({ code: 'NOT_FOUND', message: '模板不存在或已停用' });
+         }
+         return template.files;
+      }),
+
    /** 当前用户的全部实验室项目（按最近修改排序） */
    list: protectedProcedure.query(({ ctx }) =>
       labProjectService.list(ctx.user.userId),

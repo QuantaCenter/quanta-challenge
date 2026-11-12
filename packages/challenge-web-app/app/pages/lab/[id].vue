@@ -6,7 +6,6 @@ import {
    LinkCloudSucess,
    LoadingFour,
 } from '@icon-park/vue-next';
-import { getLabTemplate } from '@challenge/shared/lab-templates';
 import authGuard from '~/middlewares/auth-guard';
 import { buildFileSystemTree } from '~/utils/fs-tree';
 import { encodeSnapshotFile, moveSnapshotFiles } from '~/utils/snapshot-file';
@@ -28,6 +27,7 @@ import { useManifestSync } from '~/pages/challenge/_subpages/editor/_composables
 import { useEditorShortcuts } from '~/pages/challenge/_subpages/editor/_composables/use-editor-shortcuts';
 import { useFileChangeSync } from '~/pages/challenge/_subpages/editor/_composables/use-file-change-sync';
 import { IGNORE_FILE_PATTERNS } from '~/pages/challenge/_subpages/editor/_configs';
+import { mountSnapshotImage } from '~/pages/challenge/_subpages/editor/_utils/mount-snapshot-image';
 import type { IUploadItem } from '~/pages/challenge/_subpages/editor/_utils/upload-item';
 
 definePageMeta({
@@ -58,7 +58,8 @@ if (loadError.value || !data.value) {
    });
 }
 const project = ref(data.value.project);
-const template = getLabTemplate(project.value.templateId);
+/** 项目使用的模板（含管理员的覆盖配置）；模板被删除时为 null */
+const template = data.value.template;
 
 /** WebContainer 工作区内的项目目录（与做题页一致挂载在 /project 下） */
 const PROJECT_DIR = 'project';
@@ -67,17 +68,20 @@ const PROJECT_ROOT = `/${PROJECT_DIR}`;
 const hasPackageJson = data.value.files.some(
    (file) => file.path === `${PROJECT_ROOT}/package.json`,
 );
-/** 模板被下线时按项目内容推断启动方式 */
+/** 模板被删除时按项目内容推断启动方式 */
 const installCommand = template
-   ? template.installCommand
+   ? template.installCommand || undefined
    : hasPackageJson
      ? 'npm install'
      : undefined;
-const startCommand =
-   template?.startCommand ??
-   (hasPackageJson ? 'npm run dev' : 'npx --yes serve -l 3000 .');
+const startCommand = template
+   ? template.startCommand
+   : hasPackageJson
+     ? 'npm run dev'
+     : 'npx --yes serve -l 3000 .';
+const snapshotImage = template?.snapshotImage ?? null;
 const readme =
-   template?.readme ??
+   template?.readme ||
    `# ${project.value.name}\n\n${project.value.description ?? ''}`;
 
 const message = useMessage();
@@ -144,10 +148,11 @@ const mounted = new Promise<void>((resolve) => {
    resolveMounted = resolve;
 });
 
-type BootStep = 'download' | 'container' | 'install' | 'start';
+type BootStep = 'download' | 'container' | 'snapshot' | 'install' | 'start';
 const bootStep = ref<BootStep>('container');
 const assetFiles = data.value.files.filter((file) => file.assetId);
 const downloadStepText = ref('正在下载项目文件...');
+const snapshotStepText = ref('正在拉取快照镜像...');
 
 /** 二进制文件（图片、上传的资源等）按需下载原始字节，避免在 JSON 里传输 base64 */
 const downloadAssets = async () => {
@@ -528,6 +533,11 @@ const steps = computed(() =>
          running: downloadStepText.value,
       },
       { key: 'container', idle: '启动开发容器', running: '正在启动开发容器...' },
+      snapshotImage && {
+         key: 'snapshot',
+         idle: '挂载快照镜像',
+         running: snapshotStepText.value,
+      },
       installCommand && {
          key: 'install',
          idle: '安装项目依赖',
@@ -552,6 +562,40 @@ const currentStep = computed(() =>
 watch(unsupportedReason, (reason) => {
    if (reason) editorStore.initFailureReason = reason;
 });
+
+/** 挂载快照镜像后，所有 shell 的 PATH 需包含工作区根的 node_modules/.bin */
+let imageEnv: Record<string, string> | undefined;
+
+/** 模板绑定了快照镜像时挂载到工作区根；失败不阻断启动，退回到直接安装依赖 */
+const loadSnapshotImage = async () => {
+   if (!snapshotImage) return;
+   bootStep.value = 'snapshot';
+   try {
+      await mountSnapshotImage({
+         build: snapshotImage,
+         getInstance,
+         runCommand: (command) => runCommand(command),
+         fetcher: (url) => $authFetch(url),
+         onProgress: (text) => {
+            snapshotStepText.value = text;
+         },
+         log: (text) => terminal.value?.writeTerminal(text),
+         owner: '模板',
+         contact: '管理员',
+         scope: 'lab',
+      });
+      const instance = await getInstance();
+      imageEnv = {
+         PATH: `${instance.workdir}/node_modules/.bin:${instance.path}`,
+      };
+   } catch (error: any) {
+      console.error('[lab] 挂载快照镜像失败:', error);
+      message.warning('快照镜像加载失败', error?.message ?? String(error));
+      await terminal.value?.writeTerminal(
+         `[image] 快照镜像加载失败，已跳过：${error?.message ?? error}\n`,
+      );
+   }
+};
 
 const runProject = async () => {
    editorStore.initStarted = true;
@@ -584,13 +628,14 @@ const runProject = async () => {
 
    projectReady.value = true;
 
+   await loadSnapshotImage();
+
    if (installCommand) {
       bootStep.value = 'install';
-      const install = await runCommand([
-         'sh',
-         '-c',
-         `cd ${PROJECT_DIR} && ${installCommand}`,
-      ]);
+      const install = await runCommand(
+         ['sh', '-c', `cd ${PROJECT_DIR} && ${installCommand}`],
+         { env: imageEnv },
+      );
       await terminal.value!.attachProcess({
          process: install,
          id: terminalId,
@@ -609,7 +654,7 @@ const runProject = async () => {
 
    // 启动命令写入交互式 shell：Ctrl+C 停止后可以继续在终端里操作；没有启动命令（空白项目）时只进入项目目录
    if (startCommand) bootStep.value = 'start';
-   const shell = await runCommand('sh');
+   const shell = await runCommand('sh', { env: imageEnv });
    const { writer } = await terminal.value!.attachProcess({
       process: shell,
       id: terminalId,
@@ -623,7 +668,7 @@ const runProject = async () => {
 };
 
 const addTerminal = async () => {
-   const process = await runCommand('sh');
+   const process = await runCommand('sh', { env: imageEnv });
    const created = await terminal.value?.createTerminal({ process, name: 'jsh' });
    created?.attachResult?.writer.write(`cd ${PROJECT_DIR}\n`);
 };

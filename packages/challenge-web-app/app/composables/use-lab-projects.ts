@@ -8,6 +8,9 @@ type RouterOutput = inferRouterOutputs<AppRouter>;
 /** 实验室「我的项目」列表项 */
 export type LabProject = RouterOutput['protected']['lab']['list'][number];
 
+/** 实验室可用模板（不含文件内容，文件在详情弹窗中按需加载） */
+export type LabTemplateItem = RouterOutput['protected']['lab']['templates'][number];
+
 /**
  * 实验室「我的项目」：列表数据 + 重命名 / 删除操作（含确认弹窗与提示）。
  * 必须同步调用（inject 依赖 setup 的实例上下文）；需要等待首屏数据时 `await ready`。

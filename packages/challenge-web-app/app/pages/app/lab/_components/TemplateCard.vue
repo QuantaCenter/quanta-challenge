@@ -2,13 +2,13 @@
 import {
    LAB_CATEGORY_COLOR,
    LAB_CATEGORY_LABEL,
-   type LabTemplate,
 } from '@challenge/shared/lab-templates';
+import type { LabTemplateItem } from '~/composables/use-lab-projects';
 import TechTagIcon from './TechTagIcon.vue';
 
 /** 模板卡片：点击触发 select，由页面打开详情弹窗 */
 
-defineProps<{ template: LabTemplate }>();
+defineProps<{ template: LabTemplateItem }>();
 
 defineEmits<{ select: [] }>();
 </script>

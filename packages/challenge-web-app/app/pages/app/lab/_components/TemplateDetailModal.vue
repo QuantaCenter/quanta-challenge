@@ -4,8 +4,8 @@ import { BookOpen, Close, Folder, LoadingFour, Plus, TreeList } from '@icon-park
 import {
    LAB_CATEGORY_COLOR,
    LAB_CATEGORY_LABEL,
-   type LabTemplate,
 } from '@challenge/shared/lab-templates';
+import type { LabTemplateItem } from '~/composables/use-lab-projects';
 import { buildFileSystemTree } from '~/utils/fs-tree';
 import { formatFileSize } from '~/utils/format-file-size';
 import { useMarkdown } from '~/composables/use-markdown';
@@ -16,7 +16,7 @@ import TechTagIcon from './TechTagIcon.vue';
 /** 模板详情：介绍（README）+ 模板结构（文件树与代码预览），底部填写项目名后从该模板创建项目 */
 
 const props = defineProps<{
-   template: LabTemplate | null;
+   template: LabTemplateItem | null;
    /** 已创建的项目数量（用于提示配额） */
    projectCount: number;
 }>();
@@ -36,8 +36,32 @@ const tabOptions = [
 
 const { html, update } = useMarkdown();
 
+// 模板文件不随列表下发，打开弹窗时按需加载并缓存（同一页面内重复打开不再请求）
+const filesCache = new Map<string, Record<string, string>>();
+/** 当前模板的文件；为 null 时表示加载中或加载失败（见 filesError） */
+const templateFiles = ref<Record<string, string> | null>(null);
+const filesError = ref('');
+const loadFiles = async (id: string) => {
+   filesError.value = '';
+   const cached = filesCache.get(id);
+   if (cached) {
+      templateFiles.value = cached;
+      return;
+   }
+   templateFiles.value = null;
+   try {
+      const result = await $trpc.protected.lab.templateFiles.query({ id });
+      filesCache.set(id, result);
+      if (props.template?.id === id) templateFiles.value = result;
+   } catch (error: any) {
+      if (props.template?.id === id) {
+         filesError.value = error?.message ?? '模板文件加载失败';
+      }
+   }
+};
+
 const files = computed(() =>
-   Object.entries(props.template?.files ?? {}).map(([path, content]) => ({
+   Object.entries(templateFiles.value ?? {}).map(([path, content]) => ({
       path: `/project/${path}`,
       relative: path,
       content,
@@ -103,6 +127,7 @@ watch(
       selectedPath.value = `/project/${template.entry}`;
       projectName.value = `我的 ${template.name} 项目`;
       creating.value = false;
+      void loadFiles(template.id);
    },
    { immediate: true },
 );
@@ -230,7 +255,22 @@ onUnmounted(() => {
             </div>
 
             <div
-               v-if="structureMounted"
+               v-if="structureMounted && !templateFiles"
+               v-show="tab === 'structure'"
+               class="h-full flex flex-col items-center justify-center gap-3 text-sm text-accent-300">
+               <template v-if="filesError">
+                  <span>{{ filesError }}</span>
+                  <StButton bordered size="sm" @click="template && loadFiles(template.id)">
+                     重试
+                  </StButton>
+               </template>
+               <StSpace v-else align="center" gap="0.5rem">
+                  <LoadingFour class="animate-spin" />
+                  <span>正在加载模板文件...</span>
+               </StSpace>
+            </div>
+            <div
+               v-else-if="structureMounted"
                v-show="tab === 'structure'"
                class="h-full flex gap-3 p-4 max-md:flex-col max-md:p-3">
                <div

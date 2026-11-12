@@ -12,17 +12,22 @@ import {
    LAB_CATEGORY_COLOR,
    LAB_CATEGORY_LABEL,
    LAB_CATEGORY_ORDER,
-   LAB_TEMPLATES,
-   type LabTemplate,
    type LabTemplateCategory,
 } from '@challenge/shared/lab-templates';
+import type { LabTemplateItem } from '~/composables/use-lab-projects';
 import ProblemSearchInput from '../../problems/_components/ProblemSearchInput.vue';
 import ScrollMaskRow from './ScrollMaskRow.vue';
 import TemplateCard from './TemplateCard.vue';
 
 /** 「从模板创建」区块：分类筛选、关键字搜索、模板卡片网格 */
 
-defineEmits<{ select: [template: LabTemplate] }>();
+const props = defineProps<{
+   templates: LabTemplateItem[];
+   pending: boolean;
+   error: boolean;
+}>();
+
+defineEmits<{ select: [template: LabTemplateItem]; retry: [] }>();
 
 const CATEGORY_ICON: Record<LabTemplateCategory, DefineComponent> = {
    framework: Components as DefineComponent,
@@ -31,15 +36,17 @@ const CATEGORY_ICON: Record<LabTemplateCategory, DefineComponent> = {
    backend: Server as DefineComponent,
 };
 
-const categories = LAB_CATEGORY_ORDER.filter((category) =>
-   LAB_TEMPLATES.some((item) => item.category === category),
+const categories = computed(() =>
+   LAB_CATEGORY_ORDER.filter((category) =>
+      props.templates.some((item) => item.category === category),
+   ),
 );
 const selectedCategory = ref<LabTemplateCategory | null>(null);
 const keyword = ref('');
 
 const visibleTemplates = computed(() => {
    const query = keyword.value.trim().toLowerCase();
-   return LAB_TEMPLATES.filter((item) => {
+   return props.templates.filter((item) => {
       if (selectedCategory.value && item.category !== selectedCategory.value) {
          return false;
       }
@@ -84,8 +91,26 @@ const visibleTemplates = computed(() => {
          </div>
       </StSpace>
 
+      <div
+         v-if="pending"
+         class="grid w-full grid-cols-1 gap-5 sm:grid-cols-2 max-md:gap-3">
+         <StSkeletonItem
+            v-for="i in 4"
+            :key="i"
+            class="h-[7.5rem] w-full"
+            rounded="lg" />
+      </div>
+      <StSpace
+         v-else-if="error"
+         direction="vertical"
+         align="center"
+         gap="1rem"
+         class="w-full py-10 text-accent-300">
+         <span>模板加载失败，请重试。</span>
+         <StButton bordered size="sm" @click="$emit('retry')">重试</StButton>
+      </StSpace>
       <StEmptyStatus
-         v-if="!visibleTemplates.length"
+         v-else-if="!visibleTemplates.length"
          content="没有匹配的模板"
          class="!w-full pb-16 mt-[3rem]" />
       <div
@@ -99,7 +124,7 @@ const visibleTemplates = computed(() => {
       </div>
 
       <div
-         v-if="visibleTemplates.length"
+         v-if="!pending && !error && visibleTemplates.length"
          class="shrink-0 w-full h-[3.5rem] flex items-center justify-center text-sm text-accent-400">
          <StSpace align="center" gap="0.4em">
             <Ghost theme="outline" size="1rem" />
