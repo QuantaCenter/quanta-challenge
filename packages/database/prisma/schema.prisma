@@ -49,6 +49,7 @@ model User {
   scorePenalties            ScorePenalty[]
   courseEnrollments         CourseEnrollment[]
   sectionComments           SectionComment[]
+  labProjects               LabProject[]
 
   @@map("users")
 }
@@ -236,32 +237,32 @@ model BaseProblems {
 
 // 问题版本表
 model Problems {
-  pid             Int        @id @default(autoincrement())
-  baseId          Int
-  title           String
-  detail          String
-  isDeprecated    Boolean    @default(false)
-  difficulty      Difficulty
-  totalScore      Int
-  status          Status
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  coverImageId    String?
-  bootCommand     String?
-  initCommand     String?
-  buildCommand    String?
-  judgeUploadPath String
-  enableCloudFunction Boolean @default(false)
-  problemType     ProblemType @default(frontend)
+  pid                 Int         @id @default(autoincrement())
+  baseId              Int
+  title               String
+  detail              String
+  isDeprecated        Boolean     @default(false)
+  difficulty          Difficulty
+  totalScore          Int
+  status              Status
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  coverImageId        String?
+  bootCommand         String?
+  initCommand         String?
+  buildCommand        String?
+  judgeUploadPath     String
+  enableCloudFunction Boolean     @default(false)
+  problemType         ProblemType @default(frontend)
   // 后端题判题容器的初始镜像（注册表 id）
-  serviceImage    String?
-  servicePort     Int        @default(3000)
+  serviceImage        String?
+  servicePort         Int         @default(3000)
   // 做题页挂载的快照镜像，不参与判题
-  snapshotImageId String?
-  taskStartAt        DateTime?
-  taskEndAt          DateTime?
-  scheduledPublishAt DateTime?
-  tags            Tags[]
+  snapshotImageId     String?
+  taskStartAt         DateTime?
+  taskEndAt           DateTime?
+  scheduledPublishAt  DateTime?
+  tags                Tags[]
 
   AuditRecord                 AuditRecords[]
   QualityReviews              ProblemQualityReview[]
@@ -336,17 +337,17 @@ enum Status {
 
 // 审核记录表
 model ProblemQualityReview {
-  id            String   @id @default(cuid())
-  problemId     Int
-  inputHash     String
-  status        String
-  model         String
-  report        Json?
-  errorCode     String?
-  generation    Json?
-  createdAt     DateTime @default(now())
-  completedAt   DateTime?
-  problem       Problems @relation(fields: [problemId], references: [pid], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  problemId   Int
+  inputHash   String
+  status      String
+  model       String
+  report      Json?
+  errorCode   String?
+  generation  Json?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  problem     Problems  @relation(fields: [problemId], references: [pid], onDelete: Cascade)
 
   @@index([problemId, inputHash, createdAt])
   @@map("problem_quality_reviews")
@@ -480,17 +481,43 @@ model Tags {
 
 // 文件系统表
 model FileSystems {
-  fsid      String         @id @default(uuid())
-  ownerId   String
-  projectId String?
-  files     VirtualFiles[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  fsid         String         @id @default(uuid())
+  ownerId      String
+  projectId    String?
+  /// 实验室项目的文件系统（与 projectId 二选一）
+  labProjectId String?        @unique
+  files        VirtualFiles[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  owner   User      @relation(fields: [ownerId], references: [id])
-  project Projects? @relation(fields: [projectId], references: [pid])
+  owner      User        @relation(fields: [ownerId], references: [id])
+  project    Projects?   @relation(fields: [projectId], references: [pid])
+  labProject LabProject? @relation(fields: [labProjectId], references: [id], onDelete: Cascade)
 
   @@map("file_systems")
+}
+
+/// 实验室项目：用户从模板创建、长期保存的个人项目（不关联题目）
+model LabProject {
+  id           String   @id @default(cuid())
+  ownerId      String
+  name         String
+  description  String?
+  /// 创建时使用的模板 id（模板定义见 @challenge/shared/lab-templates）
+  templateId   String
+  /// 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端据此拒绝重置前发出的旧请求
+  revision     Int      @default(0)
+  /// 项目文件总大小（字节）：每次写入后重新统计，用于配额校验与列表展示
+  sizeBytes    BigInt   @default(0)
+  lastOpenedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fileSystem FileSystems?
+
+  @@index([ownerId, updatedAt])
+  @@map("lab_projects")
 }
 
 // 项目表
@@ -863,14 +890,14 @@ model Course {
 }
 
 model CourseChapter {
-  id        String   @id @default(cuid())
-  courseId  String
-  title     String
+  id           String   @id @default(cuid())
+  courseId     String
+  title        String
   /// 进入章节时展示的导读，不计入学习进度。
-  introduction String @default("")
-  position  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  introduction String   @default("")
+  position     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   course Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
   stages LearningStage[]
