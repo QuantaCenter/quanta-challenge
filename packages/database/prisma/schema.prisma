@@ -50,6 +50,7 @@ model User {
   courseEnrollments         CourseEnrollment[]
   sectionComments           SectionComment[]
   labProjects               LabProject[]
+  githubConnection          GitHubConnection?
 
   @@map("users")
 }
@@ -507,13 +508,55 @@ model FileSystems {
 }
 
 /// 实验室项目：用户从模板创建、长期保存的个人项目（不关联题目）
+enum LabProjectSource {
+  template
+  github
+}
+
+model GitHubConnection {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  githubUserId          BigInt    @unique
+  login                 String
+  avatarUrl             String?
+  accessTokenEncrypted  String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenEncrypted String?
+  refreshTokenExpiresAt DateTime?
+  credentialKeyVersion  Int?
+  revokedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("github_connections")
+}
+
+model LabGitHubImport {
+  projectId      String   @id
+  repositoryId   BigInt
+  ownerLogin     String
+  repositoryName String
+  visibility     String
+  branchName     String
+  commitSha      String
+  importedAt     DateTime @default(now())
+
+  project LabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId])
+  @@map("lab_github_imports")
+}
+
 model LabProject {
   id           String   @id @default(cuid())
   ownerId      String
   name         String
   description  String?
   /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/lab-templates/templates），自定义模板为 lab_templates.id
-  templateId   String
+  templateId   String?
+  source       LabProjectSource @default(template)
   /// 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端据此拒绝重置前发出的旧请求
   revision     Int      @default(0)
   /// 项目文件总大小（字节）：每次写入后重新统计，用于配额校验与列表展示
@@ -524,6 +567,7 @@ model LabProject {
 
   owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   fileSystem FileSystems?
+  githubImport LabGitHubImport?
 
   @@index([ownerId, updatedAt])
   @@map("lab_projects")
