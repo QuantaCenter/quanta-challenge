@@ -3,6 +3,7 @@ import Divider from '../problems/_components/Divider.vue';
 import ProjectSection from './_components/ProjectSection.vue';
 import TemplateSection from './_components/TemplateSection.vue';
 import TemplateDetailModal from './_components/TemplateDetailModal.vue';
+import GitHubImportModal from './_components/GitHubImportModal.vue';
 import { useLabProjects, type LabTemplateItem } from '~/composables/use-lab-projects';
 
 useSeoMeta({
@@ -12,6 +13,8 @@ useSeoMeta({
 });
 
 const { $trpc } = useNuxtApp();
+const route = useRoute();
+const importOpened = ref(route.query.githubImport === '1');
 
 const {
    projects,
@@ -83,7 +86,19 @@ const openTemplate = (template: LabTemplateItem) => {
             :pending="templatesPending && !templates"
             :error="!!templatesError"
             @retry="retryTemplates()"
-            @select="openTemplate" />
+            @select="openTemplate">
+            <template #header-actions>
+               <StButton
+                  size="sm"
+                  class="shrink-0 gap-2 !border-0 !bg-accent-100 !text-black !px-3 !py-2 !rounded-lg text-sm"
+                  @click="importOpened = true">
+                  <template #icon>
+                     <img src="/icons/github.png" alt="" aria-hidden="true" class="size-4 object-contain" />
+                  </template>
+                  从 GitHub 导入
+               </StButton>
+            </template>
+         </TemplateSection>
          <StSpacer fill flex no-shrink height="1rem" />
       </StSpace>
 
@@ -93,6 +108,7 @@ const openTemplate = (template: LabTemplateItem) => {
          :categories="categories ?? []"
          :project-count="projects?.length ?? 0"
          @created="refresh()" />
+      <GitHubImportModal v-model:opened="importOpened" @created="refresh()" />
    </StSpace>
 </template>
 

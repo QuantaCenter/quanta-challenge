@@ -18,8 +18,10 @@ defineEmits<{
    delete: [];
 }>();
 
-const icon = computed(() => props.project.template?.icon ?? '/icons/document.png');
-const templateName = computed(() => props.project.template?.name ?? '自定义项目');
+const icon = computed(() => props.project.source === 'github'
+   ? '/icons/github-white.png'
+   : props.project.template?.icon ?? '/icons/document.png');
+const templateName = computed(() => props.project.source === 'github' ? 'GitHub 仓库' : props.project.template?.name ?? '自定义项目');
 </script>
 
 <template>
@@ -48,6 +50,12 @@ const templateName = computed(() => props.project.template?.name ?? '自定义�
             </StSpace>
             <!-- 下：描述 + 更新时间 / 大小 -->
             <StSpace fill-x direction="vertical" gap="0.5rem" class="min-w-0">
+               <p
+                  v-if="project.githubImport"
+                  class="st-font-caption truncate text-accent-300"
+                  :title="`${project.githubImport.ownerLogin}/${project.githubImport.repositoryName} · ${project.githubImport.branchName}`">
+                  GitHub · {{ project.githubImport.ownerLogin }}/{{ project.githubImport.repositoryName }}
+               </p>
                <p
                   v-if="project.description"
                   class="st-font-caption line-clamp-1 text-accent-300">

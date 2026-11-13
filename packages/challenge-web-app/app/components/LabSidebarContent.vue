@@ -9,6 +9,7 @@ import useAuthStore from '~/stores/auth-store';
 const isMobile = useIsMobile();
 const store = useEditorStore();
 const layoutStore = useLayoutStore();
+const canReset = useState<boolean>('lab-can-reset', () => false);
 
 const { emit: emitUpload } = useEventEmitter<{ at: number }>('lab', 'upload');
 const { emit: emitDownload } = useEventEmitter<{ at: number }>('lab', 'download');
@@ -72,7 +73,7 @@ const avatarUrl = computed(() => {
 
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
       <ChallengeSettingsMenu
-         resettable
+         :resettable="canReset"
          reset-title="重置项目"
          reset-description="项目中的所有文件（包括上传的文件）都会被替换为模板初始文件，且无法恢复。"
          :reset-event="['lab', 'reset']" />

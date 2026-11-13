@@ -58,6 +58,7 @@ if (loadError.value || !data.value) {
    });
 }
 const project = ref(data.value.project);
+useState<boolean>('lab-can-reset', () => false).value = project.value.source === 'template';
 /** 项目使用的模板（含管理员的覆盖配置）；模板被删除时为 null */
 const template = data.value.template;
 
@@ -69,12 +70,12 @@ const hasPackageJson = data.value.files.some(
    (file) => file.path === `${PROJECT_ROOT}/package.json`,
 );
 /** 模板被删除时按项目内容推断启动方式 */
-const installCommand = template
+const installCommand = project.value.source === 'github' ? undefined : template
    ? template.installCommand || undefined
    : hasPackageJson
      ? 'npm install'
      : undefined;
-const startCommand = template
+const startCommand = project.value.source === 'github' ? '' : template
    ? template.startCommand
    : hasPackageJson
      ? 'npm run dev'
@@ -150,6 +151,7 @@ const mounted = new Promise<void>((resolve) => {
 
 type BootStep = 'download' | 'container' | 'snapshot' | 'install' | 'start';
 const bootStep = ref<BootStep>('container');
+const projectFilesLoaded = ref(false);
 const assetFiles = data.value.files.filter((file) => file.assetId);
 const downloadStepText = ref('正在下载项目文件...');
 const snapshotStepText = ref('正在拉取快照镜像...');
@@ -187,6 +189,7 @@ const loadProject = async () => {
       Object.assign(contentMap, await downloadAssets());
       bootStep.value = 'container';
    }
+   projectFilesLoaded.value = true;
 
    pathContentMap.value = {};
    for (const [path, content] of Object.entries(contentMap)) {
@@ -876,7 +879,6 @@ useSeoMeta({
                            </div>
                            <span class="text-[0.6875rem] text-accent-400">
                               已用 {{ formatFileSize(projectSize) }} / {{ formatFileSize(limits.maxProjectBytes) }}
-                              · 单文件 ≤ {{ formatFileSize(limits.maxFileBytes) }}
                            </span>
                         </StSpace>
                      </template>
@@ -912,6 +914,8 @@ useSeoMeta({
                   ref="preview"
                   :steps="steps"
                   :current-step="currentStep"
+                  :single-step="project.source === 'github'"
+                  :empty-hint="project.source === 'github' && projectFilesLoaded ? '启动服务以预览' : undefined"
                   :preview-url="previewUrl"
                   :servers="servers"
                   :unsupported-reason="unsupportedReason" />
