@@ -90,12 +90,13 @@ const openTemplate = (template: LabTemplateItem) => {
             <template #header-actions>
                <StButton
                   size="sm"
-                  class="shrink-0 gap-2 !border-0 !bg-accent-100 !text-black !px-3 !py-2 !rounded-lg text-sm"
+                  aria-label="从 GitHub 导入"
+                  class="shrink-0 whitespace-nowrap gap-2 !border-0 !bg-accent-100 !text-black !px-3 !py-2 !rounded-lg text-sm max-md:gap-1.5 max-md:!px-2.5 max-md:!py-1.5 max-md:text-xs"
                   @click="importOpened = true">
                   <template #icon>
                      <img src="/icons/github.png" alt="" aria-hidden="true" class="size-4 object-contain" />
                   </template>
-                  从 GitHub 导入
+                  <span><span class="max-md:hidden">从 </span>GitHub 导入</span>
                </StButton>
             </template>
          </TemplateSection>
