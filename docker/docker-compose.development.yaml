@@ -15,6 +15,12 @@ services:
       # REDIS_HOST / APP_SERVER / JUDGE_SERVER 不匹配，等于从未生效。
       - DATABASE_URL=postgres://quanta:quanta@postgres:5432/quanta_db
       - REDIS_HOST=redis
+      - NUXT_GITHUB_CLIENT_ID=${NUXT_GITHUB_CLIENT_ID:-${GITHUB_CLIENT_ID:-}}
+      - NUXT_GITHUB_CLIENT_SECRET=${NUXT_GITHUB_CLIENT_SECRET:-${GITHUB_CLIENT_SECRET:-}}
+      - NUXT_GITHUB_APP_SLUG=${NUXT_GITHUB_APP_SLUG:-${GITHUB_APP_SLUG:-}}
+      - NUXT_GITHUB_WEBHOOK_SECRET=${NUXT_GITHUB_WEBHOOK_SECRET:-${GITHUB_WEBHOOK_SECRET:-}}
+      - NUXT_GITHUB_TOKEN_KEY=${NUXT_GITHUB_TOKEN_KEY:-${GITHUB_TOKEN_KEY:-}}
+      - NUXT_GITHUB_ORIGIN=${NUXT_GITHUB_ORIGIN:-${GITHUB_ORIGIN:-http://localhost:3000}}
       # 使用 http：开发环境走本地 HTTP，写 https 会让 cookie 的 secure 属性与协议不符
       - APP_SERVER=http://localhost:3000
       - JUDGE_SERVER=http://challenge-judge-scheduler:1888

@@ -95,7 +95,7 @@ const lockProject = async (
    projectId: string,
 ) => {
    const [project] = await tx.$queryRaw<
-      { id: string; revision: number; templateId: string }[]
+      { id: string; revision: number; templateId: string | null }[]
    >`
       SELECT id, revision, "templateId" FROM lab_projects
       WHERE id = ${projectId} AND "ownerId" = ${userId}
@@ -117,6 +117,8 @@ const list = async (userId: string) => {
             name: true,
             description: true,
             templateId: true,
+            source: true,
+            githubImport: { select: { ownerLogin: true, repositoryName: true, branchName: true, commitSha: true } },
             sizeBytes: true,
             createdAt: true,
             updatedAt: true,
@@ -128,7 +130,7 @@ const list = async (userId: string) => {
    ]);
    const templateMap = new Map(templates.map((template) => [template.id, template]));
    return projects.map(({ fileSystem, sizeBytes, ...project }) => {
-      const template = templateMap.get(project.templateId);
+      const template = project.templateId ? templateMap.get(project.templateId) : null;
       return {
          ...project,
          sizeBytes: Number(sizeBytes),
@@ -214,7 +216,7 @@ const get = async (userId: string, projectId: string) => {
    // 只记录打开时间，不改动 updatedAt（列表按最近修改排序）
    await prisma.$executeRaw`UPDATE lab_projects SET "lastOpenedAt" = NOW() WHERE id = ${projectId}`;
    // 已停用的模板仍按其配置启动；模板被删除时为 null，由 IDE 按项目内容推断启动方式
-   const template = await findLabTemplate(project.templateId);
+   const template = project.templateId ? await findLabTemplate(project.templateId) : null;
 
    const { fileSystem, sizeBytes, ...meta } = project;
    return {
@@ -391,6 +393,7 @@ const reset = async (userId: string, projectId: string) => {
    await prisma.$transaction(async (tx) => {
       const locked = await lockProject(tx, userId, projectId);
       // 已停用的模板仍允许重置，只有模板被删除时才无法重置
+      if (!locked.templateId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'GitHub 导入项目不支持重置为模板' });
       const files = await templateFiles(locked.templateId, { requireEnabled: false });
       previousAssetIds = await listAssetIds(tx, projectId);
       const fileSystem = await tx.fileSystems.findUniqueOrThrow({

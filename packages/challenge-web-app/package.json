@@ -3,6 +3,8 @@
    "private": true,
    "type": "module",
    "scripts": {
+      "test:github": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/github-import.test.ts",
+      "test:github:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/github-import.integration.test.ts",
       "test:judge-quality": "node --experimental-strip-types --test tests/judge-quality.test.ts tests/judge-quality-retry.test.ts tests/judge-quality-provider.test.ts",
       "test:judge-quality:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test --test-concurrency=1 tests/timer-quality.integration.test.ts tests/judge-quality-queue.integration.test.ts",
       "test:file-assets": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/file-assets.integration.test.ts",
@@ -83,6 +85,7 @@
       "prom-client": "^15.1.3",
       "reka-ui": "^2.3.2",
       "tailwind-merge": "^3.3.1",
+      "tar": "^7.5.23",
       "trpc-nuxt": "^1.2.0",
       "tw-animate-css": "^1.3.5",
       "vm2": "^3.9.19",

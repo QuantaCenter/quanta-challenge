@@ -13,6 +13,7 @@ import { settingRouter } from './setting';
 import { verifyRoute } from './verify';
 import { learningRouter } from './learning';
 import { labRouter } from './lab';
+import { githubRouter } from './github';
 
 export const protectedRouter = router({
    problem: problemRouter,
@@ -29,4 +30,5 @@ export const protectedRouter = router({
    cloudFunction: cloudFunctionRouter,
    learning: learningRouter,
    lab: labRouter,
+   github: githubRouter,
 });

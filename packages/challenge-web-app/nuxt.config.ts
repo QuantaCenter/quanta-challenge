@@ -338,6 +338,14 @@ export default defineNuxtConfig({
    },
 
    runtimeConfig: {
+      github: {
+         clientId: '',
+         clientSecret: '',
+         appSlug: '',
+         webhookSecret: '',
+         tokenKey: '',
+         origin: '',
+      },
       public: {
          appBaseUrl: env('APP_SERVER', 'http://localhost:3000'),
          quantaOAuthIssuer: env(
