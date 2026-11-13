@@ -1,0 +1,15 @@
+{
+  "name": "Chart.js",
+  "description": "轻量的 Canvas 图表库：折线、柱状、环形与雷达图，配置简单直观。",
+  "category": "chart",
+  "tags": [
+    "Chart.js",
+    "Canvas",
+    "图表"
+  ],
+  "icon": "/icons/chartjs.svg",
+  "entry": "src/main.js",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 70
+}

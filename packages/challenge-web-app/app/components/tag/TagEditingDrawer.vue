@@ -4,6 +4,8 @@ import type { StForm } from '#components';
 import { Box } from '@icon-park/vue-next';
 import { useMessage } from '~/components/st/Message/use-message';
 
+export type TagScope = 'problem' | 'lab';
+
 export type ITagEditingTarget = {
    tid: number;
    name: string;
@@ -11,11 +13,16 @@ export type ITagEditingTarget = {
    description?: string | null;
    imageId?: string | null;
    imageUrl?: string | null;
+   scope?: TagScope;
 };
 
 const props = defineProps<{
    /** 传入标签即为编辑模式，不传则为新建模式 */
    tag?: ITagEditingTarget | null;
+   /** 新建时的标签用途，默认题目标签（编辑时以标签自身为准） */
+   scope?: TagScope;
+   /** 新建时预填的标签名（如覆盖内置实验室标签） */
+   defaultName?: string;
 }>();
 
 const opened = defineModel<boolean>('opened', { default: false });
@@ -26,6 +33,11 @@ const { $trpc } = useNuxtApp();
 const message = useMessage();
 
 const isEditing = computed(() => !!props.tag);
+const currentScope = computed<TagScope>(
+   () => props.tag?.scope ?? props.scope ?? 'problem',
+);
+/** 实验室标签：不需要颜色，图标可选（未上传时使用内置技术栈图标或通用图标） */
+const isLab = computed(() => currentScope.value === 'lab');
 
 const outerClass = 'border !py-4 !px-4 !rounded-[0.5rem] w-full';
 
@@ -43,19 +55,21 @@ const rules = computed<IRule[]>(() => {
          field: 'name',
          required: true,
          validator(value) {
-            return !!value;
+            return !!value?.trim();
          },
       },
-      {
+   ];
+   if (!isLab.value) {
+      rules.push({
          field: 'color',
          required: true,
          validator(value) {
             return !!value;
          },
-      },
-   ];
+      });
+   }
    // 编辑走的是部分更新，允许标签本身没有图标
-   if (!isEditing.value) {
+   if (!isEditing.value && !isLab.value) {
       rules.push({
          field: 'imageId',
          required: true,
@@ -72,7 +86,7 @@ const formKey = ref(0);
 const form = useTemplateRef<InstanceType<typeof StForm>>('form');
 
 const fillForm = (tag?: ITagEditingTarget | null) => {
-   formdata.name = tag?.name ?? '';
+   formdata.name = tag?.name ?? props.defaultName ?? '';
    formdata.description = tag?.description ?? '';
    formdata.color = tag?.color ?? '#FA7C0E';
    formdata.imageId = tag?.imageId ?? '';
@@ -91,12 +105,13 @@ const handleSubmit = async () => {
    if (!form.value?.validate().success) return;
 
    const tag = props.tag;
+   const name = formdata.name.trim();
    const submit = async () => {
       if (tag) {
          await $trpc.admin.tag.edit.mutate({
             tid: tag.tid,
-            name: formdata.name,
-            color: formdata.color,
+            name,
+            ...(isLab.value ? {} : { color: formdata.color }),
             description: formdata.description,
             // 未重新上传时不动原有图标
             ...(formdata.imageId ? { imageId: formdata.imageId } : {}),
@@ -104,9 +119,10 @@ const handleSubmit = async () => {
          return;
       }
       await $trpc.admin.tag.add.mutate({
-         name: formdata.name,
-         color: formdata.color,
-         imageId: formdata.imageId,
+         name,
+         scope: currentScope.value,
+         ...(isLab.value ? {} : { color: formdata.color }),
+         ...(formdata.imageId ? { imageId: formdata.imageId } : {}),
          description: formdata.description,
       });
    };
@@ -120,7 +136,7 @@ const handleSubmit = async () => {
       console.error('保存标签失败', error);
       message.error(
          isEditing.value ? '标签更新失败' : '标签创建失败',
-         '请稍后重试'
+         (error as Error)?.message || '请稍后重试'
       );
    } finally {
       loading.value = false;
@@ -130,6 +146,11 @@ const handleSubmit = async () => {
 const enableSubmit = computed(() => {
    return form.value?.validate().success && !loading.value;
 });
+
+const title = computed(() => {
+   const kind = isLab.value ? '实验室标签' : '标签';
+   return isEditing.value ? `编辑${kind}` : `新建${kind}`;
+});
 </script>
 
 <template>
@@ -137,9 +158,12 @@ const enableSubmit = computed(() => {
       <StSpace direction="vertical" gap="0" fill class="text-white">
          <StSpace direction="vertical" gap="1.5rem" fill class="p-6">
             <!-- Header -->
-            <h1 class="st-font-secondary-bold">
-               {{ isEditing ? '编辑标签' : '新建标签' }}
-            </h1>
+            <StSpace direction="vertical" gap="0.5rem">
+               <h1 class="st-font-secondary-bold">{{ title }}</h1>
+               <p v-if="isLab" class="st-font-caption text-accent-300">
+                  实验室标签显示在模板卡片底部，发布模板时可以选择。与内置标签同名时会覆盖内置标签的图标与说明。
+               </p>
+            </StSpace>
             <StSpace fill class="relative overflow-auto">
                <StForm
                   :key="formKey"
@@ -151,21 +175,27 @@ const enableSubmit = computed(() => {
                      <StFormItem name="name" label="标签名" required>
                         <StInput
                            v-model:value="formdata.name"
-                           placeholder="请输入标签名"
+                           :placeholder="isLab ? '技术栈名称，例如：Vue、Tailwind CSS' : '请输入标签名'"
                            :outer-class />
                      </StFormItem>
-                     <StFormItem name="color" label="标签颜色" required>
+                     <StFormItem v-if="!isLab" name="color" label="标签颜色" required>
                         <StColorPicker
                            v-model:value="formdata.color"
                            :outer-class />
                      </StFormItem>
-                     <StFormItem name="imageId" label="标签图标" required>
+                     <StFormItem
+                        name="imageId"
+                        :label="isLab ? '标签图标（可选）' : '标签图标'"
+                        :required="!isLab">
                         <StUploadImage
                            v-model:image-id="formdata.imageId"
                            v-model:image-url="formdata.imageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="4rem"
                            placeholder="请选择标签图标" />
+                        <p v-if="isLab" class="st-font-caption text-accent-400">
+                           建议使用正方形透明背景图标；未上传时使用内置技术栈图标或通用标签图标。
+                        </p>
                      </StFormItem>
                      <StFormItem name="description" label="标签描述">
                         <StTextarea

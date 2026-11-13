@@ -3,6 +3,7 @@ import {
    BookOpen,
    Box,
    Code,
+   Experiment,
    GoldMedalTwo,
    TableReport,
    Tag,
@@ -37,6 +38,13 @@ const options = [
       needFullLoad: true,
    },
    {
+      title: '发布实验室模板',
+      description: '上传项目文件夹或从实验室项目导入，发布供成员在实验室中一键创建的项目模板',
+      url: '/app/publish/lab-template',
+      icon: Experiment,
+      iconColor: '#A78BFA',
+   },
+   {
       title: '创建成就',
       description: '创建一个新的成就，并配置成就的基本信息',
       url: '/app/publish/achievement',
@@ -45,7 +53,7 @@ const options = [
    },
    {
       title: '创建标签',
-      description: '创建新的题目标签，并为标签配置颜色与图标',
+      description: '创建题目标签或实验室标签，并为标签配置图标',
       url: '/app/publish/create-tag',
       icon: Tag,
       iconColor: '#FE4E4E',

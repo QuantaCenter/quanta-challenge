@@ -3,6 +3,8 @@ import z from 'zod';
 import { logger } from '~~/server/utils/logger';
 
 export default defineEventHandler((event) => {
+   // GitHub uses X-Hub-Signature-256 over the raw body, verified by its own handler.
+   if (event.path.split('?')[0] === '/api/webhooks/github') return;
    if (!event.path.startsWith('/api/webhooks/')) return;
 
    const timestamp = getCookie(event, 'webhook_timestamp');

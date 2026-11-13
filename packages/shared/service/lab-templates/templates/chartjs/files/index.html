@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+   <head>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <title>Chart.js Lab</title>
+   </head>
+   <body>
+      <header class="header">
+         <div>
+            <h1>Chart.js 图表</h1>
+            <p>点击图例切换数据集</p>
+         </div>
+         <button id="shuffle" type="button">随机数据</button>
+      </header>
+      <main class="grid">
+         <section class="panel">
+            <h2>每周活跃</h2>
+            <div class="chart"><canvas id="line"></canvas></div>
+         </section>
+         <section class="panel">
+            <h2>月度提交</h2>
+            <div class="chart"><canvas id="bar"></canvas></div>
+         </section>
+         <section class="panel">
+            <h2>难度分布</h2>
+            <div class="chart"><canvas id="doughnut"></canvas></div>
+         </section>
+         <section class="panel">
+            <h2>能力雷达</h2>
+            <div class="chart"><canvas id="radar"></canvas></div>
+         </section>
+      </main>
+      <script type="module" src="/src/main.js"></script>
+   </body>
+</html>

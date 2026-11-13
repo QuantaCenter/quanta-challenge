@@ -64,6 +64,7 @@ const sendingCode = computed(
 
 <template>
    <StSpace fill-x direction="vertical" gap="1.5rem">
+      <GitHubConnectionCard class="my-6" />
       <!-- WebAuthn Card -->
       <Section
          title="WebAuthn 身份验证"

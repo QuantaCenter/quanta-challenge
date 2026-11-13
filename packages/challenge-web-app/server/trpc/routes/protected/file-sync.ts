@@ -6,67 +6,14 @@ import { TRPCError } from '@trpc/server';
 import { observer } from '../../services/achievement';
 import { logger } from '~~/server/utils/logger';
 import { prepareAssets } from '../../services/file-assets';
-import { decodeSnapshotContent } from '@challenge/shared/snapshot-content';
-import type { VirtualFiles } from '@prisma/client';
-
-const movedContent = (file: { path: string; content: string | null }) => {
-   if (file.content === null || file.content.startsWith('data:')) return file.content;
-   const decoded = decodeSnapshotContent(file.path, file.content);
-   return typeof decoded === 'string'
-      ? file.content
-      : `data:application/octet-stream;base64,${Buffer.from(decoded).toString('base64')}`;
-};
-
-// 文本列不能存储 NUL 字节，含 \u0000 的内容直接拒绝
-const SyncContentSchema = z
-   .string()
-   .refine((content) => !content.includes('\u0000'), {
-      error: '内容包含非法字符',
-   });
-
-// 定义变更类型的 schema
-const ChangeSchema = z.discriminatedUnion('type', [
-   z.object({
-      type: z.literal('rm'),
-      path: z.string(),
-   }),
-   z.object({
-      type: z.literal('mv'),
-      oldPath: z.string(),
-      newPath: z.string(),
-   }),
-   z.object({
-      type: z.literal('change'),
-      path: z.string(),
-      content: SyncContentSchema,
-   }),
-   z.object({
-      type: z.literal('create'),
-      path: z.string(),
-      content: SyncContentSchema,
-   }),
-]);
+import { applyFileChanges, FileChangeSchema } from '../../services/file-changes';
 
 const SyncFileChangesSchema = z.object({
    problemId: z.number(),
-   changes: z.array(ChangeSchema),
+   changes: z.array(FileChangeSchema),
    // 客户端加载项目时的版本号；重置会递增该值，不匹配的旧请求将被拒绝。可选以兼容未升级的调用方
    revision: z.number().int().optional(),
 });
-
-const PROJECT_ROOT_PATH = '/project';
-
-/** 把数据库里的虚拟文件路径归一化为 `/project/...`：历史数据含相对路径写法，不归一化会导致每次编辑新建重复记录。 */
-const toProjectPath = (path: string): string => {
-   const normalized = `/${path}`.replace(/\/+/g, '/').replace(/\/+$/, '');
-   if (
-      normalized === PROJECT_ROOT_PATH ||
-      normalized.startsWith(`${PROJECT_ROOT_PATH}/`)
-   ) {
-      return normalized;
-   }
-   return `${PROJECT_ROOT_PATH}${normalized}`;
-};
 
 /** 同步文件变更到服务器（创建、修改、移动、删除）。 */
 const syncFileChangesProcedure = protectedProcedure
@@ -145,190 +92,18 @@ const syncFileChangesProcedure = protectedProcedure
                });
             }
 
-            const fileSystemId = project.FileSystem[0].fsid;
-            const reusableAssets = project.FileSystem[0].files.flatMap((file) =>
+            const fileSystem = project.FileSystem[0];
+            const reusableAssets = fileSystem.files.flatMap((file) =>
                file.asset ? [file.asset] : [],
             );
             const preparedWrites = await assets.bind(tx, { reusableAssets });
-            let writeIndex = 0;
-            const existingFiles = new Map<string, VirtualFiles>(
-               project.FileSystem[0].files.map((f) => [
-                  toProjectPath(f.path),
-                  f,
-               ]),
-            );
-
-            // 处理每个变更
-            for (const change of changes) {
-               switch (change.type) {
-                  case 'rm': {
-                     // 删除文件或文件夹
-                     const file = existingFiles.get(change.path);
-                     if (file) {
-                        // 是一个具体文件，直接删除
-                        await tx.virtualFiles.delete({
-                           where: { vid: file.vid },
-                        });
-                        existingFiles.delete(change.path);
-                        logger.debug({ file }, 'Remove file');
-                        break;
-                     }
-
-                     // 可能是文件夹，删除所有匹配前缀的文件
-                     const folderPrefix = change.path.endsWith('/')
-                        ? change.path
-                        : change.path + '/';
-                     const filesToDelete: string[] = [];
-
-                     for (const [filePath, fileData] of existingFiles) {
-                        if (filePath.startsWith(folderPrefix)) {
-                           filesToDelete.push(fileData.vid);
-                        }
-                     }
-                     // 批量删除文件夹内的所有文件
-                     if (filesToDelete.length > 0) {
-                        await tx.virtualFiles.deleteMany({
-                           where: {
-                              vid: { in: filesToDelete },
-                           },
-                        });
-                        // 从缓存中移除
-                        for (const [filePath] of existingFiles) {
-                           if (filePath.startsWith(folderPrefix)) {
-                              existingFiles.delete(filePath);
-                           }
-                        }
-                        logger.debug(
-                           {
-                              path: change.path,
-                           },
-                           'Remove folder',
-                        );
-                     }
-                     break;
-                  }
-
-                  case 'mv': {
-                     // 移动/重命名文件
-                     const file = existingFiles.get(change.oldPath);
-
-                     // 移动文件
-                     if (file) {
-                        // 统一存为 /project/... 形式
-                        const newPath = toProjectPath(change.newPath);
-                        await tx.virtualFiles.update({
-                           where: { vid: file.vid },
-                           data: { path: newPath, content: movedContent(file) },
-                        });
-                        existingFiles.delete(change.oldPath);
-                        existingFiles.set(newPath, {
-                           ...file,
-                           path: newPath,
-                           content: movedContent(file),
-                        });
-                        logger.debug(
-                           {
-                              oldPath: change.oldPath,
-                              newPath: change.newPath,
-                           },
-                           'Move file',
-                        );
-                        break;
-                     }
-
-                     // 移动文件夹，更新所有匹配前缀的文件路径
-                     const oldFolderPrefix = change.oldPath.endsWith('/')
-                        ? change.oldPath
-                        : change.oldPath + '/';
-                     const newFolderPrefix = change.newPath.endsWith('/')
-                        ? change.newPath
-                        : change.newPath + '/';
-
-                     for (const [filePath, fileData] of existingFiles) {
-                        if (filePath.startsWith(oldFolderPrefix)) {
-                           const relativePath = filePath.slice(
-                              oldFolderPrefix.length,
-                           );
-                           const updatedPath = newFolderPrefix + relativePath;
-                           const newDbPath = toProjectPath(updatedPath);
-
-                           await tx.virtualFiles.update({
-                              where: { vid: fileData.vid },
-                              data: { path: newDbPath, content: movedContent(fileData) },
-                           });
-                           existingFiles.delete(filePath);
-                           existingFiles.set(newDbPath, {
-                              ...fileData,
-                              path: newDbPath,
-                              content: movedContent(fileData),
-                           });
-                        }
-                     }
-                     logger.debug(
-                        {
-                           oldPath: change.oldPath,
-                           newPath: change.newPath,
-                        },
-                        'Move folder',
-                     );
-                     break;
-                  }
-
-                  case 'change': {
-                     const body = preparedWrites[writeIndex++]!;
-                     // 更新文件内容
-                     const file = existingFiles.get(change.path);
-                     if (file) {
-                        const updated = await tx.virtualFiles.update({
-                           where: { vid: file.vid },
-                           data: { content: body.content, assetId: body.assetId },
-                        });
-                        existingFiles.set(change.path, updated);
-                     } else {
-                        // 如果文件不存在，创建它
-                        const newPath = toProjectPath(change.path);
-                        const newFile = await tx.virtualFiles.create({
-                           data: {
-                              path: newPath,
-                              content: body.content,
-                              assetId: body.assetId,
-                              ownerId: userId,
-                              fileSystemFsid: fileSystemId,
-                           },
-                        });
-                        existingFiles.set(newPath, newFile);
-                     }
-                     break;
-                  }
-
-                  case 'create': {
-                     const body = preparedWrites[writeIndex++]!;
-                     // 创建新文件
-                     const existingFile = existingFiles.get(change.path);
-                     if (!existingFile) {
-                        const newPath = toProjectPath(change.path);
-                        const newFile = await tx.virtualFiles.create({
-                           data: {
-                              path: newPath,
-                              content: body.content,
-                              assetId: body.assetId,
-                              ownerId: userId,
-                              fileSystemFsid: fileSystemId,
-                           },
-                        });
-                        existingFiles.set(newPath, newFile);
-                     } else {
-                        // 如果文件已存在，更新内容
-                        const updated = await tx.virtualFiles.update({
-                           where: { vid: existingFile.vid },
-                           data: { content: body.content, assetId: body.assetId },
-                        });
-                        existingFiles.set(change.path, updated);
-                     }
-                     break;
-                  }
-               }
-            }
+            await applyFileChanges(tx, {
+               userId,
+               fileSystemId: fileSystem.fsid,
+               files: fileSystem.files,
+               changes,
+               preparedWrites,
+            });
          });
          committed = true;
 

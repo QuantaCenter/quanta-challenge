@@ -1,0 +1,15 @@
+{
+  "name": "D3.js",
+  "description": "数据驱动的 SVG 可视化：可排序柱状图与力导向关系图。",
+  "category": "chart",
+  "tags": [
+    "D3",
+    "SVG",
+    "图表"
+  ],
+  "icon": "/icons/d3.svg",
+  "entry": "src/bar-chart.js",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 80
+}

@@ -180,6 +180,29 @@ const copy = async (text: string, tip: string) => {
                      </a>
                   </div>
                </section>
+
+               <section class="w-full">
+                  <h3 class="st-font-caption tracking-wider text-accent-300 mb-2">
+                     绑定的实验室模板（{{ detail.labTemplates.length }}）
+                  </h3>
+                  <p v-if="!detail.labTemplates.length" class="st-font-body-normal text-accent-400">
+                     暂无实验室模板绑定该快照镜像
+                  </p>
+                  <div v-else class="rounded-lg border border-accent-500 divide-y divide-accent-600">
+                     <NuxtLink
+                        v-for="item in detail.labTemplates"
+                        :key="item.id"
+                        to="/app/manage/lab-template"
+                        class="flex items-center gap-3 px-4 py-2.5 hover:bg-accent-600 transition-colors">
+                        <span class="flex-1 truncate st-font-body-normal text-accent-100">
+                           {{ item.name }}
+                        </span>
+                        <span class="shrink-0 st-font-caption text-accent-400">
+                           {{ item.builtin ? '内置模板' : '自定义模板' }}{{ item.enabled ? '' : ' · 已停用' }}
+                        </span>
+                     </NuxtLink>
+                  </div>
+               </section>
             </StSpace>
          </div>
 

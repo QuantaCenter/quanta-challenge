@@ -3,6 +3,7 @@ import {
    BookOpen,
    Box,
    Code,
+   Experiment,
    GoldMedalTwo,
    Help,
    History,
@@ -47,7 +48,7 @@ const options: ProcessOption[] = [
    },
    {
       title: '标签管理',
-      description: '查看并管理已有的题目标签',
+      description: '分类管理题目标签与实验室标签（模板卡片上的技术栈标签）',
       url: '/app/manage/tag',
       icon: Tag,
       iconColor: '#FE4E4E',
@@ -72,6 +73,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/image',
       icon: Box,
       iconColor: '#4CA7FF',
+   },
+   {
+      title: '实验室模板管理',
+      description: '启用或停用实验室模板，修改名称、启动命令与快照镜像，发布自定义模板',
+      url: '/app/manage/lab-template',
+      icon: Experiment,
+      iconColor: '#A78BFA',
    },
    {
       title: '提交记录',

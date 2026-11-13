@@ -33,6 +33,20 @@ type TX = Omit<
 
 type UploadInput = z.infer<typeof UploadSchema>;
 
+/** 题目只能关联题目标签（实验室标签只用于实验室模板） */
+const ensureProblemTags = async (tagIds: number[]) => {
+   const ids = [...new Set(tagIds)];
+   const count = await prisma.tags.count({
+      where: { tid: { in: ids }, scope: 'problem' },
+   });
+   if (count !== ids.length) {
+      throw new TRPCError({
+         code: 'BAD_REQUEST',
+         message: '所选标签不存在或不是题目标签',
+      });
+   }
+};
+
 /** 编辑题目时需要重新审核的原因 */
 type AuditReason =
    | 'status'
@@ -225,6 +239,7 @@ const uploadProcedure = protectedAdminProcedure
 
       await ensureCoverThumbhash(input.coverImageId);
       await ensureSnapshotImageReady(input.snapshotImageId);
+      await ensureProblemTags(input.tagIds);
 
       const { problemId } = await withAssetTransaction(
          input.answerTemplateSnapshot,
@@ -776,6 +791,7 @@ const reuploadProcedure = protectedAdminProcedure
       if (snapshotImageId !== current?.snapshotImageId) {
          await ensureSnapshotImageReady(snapshotImageId);
       }
+      await ensureProblemTags(input.tagIds);
 
       // 标题、题面和展示元数据可以原地更新；影响判题的内容仍需重新审核。
       const auditReasons: AuditReason[] = [];

@@ -1,5 +1,15 @@
 <script setup lang="ts">
-import { Box, Delete, Edit, Tag } from '@icon-park/vue-next';
+import type { DefineComponent } from 'vue';
+import {
+   Box,
+   Delete,
+   Edit,
+   Experiment,
+   Plus,
+   Tag,
+   TableReport,
+   ThreeHexagons,
+} from '@icon-park/vue-next';
 import { dialog } from '~/composables/use-dialog';
 import { useMessage } from '~/components/st/Message/use-message';
 import type { ITableColumn } from '~/components/st/Table/type';
@@ -8,8 +18,67 @@ import TagEditingDrawer, {
    type ITagEditingTarget,
 } from '~/components/tag/TagEditingDrawer.vue';
 import { textColorOn } from './_utils/color';
+import LabTagTable from './_components/LabTagTable.vue';
+import LabCategoryTable from './_components/LabCategoryTable.vue';
 
 useSeoMeta({ title: '标签管理 - Quanta Challenge' });
+
+const route = useRoute();
+const router = useRouter();
+
+/**
+ * 标签分类页签，与 ?scope= 同步，便于从发布页直接跳转：
+ * - problem：题目标签；
+ * - lab-category：模板分类（实验室页的分类页签、卡片右上角的分类标签）；
+ * - lab：实验室技术栈标签（模板卡片底部的小标签）。
+ */
+type ManageScope = 'problem' | 'lab-category' | 'lab';
+const scopeTabs = [
+   { label: '题目标签', value: 'problem', icon: TableReport as DefineComponent },
+   { label: '模板分类', value: 'lab-category', icon: ThreeHexagons as DefineComponent },
+   { label: '技术栈标签', value: 'lab', icon: Experiment as DefineComponent },
+];
+const scope = computed<ManageScope>({
+   get: () =>
+      route.query.scope === 'lab' || route.query.scope === 'lab-category'
+         ? route.query.scope
+         : 'problem',
+   set: (value) => {
+      router.replace({
+         query: { ...route.query, scope: value === 'problem' ? undefined : value },
+      });
+   },
+});
+
+const labTable = useTemplateRef('lab-table');
+const categoryTable = useTemplateRef('category-table');
+const labTagCount = ref<number | null>(null);
+const categoryCount = ref<number | null>(null);
+const handleCreate = () => {
+   if (scope.value === 'lab') {
+      labTable.value?.openCreate();
+      return;
+   }
+   if (scope.value === 'lab-category') {
+      categoryTable.value?.openCreate();
+      return;
+   }
+   editingTag.value = null;
+   isEditingDrawerShow.value = true;
+};
+const createLabel = computed(
+   () =>
+      ({ problem: '新建标签', 'lab-category': '新建模板分类', lab: '新建技术栈标签' })[
+         scope.value
+      ],
+);
+const totalCount = computed(() =>
+   scope.value === 'lab'
+      ? (labTagCount.value ?? 0)
+      : scope.value === 'lab-category'
+        ? (categoryCount.value ?? 0)
+        : tagOptions.value.length,
+);
 
 const columns: ITableColumn[] = [
    // 描述 / 颜色两列在移动端通过 CSS 隐藏（SSR 安全）；图标列保留展示
@@ -80,6 +149,7 @@ const editTag = (tag: (typeof tagOptions.value)[number]) => {
       description: tag.description,
       imageId: tag.imageId,
       imageUrl: tag.imageUrl,
+      scope: 'problem',
    };
    isEditingDrawerShow.value = true;
 };
@@ -129,15 +199,38 @@ const deleteTag = async (tid: number) => {
 <template>
    <StSpace fill justify="center">
       <StSpace direction="vertical" gap="1.5rem" class="w-full max-w-[44rem] pb-[10rem] my-6 max-md:my-4 max-md:px-4 max-md:gap-4!">
-         <StSpace align="end" gap="1rem">
-            <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">标签管理</h1>
-            <span
-               class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
-               共 {{ tagOptions.length }} 个标签
-            </span>
+         <StSpace fill-x align="end" justify="between" gap="1rem">
+            <StSpace align="end" gap="1rem">
+               <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">标签管理</h1>
+               <span
+                  class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
+                  共 {{ totalCount }} 个{{ scope === 'lab-category' ? '分类' : '标签' }}
+               </span>
+            </StSpace>
+            <StButton
+               class="shrink-0 py-[0.375rem] px-[1rem] text-accent-100 !rounded-[0.375rem] mb-1"
+               @click="handleCreate">
+               <div class="flex gap-2 items-center">
+                  <Plus class="text-[1.25rem]" />
+                  <span>{{ createLabel }}</span>
+               </div>
+            </StButton>
          </StSpace>
 
+         <StTabs v-model="scope" :options="scopeTabs" />
+
+         <LabCategoryTable
+            v-if="scope === 'lab-category'"
+            ref="category-table"
+            @count="(count) => (categoryCount = count)" />
+
+         <LabTagTable
+            v-else-if="scope === 'lab'"
+            ref="lab-table"
+            @count="(count) => (labTagCount = count)" />
+
          <StTable
+            v-else
             :columns="columns"
             :rows="tagOptions"
             :loading="pending"
@@ -224,6 +317,7 @@ const deleteTag = async (tid: number) => {
       <TagEditingDrawer
          v-model:opened="isEditingDrawerShow"
          :tag="editingTag"
+         scope="problem"
          @saved="handleSaved" />
    </StSpace>
 </template>

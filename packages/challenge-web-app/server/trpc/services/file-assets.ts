@@ -81,6 +81,27 @@ const lockStorageKey = async (tx: Prisma.TransactionClient, storageKey: string) 
    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${storageKey}, 0))`;
 };
 
+/**
+ * 删除已不被任何虚拟文件引用的资产记录（尽力而为）。
+ * 对应的存储文件随后由 collectOrphanAssetFiles 定时回收。并发写入正在引用同一资产时，
+ * 外键约束会让删除失败，此时直接跳过，资产保留。
+ */
+export const releaseUnreferencedAssets = async (assetIds: Iterable<string>) => {
+   const ids = [...new Set(assetIds)];
+   if (!ids.length) return;
+   for (const id of ids) {
+      try {
+         await prisma.$executeRaw`
+            DELETE FROM file_assets fa
+            WHERE fa.id = ${id}
+              AND NOT EXISTS (SELECT 1 FROM virtual_files vf WHERE vf."assetId" = fa.id)
+         `;
+      } catch (error) {
+         logger.debug({ error, assetId: id }, 'Skip releasing referenced asset');
+      }
+   }
+};
+
 export const collectOrphanAssetFiles = async (before: Date, limit = 100) => {
    const keys = await store.listOldAssets(before, limit, collectionCursor);
    collectionCursor = keys.length === limit ? keys[keys.length - 1]! : '';
@@ -113,10 +134,16 @@ export const prepareAssets = async (
          const bytes = binaryContent(file.path, file.content);
          const size = bytes?.length ?? Buffer.byteLength(file.content);
          total += size;
-         if (size > MAX_FILE_BYTES || total > MAX_SNAPSHOT_BYTES) {
+         if (size > MAX_FILE_BYTES) {
             throw new TRPCError({
                code: 'PAYLOAD_TOO_LARGE',
-               message: 'Snapshot size limit exceeded',
+               message: `单个文件不能超过 ${MAX_FILE_BYTES / 1024 / 1024}MB：${file.path}`,
+            });
+         }
+         if (total > MAX_SNAPSHOT_BYTES) {
+            throw new TRPCError({
+               code: 'PAYLOAD_TOO_LARGE',
+               message: `单次写入的内容不能超过 ${MAX_SNAPSHOT_BYTES / 1024 / 1024}MB`,
             });
          }
          if (!bytes) {
@@ -251,4 +278,23 @@ export const readProjectAsset = async (
    });
    if (!file) throw new TRPCError({ code: 'NOT_FOUND', message: 'Asset not found' });
    return (await expandFile(file)).content;
+};
+
+/** 读取实验室项目中某个文件资产的原始字节（校验资产确实属于该用户的该项目） */
+export const readLabProjectAssetBytes = async (
+   userId: string,
+   labProjectId: string,
+   assetId: string,
+) => {
+   const file = await prisma.virtualFiles.findFirst({
+      where: {
+         assetId,
+         FileSystem: { labProjectId, labProject: { ownerId: userId } },
+      },
+      select: { asset: true },
+   });
+   if (!file?.asset) {
+      throw new TRPCError({ code: 'NOT_FOUND', message: 'Asset not found' });
+   }
+   return verify(file.asset, Number(file.asset.sizeBytes));
 };

@@ -17,6 +17,7 @@ const GetAllPublicProblemsSchema = z.object({
    excludePids: z.array(z.number('Problem ID must be a number')).optional(),
    // 只显示本周任务：任务日期区间与本周相交
    currentWeekOnly: z.boolean().optional(),
+   sortOrder: z.enum(['asc', 'desc']).default('desc'),
    cursor: z.number('Cursor must be a number').int().nullish(),
    limit: z
       .number('Limit must be a number')
@@ -82,7 +83,7 @@ const getAllPublicProblems = publicProcedure
          take: limit + 1,
          // 游标是上一页被 pop 出来的那一条，下一轮从它开始（包含它）
          cursor: cursor == null ? undefined : { id: cursor },
-         orderBy: { id: 'asc' },
+         orderBy: [{ createdAt: input.sortOrder }, { id: input.sortOrder }],
          select: {
             id: true,
             CurrentProblem: {

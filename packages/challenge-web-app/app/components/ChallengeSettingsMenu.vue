@@ -9,10 +9,25 @@ const opened = defineModel<boolean>('opened', { default: false });
 const isMobile = useIsMobile();
 const { embedded } = useChallengeEmbed();
 
-const props = defineProps<{
-   /** 传入做题页题目 id 才显示「重置题目」；无 id（如提交记录页）则只有空设置面板 */
-   problemId?: number;
-}>();
+const props = withDefaults(
+   defineProps<{
+      /** 传入做题页题目 id 才显示「重置题目」；无 id（如提交记录页）则只有空设置面板 */
+      problemId?: number;
+      /** 不依赖题目 id 也显示重置项（如实验室项目） */
+      resettable?: boolean;
+      resetTitle?: string;
+      resetDescription?: string;
+      /** 确认重置后触发的事件，命名空间与事件名见 useEventEmitter */
+      resetEvent?: [namespace: string, event: string];
+   }>(),
+   {
+      resetTitle: '重置题目',
+      resetDescription: '你对题目的全部修改将被清空，恢复为初始模板。',
+      resetEvent: () => ['challenge-settings', 'reset-project'],
+   },
+);
+
+const showReset = computed(() => props.resettable || !!props.problemId);
 
 const rootRef = useTemplateRef<HTMLElement>('settings-root');
 
@@ -23,8 +38,8 @@ onClickOutside(rootRef, () => {
 });
 
 const { emit: emitResetProject } = useEventEmitter<{ at: number }>(
-   'challenge-settings',
-   'reset-project',
+   props.resetEvent[0],
+   props.resetEvent[1],
 );
 
 /** 滑动轨道：按住滑块拖到最右侧即确认重置 */
@@ -84,8 +99,8 @@ onUnmounted(() => {
 
 const handleReset = async () => {
    const confirmed = await dialog.confirm({
-      title: '重置题目',
-      description: '你对题目的全部修改将被清空，恢复为初始模板。',
+      title: props.resetTitle,
+      description: props.resetDescription,
       variant: 'danger',
       confirmText: '确认重置',
       cancelText: '取消',
@@ -119,10 +134,10 @@ const handleReset = async () => {
             v-show="opened"
             class="absolute left-[calc(100%+0.5rem)] w-72 p-4 bg-accent-600 rounded-xl shadow-2xl border border-accent-500 z-50"
             :class="embedded ? 'bottom-0' : 'top-1/2 -translate-y-1/2'">
-            <template v-if="props.problemId">
-               <h3 class="text-accent-100 mb-2">重置题目</h3>
+            <template v-if="showReset">
+               <h3 class="text-accent-100 mb-2">{{ props.resetTitle }}</h3>
                <p class="text-accent-200 text-xs mb-3 leading-5">
-                  按住滑块拖到最右侧即可重置。你对题目的全部修改将被清空，恢复为初始模板。
+                  按住滑块拖到最右侧即可重置。{{ props.resetDescription }}
                </p>
                <div
                   ref="reset-track"
@@ -148,10 +163,10 @@ const handleReset = async () => {
 
       <StDrawer v-if="isMobile" v-model:opened="opened" global fit width="18rem">
          <div class="w-72 max-w-full mx-auto p-4 max-md:pt-10 max-md:pb-4">
-            <template v-if="props.problemId">
-               <h3 class="text-accent-100 mb-2">重置题目</h3>
+            <template v-if="showReset">
+               <h3 class="text-accent-100 mb-2">{{ props.resetTitle }}</h3>
                <p class="text-accent-200 text-xs mb-3 leading-5">
-                  按住滑块拖到最右侧即可重置。你对题目的全部修改将被清空，恢复为初始模板。
+                  按住滑块拖到最右侧即可重置。{{ props.resetDescription }}
                </p>
                <div
                   ref="reset-track"

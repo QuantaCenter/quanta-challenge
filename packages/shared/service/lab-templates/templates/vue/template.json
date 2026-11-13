@@ -1,0 +1,15 @@
+{
+  "name": "Vue 3",
+  "description": "Vue 3 + TypeScript + Vite，单文件组件与组合式 API。",
+  "category": "framework",
+  "tags": [
+    "Vue",
+    "TypeScript",
+    "Vite"
+  ],
+  "icon": "/icons/vue.png",
+  "entry": "src/App.vue",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 30
+}

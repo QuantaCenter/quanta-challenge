@@ -3,7 +3,9 @@ import { router } from '../../trpc';
 import prisma from '~~/lib/prisma';
 import { useStore } from '../../store';
 import {
+   countImageBuildLabTemplateReferences,
    countImageBuildReferences,
+   findImageBuildLabTemplateReferences,
    findImageBuildReferences,
 } from '../../../services/image-build';
 import { TRPCError } from '@trpc/server';
@@ -19,7 +21,7 @@ const buildFileSchema = z
 /** 快照镜像元数据管理。产物文件与 ready 状态只由 PUT /api/image-builds/upload 切换 */
 export const imageBuildRouter = router({
    list: protectedAdminProcedure.query(async () => {
-      const [builds, references] = await Promise.all([
+      const [builds, references, labTemplateReferences] = await Promise.all([
          prisma.imageBuild.findMany({
             orderBy: { updatedAt: 'desc' },
             select: {
@@ -37,18 +39,20 @@ export const imageBuildRouter = router({
             },
          }),
          countImageBuildReferences(),
+         countImageBuildLabTemplateReferences(),
       ]);
       return builds.map((build) => ({
          ...build,
          referenceCount: references.get(build.id) ?? 0,
+         labTemplateCount: labTemplateReferences.get(build.id) ?? 0,
       }));
    }),
 
-   /** 详情：含构建文件与引用它的题目 */
+   /** 详情：含构建文件与引用它的题目、实验室模板 */
    detail: protectedAdminProcedure
       .input(z.object({ id: z.string().min(1) }))
       .query(async ({ input }) => {
-         const [build, references] = await Promise.all([
+         const [build, references, labTemplates] = await Promise.all([
             prisma.imageBuild.findUnique({
                where: { id: input.id },
                select: {
@@ -65,11 +69,12 @@ export const imageBuildRouter = router({
                },
             }),
             findImageBuildReferences(input.id),
+            findImageBuildLabTemplateReferences(input.id),
          ]);
          if (!build) {
             throw new TRPCError({ code: 'NOT_FOUND', message: '快照镜像不存在或已被删除' });
          }
-         return { ...build, references };
+         return { ...build, references, labTemplates };
       }),
 
    create: protectedAdminProcedure
@@ -113,16 +118,26 @@ export const imageBuildRouter = router({
          return { ok: true };
       }),
 
-   /** 删除快照镜像。有题目引用时需 `force`，所有引用它的题目版本在同一事务中解绑 */
+   /**
+    * 删除快照镜像。有题目或实验室模板引用时需 `force`，
+    * 所有引用它的题目版本与实验室模板在同一事务中解绑
+    */
    remove: protectedAdminProcedure
       .input(z.object({ id: z.string().min(1), force: z.boolean().default(false) }))
       .mutation(async ({ input }) => {
          if (!input.force) {
-            const references = await findImageBuildReferences(input.id);
-            if (references.length > 0) {
+            const [references, labTemplates] = await Promise.all([
+               findImageBuildReferences(input.id),
+               findImageBuildLabTemplateReferences(input.id),
+            ]);
+            if (references.length > 0 || labTemplates.length > 0) {
+               const parts = [
+                  references.length > 0 && `${references.length} 道题目`,
+                  labTemplates.length > 0 && `${labTemplates.length} 个实验室模板`,
+               ].filter(Boolean);
                throw new TRPCError({
                   code: 'CONFLICT',
-                  message: `快照镜像仍被 ${references.length} 道题目使用，确认后可强制删除并将这些题目改为不使用快照镜像`,
+                  message: `快照镜像仍被 ${parts.join('、')} 使用，确认后可强制删除并解除绑定`,
                });
             }
          }
@@ -137,10 +152,18 @@ export const imageBuildRouter = router({
                where: { snapshotImageId: input.id },
                data: { snapshotImageId: null },
             });
+            const detachedTemplates = await tx.labTemplate.updateMany({
+               where: { snapshotImageId: input.id },
+               data: { snapshotImageId: null },
+            });
             await tx.imageBuild.deleteMany({ where: { id: input.id } });
-            return { fileId: build.fileId, detachedCount: detached.count };
+            return {
+               fileId: build.fileId,
+               detachedCount: detached.count,
+               detachedTemplateCount: detachedTemplates.count,
+            };
          });
-         if (!result) return { ok: true, detachedCount: 0 };
+         if (!result) return { ok: true, detachedCount: 0, detachedTemplateCount: 0 };
 
          // 事务提交后再删文件，失败最多留下孤儿文件
          if (result.fileId) {
@@ -148,6 +171,10 @@ export const imageBuildRouter = router({
                .delete(result.fileId)
                .catch(() => undefined);
          }
-         return { ok: true, detachedCount: result.detachedCount };
+         return {
+            ok: true,
+            detachedCount: result.detachedCount,
+            detachedTemplateCount: result.detachedTemplateCount,
+         };
       }),
 });

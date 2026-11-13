@@ -1,0 +1,68 @@
+:root {
+   color-scheme: dark;
+   font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+   background: #111111;
+   color: #e5e5e5;
+}
+
+body {
+   margin: 0;
+   padding: 1.5rem;
+}
+
+.header {
+   display: flex;
+   align-items: center;
+   justify-content: space-between;
+   margin-bottom: 1.25rem;
+}
+
+h1 {
+   margin: 0;
+   font-size: 1.5rem;
+}
+
+.header p {
+   margin: 0.25rem 0 0;
+   color: #6d6d6d;
+   font-size: 0.85rem;
+}
+
+button {
+   padding: 0.625rem 1.125rem;
+   border: none;
+   border-radius: 0.75rem;
+   background: #fa7c0e;
+   color: #fff;
+   cursor: pointer;
+}
+
+.grid {
+   display: grid;
+   grid-template-columns: repeat(2, minmax(0, 1fr));
+   gap: 1rem;
+}
+
+.panel {
+   padding: 1rem;
+   border-radius: 1rem;
+   background: #1f1f1f;
+   border: 1px solid #272727;
+}
+
+h2 {
+   margin: 0 0 0.75rem;
+   font-size: 0.95rem;
+   color: #cacaca;
+}
+
+.chart {
+   position: relative;
+   height: 240px;
+}
+
+@media (max-width: 720px) {
+   .grid {
+      grid-template-columns: minmax(0, 1fr);
+   }
+}

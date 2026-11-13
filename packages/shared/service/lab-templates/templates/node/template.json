@@ -1,0 +1,15 @@
+{
+  "name": "Node.js + Express",
+  "description": "在浏览器里运行的 Node.js 服务：Express 路由、JSON 接口与静态页面。",
+  "category": "backend",
+  "tags": [
+    "Node.js",
+    "Express",
+    "API"
+  ],
+  "icon": "/icons/nodejs.png",
+  "entry": "server.js",
+  "installCommand": "npm install",
+  "startCommand": "npm run dev",
+  "order": 50
+}

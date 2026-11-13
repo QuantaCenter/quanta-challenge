@@ -9,8 +9,12 @@ import { getVisibleBoardLayout, mergeVisibleBoardSizes, resizeBoardPair } from '
 const layoutStore = useLayoutStore();
 
 const props = withDefaults(
-   defineProps<{ previewLabel?: string }>(),
-   { previewLabel: '实时预览' },
+   defineProps<{
+      previewLabel?: string;
+      /** 移动端最左侧说明板块的 Tab 文案（做题页为题面，实验室为模板说明） */
+      detailLabel?: string;
+   }>(),
+   { previewLabel: '实时预览', detailLabel: '题目' },
 );
 
 /** DOM 里固定的板块顺序 */
@@ -71,11 +75,11 @@ type MobileBoardId = 'detail' | 'code' | 'preview';
 const MOBILE_BOARD_IDS: MobileBoardId[] = ['detail', 'code', 'preview'];
 
 /** 移动端 Tab 文案（顶栏空间有限，用短标签） */
-const MOBILE_TAB_LABEL: Record<MobileBoardId, string> = {
-   detail: '题目',
+const MOBILE_TAB_LABEL = computed<Record<MobileBoardId, string>>(() => ({
+   detail: props.detailLabel,
    code: '代码',
    preview: '预览',
-};
+}));
 
 /** 当前展示的板块（移动端顶栏 Tab 与滑动位置双向同步） */
 const activeBoard = ref<MobileBoardId>(MOBILE_BOARD_IDS[0]!);

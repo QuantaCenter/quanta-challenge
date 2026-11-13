@@ -90,9 +90,11 @@ onUnmounted(() => {
          :class="{
             'text-accent-300': tab.value !== value,
             'text-primary': tab.value === value,
+            '!pl-3': tab.icon,
          }"
          class="px-6 py-2 cursor-pointer transition-all"
          align="center"
+         gap="0"
          @click="value = tab.value">
          <Component v-if="tab.icon" :is="tab.icon" class="text-lg mr-2" />
          {{ tab.label }}

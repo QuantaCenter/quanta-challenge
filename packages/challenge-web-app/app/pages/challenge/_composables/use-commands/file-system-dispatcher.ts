@@ -21,7 +21,9 @@ export class FileSystemDispatcher {
       private getWebContainerInstance: () => Promise<WebContainer>,
       private fsTree: Ref<IFileSystemItem[] | undefined>,
       private changePaths: Set<string> = new Set(),
-      private onFsChange?: (changes: DispatcherFsChange[]) => void
+      private onFsChange?: (changes: DispatcherFsChange[]) => void,
+      /** 返回 true 的路径不参与 diff（例如 node_modules 的子孙），避免装包时整树读取 */
+      private ignorePath?: (path: string) => boolean
    ) {}
 
    async startListening() {
@@ -61,6 +63,7 @@ export class FileSystemDispatcher {
    }
 
    private _isTrackedPath(path: string): boolean {
+      if (this.ignorePath?.(path)) return false;
       const roots = this.fsTree.value;
       if (!roots || roots.length === 0) return false;
       return roots.some(
@@ -161,9 +164,11 @@ export class FileSystemDispatcher {
          // WebContainer API 不需要前置 /
          const pathForWC = normalizedPath.slice(1);
          let existsInWc = false;
+         let isDirectoryInWc = false;
          try {
             await wc.fs.readdir(pathForWC);
             existsInWc = true;
+            isDirectoryInWc = true;
          } catch {
             try {
                await wc.fs.readFile(pathForWC);
@@ -174,16 +179,25 @@ export class FileSystemDispatcher {
          }
 
          if (existsInWc && !fsNode) {
-            // wc 中存在但 fs 中不存在，需要新增
+            // wc 中存在但 fs 中不存在，需要新增。
+            // 类型以 wc 中的实际类型为准：变更树里有没有子路径并不可靠——
+            // 空目录（mkdir）或子路径被 ignorePath 过滤的目录（node_modules）只会收到自身一条事件
             this._detectedAddedPaths.push(normalizedPath);
-            await this._addNodeToFsTree(
-               normalizedPath,
-               node.children !== undefined
-            );
+            await this._addNodeToFsTree(normalizedPath, isDirectoryInWc);
          } else if (!existsInWc && fsNode) {
             // wc 中不存在但 fs 中存在，需要删除
             this._detectedRemovedPaths.push(normalizedPath);
             this._removeNodeFromFsTree(normalizedPath);
+         } else if (
+            existsInWc &&
+            fsNode &&
+            (fsNode.type === 'folder') !== isDirectoryInWc
+         ) {
+            // 同名路径换了类型（如 rm 后 mkdir 同名目录）：按删除 + 新增处理
+            this._detectedRemovedPaths.push(normalizedPath);
+            this._detectedAddedPaths.push(normalizedPath);
+            await this._addNodeToFsTree(normalizedPath, isDirectoryInWc);
+            continue;
          } else if (
             existsInWc &&
             fsNode &&
@@ -265,8 +279,9 @@ export class FileSystemDispatcher {
       const removedPaths: string[] = [];
       for (const rmPath of this._detectedRemovedPaths) {
          const base = getBaseName(rmPath);
+         // 同一路径既删又增是类型替换，不是移动：保留 rm，再按新增处理
          const idx = addedItems.findIndex(
-            (item) => getBaseName(item.path) === base
+            (item) => item.path !== rmPath && getBaseName(item.path) === base
          );
          if (idx >= 0) {
             moves.push({ oldPath: rmPath, newPath: addedItems[idx]!.path });
@@ -338,6 +353,7 @@ export class FileSystemDispatcher {
 
       for (const entry of entries) {
          const childPath = normalizePath(`${folderPath}/${entry.name}`);
+         if (this.ignorePath?.(childPath)) continue;
          if (entry.isDirectory()) {
             await this._collectFolderFiles(wc, childPath, changes);
          } else {

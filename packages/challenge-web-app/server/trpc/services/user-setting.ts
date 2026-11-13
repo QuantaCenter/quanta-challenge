@@ -1,7 +1,7 @@
 import prisma from '~~/lib/prisma';
 
 /**
- * 用户设置项 key（与 app/configs/user_settings.ts 中的 UserSettingsKeys 保持一致）
+ * 用户设置项 key（与 app/configs/user-settings.ts 中的 UserSettingsKeys 保持一致）
  */
 export const USER_SETTING_KEYS = {
    /** 判题结果通知开关 */

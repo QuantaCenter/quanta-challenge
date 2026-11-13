@@ -27,11 +27,19 @@ const props = defineProps<{
    servers?: IPreviewServer[];
    steps?: { idle: string; running: string }[];
    currentStep?: number;
+   /** 初始化时只显示当前步骤 */
+   singleStep?: boolean;
+   /** 没有预览服务时显示的等待提示 */
+   emptyHint?: string;
    /** 环境不支持时展示的原因；非空时不再显示"正在启动"步骤列表 */
    unsupportedReason?: string | null;
 }>();
 
 /** iframe 当前加载的真实地址（预览域名）；主服务变化时重置 */
+const visibleSteps = computed(() => (props.steps ?? [])
+   .map((step, index) => ({ ...step, index }))
+   .filter(step => !props.singleStep || step.index === props.currentStep));
+
 const currentUrl = ref<string>();
 watch(
    () => props.previewUrl,
@@ -352,23 +360,28 @@ const teleported = useClientTeleport();
                   v-if="!props.unsupportedReason"
                   class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
                <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
+               <StSpace v-else-if="emptyHint" direction="vertical" gap="0.5rem">
+                  <StSpace align="center" gap="0.5rem" class="text-sm text-accent-300">
+                     <div>{{ emptyHint }}</div>
+                  </StSpace>
+               </StSpace>
                <span v-else-if="serverStopped" class="text-sm text-accent-100">
                   当前端口{{ stoppedPort ? ` ${stoppedPort} ` : '' }}暂无服务运行
                </span>
                <StSpace v-else direction="vertical" gap="0.5rem">
                   <StSpace
                      v-if="!iframeSrc"
-                     v-for="(step, idx) in steps ?? []"
-                     :key="idx"
+                     v-for="step in visibleSteps"
+                     :key="step.index"
                      align="center"
                      gap="0.5rem"
                      class="text-sm"
                      :class="
-                        idx <= currentStep! ? 'text-accent-100' : 'text-accent-400'
+                        step.index <= currentStep! ? 'text-accent-100' : 'text-accent-400'
                      ">
-                     <CheckOne v-if="currentStep && currentStep > idx" />
+                     <CheckOne v-if="currentStep && currentStep > step.index" />
                      <LoadingFour
-                        v-else-if="currentStep === idx"
+                        v-else-if="currentStep === step.index"
                         class="animate-spin" />
                      <Round v-else />
                      <div class="relative">
@@ -376,7 +389,7 @@ const teleported = useClientTeleport();
                            {{ step.running }}
                         </div>
                         <div class="absolute left-0 top-0">
-                           {{ currentStep === idx ? step.running : step.idle }}
+                           {{ currentStep === step.index ? step.running : step.idle }}
                         </div>
                      </div>
                   </StSpace>

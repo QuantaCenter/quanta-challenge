@@ -49,6 +49,8 @@ model User {
   scorePenalties            ScorePenalty[]
   courseEnrollments         CourseEnrollment[]
   sectionComments           SectionComment[]
+  labProjects               LabProject[]
+  githubConnection          GitHubConnection?
 
   @@map("users")
 }
@@ -197,7 +199,8 @@ model ImageBuild {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  Problems Problems[]
+  Problems     Problems[]
+  LabTemplates LabTemplate[]
 
   @@map("image_builds")
 }
@@ -236,32 +239,32 @@ model BaseProblems {
 
 // 问题版本表
 model Problems {
-  pid             Int        @id @default(autoincrement())
-  baseId          Int
-  title           String
-  detail          String
-  isDeprecated    Boolean    @default(false)
-  difficulty      Difficulty
-  totalScore      Int
-  status          Status
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-  coverImageId    String?
-  bootCommand     String?
-  initCommand     String?
-  buildCommand    String?
-  judgeUploadPath String
-  enableCloudFunction Boolean @default(false)
-  problemType     ProblemType @default(frontend)
+  pid                 Int         @id @default(autoincrement())
+  baseId              Int
+  title               String
+  detail              String
+  isDeprecated        Boolean     @default(false)
+  difficulty          Difficulty
+  totalScore          Int
+  status              Status
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+  coverImageId        String?
+  bootCommand         String?
+  initCommand         String?
+  buildCommand        String?
+  judgeUploadPath     String
+  enableCloudFunction Boolean     @default(false)
+  problemType         ProblemType @default(frontend)
   // 后端题判题容器的初始镜像（注册表 id）
-  serviceImage    String?
-  servicePort     Int        @default(3000)
+  serviceImage        String?
+  servicePort         Int         @default(3000)
   // 做题页挂载的快照镜像，不参与判题
-  snapshotImageId String?
-  taskStartAt        DateTime?
-  taskEndAt          DateTime?
-  scheduledPublishAt DateTime?
-  tags            Tags[]
+  snapshotImageId     String?
+  taskStartAt         DateTime?
+  taskEndAt           DateTime?
+  scheduledPublishAt  DateTime?
+  tags                Tags[]
 
   AuditRecord                 AuditRecords[]
   QualityReviews              ProblemQualityReview[]
@@ -336,17 +339,17 @@ enum Status {
 
 // 审核记录表
 model ProblemQualityReview {
-  id            String   @id @default(cuid())
-  problemId     Int
-  inputHash     String
-  status        String
-  model         String
-  report        Json?
-  errorCode     String?
-  generation    Json?
-  createdAt     DateTime @default(now())
-  completedAt   DateTime?
-  problem       Problems @relation(fields: [problemId], references: [pid], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  problemId   Int
+  inputHash   String
+  status      String
+  model       String
+  report      Json?
+  errorCode   String?
+  generation  Json?
+  createdAt   DateTime  @default(now())
+  completedAt DateTime?
+  problem     Problems  @relation(fields: [problemId], references: [pid], onDelete: Cascade)
 
   @@index([problemId, inputHash, createdAt])
   @@map("problem_quality_reviews")
@@ -468,6 +471,8 @@ model Tags {
   creatorId   String
   imageId     String?
   color       String?
+  /// 标签用途：题目标签用于题目分类与筛选；实验室标签是实验室模板的技术栈标签（同名唯一，按名称被模板引用）
+  scope       TagScope @default(problem)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -475,22 +480,159 @@ model Tags {
   image   Image?     @relation(fields: [imageId], references: [id])
   Problem Problems[]
 
+  @@index([scope])
   @@map("tags")
+}
+
+enum TagScope {
+  problem
+  lab
 }
 
 // 文件系统表
 model FileSystems {
-  fsid      String         @id @default(uuid())
-  ownerId   String
-  projectId String?
-  files     VirtualFiles[]
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
+  fsid         String         @id @default(uuid())
+  ownerId      String
+  projectId    String?
+  /// 实验室项目的文件系统（与 projectId 二选一）
+  labProjectId String?        @unique
+  files        VirtualFiles[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
 
-  owner   User      @relation(fields: [ownerId], references: [id])
-  project Projects? @relation(fields: [projectId], references: [pid])
+  owner      User        @relation(fields: [ownerId], references: [id])
+  project    Projects?   @relation(fields: [projectId], references: [pid])
+  labProject LabProject? @relation(fields: [labProjectId], references: [id], onDelete: Cascade)
 
   @@map("file_systems")
+}
+
+/// 实验室项目：用户从模板创建、长期保存的个人项目（不关联题目）
+enum LabProjectSource {
+  template
+  github
+}
+
+model GitHubConnection {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  githubUserId          BigInt    @unique
+  login                 String
+  avatarUrl             String?
+  accessTokenEncrypted  String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenEncrypted String?
+  refreshTokenExpiresAt DateTime?
+  credentialKeyVersion  Int?
+  revokedAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("github_connections")
+}
+
+model LabGitHubImport {
+  projectId      String   @id
+  repositoryId   BigInt
+  ownerLogin     String
+  repositoryName String
+  visibility     String
+  branchName     String
+  commitSha      String
+  importedAt     DateTime @default(now())
+
+  project LabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([repositoryId])
+  @@map("lab_github_imports")
+}
+
+model LabProject {
+  id           String   @id @default(cuid())
+  ownerId      String
+  name         String
+  description  String?
+  /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/lab-templates/templates），自定义模板为 lab_templates.id
+  templateId   String?
+  source       LabProjectSource @default(template)
+  /// 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端据此拒绝重置前发出的旧请求
+  revision     Int      @default(0)
+  /// 项目文件总大小（字节）：每次写入后重新统计，用于配额校验与列表展示
+  sizeBytes    BigInt   @default(0)
+  lastOpenedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  fileSystem FileSystems?
+  githubImport LabGitHubImport?
+
+  @@index([ownerId, updatedAt])
+  @@map("lab_projects")
+}
+
+/// 实验室模板分类：实验室页的分类筛选页签、模板卡片右上角的分类标签。
+/// 模板按 id 引用分类（内置模板为 template.json 的 category，自定义模板为 lab_templates.category）。
+/// 内置分类（builtin = true）由迁移预置，可以修改名称、颜色、图标、排序与停用，但不能删除。
+model LabCategory {
+  id          String   @id
+  name        String
+  description String?
+  /// 主题色（HEX）：分类页签选中态 / 悬停边框与卡片分类标签共用
+  color       String
+  /// 页签图标：预置图标名（见 @challenge/shared/lab-templates 的 LAB_CATEGORY_ICON_NAMES）
+  icon        String?
+  /// 排序：越小越靠前
+  sortOrder   Int      @default(0)
+  /// 停用后不再出现在分类页签与发布模板的分类选项中；已归入该分类的模板照常展示
+  enabled     Boolean  @default(true)
+  builtin     Boolean  @default(false)
+  createdBy   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sortOrder])
+  @@map("lab_categories")
+}
+
+/// 实验室模板配置。
+/// - 内置模板（builtin = true）：id 与模板目录名相同，文件与说明来自 @challenge/shared/lab-templates/templates，
+///   这里只保存管理员的覆盖配置，覆盖字段为 null 表示沿用 template.json 中的默认值；
+/// - 自定义模板（builtin = false）：由管理员发布，全部内容保存在本表。
+model LabTemplate {
+  id              String   @id
+  builtin         Boolean  @default(false)
+  /// 停用后不再出现在实验室模板列表中，也不能再从它创建项目；已创建的项目不受影响
+  enabled         Boolean  @default(true)
+  name            String?
+  description     String?
+  /// 模板分类 id，对应 lab_categories.id（仅自定义模板）
+  category        String?
+  /// 技术栈标签名（仅自定义模板），对应实验室标签（tags.scope = lab）或内置标签
+  tags            String[] @default([])
+  /// 图标地址（仅自定义模板）
+  icon            String?
+  /// 首次打开的文件，相对项目根（仅自定义模板）
+  entry           String?
+  /// 依赖安装命令：空字符串表示跳过安装
+  installCommand  String?
+  /// 启动命令：空字符串表示只进入项目目录
+  startCommand    String?
+  /// 说明文档 Markdown（仅自定义模板）
+  readme          String?
+  /// 项目文件：相对项目根的路径 -> 文本内容（仅自定义模板）
+  files           Json?
+  /// 打开项目时挂载的快照镜像（WebContainer 快照）
+  snapshotImageId String?
+  createdBy       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  snapshotImage ImageBuild? @relation(fields: [snapshotImageId], references: [id], onDelete: SetNull)
+
+  @@map("lab_templates")
 }
 
 // 项目表
@@ -863,14 +1005,14 @@ model Course {
 }
 
 model CourseChapter {
-  id        String   @id @default(cuid())
-  courseId  String
-  title     String
+  id           String   @id @default(cuid())
+  courseId     String
+  title        String
   /// 进入章节时展示的导读，不计入学习进度。
-  introduction String @default("")
-  position  Int
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  introduction String   @default("")
+  position     Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   course Course          @relation(fields: [courseId], references: [id], onDelete: Restrict)
   stages LearningStage[]
