@@ -34,7 +34,12 @@ onMounted(() => {
          gap="1.5rem"
          fill
          class="px-4 py-6 max-w-[80.68rem] shrink-0 max-md:flex-col">
-         <StSpace direction="vertical" align="start" gap="1.5rem" fill>
+         <StSpace
+            direction="vertical"
+            align="start"
+            gap="1.5rem"
+            fill
+            class="min-w-0">
             <h1
                class="st-font-hero-bold max-md:text-[1.5rem] max-md:leading-[1.2]">
                {{ greeting }}，{{ username }}
