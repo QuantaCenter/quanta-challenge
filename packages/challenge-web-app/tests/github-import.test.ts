@@ -15,7 +15,7 @@ import {
    readArchive,
 } from '../server/services/github/archive';
 import { api } from '../server/services/github/client';
-import { archiveMirrorUrls, downloadRepository } from '../server/services/github/download';
+import { archiveMirrorUrls, downloadRepository, getGitHubDownloadConfig } from '../server/services/github/download';
 import {
    readRepositoryTree,
    summarizeTree,
@@ -56,6 +56,49 @@ export function archive(
       ]),
    );
 }
+
+test('every download source gets five minutes and task recovery waits beyond the full chain', async () => {
+   const originalFetch = globalThis.fetch;
+   const originalConfig = (globalThis as any).useRuntimeConfig;
+   const originalTimeout = AbortSignal.timeout;
+   const originalEnvTimeout = process.env.NUXT_GITHUB_ARCHIVE_TIMEOUT_MS;
+   const timeouts: number[] = [];
+   process.env.NUXT_GITHUB_ARCHIVE_TIMEOUT_MS = '300000';
+   Object.assign(globalThis, { useRuntimeConfig: () => ({ github: {
+      archiveMirrors: ['https://first.example/{url}', 'https://second.example/{url}'],
+      archiveTimeoutMs: 300000,
+   } }) });
+   const fixture = archive([{ path: 'repo-sha/README.md', content: Buffer.from('demo') }]);
+   AbortSignal.timeout = (ms: number) => {
+      timeouts.push(ms);
+      return originalTimeout(ms);
+   };
+   globalThis.fetch = async input => {
+      const url = String(input);
+      if (url.startsWith('https://api.github.com/')) {
+         return new Response(null, { status: 302, headers: { location: 'https://codeload.github.com/test/demo/archive/sha' } });
+      }
+      return url.startsWith('https://codeload.github.com/')
+         ? new Response(fixture) : new Response('', { status: 503 });
+   };
+   try {
+      const config = getGitHubDownloadConfig();
+      assert.equal(config.timeoutMs, 300000);
+      assert.equal(config.taskTimeoutMs, 16 * 60000);
+      assert.equal(config.leaseMs, 20 * 60000);
+      await downloadRepository({
+         id: 123, name: 'demo', full_name: 'test/demo', owner: { login: 'test' },
+         private: false, default_branch: 'main', description: null, archived: false,
+      }, 'a'.repeat(40), undefined, { maxFileBytes: 1024, maxProjectBytes: 1024 }, originalTimeout(20000));
+      assert.deepEqual(timeouts, [300000, 300000, 300000]);
+   } finally {
+      AbortSignal.timeout = originalTimeout;
+      globalThis.fetch = originalFetch;
+      Object.assign(globalThis, { useRuntimeConfig: originalConfig });
+      if (originalEnvTimeout === undefined) delete process.env.NUXT_GITHUB_ARCHIVE_TIMEOUT_MS;
+      else process.env.NUXT_GITHUB_ARCHIVE_TIMEOUT_MS = originalEnvTimeout;
+   }
+});
 
 test('archive mirrors fall through HTTP errors and invalid archives, then use GitHub last', async () => {
    const originalFetch = globalThis.fetch;

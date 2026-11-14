@@ -341,7 +341,7 @@ export default defineNuxtConfig({
       github: {
          // 按顺序尝试的归档镜像 URL 模板，JSON 数组；{url} 为 GitHub 归档地址。
          archiveMirrors: '',
-         archiveTimeoutMs: 30000,
+         archiveTimeoutMs: 300000,
          clientId: '',
          clientSecret: '',
          appSlug: '',

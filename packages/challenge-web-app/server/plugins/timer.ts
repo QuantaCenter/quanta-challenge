@@ -3,6 +3,7 @@ import { registerResetTaskHandler } from '../services/reset-task';
 import { registerSendNotificationHandler } from '../services/send-notification';
 import { registerJudgeQualityHandler } from '../services/judge-quality-task';
 import { registerGitHubImportHandler } from '../services/github/import';
+import { getGitHubDownloadConfig } from '../services/github/download';
 import { startTimerWorker, stopTimerWorker } from '../utils/timer';
 
 /** 启动定时任务 Worker：定期轮询 timer_tasks 表，到期后执行已注册的处理器 */
@@ -19,7 +20,7 @@ export default defineNitroPlugin((nitro) => {
       isolatedHandlers: [{
          handlerId: 'github-import',
          concurrency: timer.githubImportConcurrency,
-         leaseMs: 10 * 60_000,
+         leaseMs: getGitHubDownloadConfig().leaseMs,
          clearPayload: true,
       }, {
          handlerId: 'judge-quality',

@@ -2,7 +2,7 @@ import prisma from '~~/lib/prisma';
 import { api, githubError, repositorySummary, type Repository } from './client';
 import { parseRepository } from './core';
 import { userToken } from './accounts';
-import { downloadRepository } from './download';
+import { downloadRepository, getGitHubDownloadConfig } from './download';
 import { readRepositoryTree } from './tree';
 import { prepareAssets } from '../../trpc/services/file-assets';
 import { getWorkshopLimits } from '../../trpc/services/workshop-project';
@@ -160,7 +160,7 @@ async function completeImport(
    task: TimerTaskSnapshot,
 ) {
    const limits = getWorkshopLimits();
-   const signal = AbortSignal.timeout(240000);
+   const signal = AbortSignal.timeout(getGitHubDownloadConfig().taskTimeoutMs);
    const { repo, token } = await resolveRepository(userId, input.repository);
    const preview = await readRepositoryTree(
       repo.id,
