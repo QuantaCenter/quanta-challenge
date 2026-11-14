@@ -2,25 +2,39 @@
 import { FolderClose, FolderOpen } from '@icon-park/vue-next';
 import type { IFileSystemItem } from './type';
 
+defineSlots<{
+   extra?: () => unknown;
+   'item-extra'?: (props: { item: IFileSystemItem }) => unknown;
+}>();
+
 const props = defineProps<{
    folder: IFileSystemItem;
    deep: number;
    defaultOpened?: boolean;
    currentFilePath?: string;
+   readOnly?: boolean;
 }>();
 
 const opened = ref(props.defaultOpened ?? false);
 
 const emits = defineEmits<{
-   'file-or-folder-click': [item: IFileSystemItem];
-   dragStart: [item: IFileSystemItem];
+   'file-or-folder-click': [
+      item: IFileSystemItem,
+   ];
+   dragStart: [
+      item: IFileSystemItem,
+   ];
    dragEnd: [];
-   drop: [targetFolder: IFileSystemItem, draggedItem: IFileSystemItem];
+   drop: [
+      targetFolder: IFileSystemItem,
+      draggedItem: IFileSystemItem,
+   ];
 }>();
 
 const handleFileOrFolderClick = (fileOrFolder: IFileSystemItem) => {
    emits('file-or-folder-click', fileOrFolder);
 };
+
 const handleOpenedChange = () => {
    opened.value = !opened.value;
    return true;
@@ -34,6 +48,9 @@ const selected = computed(() => {
 const isDragOver = ref(false);
 
 const handleDragStart = (e: DragEvent) => {
+   if (props.readOnly) {
+      return;
+   }
    e.stopPropagation();
    e.dataTransfer!.effectAllowed = 'move';
    e.dataTransfer!.setData('text/plain', props.folder.path);
@@ -45,6 +62,9 @@ const handleDragEnd = () => {
 };
 
 const handleDragOver = (e: DragEvent) => {
+   if (props.readOnly) {
+      return;
+   }
    e.preventDefault();
    e.stopPropagation();
    e.dataTransfer!.dropEffect = 'move';
@@ -57,6 +77,9 @@ const handleDragLeave = (e: DragEvent) => {
 };
 
 const handleDrop = (e: DragEvent) => {
+   if (props.readOnly) {
+      return;
+   }
    e.preventDefault();
    e.stopPropagation();
    isDragOver.value = false;
@@ -74,7 +97,7 @@ const handleChildDragEnd = () => {
 
 const handleChildDrop = (
    targetFolder: IFileSystemItem,
-   draggedItem: IFileSystemItem
+   draggedItem: IFileSystemItem,
 ) => {
    emits('drop', targetFolder, draggedItem);
 };
@@ -83,7 +106,11 @@ const handleChildDrop = (
 <template>
    <div class="flex flex-col w-full">
       <div
-         draggable="true"
+         :draggable="!props.readOnly"
+         :role="props.readOnly ? 'button' : undefined"
+         :tabindex="props.readOnly ? 0 : undefined"
+         :aria-expanded="opened"
+         :aria-label="props.readOnly ? props.folder.path : undefined"
          data-type="folder"
          :data-path="props.folder.path"
          :style="{ paddingLeft: `${props.deep * 1 + 0.5}rem` }"
@@ -93,6 +120,8 @@ const handleChildDrop = (
             'bg-primary/30 border-l-2 !border-primary': isDragOver,
          }"
          @click.stop="handleOpenedChange() && handleFileOrFolderClick(folder)"
+         @keydown.enter.prevent="handleOpenedChange() && handleFileOrFolderClick(folder)"
+         @keydown.space.prevent="handleOpenedChange() && handleFileOrFolderClick(folder)"
          @dragstart="handleDragStart"
          @dragend="handleDragEnd"
          @dragover="handleDragOver"
@@ -108,8 +137,15 @@ const handleChildDrop = (
             theme="filled"
             size="1rem"
             class="text-secondary icon pointer-events-none" />
-         <div class="text-sm text-nowrap whitespace-nowrap pointer-events-none">
+         <div
+            class="text-sm text-nowrap whitespace-nowrap pointer-events-none"
+            :class="{ 'min-w-0 truncate': $slots.extra }">
             {{ folder.name }}
+         </div>
+         <div
+            v-if="$slots.extra"
+            class="ml-auto flex shrink-0 items-center gap-2 pl-3">
+            <slot name="extra" />
          </div>
       </div>
       <StFileSystemTree
@@ -119,8 +155,17 @@ const handleChildDrop = (
          @drag-end="handleChildDragEnd"
          @drop="handleChildDrop"
          :current-file-path="props.currentFilePath"
+         :read-only="props.readOnly"
          :directory="folder.children ?? []"
-         :deep="deep + 1" />
+         :deep="deep + 1">
+         <template
+            v-if="$slots['item-extra']"
+            #item-extra="slotProps">
+            <slot
+               name="item-extra"
+               v-bind="slotProps" />
+         </template>
+      </StFileSystemTree>
    </div>
 </template>
 

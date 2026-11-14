@@ -42,7 +42,7 @@ const tabOptions = [
 
 const { html, update } = useMarkdown();
 
-// 模板文件不随列表下发，打开弹窗时按需加载并缓存（同一页面内重复打开不再请求）
+// 模板文件不随列表下发，打开抽屉时按需加载并缓存（同一页面内重复打开不再请求）
 const filesCache = new Map<string, Record<string, string>>();
 /** 当前模板的文件；为 null 时表示加载中或加载失败（见 filesError） */
 const templateFiles = ref<Record<string, string> | null>(null);
@@ -108,7 +108,7 @@ watch(
    { immediate: true },
 );
 
-// 介绍用的是懒加载组件，首次展示要先拉取 chunk 才能渲染；页面挂载后提前加载，打开弹窗时就能立刻显示
+// 介绍用的是懒加载组件，首次展示要先拉取 chunk 才能渲染；页面挂载后提前加载，打开抽屉时就能立刻显示
 onMounted(() => {
    void preloadComponents('StMarkdownPreview');
 });
@@ -169,43 +169,25 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
    if (opened.value && event.key === 'Escape') opened.value = false;
 });
 
-// 弹窗打开期间锁定页面滚动，避免滚轮 / 触摸滚动穿透到背景
-const documentScrollLocked = useScrollLock(
-   import.meta.client ? document.documentElement : null,
-);
-const bodyScrollLocked = useScrollLock(import.meta.client ? document.body : null);
-watch(
-   opened,
-   (value) => {
-      documentScrollLocked.value = value;
-      bodyScrollLocked.value = value;
-   },
-   { immediate: true },
-);
-onUnmounted(() => {
-   documentScrollLocked.value = false;
-   bodyScrollLocked.value = false;
-});
 </script>
 
 <template>
-   <StModal v-model:opened="opened" close-on-mask>
-      <!--
-         外层用固定高度而不是 max-height：flex 列容器高度不确定时，子元素的 h-full 会退化成 auto，
-         内容区撑开后被 overflow-hidden 裁掉、无法滚动，滚轮事件转而滚动了背景页面。
-      -->
+   <StDrawer
+      v-model:opened="opened"
+      global
+      width="min(60rem, 100vw)">
       <div
          v-if="template"
          role="dialog"
          aria-modal="true"
          :aria-label="`${template.name} 模板详情`"
-         class="relative w-[min(60rem,calc(100vw-2rem))] h-[min(46rem,calc(100dvh-2rem))] flex flex-col rounded-2xl border border-accent-500 bg-accent-600 text-accent-100 shadow-2xl shadow-background overflow-hidden overscroll-contain">
+         class="relative flex h-full min-h-0 w-full flex-col overflow-hidden overscroll-contain bg-black text-accent-100">
          <!-- 头部 -->
-         <div class="relative shrink-0 px-6 pt-6 pb-4 max-md:px-4 max-md:pt-4">
+         <div class="relative shrink-0 px-6 pt-6 pb-4 max-md:px-4 max-md:pt-8">
             <StButton
                size="sm"
                aria-label="关闭"
-               class="!absolute right-3 top-3 z-10 !size-10 !flex !items-center !justify-center !bg-transparent !p-0 !text-accent-300 hover:!bg-accent-500 hover:!text-white max-md:right-2 max-md:top-2"
+               class="!absolute right-3 top-3 z-10 !size-10 !flex !items-center !justify-center !bg-transparent !p-0 !text-accent-300 hover:!bg-accent-500 hover:!text-white max-md:right-2 max-md:top-6"
                @click="opened = false">
                <Close size="1.25rem" />
             </StButton>
@@ -328,7 +310,7 @@ onUnmounted(() => {
             fill-x
             align="center"
             gap="0.75rem"
-            class="shrink-0 px-6 py-4 border-t border-accent-500 max-md:px-4">
+            class="shrink-0 border-t border-accent-500 bg-black px-6 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] max-md:px-4">
             <StInput
                v-model:value="projectName"
                aria-label="项目名称"
@@ -353,7 +335,7 @@ onUnmounted(() => {
             </StButton>
          </StSpace>
       </div>
-   </StModal>
+   </StDrawer>
 </template>
 
 <style scoped src="@/assets/css/utils.css" />

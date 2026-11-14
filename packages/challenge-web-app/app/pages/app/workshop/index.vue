@@ -2,8 +2,8 @@
 import Divider from '../problems/_components/Divider.vue';
 import ProjectSection from './_components/ProjectSection.vue';
 import TemplateSection from './_components/TemplateSection.vue';
-import TemplateDetailModal from './_components/TemplateDetailModal.vue';
-import GitHubImportModal from './_components/GitHubImportModal.vue';
+import TemplateDetailDrawer from './_components/TemplateDetailDrawer.vue';
+import GitHubImportDrawer from './_components/GitHubImportDrawer.vue';
 import { useWorkshopProjects, type WorkshopTemplateItem } from '~/composables/use-workshop-projects';
 
 useSeoMeta({
@@ -46,11 +46,11 @@ await Promise.all([ready, templatesAsync, categoriesAsync]);
 
 const retryTemplates = () => Promise.all([refreshTemplates(), refreshCategories()]);
 
-const modalOpened = ref(false);
+const templateOpened = ref(false);
 const activeTemplate = ref<WorkshopTemplateItem | null>(null);
 const openTemplate = (template: WorkshopTemplateItem) => {
    activeTemplate.value = template;
-   modalOpened.value = true;
+   templateOpened.value = true;
 };
 </script>
 
@@ -103,13 +103,15 @@ const openTemplate = (template: WorkshopTemplateItem) => {
          <StSpacer fill flex no-shrink height="1rem" />
       </StSpace>
 
-      <TemplateDetailModal
-         v-model:opened="modalOpened"
+      <TemplateDetailDrawer
+         v-model:opened="templateOpened"
          :template="activeTemplate"
          :categories="categories ?? []"
          :project-count="projects?.length ?? 0"
          @created="refresh()" />
-      <GitHubImportModal v-model:opened="importOpened" @created="refresh()" />
+      <GitHubImportDrawer
+         v-model:opened="importOpened"
+         @created="refresh()" />
    </StSpace>
 </template>
 

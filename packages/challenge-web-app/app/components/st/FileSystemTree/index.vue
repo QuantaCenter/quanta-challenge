@@ -1,36 +1,58 @@
 <script setup lang="ts">
 import type { IFileSystemItem } from './type';
 
+defineSlots<{
+   'item-extra'?: (props: { item: IFileSystemItem }) => unknown;
+}>();
+
 const props = defineProps<{
    directory: IFileSystemItem[];
    currentFilePath?: string;
    deep?: number;
    defaultOpened?: boolean;
+   readOnly?: boolean;
    fileLoader?: (path: string) => Promise<string>;
-   dirLoader?: (
-      path: string
-   ) => Promise<{ name: string; type: 'file' | 'folder' }[]>;
+   dirLoader?: (path: string) => Promise<
+      {
+         name: string;
+         type: 'file' | 'folder';
+      }[]
+   >;
 }>();
 
 const sortedDirectory = computed(() => {
-   return props.directory.sort((a, b) => {
-      if (a.type === 'folder' && b.type === 'file') return -1;
-      if (a.type === 'file' && b.type === 'folder') return 1;
+   return [
+      ...props.directory,
+   ].sort((a, b) => {
+      if (a.type === 'folder' && b.type === 'file') {
+         return -1;
+      }
+      if (a.type === 'file' && b.type === 'folder') {
+         return 1;
+      }
       return a.name.localeCompare(b.name);
    });
 });
 
 const emits = defineEmits<{
-   'file-or-folder-click': [item: IFileSystemItem, wasSuspense: boolean];
-   'drag-start': [item: IFileSystemItem];
+   'file-or-folder-click': [
+      item: IFileSystemItem,
+      wasSuspense: boolean,
+   ];
+   'drag-start': [
+      item: IFileSystemItem,
+   ];
    'drag-end': [];
-   drop: [targetFolder: IFileSystemItem, draggedItem: IFileSystemItem];
+   drop: [
+      targetFolder: IFileSystemItem,
+      draggedItem: IFileSystemItem,
+   ];
 }>();
 
 // 全局拖拽状态管理 - 使用 provide/inject 确保跨层级共享
 const injectedDraggedItem = inject<Ref<IFileSystemItem | null>>(
    'fs-tree-dragged-item',
-   ref(null)
+   ref(null),
 );
 
 // 如果是根节点，提供全局状态
@@ -74,7 +96,7 @@ const handleDragEnd = () => {
 
 const handleDrop = (
    targetFolder: IFileSystemItem,
-   _draggedItem: IFileSystemItem | null
+   _draggedItem: IFileSystemItem | null,
 ) => {
    // 优先使用传递过来的 draggedItem，如果没有则使用全局的
    const itemToDrop = _draggedItem || injectedDraggedItem.value;
@@ -101,25 +123,53 @@ const handleDrop = (
 
 <template>
    <div class="w-full">
-      <div v-for="item in sortedDirectory" :key="item.path" class="w-full">
+      <div
+         v-for="item in sortedDirectory"
+         :key="item.path"
+         class="w-full">
          <StFileSystemTreeFileItem
             v-if="item.type === 'file'"
             @click="handleFileOrFolderClick(item)"
             @drag-start="handleDragStart"
             @drag-end="handleDragEnd"
             :file="item"
+            :read-only="props.readOnly"
             :selected="props.currentFilePath === item.path"
-            :deep="deep ?? 0" />
+            :deep="deep ?? 0">
+            <template
+               v-if="$slots['item-extra']"
+               #extra>
+               <slot
+                  name="item-extra"
+                  :item="item" />
+            </template>
+         </StFileSystemTreeFileItem>
          <StFileSystemTreeFolderItem
             v-else
             :default-opened="props.defaultOpened"
             :folder="item"
+            :read-only="props.readOnly"
             :current-file-path="props.currentFilePath"
             :deep="deep ?? 0"
             @file-or-folder-click="handleFileOrFolderClick"
             @drag-start="handleDragStart"
             @drag-end="handleDragEnd"
-            @drop="handleDrop" />
+            @drop="handleDrop">
+            <template
+               v-if="$slots['item-extra']"
+               #extra>
+               <slot
+                  name="item-extra"
+                  :item="item" />
+            </template>
+            <template
+               v-if="$slots['item-extra']"
+               #item-extra="slotProps">
+               <slot
+                  name="item-extra"
+                  v-bind="slotProps" />
+            </template>
+         </StFileSystemTreeFolderItem>
       </div>
    </div>
 </template>
