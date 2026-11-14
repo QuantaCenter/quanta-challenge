@@ -153,7 +153,6 @@ const mounted = new Promise<void>((resolve) => {
 
 type BootStep = 'download' | 'container' | 'snapshot' | 'install' | 'start';
 const bootStep = ref<BootStep>('container');
-const projectFilesLoaded = ref(false);
 const assetFiles = data.value.files.filter((file) => file.assetId);
 const downloadStepText = ref('正在下载项目文件...');
 const snapshotStepText = ref('正在拉取快照镜像...');
@@ -191,8 +190,6 @@ const loadProject = async () => {
       Object.assign(contentMap, await downloadAssets());
       bootStep.value = 'container';
    }
-   projectFilesLoaded.value = true;
-
    pathContentMap.value = {};
    for (const [path, content] of Object.entries(contentMap)) {
       pathContentMap.value[path] = { content, vid: '' };
@@ -727,6 +724,11 @@ useEventBus('editor-env-retry').on(() => {
 
 // ————————————————— 预览 / 快捷键 —————————————————
 const previewUrl = computed(() => exposeServer.value?.url);
+const previewEmptyHint = computed(() =>
+   !startCommand && editorStore.hasProjectInitialized
+      ? '启动服务以预览'
+      : undefined,
+);
 const preview = useTemplateRef('preview');
 
 useEditorShortcuts({
@@ -920,7 +922,7 @@ useSeoMeta({
                   :steps="steps"
                   :current-step="currentStep"
                   :single-step="project.source === 'github'"
-                  :empty-hint="project.source === 'github' && projectFilesLoaded ? '启动服务以预览' : undefined"
+                  :empty-hint="previewEmptyHint"
                   :preview-url="previewUrl"
                   :servers="servers"
                   :unsupported-reason="unsupportedReason" />
