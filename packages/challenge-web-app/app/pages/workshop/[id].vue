@@ -546,7 +546,7 @@ const steps = computed(() =>
       installCommand && {
          key: 'install',
          idle: '安装项目依赖',
-         running: '正在安装项目依赖（首次约需 10 ~ 30 秒）...',
+         running: '正在安装项目依赖...',
       },
       startCommand && {
          key: 'start',

@@ -361,7 +361,7 @@ const teleported = useClientTeleport();
                   class="w-[24rem] scale-[175%] opacity-50 mb-4 -mt-4" />
                <EditorEnvError v-if="props.unsupportedReason" :reason="props.unsupportedReason" />
                <StSpace v-else-if="emptyHint" direction="vertical" gap="0.5rem">
-                  <StSpace align="center" gap="0.5rem" class="text-sm text-accent-300">
+                  <StSpace align="center" gap="0.5rem" class="text-accent-400">
                      <div>{{ emptyHint }}</div>
                   </StSpace>
                </StSpace>
