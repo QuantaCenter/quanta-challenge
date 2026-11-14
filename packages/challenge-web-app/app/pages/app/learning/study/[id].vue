@@ -91,14 +91,12 @@ async function closeDirectory() {
    await popped;
 }
 
-const article = useTemplateRef<HTMLElement>('article');
-/** 同一页面只改 query 时路由不会滚动：正文顶部已被滚出视口时，把它带回顶栏下方 */
-function revealArticle() {
-   const el = article.value;
-   if (!el) return;
-   const offset = desktop.value ? 112 : 128;
-   const top = el.getBoundingClientRect().top;
-   if (top < offset) window.scrollBy({ top: top - offset, behavior: 'instant' });
+/** 章节切换只改 query，需在新内容完成 DOM 更新和布局后主动回到页首。 */
+async function resetScroll(request: number) {
+   await nextTick();
+   await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+   if (request !== selectionRequest) return;
+   window.scrollTo({ top: 0, behavior: 'instant' });
 }
 
 async function selectChapter(chapterId: string) {
@@ -107,8 +105,7 @@ async function selectChapter(chapterId: string) {
    await closeDirectory();
    if (request !== selectionRequest) return;
    await navigateTo({ path: route.path, query: { chapter: chapterId } });
-   await nextTick();
-   revealArticle();
+   await resetScroll(request);
 }
 async function selectSection(sectionId: string) {
    const request = ++selectionRequest;
@@ -123,8 +120,7 @@ async function selectSection(sectionId: string) {
       if (request !== selectionRequest || id.value !== courseId || route.fullPath !== source) return;
       sectionLoader.prepare(courseId, sectionId, data);
       await navigateTo({ path, query: { section: sectionId } });
-      await nextTick();
-      revealArticle();
+      await resetScroll(request);
    } catch {
       if (request === selectionRequest) message.error('内容加载失败，请重试');
    } finally {
@@ -249,7 +245,6 @@ function beginChapter() {
          </aside>
          </div>
          <article
-            ref="article"
             class="relative w-full min-w-0 justify-self-center transition-[max-width] duration-500 ease-in-out motion-reduce:transition-none"
             :class="directoryCollapsed ? 'max-w-[60rem]' : 'max-w-[52rem]'"
             :aria-busy="switching">
