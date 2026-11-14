@@ -57,9 +57,12 @@ test('workshop migration preserves projects, files, templates, tags and import h
          'utf8',
       );
       const baselineSchema = join(baseline, 'schema.prisma');
+      const beforeProjectSettings = schema.replace(/model WorkshopProject \{[\s\S]*?\n\}/, (model) =>
+         model.replace(/^\s*startCommand\s+String\?.*\n/m, ''),
+      );
       await writeFile(
          baselineSchema,
-         schema.replaceAll('Workshop', 'Lab').replaceAll('workshop', 'lab'),
+         beforeProjectSettings.replaceAll('Workshop', 'Lab').replaceAll('workshop', 'lab'),
       );
       const migrations = await readdir(join(schemaDirectory, 'migrations'));
       for (const migration of migrations.filter(

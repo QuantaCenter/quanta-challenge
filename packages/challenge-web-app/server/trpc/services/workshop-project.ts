@@ -248,7 +248,7 @@ const get = async (userId: string, projectId: string) => {
 const update = async (
    userId: string,
    projectId: string,
-   data: { name?: string; description?: string | null },
+   data: { name?: string; description?: string | null; startCommand?: string | null },
 ) => {
    const result = await prisma.workshopProject.updateMany({
       where: { id: projectId, ownerId: userId },

@@ -554,6 +554,8 @@ model WorkshopProject {
   ownerId      String
   name         String
   description  String?
+  /// null 沿用默认命令，空字符串只打开终端，自定义命令在浏览器容器中执行
+  startCommand String?
   /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/workshop-templates/templates），自定义模板为 workshop_templates.id
   templateId   String?
   source       WorkshopProjectSource @default(template)

@@ -80,6 +80,9 @@ export const workshopRouter = router({
          ProjectIdSchema.extend({
             name: NameSchema.optional(),
             description: DescriptionSchema.nullable().optional(),
+            startCommand: z.string().trim().max(2000, '启动命令最多 2000 个字符')
+               .refine((value) => !value.includes('\0'), '启动命令包含非法字符')
+               .nullable().optional(),
          }),
       )
       .mutation(async ({ ctx, input }) => {

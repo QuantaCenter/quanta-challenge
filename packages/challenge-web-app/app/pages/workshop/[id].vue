@@ -57,7 +57,6 @@ if (loadError.value || !data.value) {
    });
 }
 const project = ref(data.value.project);
-useState<boolean>('workshop-can-reset', () => false).value = project.value.source === 'template';
 /** 项目使用的模板（含管理员的覆盖配置）；模板被删除时为 null */
 const template = data.value.template;
 
@@ -74,11 +73,18 @@ const installCommand = project.value.source === 'github' ? undefined : template
    : hasPackageJson
      ? 'npm install'
      : undefined;
-const startCommand = project.value.source === 'github' ? '' : template
+const defaultStartCommand = project.value.source === 'github' ? '' : template
    ? template.startCommand
    : hasPackageJson
      ? 'npm run dev'
      : 'npx --yes serve -l 3000 .';
+const startCommand = project.value.startCommand ?? defaultStartCommand;
+const settingsOpened = ref(false);
+const { event: settingsEvent, off: offSettings } = useEventEmitter<{ at: number }>('workshop', 'settings');
+watch(settingsEvent, (value) => {
+   if (value) settingsOpened.value = true;
+});
+onUnmounted(offSettings);
 const snapshotImage = template?.snapshotImage ?? null;
 
 const message = useMessage();
@@ -766,7 +772,7 @@ watch(downloadEvent, async (value) => {
    }
 });
 
-// 二次确认已在侧边栏「设置」菜单中完成（滑动 + 确认弹窗）
+// 二次确认已在项目设置抽屉中完成。
 const { event: resetEvent } = useEventEmitter<{ at: number }>('workshop', 'reset');
 watch(resetEvent, async (value) => {
    if (!value) return;
@@ -820,6 +826,13 @@ useSeoMeta({
 
 <template>
    <StSpace fill>
+      <WorkshopSettingsDrawer
+         v-model:opened="settingsOpened"
+         :project-id="projectId"
+         :start-command="project.startCommand"
+         :default-start-command="defaultStartCommand"
+         :resettable="project.source === 'template'"
+         @saved="project.startCommand = $event" />
       <input
          ref="upload-input"
          type="file"

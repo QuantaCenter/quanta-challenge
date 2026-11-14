@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { Download, Upload } from '@icon-park/vue-next';
+import { Download, SettingOne, Upload } from '@icon-park/vue-next';
 import { PanelLeft, SquareTerminal } from 'lucide-vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import useAuthStore from '~/stores/auth-store';
 
-/** 工坊侧边栏：上传 / 下载 + 布局开关，重置收在底部「设置」菜单里（与做题页侧边栏同构） */
+/** 工坊侧边栏：上传 / 下载、布局开关、项目设置与头像。 */
 
 const isMobile = useIsMobile();
 const store = useEditorStore();
 const layoutStore = useLayoutStore();
-const canReset = useState<boolean>('workshop-can-reset', () => false);
 
 const { emit: emitUpload } = useEventEmitter<{ at: number }>('workshop', 'upload');
 const { emit: emitDownload } = useEventEmitter<{ at: number }>('workshop', 'download');
+const { emit: emitSettings } = useEventEmitter<{ at: number }>('workshop', 'settings');
 
 const authStore = useAuthStore();
 const avatarUrl = computed(() => {
@@ -72,11 +72,12 @@ const avatarUrl = computed(() => {
    <div class="flex-1" />
 
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
-      <ChallengeSettingsMenu
-         :resettable="canReset"
-         reset-title="重置项目"
-         reset-description="项目中的所有文件（包括上传的文件）都会被替换为模板初始文件，且无法恢复。"
-         :reset-event="['workshop', 'reset']" />
+      <StMiniSidebarButton
+         name="项目设置"
+         aria-label="项目设置"
+         @click="emitSettings({ at: Date.now() })">
+         <SettingOne class="text-[1.1rem]" />
+      </StMiniSidebarButton>
       <StAvatar size="2.25rem" :url="avatarUrl" />
    </StSpace>
 </template>
