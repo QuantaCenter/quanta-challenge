@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, useTemplateRef, watch } from 'vue';
+import { computed, onUnmounted, ref, useSlots, useTemplateRef, watch } from 'vue';
 import { useMediaQuery } from '@vueuse/core';
 import { useLayoutStore, type EditorBoardId } from '~/stores/layout-store';
 import { useEditorStore } from '~/stores/editor-store';
@@ -7,11 +7,12 @@ import { keyboardDelta, percentFromDrag } from '~/components/st/SplitPanel/layou
 import { getVisibleBoardLayout, mergeVisibleBoardSizes, resizeBoardPair } from '~/utils/board-layout';
 
 const layoutStore = useLayoutStore();
+const slots = useSlots();
 
 const props = withDefaults(
    defineProps<{
       previewLabel?: string;
-      /** 移动端最左侧说明板块的 Tab 文案（做题页为题面，工坊为模板说明） */
+      /** 移动端详情板块的 Tab 文案 */
       detailLabel?: string;
    }>(),
    { previewLabel: '实时预览', detailLabel: '题目' },
@@ -71,8 +72,10 @@ onMounted(() => {
 /** 移动端分页的板块 id：题面默认位于代码编辑器左侧 */
 type MobileBoardId = 'detail' | 'code' | 'preview';
 
-/** 移动端参与分页的板块：文件树移入「更多」抽屉，题面取代其位置排在最左 */
-const MOBILE_BOARD_IDS: MobileBoardId[] = ['detail', 'code', 'preview'];
+/** 文件树移入「更多」抽屉；提供详情插槽时，详情排在最左侧。 */
+const mobileBoardIds = computed<MobileBoardId[]>(() =>
+   slots['board-detail'] ? ['detail', 'code', 'preview'] : ['code', 'preview'],
+);
 
 /** 移动端 Tab 文案（顶栏空间有限，用短标签） */
 const MOBILE_TAB_LABEL = computed<Record<MobileBoardId, string>>(() => ({
@@ -82,14 +85,14 @@ const MOBILE_TAB_LABEL = computed<Record<MobileBoardId, string>>(() => ({
 }));
 
 /** 当前展示的板块（移动端顶栏 Tab 与滑动位置双向同步） */
-const activeBoard = ref<MobileBoardId>(MOBILE_BOARD_IDS[0]!);
+const activeBoard = ref<MobileBoardId>(mobileBoardIds.value[0]!);
 
 const handleBoardScroll = () => {
    if (isDesktop.value) return;
    const el = container.value;
    if (!el || el.clientWidth === 0) return;
    const index = Math.round(el.scrollLeft / el.clientWidth);
-   const id = MOBILE_BOARD_IDS[index];
+   const id = mobileBoardIds.value[index];
    if (id && id !== activeBoard.value) activeBoard.value = id;
 };
 
@@ -99,7 +102,7 @@ const scrollToBoard = (id: MobileBoardId) => {
    const el = container.value;
    if (!el) return;
    el.scrollTo({
-      left: MOBILE_BOARD_IDS.indexOf(id) * el.clientWidth,
+      left: mobileBoardIds.value.indexOf(id) * el.clientWidth,
       behavior: 'smooth',
    });
 };
@@ -267,7 +270,7 @@ watch(
       <Teleport v-if="tabsReady && !isDesktop" to="#challenge-mobile-board-tabs">
          <div role="tablist" aria-label="板块切换" class="flex items-center gap-1">
             <button
-               v-for="id in MOBILE_BOARD_IDS"
+               v-for="id in mobileBoardIds"
                :key="`tab-${id}`"
                role="tab"
                :aria-selected="activeBoard === id"
@@ -288,6 +291,7 @@ watch(
          class="relative w-full h-full flex flex-row min-h-0 max-md:flex-1 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:snap-x max-md:snap-mandatory max-md:overscroll-x-contain max-md:rounded-lg editor-board-pager"
          @scroll.passive="handleBoardScroll">
          <div
+            v-if="$slots['board-detail']"
             data-board="detail"
             class="relative h-full w-full shrink-0 snap-center hidden max-md:block max-md:overflow-x-hidden max-md:px-0.5">
             <slot name="board-detail" />

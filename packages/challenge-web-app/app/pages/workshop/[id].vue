@@ -22,7 +22,6 @@ import CodeEditorPanel from '~/pages/challenge/_subpages/editor/_modules/CodeEdi
 import TerminalPanel from '~/pages/challenge/_subpages/editor/_modules/TerminalPanel.vue';
 import PreviewPanel from '~/pages/challenge/_subpages/editor/_modules/PreviewPanel.vue';
 import EditorBoardLayout from '~/pages/challenge/_subpages/editor/_components/EditorBoardLayout.vue';
-import MobileProblemDetail from '~/pages/challenge/_subpages/editor/_components/MobileProblemDetail.vue';
 import { useManifestSync } from '~/pages/challenge/_subpages/editor/_composables/use-manifest-sync';
 import { useEditorShortcuts } from '~/pages/challenge/_subpages/editor/_composables/use-editor-shortcuts';
 import { useFileChangeSync } from '~/pages/challenge/_subpages/editor/_composables/use-file-change-sync';
@@ -81,9 +80,6 @@ const startCommand = project.value.source === 'github' ? '' : template
      ? 'npm run dev'
      : 'npx --yes serve -l 3000 .';
 const snapshotImage = template?.snapshotImage ?? null;
-const readme =
-   template?.readme ||
-   `# ${project.value.name}\n\n${project.value.description ?? ''}`;
 
 const message = useMessage();
 const editorStore = useEditorStore();
@@ -831,11 +827,7 @@ useSeoMeta({
          class="hidden"
          @change="onUploadInputChange" />
       <StSpace fill>
-         <EditorBoardLayout detail-label="说明" preview-label="实时预览">
-            <template #board-detail>
-               <MobileProblemDetail :markdown="readme" />
-            </template>
-
+         <EditorBoardLayout preview-label="实时预览">
             <template #board-files>
                <Teleport :disabled="!isMobile" to="#challenge-mobile-drawer-files">
                   <FileManagerPanel
