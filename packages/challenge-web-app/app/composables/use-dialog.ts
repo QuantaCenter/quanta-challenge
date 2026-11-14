@@ -15,6 +15,12 @@ export interface BaseDialogOptions {
 }
 
 export interface ConfirmDialogOptions extends BaseDialogOptions {
+   /** 输入与 value 完全一致时才能确认。 */
+   confirmation?: {
+      label: string;
+      value: string;
+      copyable?: boolean;
+   };
    confirmText?: string;
    cancelText?: string;
    variant?: 'default' | 'danger';

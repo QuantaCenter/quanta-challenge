@@ -73,9 +73,14 @@ export const useWorkshopProjects = () => {
 
    const deleteProject = async (project: WorkshopProject) => {
       const confirmed = await dialog.confirm({
-         title: `删除「${project.name}」？`,
+         title: '删除项目',
          description:
-            '项目中的所有文件（包括上传的文件）都会被永久删除，且无法恢复。',
+            '项目中的所有文件（包括上传的文件）都会被永久删除，且无法恢复。请输入项目名以确认删除。',
+         confirmation: {
+            label: '项目名',
+            value: project.name,
+            copyable: true,
+         },
          variant: 'danger',
          confirmText: '删除',
       });
