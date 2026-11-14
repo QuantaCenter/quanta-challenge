@@ -4,16 +4,16 @@ import { protectedAdminProcedure } from '../../protected-trpc';
 import { router } from '../../trpc';
 import z from 'zod';
 import {
-   countLabTagUsage,
-   ensureLabTagNameAvailable,
-   listBuiltinLabTagNames,
-   listLabTags,
-} from '../../services/lab-tag';
+   countWorkshopTagUsage,
+   ensureWorkshopTagNameAvailable,
+   listBuiltinWorkshopTagNames,
+   listWorkshopTags,
+} from '../../services/workshop-tag';
 
 const hexRegex = /^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/i;
 
-/** 标签用途：题目标签 / 实验室标签（实验室模板的技术栈标签） */
-export const TagScopeSchema = z.enum(['problem', 'lab']);
+/** 标签用途：题目标签 / 工坊标签（工坊模板的技术栈标签） */
+export const TagScopeSchema = z.enum(['problem', 'workshop']);
 
 const AddTagSchema = z.object({
    name: z.string().trim().min(1, 'Tag name is required'),
@@ -29,8 +29,8 @@ const AddTagSchema = z.object({
 const addTagProcedure = protectedAdminProcedure
    .input(AddTagSchema)
    .mutation(async ({ ctx, input }) => {
-      if (input.scope === 'lab') {
-         await ensureLabTagNameAvailable(input.name);
+      if (input.scope === 'workshop') {
+         await ensureWorkshopTagNameAvailable(input.name);
       }
       const tag = await prisma.tags.create({
          data: {
@@ -43,7 +43,7 @@ const addTagProcedure = protectedAdminProcedure
                   id: ctx.user.userId,
                },
             },
-            // 实验室标签可以不上传图标（使用内置技术栈图标或通用图标）
+            // 工坊标签可以不上传图标（使用内置技术栈图标或通用图标）
             ...(input.imageId
                ? { image: { connect: { id: input.imageId } } }
                : {}),
@@ -62,7 +62,7 @@ const addTagProcedure = protectedAdminProcedure
       return tag;
    });
 
-// 标签用途创建后不可修改：题目已关联的标签不能变成实验室标签，反之亦然
+// 标签用途创建后不可修改：题目已关联的标签不能变成工坊标签，反之亦然
 const EditTagSchema = AddTagSchema.omit({ scope: true }).partial().extend({
    tid: z.number().int().nonnegative().min(1, 'Tag ID is required'),
 });
@@ -77,20 +77,20 @@ const editTagProcedure = protectedAdminProcedure
       if (!current) {
          throw new TRPCError({ code: 'NOT_FOUND', message: '标签不存在或已被删除' });
       }
-      const renamedLabTag =
-         current.scope === 'lab' && input.name !== undefined && input.name !== current.name;
-      if (renamedLabTag) {
-         await ensureLabTagNameAvailable(input.name!, input.tid);
+      const renamedWorkshopTag =
+         current.scope === 'workshop' && input.name !== undefined && input.name !== current.name;
+      if (renamedWorkshopTag) {
+         await ensureWorkshopTagNameAvailable(input.name!, input.tid);
       }
       return prisma.$transaction(async (tx) => {
          const tag = await tx.tags.update({
             where: { tid: input.tid },
             data: { ...input },
          });
-         // 模板按名称引用实验室标签：重命名时同步更新自定义模板
-         if (renamedLabTag) {
+         // 模板按名称引用工坊标签：重命名时同步更新自定义模板
+         if (renamedWorkshopTag) {
             await tx.$executeRaw`
-               UPDATE lab_templates
+               UPDATE workshop_templates
                SET tags = array_replace(tags, ${current.name}, ${input.name!}), "updatedAt" = NOW()
                WHERE builtin = false AND ${current.name} = ANY(tags)
             `;
@@ -107,7 +107,7 @@ const deleteTagProcedure = protectedAdminProcedure
    .input(DeleteTagSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
-      const builtinNames = new Set(await listBuiltinLabTagNames());
+      const builtinNames = new Set(await listBuiltinWorkshopTagNames());
       return prisma.$transaction(async (tx) => {
          const tag = await tx.tags.delete({
             where: {
@@ -115,10 +115,10 @@ const deleteTagProcedure = protectedAdminProcedure
                creatorId: userId,
             },
          });
-         // 删除实验室标签时从自定义模板中移除；与内置标签同名时会恢复为内置标签，保留引用
-         if (tag.scope === 'lab' && !builtinNames.has(tag.name)) {
+         // 删除工坊标签时从自定义模板中移除；与内置标签同名时会恢复为内置标签，保留引用
+         if (tag.scope === 'workshop' && !builtinNames.has(tag.name)) {
             await tx.$executeRaw`
-               UPDATE lab_templates
+               UPDATE workshop_templates
                SET tags = array_remove(tags, ${tag.name}), "updatedAt" = NOW()
                WHERE builtin = false AND ${tag.name} = ANY(tags)
             `;
@@ -127,9 +127,9 @@ const deleteTagProcedure = protectedAdminProcedure
       });
    });
 
-/** 实验室标签管理列表：内置标签与已发布的实验室标签合并，附带使用该标签的模板数 */
-const labListProcedure = protectedAdminProcedure.query(async () => {
-   const [tags, usage] = await Promise.all([listLabTags(), countLabTagUsage()]);
+/** 工坊标签管理列表：内置标签与已发布的工坊标签合并，附带使用该标签的模板数 */
+const workshopListProcedure = protectedAdminProcedure.query(async () => {
+   const [tags, usage] = await Promise.all([listWorkshopTags(), countWorkshopTagUsage()]);
    return tags.map((tag) => ({
       ...tag,
       templateCount: usage.get(tag.name) ?? 0,
@@ -170,6 +170,6 @@ export const tagRouter = router({
    add: addTagProcedure,
    edit: editTagProcedure,
    delete: deleteTagProcedure,
-   labList: labListProcedure,
+   workshopList: workshopListProcedure,
    getTagsInMyPublished: getTagsInMyPublishedProcedure,
 });

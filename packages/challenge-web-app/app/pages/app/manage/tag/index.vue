@@ -18,8 +18,8 @@ import TagEditingDrawer, {
    type ITagEditingTarget,
 } from '~/components/tag/TagEditingDrawer.vue';
 import { textColorOn } from './_utils/color';
-import LabTagTable from './_components/LabTagTable.vue';
-import LabCategoryTable from './_components/LabCategoryTable.vue';
+import WorkshopTagTable from './_components/WorkshopTagTable.vue';
+import WorkshopCategoryTable from './_components/WorkshopCategoryTable.vue';
 
 useSeoMeta({ title: '标签管理 - Quanta Challenge' });
 
@@ -29,18 +29,18 @@ const router = useRouter();
 /**
  * 标签分类页签，与 ?scope= 同步，便于从发布页直接跳转：
  * - problem：题目标签；
- * - lab-category：模板分类（实验室页的分类页签、卡片右上角的分类标签）；
- * - lab：实验室技术栈标签（模板卡片底部的小标签）。
+ * - workshop-category：模板分类（工坊页的分类页签、卡片右上角的分类标签）；
+ * - workshop：工坊技术栈标签（模板卡片底部的小标签）。
  */
-type ManageScope = 'problem' | 'lab-category' | 'lab';
+type ManageScope = 'problem' | 'workshop-category' | 'workshop';
 const scopeTabs = [
    { label: '题目标签', value: 'problem', icon: TableReport as DefineComponent },
-   { label: '模板分类', value: 'lab-category', icon: ThreeHexagons as DefineComponent },
-   { label: '技术栈标签', value: 'lab', icon: Experiment as DefineComponent },
+   { label: '模板分类', value: 'workshop-category', icon: ThreeHexagons as DefineComponent },
+   { label: '技术栈标签', value: 'workshop', icon: Experiment as DefineComponent },
 ];
 const scope = computed<ManageScope>({
    get: () =>
-      route.query.scope === 'lab' || route.query.scope === 'lab-category'
+      route.query.scope === 'workshop' || route.query.scope === 'workshop-category'
          ? route.query.scope
          : 'problem',
    set: (value) => {
@@ -50,16 +50,16 @@ const scope = computed<ManageScope>({
    },
 });
 
-const labTable = useTemplateRef('lab-table');
+const workshopTable = useTemplateRef('workshop-table');
 const categoryTable = useTemplateRef('category-table');
-const labTagCount = ref<number | null>(null);
+const workshopTagCount = ref<number | null>(null);
 const categoryCount = ref<number | null>(null);
 const handleCreate = () => {
-   if (scope.value === 'lab') {
-      labTable.value?.openCreate();
+   if (scope.value === 'workshop') {
+      workshopTable.value?.openCreate();
       return;
    }
-   if (scope.value === 'lab-category') {
+   if (scope.value === 'workshop-category') {
       categoryTable.value?.openCreate();
       return;
    }
@@ -68,14 +68,14 @@ const handleCreate = () => {
 };
 const createLabel = computed(
    () =>
-      ({ problem: '新建标签', 'lab-category': '新建模板分类', lab: '新建技术栈标签' })[
+      ({ problem: '新建标签', 'workshop-category': '新建模板分类', workshop: '新建技术栈标签' })[
          scope.value
       ],
 );
 const totalCount = computed(() =>
-   scope.value === 'lab'
-      ? (labTagCount.value ?? 0)
-      : scope.value === 'lab-category'
+   scope.value === 'workshop'
+      ? (workshopTagCount.value ?? 0)
+      : scope.value === 'workshop-category'
         ? (categoryCount.value ?? 0)
         : tagOptions.value.length,
 );
@@ -204,7 +204,7 @@ const deleteTag = async (tid: number) => {
                <h1 class="st-font-hero-bold text-accent-100 max-md:text-[1.5rem] max-md:leading-[1.2]">标签管理</h1>
                <span
                   class="st-font-caption text-accent-300 bg-accent-600 px-3 py-1 my-2 rounded-full">
-                  共 {{ totalCount }} 个{{ scope === 'lab-category' ? '分类' : '标签' }}
+                  共 {{ totalCount }} 个{{ scope === 'workshop-category' ? '分类' : '标签' }}
                </span>
             </StSpace>
             <StButton
@@ -219,15 +219,15 @@ const deleteTag = async (tid: number) => {
 
          <StTabs v-model="scope" :options="scopeTabs" />
 
-         <LabCategoryTable
-            v-if="scope === 'lab-category'"
+         <WorkshopCategoryTable
+            v-if="scope === 'workshop-category'"
             ref="category-table"
             @count="(count) => (categoryCount = count)" />
 
-         <LabTagTable
-            v-else-if="scope === 'lab'"
-            ref="lab-table"
-            @count="(count) => (labTagCount = count)" />
+         <WorkshopTagTable
+            v-else-if="scope === 'workshop'"
+            ref="workshop-table"
+            @count="(count) => (workshopTagCount = count)" />
 
          <StTable
             v-else

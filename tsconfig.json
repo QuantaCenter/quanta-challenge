@@ -25,10 +25,10 @@
     "noPropertyAccessFromIndexSignature": false
   },
   // 没有 include 时默认纳入仓库内全部文件。写了 exclude 会覆盖默认值，所以要把 node_modules 一并列上。
-  // 实验室模板目录里的 *.ts / tsconfig.json / env.d.ts 是模板内容（会复制进用户项目），
+  // 工坊模板目录里的 *.ts / tsconfig.json / env.d.ts 是模板内容（会复制进用户项目），
   // 不属于本仓库代码：既不该被检查（缺少 vue、vite 等依赖会报错），也不能让其中的全局声明污染仓库。
   "exclude": [
     "**/node_modules",
-    "packages/shared/service/lab-templates/templates"
+    "packages/shared/service/workshop-templates/templates"
   ]
 }

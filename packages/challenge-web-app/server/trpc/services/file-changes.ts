@@ -5,7 +5,7 @@ import { logger } from '~~/server/utils/logger';
 
 /**
  * 文件系统增量变更（创建 / 修改 / 移动 / 删除）的公共实现。
- * 做题项目（file-sync）与实验室项目（lab）共用，二者只在"如何定位并锁定项目"上不同。
+ * 做题项目（file-sync）与工坊项目（workshop）共用，二者只在"如何定位并锁定项目"上不同。
  */
 
 const movedContent = (file: { path: string; content: string | null }) => {

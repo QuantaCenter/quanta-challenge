@@ -26,10 +26,10 @@ export const requireSettings = () => {
    if (url.protocol !== 'https:' && !(url.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(url.hostname))) throw githubError('GitHub 回调地址必须使用 HTTPS');
    return config;
 };
-export const returnPath = (target: string) => target === 'settings' ? '/app/settings/security' : '/app/lab?githubImport=1';
+export const returnPath = (target: string) => target === 'settings' ? '/app/settings/security' : '/app/workshop?githubImport=1';
 const COOKIE = 'quanta_github_browser';
 
-export async function begin(event: H3Event, userId: string, target: 'lab' | 'settings', install = false) {
+export async function begin(event: H3Event, userId: string, target: 'workshop' | 'settings', install = false) {
    const config = requireSettings();
    const key = `github:authorize-limit:${userId}:${Math.floor(Date.now() / 60000)}`;
    const attempts = await useRedis().incr(key);
@@ -56,7 +56,7 @@ export async function consumeState(event: H3Event, state: unknown, userId: strin
    if (typeof state !== 'string' || !/^[\w-]{43}$/.test(state)) throw githubError('授权会话已过期，请重新连接');
    const value = await useRedis().getdel(`github:state:${digest(state)}`);
    if (!value) throw githubError('授权会话已过期，请重新连接');
-   const pending = JSON.parse(value) as { userId: string; browser: string; verifier: string; target: 'lab' | 'settings'; install: boolean };
+   const pending = JSON.parse(value) as { userId: string; browser: string; verifier: string; target: 'workshop' | 'settings'; install: boolean };
    if (pending.userId !== userId || pending.install !== install || !equal(pending.browser, digest(getCookie(event, COOKIE) || ''))) throw githubError('授权会话不匹配，请重新连接');
    return pending;
 }

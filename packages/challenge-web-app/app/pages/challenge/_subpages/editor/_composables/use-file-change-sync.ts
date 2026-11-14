@@ -10,7 +10,7 @@ export interface IUseFileChangeSyncOptions {
    syncInterval?: number;
    /** 返回加载项目时的版本号，随同步请求携带，供服务端拒绝重置前发出的旧请求 */
    getRevision?: () => number | undefined;
-   /** 自定义同步请求（如实验室项目），默认同步到做题项目 */
+   /** 自定义同步请求（如工坊项目），默认同步到做题项目 */
    send?: (
       changes: Change[],
       revision: number | undefined,

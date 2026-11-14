@@ -257,7 +257,7 @@ const getSyncDisplayText = (
          </StSkeleton>
       </StSpace>
 
-      <!-- 同步状态显示：复用方（如实验室）可通过 footer 插槽替换为自己的状态 -->
+      <!-- 同步状态显示：复用方（如工坊）可通过 footer 插槽替换为自己的状态 -->
       <slot name="footer">
          <StSpace
             fill-x

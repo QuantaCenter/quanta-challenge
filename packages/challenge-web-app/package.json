@@ -5,6 +5,7 @@
    "scripts": {
       "test:github": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/github-import.test.ts",
       "test:github:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/github-import.integration.test.ts",
+      "test:workshop:migration": "tsx --env-file-if-exists=.env --tsconfig tsconfig.typecheck.server.json --test tests/workshop-rename.integration.test.ts",
       "test:judge-quality": "node --experimental-strip-types --test tests/judge-quality.test.ts tests/judge-quality-retry.test.ts tests/judge-quality-provider.test.ts",
       "test:judge-quality:integration": "tsx --tsconfig tsconfig.typecheck.server.json --test --test-concurrency=1 tests/timer-quality.integration.test.ts tests/judge-quality-queue.integration.test.ts",
       "test:file-assets": "tsx --tsconfig tsconfig.typecheck.server.json --test tests/file-assets.integration.test.ts",

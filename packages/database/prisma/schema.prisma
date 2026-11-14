@@ -49,7 +49,7 @@ model User {
   scorePenalties            ScorePenalty[]
   courseEnrollments         CourseEnrollment[]
   sectionComments           SectionComment[]
-  labProjects               LabProject[]
+  workshopProjects          WorkshopProject[]
   githubConnection          GitHubConnection?
 
   @@map("users")
@@ -200,7 +200,7 @@ model ImageBuild {
   updatedAt           DateTime @updatedAt
 
   Problems     Problems[]
-  LabTemplates LabTemplate[]
+  WorkshopTemplates WorkshopTemplate[]
 
   @@map("image_builds")
 }
@@ -471,7 +471,7 @@ model Tags {
   creatorId   String
   imageId     String?
   color       String?
-  /// 标签用途：题目标签用于题目分类与筛选；实验室标签是实验室模板的技术栈标签（同名唯一，按名称被模板引用）
+  /// 标签用途：题目标签用于题目分类与筛选；工坊标签是工坊模板的技术栈标签（同名唯一，按名称被模板引用）
   scope       TagScope @default(problem)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -486,29 +486,29 @@ model Tags {
 
 enum TagScope {
   problem
-  lab
+  workshop
 }
 
 // 文件系统表
 model FileSystems {
-  fsid         String         @id @default(uuid())
-  ownerId      String
-  projectId    String?
-  /// 实验室项目的文件系统（与 projectId 二选一）
-  labProjectId String?        @unique
-  files        VirtualFiles[]
-  createdAt    DateTime       @default(now())
-  updatedAt    DateTime       @updatedAt
+  fsid              String         @id @default(uuid())
+  ownerId           String
+  projectId         String?
+  /// 工坊项目的文件系统（与 projectId 二选一）
+  workshopProjectId String?        @unique
+  files             VirtualFiles[]
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  owner      User        @relation(fields: [ownerId], references: [id])
-  project    Projects?   @relation(fields: [projectId], references: [pid])
-  labProject LabProject? @relation(fields: [labProjectId], references: [id], onDelete: Cascade)
+  owner           User             @relation(fields: [ownerId], references: [id])
+  project         Projects?        @relation(fields: [projectId], references: [pid])
+  workshopProject WorkshopProject? @relation(fields: [workshopProjectId], references: [id], onDelete: Cascade)
 
   @@map("file_systems")
 }
 
-/// 实验室项目：用户从模板创建、长期保存的个人项目（不关联题目）
-enum LabProjectSource {
+/// 工坊项目：用户从模板创建、长期保存的个人项目（不关联题目）
+enum WorkshopProjectSource {
   template
   github
 }
@@ -533,7 +533,7 @@ model GitHubConnection {
   @@map("github_connections")
 }
 
-model LabGitHubImport {
+model WorkshopGitHubImport {
   projectId      String   @id
   repositoryId   BigInt
   ownerLogin     String
@@ -543,20 +543,20 @@ model LabGitHubImport {
   commitSha      String
   importedAt     DateTime @default(now())
 
-  project LabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project WorkshopProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([repositoryId])
-  @@map("lab_github_imports")
+  @@map("workshop_github_imports")
 }
 
-model LabProject {
+model WorkshopProject {
   id           String   @id @default(cuid())
   ownerId      String
   name         String
   description  String?
-  /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/lab-templates/templates），自定义模板为 lab_templates.id
+  /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/workshop-templates/templates），自定义模板为 workshop_templates.id
   templateId   String?
-  source       LabProjectSource @default(template)
+  source       WorkshopProjectSource @default(template)
   /// 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端据此拒绝重置前发出的旧请求
   revision     Int      @default(0)
   /// 项目文件总大小（字节）：每次写入后重新统计，用于配额校验与列表展示
@@ -567,22 +567,22 @@ model LabProject {
 
   owner      User         @relation(fields: [ownerId], references: [id], onDelete: Cascade)
   fileSystem FileSystems?
-  githubImport LabGitHubImport?
+  githubImport WorkshopGitHubImport?
 
   @@index([ownerId, updatedAt])
-  @@map("lab_projects")
+  @@map("workshop_projects")
 }
 
-/// 实验室模板分类：实验室页的分类筛选页签、模板卡片右上角的分类标签。
-/// 模板按 id 引用分类（内置模板为 template.json 的 category，自定义模板为 lab_templates.category）。
+/// 工坊模板分类：工坊页的分类筛选页签、模板卡片右上角的分类标签。
+/// 模板按 id 引用分类（内置模板为 template.json 的 category，自定义模板为 workshop_templates.category）。
 /// 内置分类（builtin = true）由迁移预置，可以修改名称、颜色、图标、排序与停用，但不能删除。
-model LabCategory {
+model WorkshopCategory {
   id          String   @id
   name        String
   description String?
   /// 主题色（HEX）：分类页签选中态 / 悬停边框与卡片分类标签共用
   color       String
-  /// 页签图标：预置图标名（见 @challenge/shared/lab-templates 的 LAB_CATEGORY_ICON_NAMES）
+  /// 页签图标：预置图标名（见 @challenge/shared/workshop-templates 的 WORKSHOP_CATEGORY_ICON_NAMES）
   icon        String?
   /// 排序：越小越靠前
   sortOrder   Int      @default(0)
@@ -594,23 +594,23 @@ model LabCategory {
   updatedAt   DateTime @updatedAt
 
   @@index([sortOrder])
-  @@map("lab_categories")
+  @@map("workshop_categories")
 }
 
-/// 实验室模板配置。
-/// - 内置模板（builtin = true）：id 与模板目录名相同，文件与说明来自 @challenge/shared/lab-templates/templates，
+/// 工坊模板配置。
+/// - 内置模板（builtin = true）：id 与模板目录名相同，文件与说明来自 @challenge/shared/workshop-templates/templates，
 ///   这里只保存管理员的覆盖配置，覆盖字段为 null 表示沿用 template.json 中的默认值；
 /// - 自定义模板（builtin = false）：由管理员发布，全部内容保存在本表。
-model LabTemplate {
+model WorkshopTemplate {
   id              String   @id
   builtin         Boolean  @default(false)
-  /// 停用后不再出现在实验室模板列表中，也不能再从它创建项目；已创建的项目不受影响
+  /// 停用后不再出现在工坊模板列表中，也不能再从它创建项目；已创建的项目不受影响
   enabled         Boolean  @default(true)
   name            String?
   description     String?
-  /// 模板分类 id，对应 lab_categories.id（仅自定义模板）
+  /// 模板分类 id，对应 workshop_categories.id（仅自定义模板）
   category        String?
-  /// 技术栈标签名（仅自定义模板），对应实验室标签（tags.scope = lab）或内置标签
+  /// 技术栈标签名（仅自定义模板），对应工坊标签（tags.scope = workshop）或内置标签
   tags            String[] @default([])
   /// 图标地址（仅自定义模板）
   icon            String?
@@ -632,7 +632,7 @@ model LabTemplate {
 
   snapshotImage ImageBuild? @relation(fields: [snapshotImageId], references: [id], onDelete: SetNull)
 
-  @@map("lab_templates")
+  @@map("workshop_templates")
 }
 
 // 项目表

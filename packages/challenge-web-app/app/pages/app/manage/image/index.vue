@@ -28,7 +28,7 @@ const stats = computed(() => {
       },
       {
          label: '使用中',
-         value: list.filter((item) => item.referenceCount > 0 || item.labTemplateCount > 0)
+         value: list.filter((item) => item.referenceCount > 0 || item.workshopTemplateCount > 0)
             .length,
          color: 'text-primary',
       },

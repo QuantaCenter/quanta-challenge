@@ -280,16 +280,16 @@ export const readProjectAsset = async (
    return (await expandFile(file)).content;
 };
 
-/** 读取实验室项目中某个文件资产的原始字节（校验资产确实属于该用户的该项目） */
-export const readLabProjectAssetBytes = async (
+/** 读取工坊项目中某个文件资产的原始字节（校验资产确实属于该用户的该项目） */
+export const readWorkshopProjectAssetBytes = async (
    userId: string,
-   labProjectId: string,
+   workshopProjectId: string,
    assetId: string,
 ) => {
    const file = await prisma.virtualFiles.findFirst({
       where: {
          assetId,
-         FileSystem: { labProjectId, labProject: { ownerId: userId } },
+         FileSystem: { workshopProjectId, workshopProject: { ownerId: userId } },
       },
       select: { asset: true },
    });

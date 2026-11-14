@@ -3,7 +3,7 @@ import type { H3Event } from 'h3';
 import { createError, getCookie, getHeader } from 'h3';
 import { TRPCError } from '@trpc/server';
 import { verifyToken, type ITokenPayload } from '../utils/jwt';
-import { listBuiltinLabTemplates } from './builtin-lab-templates';
+import { listBuiltinWorkshopTemplates } from './builtin-workshop-templates';
 import prisma from '~~/lib/prisma';
 
 /** 非 tRPC 路由的鉴权，规则同 trpc/context.ts */
@@ -87,15 +87,15 @@ export const countImageBuildReferences = async () => {
    return counts;
 };
 
-/** 绑定该快照镜像的实验室模板（内置模板未改名时名称取模板目录中的默认值） */
-export const findImageBuildLabTemplateReferences = async (imageBuildId: string) => {
+/** 绑定该快照镜像的工坊模板（内置模板未改名时名称取模板目录中的默认值） */
+export const findImageBuildWorkshopTemplateReferences = async (imageBuildId: string) => {
    const [rows, builtins] = await Promise.all([
-      prisma.labTemplate.findMany({
+      prisma.workshopTemplate.findMany({
          where: { snapshotImageId: imageBuildId },
          orderBy: { createdAt: 'asc' },
          select: { id: true, name: true, builtin: true, enabled: true },
       }),
-      listBuiltinLabTemplates(),
+      listBuiltinWorkshopTemplates(),
    ]);
    return rows.map((row) => ({
       id: row.id,
@@ -105,9 +105,9 @@ export const findImageBuildLabTemplateReferences = async (imageBuildId: string) 
    }));
 };
 
-/** 各快照镜像被实验室模板绑定的次数 */
-export const countImageBuildLabTemplateReferences = async () => {
-   const rows = await prisma.labTemplate.groupBy({
+/** 各快照镜像被工坊模板绑定的次数 */
+export const countImageBuildWorkshopTemplateReferences = async () => {
+   const rows = await prisma.workshopTemplate.groupBy({
       by: ['snapshotImageId'],
       where: { snapshotImageId: { not: null } },
       _count: { _all: true },

@@ -29,10 +29,10 @@ const problemUploadMaxRequestBytes = envInt(
 );
 
 /**
- * 实验室单文件上限。项目文件资产统一走 file-assets 服务，那里的单文件上限同为 20MB，
+ * 工坊单文件上限。项目文件资产统一走 file-assets 服务，那里的单文件上限同为 20MB，
  * 调大此值时需同步调整 server/trpc/services/file-assets.ts。
  */
-const labMaxFileBytes = envInt('LAB_MAX_FILE_BYTES', 20 * 1024 * 1024);
+const workshopMaxFileBytes = envInt('WORKSHOP_MAX_FILE_BYTES', 20 * 1024 * 1024);
 
 const envSecret = (key: string) => {
    const value = process.env[key];
@@ -163,8 +163,8 @@ export default defineNuxtConfig({
             },
          },
       },
-      // 实验室 IDE 同样运行在 WebContainer 中，需要跨源隔离
-      '/lab/**': {
+      // 工坊 IDE 同样运行在 WebContainer 中，需要跨源隔离
+      '/workshop/**': {
          headers: { 'Cache-Control': 'private, no-cache' },
          security: {
             headers: {
@@ -207,12 +207,12 @@ export default defineNuxtConfig({
             },
          },
       },
-      // 实验室文件上传：请求体是原始文件字节，留出少量余量
-      '/api/lab/projects/**': {
+      // 工坊文件上传：请求体是原始文件字节，留出少量余量
+      '/api/workshop/projects/**': {
          security: {
             requestSizeLimiter: {
-               maxRequestSizeInBytes: labMaxFileBytes + 1024 * 1024,
-               maxUploadFileRequestInBytes: labMaxFileBytes + 1024 * 1024,
+               maxRequestSizeInBytes: workshopMaxFileBytes + 1024 * 1024,
+               maxUploadFileRequestInBytes: workshopMaxFileBytes + 1024 * 1024,
             },
          },
       },
@@ -310,14 +310,14 @@ export default defineNuxtConfig({
             base: './storage/local',
          },
       },
-      // 实验室内置模板：模板文件以普通文件的形式放在 shared 包里，作为服务端资源打包，
-      // 运行时经 useStorage('assets:lab-templates') 读取并组装（见 server/services/builtin-lab-templates.ts）。
+      // 工坊内置模板：模板文件以普通文件的形式放在 shared 包里，作为服务端资源打包，
+      // 运行时经 useStorage('assets:workshop-templates') 读取并组装（见 server/services/builtin-workshop-templates.ts）。
       // 开发环境直接读取磁盘，改动模板文件后无需重启即可生效。
       serverAssets: [
          {
-            baseName: 'lab-templates',
+            baseName: 'workshop-templates',
             dir: fileURLToPath(
-               new URL('../shared/service/lab-templates/templates', import.meta.url),
+               new URL('../shared/service/workshop-templates/templates', import.meta.url),
             ),
             // 生产构建用 globby 扫描且默认跳过点文件（开发环境的 fs 驱动不会跳过），
             // 显式匹配点文件与点目录，保证 .gitignore、.vscode/ 这类模板文件两边一致
@@ -362,11 +362,11 @@ export default defineNuxtConfig({
             sampleRate: envInt('SENTRY_SAMPLE_RATE', 1),
             tracesSampleRate: Number(env('SENTRY_TRACES_SAMPLE_RATE', '0.1')),
          },
-         // 实验室项目配额（前后端共用：前端上传前预检、服务端校验）
-         lab: {
-            maxFileBytes: labMaxFileBytes,
-            maxProjectBytes: envInt('LAB_MAX_PROJECT_BYTES', 100 * 1024 * 1024),
-            maxProjectsPerUser: envInt('LAB_MAX_PROJECTS_PER_USER', 20),
+         // 工坊项目配额（前后端共用：前端上传前预检、服务端校验）
+         workshop: {
+            maxFileBytes: workshopMaxFileBytes,
+            maxProjectBytes: envInt('WORKSHOP_MAX_PROJECT_BYTES', 100 * 1024 * 1024),
+            maxProjectsPerUser: envInt('WORKSHOP_MAX_PROJECTS_PER_USER', 20),
          },
          // 快照镜像体积上限（前后端共用：前端上传前预检、服务端与 routeRules 校验）
          imageBuild: {

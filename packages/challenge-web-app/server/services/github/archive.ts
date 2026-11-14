@@ -51,7 +51,7 @@ export async function unpackArchive(compressed: Buffer, limits: { maxFileBytes: 
             if (paths.has(path)) throw new Error('仓库包含重复文件路径');
             paths.add(path);
             total += entry.size;
-            if (entry.size > limits.maxFileBytes || total > limits.maxProjectBytes) throw new Error('仓库文件超过实验室容量限制');
+            if (entry.size > limits.maxFileBytes || total > limits.maxProjectBytes) throw new Error('仓库文件超过工坊容量限制');
             const chunks: Buffer[] = [];
             entry.on('data', (chunk: Buffer) => chunks.push(Buffer.from(chunk)));
             entry.on('end', () => {

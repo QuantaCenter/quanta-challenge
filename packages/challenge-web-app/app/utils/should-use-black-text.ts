@@ -53,7 +53,7 @@ const DARK_TEXT_LUMINANCE = relativeLuminance([17, 17, 17]);
  *
  * 与 `shouldUseBlackText` 的区别：后者阈值很高，只有接近白色的背景才会用深色文字，
  * 天蓝、浅绿、浅紫这类明亮的中间色仍会配白字，对比度不足 2.5:1。
- * 这里用于主题色较浅的场景（如实验室模板分类）；未直接替换 `shouldUseBlackText`，
+ * 这里用于主题色较浅的场景（如工坊模板分类）；未直接替换 `shouldUseBlackText`，
  * 是因为全站的品牌橙色按钮 / 标签会因此全部改为深色文字。
  */
 export function prefersDarkTextByContrast(hex: string): boolean {

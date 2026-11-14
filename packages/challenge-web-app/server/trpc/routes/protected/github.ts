@@ -9,7 +9,7 @@ import { useRedis } from '../../../utils/redis';
 import { githubError } from '../../../services/github/client';
 
 const page = z.number().int().min(1).max(1000).default(1);
-const target = z.object({ target: z.enum(['lab', 'settings']).default('lab') });
+const target = z.object({ target: z.enum(['workshop', 'settings']).default('workshop') });
 const repository = z.string().trim().min(1).max(300);
 const githubProcedure = protectedProcedure.use(async ({ ctx, next }) => {
    const key = `github:api-limit:${ctx.user.userId}:${Math.floor(Date.now() / 60000)}`;

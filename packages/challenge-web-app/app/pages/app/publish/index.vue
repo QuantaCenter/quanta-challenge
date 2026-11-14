@@ -38,9 +38,9 @@ const options = [
       needFullLoad: true,
    },
    {
-      title: '发布实验室模板',
-      description: '上传项目文件夹或从实验室项目导入，发布供成员在实验室中一键创建的项目模板',
-      url: '/app/publish/lab-template',
+      title: '发布工坊模板',
+      description: '上传项目文件夹或从工坊项目导入，发布供成员在工坊中一键创建的项目模板',
+      url: '/app/publish/workshop-template',
       icon: Experiment,
       iconColor: '#A78BFA',
    },
@@ -53,7 +53,7 @@ const options = [
    },
    {
       title: '创建标签',
-      description: '创建题目标签或实验室标签，并为标签配置图标',
+      description: '创建题目标签或工坊标签，并为标签配置图标',
       url: '/app/publish/create-tag',
       icon: Tag,
       iconColor: '#FE4E4E',

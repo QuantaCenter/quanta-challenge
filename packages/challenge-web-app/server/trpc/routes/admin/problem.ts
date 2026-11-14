@@ -33,7 +33,7 @@ type TX = Omit<
 
 type UploadInput = z.infer<typeof UploadSchema>;
 
-/** 题目只能关联题目标签（实验室标签只用于实验室模板） */
+/** 题目只能关联题目标签（工坊标签只用于工坊模板） */
 const ensureProblemTags = async (tagIds: number[]) => {
    const ids = [...new Set(tagIds)];
    const count = await prisma.tags.count({

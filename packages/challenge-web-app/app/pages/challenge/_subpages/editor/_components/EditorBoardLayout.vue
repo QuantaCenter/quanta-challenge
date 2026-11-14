@@ -11,7 +11,7 @@ const layoutStore = useLayoutStore();
 const props = withDefaults(
    defineProps<{
       previewLabel?: string;
-      /** 移动端最左侧说明板块的 Tab 文案（做题页为题面，实验室为模板说明） */
+      /** 移动端最左侧说明板块的 Tab 文案（做题页为题面，工坊为模板说明） */
       detailLabel?: string;
    }>(),
    { previewLabel: '实时预览', detailLabel: '题目' },

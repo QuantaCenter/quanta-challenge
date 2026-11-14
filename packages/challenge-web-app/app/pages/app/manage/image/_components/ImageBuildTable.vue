@@ -107,7 +107,7 @@ const actionClass =
       </template>
       <template #cell-references="{ row }">
          <StSpace
-            v-if="row.referenceCount || row.labTemplateCount"
+            v-if="row.referenceCount || row.workshopTemplateCount"
             direction="vertical"
             gap="0.25rem"
             align="center">
@@ -117,9 +117,9 @@ const actionClass =
                {{ row.referenceCount }} 道题
             </span>
             <span
-               v-if="row.labTemplateCount"
+               v-if="row.workshopTemplateCount"
                class="rounded-md px-2 py-0.5 st-font-caption bg-secondary/15 text-secondary">
-               {{ row.labTemplateCount }} 个模板
+               {{ row.workshopTemplateCount }} 个模板
             </span>
          </StSpace>
          <span v-else class="st-font-caption text-accent-400">未使用</span>

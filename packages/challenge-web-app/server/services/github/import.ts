@@ -4,7 +4,7 @@ import { opaque, parseRepository } from './core';
 import { userToken } from './accounts';
 import { ignored, readArchive, unpackArchive } from './archive';
 import { prepareAssets } from '../../trpc/services/file-assets';
-import { getLabLimits } from '../../trpc/services/lab-project';
+import { getWorkshopLimits } from '../../trpc/services/workshop-project';
 import { useRedis } from '../../utils/redis';
 
 export async function resolveRepository(userId: string, input: string) {
@@ -31,8 +31,8 @@ export async function importRepository(userId: string, input: { repository: stri
    const nonce = opaque();
    if (!await redis.set(lock, nonce, 'EX', 300, 'NX')) throw githubError('已有仓库正在导入，请稍候');
    try {
-      const limits = getLabLimits();
-      if (await prisma.labProject.count({ where: { ownerId: userId } }) >= limits.maxProjectsPerUser) throw githubError(`每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`);
+      const limits = getWorkshopLimits();
+      if (await prisma.workshopProject.count({ where: { ownerId: userId } }) >= limits.maxProjectsPerUser) throw githubError(`每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`);
       const { repo, token } = await resolveRepository(userId, input.repository);
       const signal = AbortSignal.timeout(120000);
       const branch = await api<{ commit: { sha: string } }>(`/repositories/${repo.id}/branches/${encodeURIComponent(input.branch)}`, token, signal);
@@ -57,10 +57,10 @@ export async function importRepository(userId: string, input: { repository: stri
       let committed = false;
       try {
          const result = await prisma.$transaction(async tx => {
-            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`lab-create:${userId}`}, 0))`;
-            if (await tx.labProject.count({ where: { ownerId: userId } }) >= limits.maxProjectsPerUser) throw githubError(`每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`);
+            await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`workshop-create:${userId}`}, 0))`;
+            if (await tx.workshopProject.count({ where: { ownerId: userId } }) >= limits.maxProjectsPerUser) throw githubError(`每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`);
             const files = await assets.bind(tx);
-            const project = await tx.labProject.create({
+            const project = await tx.workshopProject.create({
                data: { ownerId: userId, name: input.name, description: repo.description?.slice(0, 200), source: 'github', templateId: null, sizeBytes: BigInt(snapshot.sizeBytes),
                   githubImport: { create: { repositoryId: BigInt(repo.id), ownerLogin: repo.owner.login, repositoryName: repo.name, visibility: repo.visibility ?? (repo.private ? 'private' : 'public'), branchName: input.branch, commitSha: sha } },
                   fileSystem: { create: { ownerId: userId } } },

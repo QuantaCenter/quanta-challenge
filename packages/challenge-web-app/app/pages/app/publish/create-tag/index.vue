@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { DefineComponent } from 'vue';
 import { Plus, Tag } from '@icon-park/vue-next';
-import { LAB_CATEGORY_ICON_NAMES } from '@challenge/shared/lab-templates';
+import { WORKSHOP_CATEGORY_ICON_NAMES } from '@challenge/shared/workshop-templates';
 import type { IRule } from '~/components/st/Form/type';
 import type { StForm } from '#components';
 import { useMessage } from '~/components/st/Message/use-message';
-import { labCategoryIcon } from '~/utils/lab-category-icons';
+import { workshopCategoryIcon } from '~/utils/workshop-category-icons';
 
 useSeoMeta({ title: '创建标签 - Quanta Challenge' });
 
@@ -18,24 +18,24 @@ const message = useMessage();
 /**
  * 标签类型：
  * - problem：题目标签（题目分类与筛选）；
- * - lab-category：模板分类（实验室页的分类筛选页签、模板卡片右上角的分类标签）；
- * - lab：技术栈标签（模板卡片底部的小标签）。
+ * - workshop-category：模板分类（工坊页的分类筛选页签、模板卡片右上角的分类标签）；
+ * - workshop：技术栈标签（模板卡片底部的小标签）。
  */
-type CreateScope = 'problem' | 'lab-category' | 'lab';
+type CreateScope = 'problem' | 'workshop-category' | 'workshop';
 const scopeOptions = [
    { label: '题目标签', value: 'problem', color: '#FA7C0E' },
-   { label: '模板分类', value: 'lab-category', color: '#38BDF8', contrastText: true },
-   { label: '技术栈标签', value: 'lab', color: '#A78BFA', contrastText: true },
+   { label: '模板分类', value: 'workshop-category', color: '#38BDF8', contrastText: true },
+   { label: '技术栈标签', value: 'workshop', color: '#A78BFA', contrastText: true },
 ];
 const SCOPE_HINT: Record<CreateScope, string> = {
    problem: '题目标签用于题目分类与筛选，发布题目时可以选择。',
-   'lab-category':
-      '模板分类显示为实验室页顶部的分类筛选页签，以及模板卡片右上角的分类标签；发布实验室模板时选择。',
-   lab: '技术栈标签显示在实验室模板卡片底部，发布实验室模板时可以多选。',
+   'workshop-category':
+      '模板分类显示为工坊页顶部的分类筛选页签，以及模板卡片右上角的分类标签；发布工坊模板时选择。',
+   workshop: '技术栈标签显示在工坊模板卡片底部，发布工坊模板时可以多选。',
 };
 
 const initialScope = (): CreateScope =>
-   route.query.scope === 'lab' || route.query.scope === 'lab-category'
+   route.query.scope === 'workshop' || route.query.scope === 'workshop-category'
       ? route.query.scope
       : 'problem';
 
@@ -50,21 +50,21 @@ const formdata = reactive({
 });
 
 const isProblem = computed(() => formdata.scope === 'problem');
-const isCategory = computed(() => formdata.scope === 'lab-category');
-const isLabTag = computed(() => formdata.scope === 'lab');
+const isCategory = computed(() => formdata.scope === 'workshop-category');
+const isWorkshopTag = computed(() => formdata.scope === 'workshop');
 
 // 切换类型时给出合适的默认颜色
 watch(
    () => formdata.scope,
    (scope) => {
-      if (scope === 'lab-category' && formdata.color === '#FA7C0E') formdata.color = '#38BDF8';
+      if (scope === 'workshop-category' && formdata.color === '#FA7C0E') formdata.color = '#38BDF8';
       if (scope === 'problem' && formdata.color === '#38BDF8') formdata.color = '#FA7C0E';
    },
 );
 
-const categoryIconOptions = LAB_CATEGORY_ICON_NAMES.map((name) => ({
+const categoryIconOptions = WORKSHOP_CATEGORY_ICON_NAMES.map((name) => ({
    value: name,
-   icon: labCategoryIcon(name),
+   icon: workshopCategoryIcon(name),
 }));
 
 const rules = computed<IRule[]>(() => [
@@ -77,7 +77,7 @@ const rules = computed<IRule[]>(() => [
       },
    },
    // 技术栈标签不需要颜色
-   ...(isLabTag.value
+   ...(isWorkshopTag.value
       ? []
       : [
            {
@@ -102,7 +102,7 @@ const form = useTemplateRef<InstanceType<typeof StForm>>('form');
 const createLoading = ref(false);
 
 const submitLabel = computed(
-   () => ({ problem: '创建标签', 'lab-category': '创建模板分类', lab: '创建技术栈标签' })[formdata.scope],
+   () => ({ problem: '创建标签', 'workshop-category': '创建模板分类', workshop: '创建技术栈标签' })[formdata.scope],
 );
 
 const handleCreate = async () => {
@@ -122,25 +122,25 @@ const handleCreate = async () => {
    createLoading.value = true;
    try {
       if (isCategory.value) {
-         await $trpc.admin.labCategory.create.mutate({
+         await $trpc.admin.workshopCategory.create.mutate({
             name: formdata.name.trim(),
             description: formdata.description.trim(),
             color: formdata.color,
-            icon: formdata.icon as (typeof LAB_CATEGORY_ICON_NAMES)[number],
+            icon: formdata.icon as (typeof WORKSHOP_CATEGORY_ICON_NAMES)[number],
          });
          message.success('模板分类创建成功');
-         navigateTo('/app/manage/tag?scope=lab-category');
+         navigateTo('/app/manage/tag?scope=workshop-category');
          return;
       }
       await $trpc.admin.tag.add.mutate({
          name: formdata.name.trim(),
-         scope: formdata.scope as 'problem' | 'lab',
-         ...(isLabTag.value ? {} : { color: formdata.color }),
+         scope: formdata.scope as 'problem' | 'workshop',
+         ...(isWorkshopTag.value ? {} : { color: formdata.color }),
          ...(formdata.imageId ? { imageId: formdata.imageId } : {}),
          description: formdata.description,
       });
-      message.success(isLabTag.value ? '技术栈标签创建成功' : '标签创建成功');
-      navigateTo(isLabTag.value ? '/app/manage/tag?scope=lab' : '/app/publish');
+      message.success(isWorkshopTag.value ? '技术栈标签创建成功' : '标签创建成功');
+      navigateTo(isWorkshopTag.value ? '/app/manage/tag?scope=workshop' : '/app/publish');
    } catch (error) {
       console.error('创建标签失败', error);
       message.error(`${submitLabel.value.replace('创建', '')}创建失败`, (error as Error)?.message || '请稍后重试');
@@ -186,7 +186,7 @@ const handleCreate = async () => {
                      :placeholder="
                         isCategory
                            ? '例如：移动端、游戏'
-                           : isLabTag
+                           : isWorkshopTag
                              ? '技术栈名称，例如：Vue、Tailwind CSS'
                              : '请输入标签名'
                      "
@@ -194,7 +194,7 @@ const handleCreate = async () => {
                      :outer-class />
                </StFormItem>
                <StFormItem
-                  v-if="!isLabTag"
+                  v-if="!isWorkshopTag"
                   name="color"
                   :label="isCategory ? '主题色' : '标签颜色'"
                   required>
@@ -227,7 +227,7 @@ const handleCreate = async () => {
                   <StFormItem name="preview" label="预览">
                      <StSpace align="center" gap="1rem" wrap>
                         <StTagButton
-                           :icon="labCategoryIcon(formdata.icon) as DefineComponent"
+                           :icon="workshopCategoryIcon(formdata.icon) as DefineComponent"
                            :tag="{ name: formdata.name.trim() || '分类名称', color: formdata.color }"
                            selected
                            contrast-text />
@@ -242,13 +242,13 @@ const handleCreate = async () => {
                <StFormItem
                   v-else
                   name="imageId"
-                  :label="isLabTag ? '标签图标（可选）' : '标签图标'"
+                  :label="isWorkshopTag ? '标签图标（可选）' : '标签图标'"
                   :required="isProblem">
                   <StUploadImage
                      v-model:image-id="formdata.imageId"
                      :icon="Tag"
                      placeholder="请选择标签图标" />
-                  <p v-if="isLabTag" class="st-font-caption text-accent-400">
+                  <p v-if="isWorkshopTag" class="st-font-caption text-accent-400">
                      建议使用正方形透明背景图标；未上传时使用内置技术栈图标或通用标签图标。与内置标签同名时会覆盖内置标签的图标。
                   </p>
                </StFormItem>

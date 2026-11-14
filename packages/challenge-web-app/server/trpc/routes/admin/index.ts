@@ -5,8 +5,8 @@ import { cloudFunctionAdminRouter } from './cloud-function';
 import { courseAdminRouter } from './course';
 import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
-import { labTemplateAdminRouter } from './lab-template';
-import { labCategoryAdminRouter } from './lab-category';
+import { workshopTemplateAdminRouter } from './workshop-template';
+import { workshopCategoryAdminRouter } from './workshop-category';
 import { notificationAdminRouter } from './notification';
 import { problemRouter } from './problem';
 import { scheduledTaskAdminRouter } from './scheduled-task';
@@ -20,8 +20,8 @@ export const adminRouter = router({
    tag: tagRouter,
    image: imageRouter,
    imageBuild: imageBuildRouter,
-   labTemplate: labTemplateAdminRouter,
-   labCategory: labCategoryAdminRouter,
+   workshopTemplate: workshopTemplateAdminRouter,
+   workshopCategory: workshopCategoryAdminRouter,
    achievement: achievementRouter,
    user: userRouter,
    cloudFunction: cloudFunctionAdminRouter,

@@ -9,7 +9,7 @@ import prisma from '../lib/prisma';
 import { archive } from './github-import.test';
 import { bind, begin, consumeState, userToken, disconnect } from '../server/services/github/accounts';
 import { importRepository } from '../server/services/github/import';
-import { labProjectService } from '../server/trpc/services/lab-project';
+import { workshopProjectService } from '../server/trpc/services/workshop-project';
 import { useRedis } from '../server/utils/redis';
 import webhook from '../server/api/webhooks/github.post';
 
@@ -22,7 +22,7 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
    const users = [randomUUID(), randomUUID()];
    const config = {
       github: { clientId: 'test-client', clientSecret: 'test-secret', appSlug: 'test-app', webhookSecret: 'webhook-secret', tokenKey: randomBytes(32).toString('base64'), origin: 'http://localhost:3001' },
-      public: { appBaseUrl: 'http://localhost:3001', lab: { maxProjectsPerUser: 20, maxProjectBytes: 100 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024 } },
+      public: { appBaseUrl: 'http://localhost:3001', workshop: { maxProjectsPerUser: 20, maxProjectBytes: 100 * 1024 * 1024, maxFileBytes: 20 * 1024 * 1024 } },
       redis: { host: '127.0.0.1', port: 6379 },
       fileSync: { maxChangesPerSync: 100 }, achievementObserver: { maxCacheSize: 10 },
    };
@@ -63,37 +63,37 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
 
       const req = new IncomingMessage(new Socket()); req.url = '/api/trpc/github.connect';
       const res = new ServerResponse(req); const event = createEvent(req, res);
-      const authorization = await begin(event, users[0]!, 'lab');
+      const authorization = await begin(event, users[0]!, 'workshop');
       const state = new URL(authorization.url).searchParams.get('state')!;
       assert.equal(new URL(authorization.url).searchParams.get('code_challenge_method'), 'S256');
       req.headers.cookie = String(res.getHeader('set-cookie')).split(';')[0]!;
-      assert.equal((await consumeState(event, state, users[0]!, false)).target, 'lab');
+      assert.equal((await consumeState(event, state, users[0]!, false)).target, 'workshop');
       await assert.rejects(consumeState(event, state, users[0]!, false), /过期/);
-      const again = await begin(event, users[0]!, 'lab');
+      const again = await begin(event, users[0]!, 'workshop');
       await assert.rejects(consumeState(event, new URL(again.url).searchParams.get('state'), users[1]!, false), /不匹配/);
 
       const result = await importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'Demo' });
-      const project = await prisma.labProject.findUniqueOrThrow({ where: { id: result.id }, include: { githubImport: true, fileSystem: { include: { files: { include: { asset: true } } } } } });
+      const project = await prisma.workshopProject.findUniqueOrThrow({ where: { id: result.id }, include: { githubImport: true, fileSystem: { include: { files: { include: { asset: true } } } } } });
       assert.equal(project.source, 'github'); assert.equal(project.templateId, null);
       assert.equal(project.githubImport?.commitSha, 'a'.repeat(40));
       assert.equal(project.fileSystem?.files.length, 2);
       const image = project.fileSystem!.files.find(f => f.asset)!;
       assert.deepEqual(await readFile(`${store}/${image.asset!.storageKey}`), binary);
-      await assert.rejects(labProjectService.reset(users[0]!, result.id), /不支持重置/);
-      await assert.rejects(labProjectService.get(users[1]!, result.id), /不存在/);
-      assert.equal((await labProjectService.get(users[0]!, result.id)).template, null);
+      await assert.rejects(workshopProjectService.reset(users[0]!, result.id), /不支持重置/);
+      await assert.rejects(workshopProjectService.get(users[1]!, result.id), /不存在/);
+      assert.equal((await workshopProjectService.get(users[0]!, result.id)).template, null);
       unsupported = true;
       await assert.rejects(importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'bad' }), /子模块/);
       unsupported = false; failDownload = true;
       await assert.rejects(importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'bad' }), /下载失败/);
       failDownload = false;
-      assert.equal(await prisma.labProject.count({ where: { ownerId: users[0] } }), 1);
+      assert.equal(await prisma.workshopProject.count({ where: { ownerId: users[0] } }), 1);
 
-      config.public.lab.maxProjectsPerUser = 2;
+      config.public.workshop.maxProjectsPerUser = 2;
       const concurrent = await Promise.allSettled([importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'two' }), importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'three' })]);
       assert.equal(concurrent.filter(r => r.status === 'fulfilled').length, 1);
       await assert.rejects(importRepository(users[0]!, { repository: 'test/private', branch: 'main', name: 'over quota' }), /最多创建/);
-      assert.equal(await prisma.labProject.count({ where: { ownerId: users[0] } }), 2);
+      assert.equal(await prisma.workshopProject.count({ where: { ownerId: users[0] } }), 2);
       const server = createServer(toNodeListener(createApp().use(webhook)));
       await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
       try {
@@ -107,12 +107,12 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
       } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
       await assert.rejects(userToken(users[0]!), /重新授权/);
       await disconnect(users[0]!);
-      assert.equal(await prisma.labProject.count({ where: { ownerId: users[0] } }), 2);
-      assert.equal(await prisma.labGitHubImport.count(), 2);
+      assert.equal(await prisma.workshopProject.count({ where: { ownerId: users[0] } }), 2);
+      assert.equal(await prisma.workshopGitHubImport.count(), 2);
       if (process.env.GITHUB_LIVE_SMOKE === '1') {
          globalThis.fetch = originalFetch;
          const live = await importRepository(users[1]!, { repository: 'octocat/Hello-World', branch: 'master', name: 'Public smoke' });
-         const loaded = await labProjectService.get(users[1]!, live.id);
+         const loaded = await workshopProjectService.get(users[1]!, live.id);
          assert.ok(loaded.files.some(file => file.content?.includes('Hello World')));
          console.log('Live public GitHub import passed');
       }
@@ -120,15 +120,15 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
          getKeys: async () => ['blank:template.json'],
          getItemRaw: async () => Buffer.from(JSON.stringify({ name: 'Blank', category: 'basic', icon: '/icons/document.png', order: 0 })),
       }) });
-      const template = await labProjectService.create({ userId: users[1]!, templateId: 'blank', name: 'Template regression' });
-      await labProjectService.sync({ userId: users[1]!, projectId: template.id, revision: 0, changes: [{ type: 'create', path: '/project/test.txt', content: 'changed' }] });
-      await labProjectService.reset(users[1]!, template.id);
-      const reset = await labProjectService.get(users[1]!, template.id);
+      const template = await workshopProjectService.create({ userId: users[1]!, templateId: 'blank', name: 'Template regression' });
+      await workshopProjectService.sync({ userId: users[1]!, projectId: template.id, revision: 0, changes: [{ type: 'create', path: '/project/test.txt', content: 'changed' }] });
+      await workshopProjectService.reset(users[1]!, template.id);
+      const reset = await workshopProjectService.get(users[1]!, template.id);
       assert.equal(reset.project.source, 'template');
       assert.equal(reset.project.revision, 1); assert.equal(reset.files.length, 0);
    } finally {
       globalThis.fetch = originalFetch;
-      await prisma.labProject.deleteMany({ where: { ownerId: { in: users } } });
+      await prisma.workshopProject.deleteMany({ where: { ownerId: { in: users } } });
       await prisma.fileAsset.deleteMany({ where: { uploadedById: { in: users } } });
       await prisma.user.deleteMany({ where: { id: { in: users } } });
       const keys = await useRedis().keys(`github:*${users[0]}*`);

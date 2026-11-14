@@ -2,7 +2,7 @@
 import { dialog } from '~/composables/use-dialog';
 import { LoadingFour } from '@icon-park/vue-next';
 import { Settings, RefreshCw, Unplug } from 'lucide-vue-next';
-const props = withDefaults(defineProps<{ target?: 'lab' | 'settings' }>(), { target: 'settings' });
+const props = withDefaults(defineProps<{ target?: 'workshop' | 'settings' }>(), { target: 'settings' });
 const emit = defineEmits<{ changed: [] }>();
 const { $trpc } = useNuxtApp();
 const { data, error, refresh } = await useAsyncData('github-connection', () => $trpc.protected.github.status.query());
@@ -43,22 +43,22 @@ const run = async (action: 'connect' | 'install' | 'disconnect') => {
             <h3 class="font-bold">GitHub</h3>
             <p class="text-sm text-accent-300">{{ data?.connected ? `已连接 @${data.login}` : data?.login ? `@${data.login} 需要重新授权` : '连接 GitHub，选择已授权的公开或私有仓库导入。' }}</p>
          </div>
-         <div class="flex flex-wrap" :class="target === 'lab' ? 'gap-1' : 'gap-2'">
+         <div class="flex flex-wrap" :class="target === 'workshop' ? 'gap-1' : 'gap-2'">
             <StButton
                v-if="!data?.connected"
                size="sm"
-               :bordered="target !== 'lab'"
-               :class="target === 'lab' ? 'gap-2 border-2 border-transparent !bg-accent-100 !text-black' : undefined"
+               :bordered="target !== 'workshop'"
+               :class="target === 'workshop' ? 'gap-2 border-2 border-transparent !bg-accent-100 !text-black' : undefined"
                :disabled="pending || !data?.enabled"
                :loading="pending"
                @click="run('connect')">
-               <template v-if="target === 'lab'" #icon="{ loading }">
+               <template v-if="target === 'workshop'" #icon="{ loading }">
                   <LoadingFour v-if="loading" class="size-4 animate-spin" aria-hidden="true" />
                   <img v-else src="/icons/github.png" alt="" aria-hidden="true" class="size-4 object-contain" />
                </template>
                连接 GitHub
             </StButton>
-            <template v-if="target === 'lab'">
+            <template v-if="target === 'workshop'">
                <StPopover v-if="data?.connected" content="安装 / 管理仓库授权" placement="top" :z-index="10002">
                   <template #popper>
                      <div class="px-2 py-1 rounded-lg bg-black text-white border border-accent-500 shadow-lg">安装 / 管理仓库授权</div>

@@ -12,7 +12,7 @@ import { notificationRouter } from './notification';
 import { settingRouter } from './setting';
 import { verifyRoute } from './verify';
 import { learningRouter } from './learning';
-import { labRouter } from './lab';
+import { workshopRouter } from './workshop';
 import { githubRouter } from './github';
 
 export const protectedRouter = router({
@@ -29,6 +29,6 @@ export const protectedRouter = router({
    verify: verifyRoute,
    cloudFunction: cloudFunctionRouter,
    learning: learningRouter,
-   lab: labRouter,
+   workshop: workshopRouter,
    github: githubRouter,
 });

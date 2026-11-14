@@ -1,10 +1,10 @@
-# GitHub 绑定与实验室仓库导入：第一版数据模型
+# GitHub 绑定与工坊仓库导入：第一版数据模型
 
 ## 范围
 
-- 用户在实验室导入入口或设置页连接自己的 GitHub 账号。
+- 用户在工坊导入入口或设置页连接自己的 GitHub 账号。
 - 导入入口支持公开仓库链接，也支持授权后选择可访问的仓库与分支。
-- 将选定提交的文件一次性复制为实验室项目，继续使用现有文件资产与自动保存能力。
+- 将选定提交的文件一次性复制为工坊项目，继续使用现有文件资产与自动保存能力。
 - 不实现 Git 拉取、推送、本地提交、持续同步，也不下载或持久化 `.git`。
 - GitHub 连接用于访问仓库，不作为新的 Challenge 登录方式，不按 GitHub 邮箱自动合并账号。
 
@@ -15,14 +15,14 @@
 ```mermaid
 erDiagram
     User ||--o| GitHubConnection : binds
-    User ||--o{ LabProject : owns
-    LabProject ||--o| LabGitHubImport : imported_from
-    LabProject ||--o| FileSystems : stores
+    User ||--o{ WorkshopProject : owns
+    WorkshopProject ||--o| WorkshopGitHubImport : imported_from
+    WorkshopProject ||--o| FileSystems : stores
     FileSystems ||--o{ VirtualFiles : contains
     FileAsset ||--o{ VirtualFiles : binary_content
 ```
 
-新增两张表：`github_connections` 保存绑定和凭据，`lab_github_imports` 保存项目来源。
+新增两张表：`github_connections` 保存绑定和凭据，`workshop_github_imports` 保存项目来源。
 仓库列表和安装授权范围从 GitHub 实时查询，不把本地缓存当作权限依据。
 
 ## GitHubConnection：账号绑定
@@ -53,24 +53,24 @@ model GitHubConnection {
 - 绑定身份使用不可随用户名修改的 GitHub 数字 ID；`login` 和头像仅作展示缓存。
 - GitHub ID 使用 `BigInt`，API 对外转换为十进制字符串，避免 JSON 序列化问题。
 - 凭据使用服务端认证加密，密钥和 App 私钥放在服务端环境配置中；密文包含 nonce 和认证标签，版本字段支持密钥轮换。
-- 设置页、实验室页只返回明确选择的公开字段和连接状态，不返回 token、密文或密钥版本。
+- 设置页、工坊页只返回明确选择的公开字段和连接状态，不返回 token、密文或密钥版本。
 - 授权撤销后清空两类凭据及到期时间，设置 `revokedAt`，保留身份用于提示重新连接。
 - 用户主动解绑时删除连接记录；已导入的文件和项目来源保留。再次绑定另一账号时必须重新验证 GitHub 身份。
 - 刷新凭据按连接 ID 串行化，避免并发刷新使 token 轮换结果互相覆盖。
 - 不复用现有 `Auth.accessToken`：本功能是第三方仓库连接，需要独立的凭据生命周期和最小字段返回。
 
-## LabProject：明确创建来源
+## WorkshopProject：明确创建来源
 
 ```prisma
-enum LabProjectSource {
+enum WorkshopProjectSource {
   template
   github
 }
 
-// 在现有 LabProject 上修改 / 添加：
-// source     LabProjectSource @default(template)
+// 在现有 WorkshopProject 上修改 / 添加：
+// source     WorkshopProjectSource @default(template)
 // templateId String?
-// githubImport LabGitHubImport?
+// githubImport WorkshopGitHubImport?
 
 // 在现有 User 上添加：
 // githubConnection GitHubConnection?
@@ -80,12 +80,12 @@ enum LabProjectSource {
 - GitHub 导入项目使用 `source = github`、`templateId = null`，不伪装成空白模板。
 - SQL 增加约束：模板来源必须有非空模板 ID；GitHub 来源必须没有模板 ID。
 - `source` 为创建来源，不因解绑账号或仓库删除而改变；第一版不支持转换来源。
-- 不把导入的仓库注册为 `LabTemplate`，避免私人仓库内容进入公共模板列表。
+- 不把导入的仓库注册为 `WorkshopTemplate`，避免私人仓库内容进入公共模板列表。
 
-## LabGitHubImport：一次性导入来源
+## WorkshopGitHubImport：一次性导入来源
 
 ```prisma
-model LabGitHubImport {
+model WorkshopGitHubImport {
   projectId       String   @id
   repositoryId    BigInt
   ownerLogin      String
@@ -95,10 +95,10 @@ model LabGitHubImport {
   commitSha       String
   importedAt      DateTime @default(now())
 
-  project LabProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project WorkshopProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([repositoryId])
-  @@map("lab_github_imports")
+  @@map("workshop_github_imports")
 }
 ```
 
@@ -119,7 +119,7 @@ model LabGitHubImport {
 - 用当前用户的授权查询安装及其可访问仓库；即使客户端提交 `installationId`，服务端也必须重新验证。
 - App ID、slug、Client ID、Client Secret、私钥和 Webhook Secret 属于服务端配置，不作为用户数据库记录。
 - OAuth `state`、PKCE verifier、发起用户 ID、返回目标和有效期保存在 Redis；回调状态只消费一次。
-- 返回目标使用预定义的实验室 / 设置页标识，不接受任意外部跳转地址。
+- 返回目标使用预定义的工坊 / 设置页标识，不接受任意外部跳转地址。
 - Webhook 先验签；撤销授权时根据 GitHub 用户 ID 清理凭据。安装事件用于使短期仓库列表缓存失效，不授予本地权限。
 - Webhook 操作保持幂等；不涉及项目自动同步，无需订阅 push。第一版没有仓库列表缓存，安装变更后直接查询实时授权。
 
@@ -132,7 +132,7 @@ model LabGitHubImport {
 5. 下载与资产准备完成后开启短事务：沿用用户创建 advisory lock，再次检查每人 20 个项目的上限，创建项目、来源记录、文件系统和文件记录。
 6. 实际文件体积沿用现有 20MB 单文件、100MB 单项目配置；下载压缩包也需独立限制压缩体积、解压体积与条目数量。
 7. 创建失败不留下半成品项目；事务外准备但未被引用的资产按现有清理机制回收。
-8. 导入项目默认不自动安装依赖或执行仓库脚本，由用户在实验室终端主动操作。
+8. 导入项目默认不自动安装依赖或执行仓库脚本，由用户在工坊终端主动操作。
 
 导入请求第一版采用有超时、容量上限的同步操作；如果实际部署网关时限无法满足，再增加有幂等键的异步导入任务表。
 
@@ -149,7 +149,7 @@ model LabGitHubImport {
 1. 先调整使用 `templateId` 的服务、列表、编辑器与重置接口，使其支持可空值及来源分支。
 2. 添加枚举、两张新表、`source` 字段及约束，生成 Prisma 客户端与 name-map；不重置数据库，不改写已应用迁移。
 3. 完成绑定 / 回调 / 解绑 / 凭据刷新和 Webhook，再接入仓库列表、分支选择和导入服务。
-4. 最后接入实验室导入弹窗、设置页绑定卡片及项目来源展示。
+4. 最后接入工坊导入弹窗、设置页绑定卡片及项目来源展示。
 
 关键验证：重复绑定冲突、OAuth 回调重放、撤销授权、token 并发刷新、未授权仓库、分支下载一致性、二进制内容、路径越界、体积限制、并发创建额度、失败回收，以及旧模板项目的创建和重置回归。
 
@@ -179,7 +179,7 @@ GitHub App 私钥与 App ID 在本版本的用户授权流程中不需要，不�
 - 配置更新后重启开发服务；部署时 Compose 已传递这些变量。
 
 未配置 App 时仍允许公开仓库链接导入，连接按钮会明确显示不可用状态。
-仓库下载经服务端完成；默认最多 5000 个条目、100MB 压缩包、120MB 解压归档，再按实验室单文件 / 总文件容量限制校验。
+仓库下载经服务端完成；默认最多 5000 个条目、100MB 压缩包、120MB 解压归档，再按工坊单文件 / 总文件容量限制校验。
 
 运行 `pnpm --filter @challenge/app test:github` 验证路径、压缩包与凭据处理。
 集成测试必须连接专用的本地 `quanta_github_import_test` 数据库，并显式设置独立的 `/tmp/quanta-github-test-*` 存储目录；它模拟 GitHub 响应，覆盖绑定、凭据刷新、授权重放和导入事务，不需要真实 token。

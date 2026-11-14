@@ -42,11 +42,11 @@ export const useImageBuildAdmin = () => {
       try {
          const detail = await $trpc.admin.imageBuild.detail.query({ id });
          const references = detail.references;
-         const labTemplates = detail.labTemplates;
-         const inUse = references.length > 0 || labTemplates.length > 0;
+         const workshopTemplates = detail.workshopTemplates;
+         const inUse = references.length > 0 || workshopTemplates.length > 0;
          const usageParts = [
             references.length > 0 && `${references.length} 道题目`,
-            labTemplates.length > 0 && `${labTemplates.length} 个实验室模板`,
+            workshopTemplates.length > 0 && `${workshopTemplates.length} 个工坊模板`,
          ].filter(Boolean);
          const listClass = 'max-h-48 overflow-auto rounded-lg bg-accent-700 p-3 space-y-1.5';
 
@@ -84,17 +84,17 @@ export const useImageBuildAdmin = () => {
                                    ]),
                                 ),
                              ),
-                          labTemplates.length > 0 &&
+                          workshopTemplates.length > 0 &&
                              h('p', [
                                 '以下 ',
-                                h('span', { class: 'text-error font-bold' }, String(labTemplates.length)),
-                                ' 个实验室模板绑定了该快照镜像：',
+                                h('span', { class: 'text-error font-bold' }, String(workshopTemplates.length)),
+                                ' 个工坊模板绑定了该快照镜像：',
                              ]),
-                          labTemplates.length > 0 &&
+                          workshopTemplates.length > 0 &&
                              h(
                                 'ul',
                                 { class: listClass },
-                                labTemplates.map((item) =>
+                                workshopTemplates.map((item) =>
                                    h('li', { class: 'flex items-center gap-2 min-w-0' }, [
                                       h('span', { class: 'truncate text-accent-100' }, item.name),
                                       h(
@@ -107,7 +107,7 @@ export const useImageBuildAdmin = () => {
                              ),
                           h(
                              'p',
-                             '强制删除后，这些题目 / 模板会改为不使用快照镜像（做题页与实验室不再挂载快照，判题不受影响），此操作不可撤销。',
+                             '强制删除后，这些题目 / 模板会改为不使用快照镜像（做题页与工坊不再挂载快照，判题不受影响），此操作不可撤销。',
                           ),
                        ]),
                     variant: 'danger',
@@ -123,7 +123,7 @@ export const useImageBuildAdmin = () => {
          });
          const detachedTips = [
             result.detachedCount && `${result.detachedCount} 个题目版本`,
-            result.detachedTemplateCount && `${result.detachedTemplateCount} 个实验室模板`,
+            result.detachedTemplateCount && `${result.detachedTemplateCount} 个工坊模板`,
          ].filter(Boolean);
          message.success(
             '快照镜像已删除',

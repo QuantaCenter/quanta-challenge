@@ -4,7 +4,7 @@ import type { StForm } from '#components';
 import { Box } from '@icon-park/vue-next';
 import { useMessage } from '~/components/st/Message/use-message';
 
-export type TagScope = 'problem' | 'lab';
+export type TagScope = 'problem' | 'workshop';
 
 export type ITagEditingTarget = {
    tid: number;
@@ -21,7 +21,7 @@ const props = defineProps<{
    tag?: ITagEditingTarget | null;
    /** 新建时的标签用途，默认题目标签（编辑时以标签自身为准） */
    scope?: TagScope;
-   /** 新建时预填的标签名（如覆盖内置实验室标签） */
+   /** 新建时预填的标签名（如覆盖内置工坊标签） */
    defaultName?: string;
 }>();
 
@@ -36,8 +36,8 @@ const isEditing = computed(() => !!props.tag);
 const currentScope = computed<TagScope>(
    () => props.tag?.scope ?? props.scope ?? 'problem',
 );
-/** 实验室标签：不需要颜色，图标可选（未上传时使用内置技术栈图标或通用图标） */
-const isLab = computed(() => currentScope.value === 'lab');
+/** 工坊标签：不需要颜色，图标可选（未上传时使用内置技术栈图标或通用图标） */
+const isWorkshop = computed(() => currentScope.value === 'workshop');
 
 const outerClass = 'border !py-4 !px-4 !rounded-[0.5rem] w-full';
 
@@ -59,7 +59,7 @@ const rules = computed<IRule[]>(() => {
          },
       },
    ];
-   if (!isLab.value) {
+   if (!isWorkshop.value) {
       rules.push({
          field: 'color',
          required: true,
@@ -69,7 +69,7 @@ const rules = computed<IRule[]>(() => {
       });
    }
    // 编辑走的是部分更新，允许标签本身没有图标
-   if (!isEditing.value && !isLab.value) {
+   if (!isEditing.value && !isWorkshop.value) {
       rules.push({
          field: 'imageId',
          required: true,
@@ -111,7 +111,7 @@ const handleSubmit = async () => {
          await $trpc.admin.tag.edit.mutate({
             tid: tag.tid,
             name,
-            ...(isLab.value ? {} : { color: formdata.color }),
+            ...(isWorkshop.value ? {} : { color: formdata.color }),
             description: formdata.description,
             // 未重新上传时不动原有图标
             ...(formdata.imageId ? { imageId: formdata.imageId } : {}),
@@ -121,7 +121,7 @@ const handleSubmit = async () => {
       await $trpc.admin.tag.add.mutate({
          name,
          scope: currentScope.value,
-         ...(isLab.value ? {} : { color: formdata.color }),
+         ...(isWorkshop.value ? {} : { color: formdata.color }),
          ...(formdata.imageId ? { imageId: formdata.imageId } : {}),
          description: formdata.description,
       });
@@ -148,7 +148,7 @@ const enableSubmit = computed(() => {
 });
 
 const title = computed(() => {
-   const kind = isLab.value ? '实验室标签' : '标签';
+   const kind = isWorkshop.value ? '工坊标签' : '标签';
    return isEditing.value ? `编辑${kind}` : `新建${kind}`;
 });
 </script>
@@ -160,8 +160,8 @@ const title = computed(() => {
             <!-- Header -->
             <StSpace direction="vertical" gap="0.5rem">
                <h1 class="st-font-secondary-bold">{{ title }}</h1>
-               <p v-if="isLab" class="st-font-caption text-accent-300">
-                  实验室标签显示在模板卡片底部，发布模板时可以选择。与内置标签同名时会覆盖内置标签的图标与说明。
+               <p v-if="isWorkshop" class="st-font-caption text-accent-300">
+                  工坊标签显示在模板卡片底部，发布模板时可以选择。与内置标签同名时会覆盖内置标签的图标与说明。
                </p>
             </StSpace>
             <StSpace fill class="relative overflow-auto">
@@ -175,25 +175,25 @@ const title = computed(() => {
                      <StFormItem name="name" label="标签名" required>
                         <StInput
                            v-model:value="formdata.name"
-                           :placeholder="isLab ? '技术栈名称，例如：Vue、Tailwind CSS' : '请输入标签名'"
+                           :placeholder="isWorkshop ? '技术栈名称，例如：Vue、Tailwind CSS' : '请输入标签名'"
                            :outer-class />
                      </StFormItem>
-                     <StFormItem v-if="!isLab" name="color" label="标签颜色" required>
+                     <StFormItem v-if="!isWorkshop" name="color" label="标签颜色" required>
                         <StColorPicker
                            v-model:value="formdata.color"
                            :outer-class />
                      </StFormItem>
                      <StFormItem
                         name="imageId"
-                        :label="isLab ? '标签图标（可选）' : '标签图标'"
-                        :required="!isLab">
+                        :label="isWorkshop ? '标签图标（可选）' : '标签图标'"
+                        :required="!isWorkshop">
                         <StUploadImage
                            v-model:image-id="formdata.imageId"
                            v-model:image-url="formdata.imageUrl"
                            class="bg-black !max-h-[12rem]"
                            image-max-height="4rem"
                            placeholder="请选择标签图标" />
-                        <p v-if="isLab" class="st-font-caption text-accent-400">
+                        <p v-if="isWorkshop" class="st-font-caption text-accent-400">
                            建议使用正方形透明背景图标；未上传时使用内置技术栈图标或通用标签图标。
                         </p>
                      </StFormItem>

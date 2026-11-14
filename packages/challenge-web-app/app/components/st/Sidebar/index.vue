@@ -52,8 +52,8 @@ const role = computed(() => authStore.user?.role ?? 'USER');
                   <BookOpen />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>
-            <StSidebarSidePopper content="实验室">
-               <StSidebarNavigationButton to="/app/lab" aria-label="实验室">
+            <StSidebarSidePopper content="工坊">
+               <StSidebarNavigationButton to="/app/workshop" aria-label="工坊">
                   <Experiment />
                </StSidebarNavigationButton>
             </StSidebarSidePopper>

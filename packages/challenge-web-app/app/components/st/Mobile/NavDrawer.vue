@@ -164,11 +164,11 @@ const teleported = useClientTeleport();
                         <span>学习</span>
                      </NuxtLink>
                      <NuxtLink
-                        to="/app/lab"
+                        to="/app/workshop"
                         class="st-mobile-drawer-item"
-                        :class="{ 'bg-accent-600 text-white': isActive('/app/lab') }">
+                        :class="{ 'bg-accent-600 text-white': isActive('/app/workshop') }">
                         <Experiment />
-                        <span>实验室</span>
+                        <span>工坊</span>
                      </NuxtLink>
                      <NuxtLink
                         v-if="role !== 'USER'"

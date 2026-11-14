@@ -48,7 +48,7 @@ const options: ProcessOption[] = [
    },
    {
       title: '标签管理',
-      description: '分类管理题目标签与实验室标签（模板卡片上的技术栈标签）',
+      description: '分类管理题目标签与工坊标签（模板卡片上的技术栈标签）',
       url: '/app/manage/tag',
       icon: Tag,
       iconColor: '#FE4E4E',
@@ -75,9 +75,9 @@ const options: ProcessOption[] = [
       iconColor: '#4CA7FF',
    },
    {
-      title: '实验室模板管理',
-      description: '启用或停用实验室模板，修改名称、启动命令与快照镜像，发布自定义模板',
-      url: '/app/manage/lab-template',
+      title: '工坊模板管理',
+      description: '启用或停用工坊模板，修改名称、启动命令与快照镜像，发布自定义模板',
+      url: '/app/manage/workshop-template',
       icon: Experiment,
       iconColor: '#A78BFA',
    },

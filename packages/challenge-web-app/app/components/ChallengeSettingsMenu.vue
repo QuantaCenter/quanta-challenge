@@ -13,7 +13,7 @@ const props = withDefaults(
    defineProps<{
       /** 传入做题页题目 id 才显示「重置题目」；无 id（如提交记录页）则只有空设置面板 */
       problemId?: number;
-      /** 不依赖题目 id 也显示重置项（如实验室项目） */
+      /** 不依赖题目 id 也显示重置项（如工坊项目） */
       resettable?: boolean;
       resetTitle?: string;
       resetDescription?: string;
