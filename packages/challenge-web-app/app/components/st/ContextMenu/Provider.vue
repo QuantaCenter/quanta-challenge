@@ -46,8 +46,8 @@ onMounted(() => {
          menuStatus.value = 'closed';
       }
    };
-   const onClickGlobal = (e: MouseEvent) => {
-      e.preventDefault();
+   // 关闭菜单时保留文件选择器、链接等控件的默认点击行为。
+   const onClickGlobal = () => {
       menuStatus.value = 'closed';
    };
 
