@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import type { inferRouterOutputs } from '@trpc/server';
+import { TRPCClientError } from '@trpc/client';
 import type { AppRouter } from '~~/server/trpc/routes';
 import { Close, LoadingFour, Refresh } from '@icon-park/vue-next';
 import type { StepsStep } from '~/components/st/Steps/type';
 import { formatFileSize } from '~/utils/format-file-size';
+import { atLeastTime } from '~/utils/wait';
 import { parseRepository } from '~~/lib/github-repository';
+import { useMessage } from '~/components/st/Message/use-message';
 import GitHubRepositoryPreview from './GitHubRepositoryPreview.vue';
 type Output = inferRouterOutputs<AppRouter>['protected']['github'];
 const opened = defineModel<boolean>('opened', {
@@ -15,6 +18,7 @@ const emit = defineEmits<{
    created: [];
 }>();
 const { $trpc } = useNuxtApp();
+const message = useMessage();
 const { data: connection } = useNuxtData<Output['status']>('github-connection');
 const repository = ref('');
 const publicRepository = ref('');
@@ -50,7 +54,7 @@ const steps = computed<StepsStep[]>(() => {
 
 const stageDescription = computed(() => {
    if (importing.value) {
-      return '正在下载仓库并创建项目，请稍候…';
+      return '正在创建导入任务，请稍候…';
    }
 
    return [
@@ -432,12 +436,17 @@ const create = async () => {
    importing.value = true;
    failure.value = '';
    try {
-      await $trpc.protected.github.import.mutate({
-         repository: detail.value.repository.fullName,
-         branch: branch.value,
-         name: name.value.trim(),
-         commitSha: preview.value.commitSha,
-      });
+      await atLeastTime(
+         1500,
+         $trpc.protected.github.import.mutate({
+            repository: detail.value.repository.fullName,
+            branch: branch.value,
+            name: name.value.trim(),
+            commitSha: preview.value.commitSha,
+         }),
+      );
+      failure.value = '';
+      message.success('导入任务已创建');
       emit('created');
       opened.value = false;
       repository.value = '';
@@ -446,7 +455,9 @@ const create = async () => {
       detail.value = null;
    } catch (error) {
       failure.value =
-         error instanceof Error ? error.message : '导入失败，请重试';
+         error instanceof Error && /[\u3400-\u9fff]/.test(error.message) &&
+         !(error instanceof TRPCClientError && error.data?.code === 'INTERNAL_SERVER_ERROR')
+            ? error.message : '导入任务创建失败，请稍后重试';
    } finally {
       importing.value = false;
    }
@@ -709,7 +720,7 @@ const create = async () => {
                         <LoadingFour
                            class="animate-spin"
                            aria-hidden="true" />
-                        正在导入，请稍候…
+                        正在创建导入任务，请稍候…
                      </div>
                   </div>
                </template>
@@ -751,7 +762,7 @@ const create = async () => {
                      :loading="importing"
                      :disabled="!canContinue || !name.trim() || importing"
                      @click="create">
-                     {{ importing ? '正在导入…' : '导入并创建项目' }}
+                     {{ importing ? '正在创建任务…' : '确认导入' }}
                   </StButton>
                </div>
             </footer>

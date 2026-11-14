@@ -1,12 +1,105 @@
 import prisma from '~~/lib/prisma';
 import { api, githubError, repositorySummary, type Repository } from './client';
-import { opaque, parseRepository } from './core';
+import { parseRepository } from './core';
 import { userToken } from './accounts';
-import { readArchive, unpackArchive } from './archive';
+import { downloadRepository } from './download';
 import { readRepositoryTree } from './tree';
 import { prepareAssets } from '../../trpc/services/file-assets';
 import { getWorkshopLimits } from '../../trpc/services/workshop-project';
-import { useRedis } from '../../utils/redis';
+import {
+   dispatchTimerTask,
+   registerTimerHandler,
+   withTimerTaskLease,
+   type TimerTaskSnapshot,
+} from '../../utils/timer';
+
+type ImportInput = {
+   repository: string;
+   branch: string;
+   name: string;
+   commitSha?: string;
+};
+
+type ImportTask = { projectId: string; userId: string; input: ImportInput };
+const MAX_ATTEMPTS = 3;
+
+/** Reserve quota and enqueue atomically; no GitHub requests run in this mutation. */
+export async function importRepository(userId: string, input: ImportInput) {
+   let repository: string;
+   try {
+      repository = parseRepository(input.repository);
+   } catch {
+      throw githubError('请填写 GitHub 仓库链接或 owner/repository');
+   }
+   const [ownerLogin, repositoryName] = repository.split('/') as [string, string];
+   registerGitHubImportHandler();
+   return prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`workshop-create:${userId}`}, 0))`;
+      const limits = getWorkshopLimits();
+      const count = await tx.workshopProject.count({ where: { ownerId: userId } });
+      if (count >= limits.maxProjectsPerUser) {
+         throw githubError(`每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`);
+      }
+      const project = await tx.workshopProject.create({
+         data: {
+            ownerId: userId,
+            name: input.name,
+            source: 'github',
+            importStatus: 'importing',
+            githubImport: {
+               create: {
+                  ownerLogin,
+                  repositoryName,
+                  branchName: input.branch,
+                  commitSha: input.commitSha,
+               },
+            },
+         },
+         select: { id: true },
+      });
+      await dispatchTimerTask<ImportTask>(
+         'github-import',
+         { projectId: project.id, userId, input: { ...input, repository } },
+         { maxAttempts: MAX_ATTEMPTS },
+         tx,
+      );
+      return project;
+   });
+}
+
+export function registerGitHubImportHandler() {
+   if (handlerRegistered) return;
+   registerTimerHandler<ImportTask>('github-import', runGitHubImport);
+   handlerRegistered = true;
+}
+
+let handlerRegistered = false;
+
+export async function runGitHubImport(payload: ImportTask, task: TimerTaskSnapshot) {
+   const { projectId, userId } = payload;
+   try {
+      const project = await prisma.workshopProject.findUnique({
+         where: { id: projectId },
+      });
+      // Deleted projects must never be recreated; a replay after commit is a no-op.
+      if (!project || project.ownerId !== userId || project.importStatus !== 'importing') return;
+      await completeImport(payload, task);
+   } catch (error) {
+      if (error instanceof Error && error.message === 'TIMER_LEASE_LOST') throw error;
+      if (task.attempts >= MAX_ATTEMPTS) {
+         await withTimerTaskLease(task, tx => tx.workshopProject.updateMany({
+            where: { id: projectId, ownerId: userId, importStatus: 'importing' },
+            data: {
+               importStatus: 'failed',
+               importError: error instanceof Error
+                  ? error.message.slice(0, 500)
+                  : '导入失败，请删除项目后重新导入',
+            },
+         }));
+      }
+      throw error;
+   }
+}
 
 export async function resolveRepository(userId: string, input: string) {
    let path: string;
@@ -62,177 +155,101 @@ export async function previewRepository(
    return readRepositoryTree(repo.id, input.branch, token, getWorkshopLimits());
 }
 
-export async function importRepository(
-   userId: string,
-   input: {
-      repository: string;
-      branch: string;
-      name: string;
-      commitSha?: string;
-   },
+async function completeImport(
+   { projectId, userId, input }: ImportTask,
+   task: TimerTaskSnapshot,
 ) {
-   const redis = useRedis();
-   const lock = `github:import:${userId}`;
-   const nonce = opaque();
-   if (!(await redis.set(lock, nonce, 'EX', 300, 'NX'))) {
-      throw githubError('已有仓库正在导入，请稍候');
+   const limits = getWorkshopLimits();
+   const signal = AbortSignal.timeout(240000);
+   const { repo, token } = await resolveRepository(userId, input.repository);
+   const preview = await readRepositoryTree(
+      repo.id,
+      input.branch,
+      token,
+      limits,
+      signal,
+   );
+   if (input.commitSha && preview.commitSha !== input.commitSha) {
+      throw githubError('分支内容已更新，请刷新目录预览后重新导入');
    }
+   if (!preview.canImport) {
+      throw githubError(preview.reason);
+   }
+   const sha = preview.commitSha;
+   const snapshot = await downloadRepository(
+      repo, sha, token,
+      { ...limits, maxProjectBytes: preview.maxProjectBytes },
+      signal,
+   );
+   signal.throwIfAborted();
+   const assets = await prepareAssets(snapshot.files, userId);
+   let committed = false;
    try {
-      const limits = getWorkshopLimits();
-      if (
-         (await prisma.workshopProject.count({
-            where: {
-               ownerId: userId,
-            },
-         })) >= limits.maxProjectsPerUser
-      ) {
-         throw githubError(
-            `每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`,
-         );
-      }
-      const { repo, token } = await resolveRepository(userId, input.repository);
-      const signal = AbortSignal.timeout(120000);
-      const preview = await readRepositoryTree(
-         repo.id,
-         input.branch,
-         token,
-         limits,
-         signal,
-      );
-      if (input.commitSha && preview.commitSha !== input.commitSha) {
-         throw githubError('分支内容已更新，请刷新目录预览后重新导入');
-      }
-      if (!preview.canImport) {
-         throw githubError(preview.reason);
-      }
-      const sha = preview.commitSha;
-      const first = await fetch(
-         `https://api.github.com/repositories/${repo.id}/tarball/${sha}`,
+      committed = await withTimerTaskLease(
+         task,
+         async (tx) => {
+            const rows = await tx.$queryRaw<{ id: string }[]>`
+               SELECT id FROM workshop_projects
+               WHERE id = ${projectId} AND "ownerId" = ${userId} AND "importStatus" = 'importing'
+               FOR UPDATE
+            `;
+            if (!rows.length) return false;
+            const files = await assets.bind(tx);
+            const githubImport = {
+               repositoryId: BigInt(repo.id),
+               ownerLogin: repo.owner.login,
+               repositoryName: repo.name,
+               visibility: repo.visibility ?? (repo.private ? 'private' : 'public'),
+               branchName: input.branch,
+               commitSha: sha,
+               importedAt: new Date(),
+            };
+            const project = await tx.workshopProject.update({
+               where: { id: projectId },
+               data: {
+                  description: repo.description?.slice(0, 200),
+                  importStatus: 'ready',
+                  importError: null,
+                  sizeBytes: BigInt(snapshot.sizeBytes),
+                  githubImport: {
+                     upsert: {
+                        create: githubImport,
+                        update: githubImport,
+                     },
+                  },
+                  fileSystem: {
+                     create: {
+                        ownerId: userId,
+                     },
+                  },
+               },
+               select: {
+                  id: true,
+                  fileSystem: {
+                     select: {
+                        fsid: true,
+                     },
+                  },
+               },
+            });
+            if (files.length) {
+               await tx.virtualFiles.createMany({
+                  data: files.map(({ path, content, assetId }) => ({
+                     path,
+                     content,
+                     assetId,
+                     ownerId: userId,
+                     fileSystemFsid: project.fileSystem!.fsid,
+                  })),
+               });
+            }
+            return true;
+         },
          {
-            headers: {
-               'User-Agent': 'Quanta-Challenge',
-               ...(token
-                  ? {
-                       Authorization: `Bearer ${token}`,
-                    }
-                  : {}),
-            },
-            redirect: 'manual',
-            signal,
+            timeout: 30000,
          },
       );
-      if (first.status !== 302 || !first.headers.get('location')) {
-         await first.body?.cancel();
-         throw githubError('仓库下载失败，请检查授权');
-      }
-      const location = new URL(first.headers.get('location')!);
-      await first.body?.cancel();
-      if (location.origin !== 'https://codeload.github.com') {
-         throw githubError('仓库下载地址不受支持');
-      }
-      const response = await fetch(location, {
-         redirect: 'error',
-         signal,
-      });
-      if (!response.ok) {
-         await response.body?.cancel();
-         throw githubError('仓库下载失败，请稍后重试');
-      }
-      let snapshot: Awaited<ReturnType<typeof unpackArchive>>;
-      try {
-         snapshot = await unpackArchive(await readArchive(response, signal), {
-            ...limits,
-            maxProjectBytes: preview.maxProjectBytes,
-         });
-      } catch (error) {
-         throw githubError(
-            error instanceof Error ? error.message : '仓库解压失败',
-         );
-      }
-      signal.throwIfAborted();
-      const assets = await prepareAssets(snapshot.files, userId);
-      let committed = false;
-      try {
-         const result = await prisma.$transaction(
-            async (tx) => {
-               await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`workshop-create:${userId}`}, 0))`;
-               if (
-                  (await tx.workshopProject.count({
-                     where: {
-                        ownerId: userId,
-                     },
-                  })) >= limits.maxProjectsPerUser
-               ) {
-                  throw githubError(
-                     `每位用户最多创建 ${limits.maxProjectsPerUser} 个项目`,
-                  );
-               }
-               const files = await assets.bind(tx);
-               const project = await tx.workshopProject.create({
-                  data: {
-                     ownerId: userId,
-                     name: input.name,
-                     description: repo.description?.slice(0, 200),
-                     source: 'github',
-                     templateId: null,
-                     sizeBytes: BigInt(snapshot.sizeBytes),
-                     githubImport: {
-                        create: {
-                           repositoryId: BigInt(repo.id),
-                           ownerLogin: repo.owner.login,
-                           repositoryName: repo.name,
-                           visibility:
-                              repo.visibility ??
-                              (repo.private ? 'private' : 'public'),
-                           branchName: input.branch,
-                           commitSha: sha,
-                        },
-                     },
-                     fileSystem: {
-                        create: {
-                           ownerId: userId,
-                        },
-                     },
-                  },
-                  select: {
-                     id: true,
-                     fileSystem: {
-                        select: {
-                           fsid: true,
-                        },
-                     },
-                  },
-               });
-               if (files.length) {
-                  await tx.virtualFiles.createMany({
-                     data: files.map(({ path, content, assetId }) => ({
-                        path,
-                        content,
-                        assetId,
-                        ownerId: userId,
-                        fileSystemFsid: project.fileSystem!.fsid,
-                     })),
-                  });
-               }
-               return {
-                  id: project.id,
-               };
-            },
-            {
-               timeout: 30000,
-            },
-         );
-         committed = true;
-         return result;
-      } finally {
-         await assets.cleanup(committed);
-      }
    } finally {
-      await redis.eval(
-         "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
-         1,
-         lock,
-         nonce,
-      );
+      await assets.cleanup(committed);
    }
 }

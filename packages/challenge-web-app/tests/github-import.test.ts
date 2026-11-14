@@ -15,6 +15,7 @@ import {
    readArchive,
 } from '../server/services/github/archive';
 import { api } from '../server/services/github/client';
+import { archiveMirrorUrls, downloadRepository } from '../server/services/github/download';
 import {
    readRepositoryTree,
    summarizeTree,
@@ -55,6 +56,65 @@ export function archive(
       ]),
    );
 }
+
+test('archive mirrors fall through HTTP errors and invalid archives, then use GitHub last', async () => {
+   const originalFetch = globalThis.fetch;
+   const originalConfig = (globalThis as any).useRuntimeConfig;
+   const repo = { id: 123, name: 'demo', full_name: 'test/demo', owner: { login: 'test' }, private: false, default_branch: 'main', description: null, archived: false };
+   const sha = 'a'.repeat(40);
+   const github = { archiveMirrors: JSON.stringify([
+      'https://first.example/{url}',
+      'https://second.example/{owner}/{repo}/{sha}.tar.gz',
+      'https://third.example/{url}',
+   ]), archiveTimeoutMs: 1000 };
+   Object.assign(globalThis, { useRuntimeConfig: () => ({ github }) });
+   const urls: string[] = [];
+   let successfulMirror = false;
+   const fixture = archive([{ path: 'demo-sha/README.md', content: Buffer.from('demo') }]);
+   globalThis.fetch = async (input, options) => {
+      const url = String(input);
+      urls.push(url);
+      const headers = new Headers(options?.headers);
+      if (url.startsWith('https://api.github.com/')) {
+         assert.equal(headers.get('authorization'), 'Bearer secret');
+         return new Response(null, { status: 302, headers: { location: `https://codeload.github.com/test/demo/legacy.tar.gz/${sha}` } });
+      }
+      assert.equal(headers.has('authorization'), false);
+      if (url.startsWith('https://first.example/')) return new Response('', { status: 503 });
+      if (url.startsWith('https://second.example/')) return new Response('<html>not an archive</html>');
+      if (url.startsWith('https://third.example/')) return successfulMirror ? new Response(fixture) : new Response('', { status: 502 });
+      return new Response(fixture);
+   };
+   const limits = { maxFileBytes: 1024, maxProjectBytes: 1024 };
+   try {
+      const files = await downloadRepository(repo, sha, 'secret', limits, AbortSignal.timeout(10000));
+      assert.equal(files.files[0]?.content, 'demo');
+      assert.deepEqual(urls.map(url => new URL(url).hostname), [
+         'first.example', 'second.example', 'third.example', 'api.github.com', 'codeload.github.com',
+      ]);
+      urls.length = 0;
+      successfulMirror = true;
+      await downloadRepository(repo, sha, 'secret', limits, AbortSignal.timeout(10000));
+      assert.equal(urls.length, 3, 'successful mirror skips GitHub download');
+      urls.length = 0;
+      await downloadRepository({ ...repo, private: true }, sha, 'secret', limits, AbortSignal.timeout(10000));
+      assert.deepEqual(urls.map(url => new URL(url).hostname), ['api.github.com', 'codeload.github.com']);
+      assert.throws(() => archiveMirrorUrls('["http://bad.example/{url}"]', repo, sha), /HTTPS/);
+      assert.deepEqual(
+         archiveMirrorUrls(JSON.parse(github.archiveMirrors), repo, sha),
+         archiveMirrorUrls(github.archiveMirrors, repo, sha),
+         'Nuxt runtime arrays and JSON environment strings behave identically',
+      );
+      assert.throws(() => archiveMirrorUrls('["https://bad.example/main.tar.gz"]', repo, sha), /必须包含/);
+      github.archiveMirrors = '[]';
+      urls.length = 0;
+      await downloadRepository(repo, sha, 'secret', limits, AbortSignal.timeout(10000));
+      assert.equal(new URL(urls[0]!).hostname, 'api.github.com');
+   } finally {
+      globalThis.fetch = originalFetch;
+      Object.assign(globalThis, { useRuntimeConfig: originalConfig });
+   }
+});
 const limits = {
    maxFileBytes: 1024,
    maxProjectBytes: 2048,

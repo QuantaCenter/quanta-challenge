@@ -339,6 +339,9 @@ export default defineNuxtConfig({
 
    runtimeConfig: {
       github: {
+         // 按顺序尝试的归档镜像 URL 模板，JSON 数组；{url} 为 GitHub 归档地址。
+         archiveMirrors: '',
+         archiveTimeoutMs: 30000,
          clientId: '',
          clientSecret: '',
          appSlug: '',
@@ -439,6 +442,7 @@ export default defineNuxtConfig({
          smtpPassword: env('EMAIL_SMTP_PASSWORD', ''),
       },
       timer: {
+         githubImportConcurrency: envInt('TIMER_GITHUB_IMPORT_CONCURRENCY', 2),
          qualityConcurrency: envInt('TIMER_QUALITY_CONCURRENCY', 3),
          concurrency: envInt('TIMER_CONCURRENCY', 3),
          // 定时器 Worker 轮询间隔与单次领取批量

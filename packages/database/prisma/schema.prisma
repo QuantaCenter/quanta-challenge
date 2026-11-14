@@ -535,18 +535,25 @@ model GitHubConnection {
 
 model WorkshopGitHubImport {
   projectId      String   @id
-  repositoryId   BigInt
+  /// 入队时先保存仓库名和分支，其余远端元数据在导入完成后补齐。
+  repositoryId   BigInt?
   ownerLogin     String
   repositoryName String
-  visibility     String
+  visibility     String?
   branchName     String
-  commitSha      String
-  importedAt     DateTime @default(now())
+  commitSha      String?
+  importedAt     DateTime?
 
   project WorkshopProject @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([repositoryId])
   @@map("workshop_github_imports")
+}
+
+enum WorkshopImportStatus {
+  importing
+  ready
+  failed
 }
 
 model WorkshopProject {
@@ -559,6 +566,8 @@ model WorkshopProject {
   /// 创建时使用的模板 id：内置模板为模板目录名（见 @challenge/shared/workshop-templates/templates），自定义模板为 workshop_templates.id
   templateId   String?
   source       WorkshopProjectSource @default(template)
+  importStatus WorkshopImportStatus @default(ready)
+  importError  String?
   /// 项目版本号：重置时递增，文件同步请求携带加载时的版本，服务端据此拒绝重置前发出的旧请求
   revision     Int      @default(0)
   /// 项目文件总大小（字节）：每次写入后重新统计，用于配额校验与列表展示

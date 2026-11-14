@@ -118,6 +118,8 @@ const list = async (userId: string) => {
             description: true,
             templateId: true,
             source: true,
+            importStatus: true,
+            importError: true,
             githubImport: { select: { ownerLogin: true, repositoryName: true, branchName: true, commitSha: true } },
             sizeBytes: true,
             createdAt: true,
@@ -212,6 +214,12 @@ const get = async (userId: string, projectId: string) => {
    });
    if (!project) {
       throw new TRPCError({ code: 'NOT_FOUND', message: '项目不存在' });
+   }
+   if (project.importStatus !== 'ready') {
+      throw new TRPCError({
+         code: 'CONFLICT',
+         message: project.importStatus === 'importing' ? '正在导入中' : '项目导入失败，请删除后重新导入',
+      });
    }
    // 只记录打开时间，不改动 updatedAt（列表按最近修改排序）
    await prisma.$executeRaw`UPDATE workshop_projects SET "lastOpenedAt" = NOW() WHERE id = ${projectId}`;

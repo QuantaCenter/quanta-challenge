@@ -24,6 +24,32 @@ export const useWorkshopProjects = () => {
    );
    const { data: projects, pending, error, refresh } = asyncData;
 
+   // Schedule after each request finishes, so slow requests never overlap.
+   let pollTimer: ReturnType<typeof setTimeout> | undefined;
+   let disposed = false;
+   const hasImports = computed(() => projects.value?.some(project => project.importStatus === 'importing') ?? false);
+   const schedulePoll = () => {
+      clearTimeout(pollTimer);
+      if (disposed || !hasImports.value) return;
+      pollTimer = setTimeout(async () => {
+         try {
+            const latest = await $trpc.protected.workshop.list.query();
+            if (!disposed) projects.value = latest;
+         } catch {
+            // Keep the visible projects and retry after a transient polling failure.
+         } finally {
+            schedulePoll();
+         }
+      }, 3000);
+   };
+   if (import.meta.client) {
+      watch(hasImports, schedulePoll, { immediate: true });
+      onScopeDispose(() => {
+         disposed = true;
+         clearTimeout(pollTimer);
+      });
+   }
+
    const renameProject = async (project: WorkshopProject) => {
       const name = await dialog.prompt({
          title: '重命名项目',

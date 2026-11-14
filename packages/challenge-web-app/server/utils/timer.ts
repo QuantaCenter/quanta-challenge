@@ -23,6 +23,7 @@ const handlers = new Map<string, TimerHandler<never>>();
 export async function withTimerTaskLease<T>(
   task: TimerTaskSnapshot,
   action: (tx: Prisma.TransactionClient) => Promise<T>,
+  options?: { timeout: number },
 ): Promise<T> {
   return prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<{ id: string }[]>`
@@ -33,7 +34,7 @@ export async function withTimerTaskLease<T>(
     `;
     if (!rows.length) throw new Error('TIMER_LEASE_LOST');
     return action(tx);
-  });
+  }, options);
 }
 
 /**

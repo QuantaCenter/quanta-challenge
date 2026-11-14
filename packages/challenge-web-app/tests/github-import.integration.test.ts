@@ -14,7 +14,8 @@ import {
    userToken,
    disconnect,
 } from '../server/services/github/accounts';
-import { importRepository } from '../server/services/github/import';
+import { importRepository as enqueueImport, runGitHubImport } from '../server/services/github/import';
+import { startTimerWorker, stopTimerWorker } from '../server/utils/timer';
 import { workshopProjectService } from '../server/trpc/services/workshop-project';
 import { useRedis } from '../server/utils/redis';
 import webhook from '../server/api/webhooks/github.post';
@@ -87,7 +88,10 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
    let failDownload = false;
    let oversized = false;
    let downloads = 0;
+   let requests = 0;
+   let onDownload: (() => Promise<void>) | undefined;
    globalThis.fetch = async (input, options) => {
+      requests++;
       const url = String(input);
       const headers = new Headers(options?.headers);
       if (url === 'https://api.github.com/user') {
@@ -170,6 +174,7 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
          });
       }
       if (url.startsWith('https://codeload.github.com/')) {
+         await onDownload?.();
          assert.ok(
             !headers.has('authorization'),
             'GitHub token must not be forwarded on redirect',
@@ -191,6 +196,50 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
          name: id,
       })),
    });
+   const taskIds: string[] = [];
+   const claimImport = async (projectId: string) => {
+      const task = await prisma.timerTask.findFirstOrThrow({
+         where: { handlerId: 'github-import', payload: { path: ['projectId'], equals: projectId } },
+      });
+      taskIds.push(task.id);
+      return prisma.timerTask.update({
+         where: { id: task.id },
+         data: { status: 'running' },
+      });
+   };
+   const importRepository = async (...args: Parameters<typeof enqueueImport>) => {
+      const previousRequests = requests;
+      const queued = await enqueueImport(...args);
+      assert.equal(requests, previousRequests, 'enqueue must not wait for GitHub requests');
+      const pending = await prisma.workshopProject.findUniqueOrThrow({
+         where: { id: queued.id },
+         include: { githubImport: true },
+      });
+      assert.equal(pending.importStatus, 'importing');
+      const [ownerLogin, repositoryName] = args[1].repository.split('/');
+      assert.equal(pending.githubImport?.ownerLogin, ownerLogin);
+      assert.equal(pending.githubImport?.repositoryName, repositoryName);
+      assert.equal(pending.githubImport?.branchName, args[1].branch);
+      assert.equal(pending.githubImport?.repositoryId, null);
+      assert.equal(pending.githubImport?.importedAt, null);
+      await assert.rejects(workshopProjectService.get(args[0], queued.id), /正在导入中/);
+      const task = await claimImport(queued.id);
+      try {
+         await runGitHubImport(task.payload as any, {
+            taskId: task.id, handlerId: task.handlerId, claimedAt: task.updatedAt, attempts: 3,
+         });
+         await prisma.timerTask.update({ where: { id: task.id }, data: { status: 'done' } });
+         return queued;
+      } catch (error) {
+         const failed = await prisma.workshopProject.findUniqueOrThrow({ where: { id: queued.id } });
+         assert.equal(failed.importStatus, 'failed');
+         assert.ok(failed.importError);
+         await assert.rejects(workshopProjectService.get(args[0], queued.id), /导入失败/);
+         await prisma.timerTask.update({ where: { id: task.id }, data: { status: 'failed' } });
+         await workshopProjectService.remove(args[0], queued.id);
+         throw error;
+      }
+   };
    try {
       await bind(users[0]!, {
          access_token: 'initial',
@@ -289,6 +338,9 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
          },
       });
       assert.equal(project.source, 'github');
+      assert.equal(project.importStatus, 'ready');
+      assert.equal(project.githubImport?.repositoryId, 123n);
+      assert.ok(project.githubImport?.importedAt);
       assert.equal(project.templateId, null);
       assert.equal(project.githubImport?.commitSha, 'a'.repeat(40));
       assert.equal(project.fileSystem?.files.length, 2);
@@ -309,6 +361,64 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
          (await workshopProjectService.get(users[0]!, result.id)).template,
          null,
       );
+
+      // Deleting an import and replaying its task must never resurrect the project.
+      const queued = await enqueueImport(users[1]!, { repository: 'test/private', branch: 'main', name: 'deleted' });
+      const deletedTask = await claimImport(queued.id);
+      await workshopProjectService.remove(users[1]!, queued.id);
+      await runGitHubImport(deletedTask.payload as any, {
+         taskId: deletedTask.id, handlerId: deletedTask.handlerId, claimedAt: deletedTask.updatedAt, attempts: 1,
+      });
+      assert.equal(await prisma.workshopProject.findUnique({ where: { id: queued.id } }), null);
+      await prisma.timerTask.update({ where: { id: deletedTask.id }, data: { status: 'done' } });
+
+      const midDownload = await enqueueImport(users[0]!, { repository: 'test/private', branch: 'main', name: 'delete during download' });
+      const midDownloadTask = await claimImport(midDownload.id);
+      onDownload = () => workshopProjectService.remove(users[0]!, midDownload.id);
+      try {
+         await runGitHubImport(midDownloadTask.payload as any, {
+            taskId: midDownloadTask.id, handlerId: midDownloadTask.handlerId, claimedAt: midDownloadTask.updatedAt, attempts: 1,
+         });
+      } finally {
+         onDownload = undefined;
+      }
+      assert.equal(await prisma.workshopProject.findUnique({ where: { id: midDownload.id } }), null);
+      await prisma.timerTask.update({ where: { id: midDownloadTask.id }, data: { status: 'done' } });
+
+      // A stale claim is fenced before files or ready status can be committed.
+      const fenced = await enqueueImport(users[0]!, { repository: 'test/private', branch: 'main', name: 'fenced' });
+      const fencedTask = await claimImport(fenced.id);
+      await prisma.timerTask.update({ where: { id: fencedTask.id }, data: { updatedAt: new Date(Date.now() + 10000) } });
+      await assert.rejects(runGitHubImport(fencedTask.payload as any, {
+         taskId: fencedTask.id, handlerId: fencedTask.handlerId, claimedAt: fencedTask.updatedAt, attempts: 1,
+      }), /TIMER_LEASE_LOST/);
+      assert.equal((await prisma.workshopProject.findUniqueOrThrow({ where: { id: fenced.id } })).importStatus, 'importing');
+
+      // Recover a claim left behind by a stopped process, then finish with the real worker.
+      await prisma.timerTask.update({ where: { id: fencedTask.id }, data: { updatedAt: new Date(Date.now() - 660000) } });
+      failDownload = true;
+      startTimerWorker({
+         pollIntervalMs: 20, batchSize: 1, concurrency: 1, retryBackoffMs: 100, maxRetryBackoffMs: 200,
+         isolatedHandlers: [{ handlerId: 'github-import', concurrency: 1, leaseMs: 600000, clearPayload: true }],
+      });
+      try {
+         const deadline = Date.now() + 10000;
+         while ((await prisma.timerTask.findUniqueOrThrow({ where: { id: fencedTask.id } })).attempts < 1) {
+            assert.ok(Date.now() < deadline, 'worker retry timed out');
+            await new Promise(resolve => setTimeout(resolve, 10));
+         }
+         assert.equal((await prisma.workshopProject.findUniqueOrThrow({ where: { id: fenced.id } })).importStatus, 'importing');
+         failDownload = false;
+         while ((await prisma.timerTask.findUniqueOrThrow({ where: { id: fencedTask.id } })).status !== 'done') {
+            assert.ok(Date.now() < deadline, 'worker timed out');
+            await new Promise(resolve => setTimeout(resolve, 20));
+         }
+         assert.equal((await prisma.workshopProject.findUniqueOrThrow({ where: { id: fenced.id } })).importStatus, 'ready');
+         assert.equal((await prisma.timerTask.findUniqueOrThrow({ where: { id: fencedTask.id } })).payload, null);
+      } finally {
+         stopTimerWorker();
+         await workshopProjectService.remove(users[0]!, fenced.id);
+      }
       const previousDownloads = downloads;
       oversized = true;
       await assert.rejects(
@@ -509,7 +619,9 @@ test('binding, OAuth replay, token rotation, atomic binary import and project is
       assert.equal(reset.project.revision, 1);
       assert.equal(reset.files.length, 0);
    } finally {
+      stopTimerWorker();
       globalThis.fetch = originalFetch;
+      await prisma.timerTask.deleteMany({ where: { id: { in: taskIds } } });
       await prisma.workshopProject.deleteMany({
          where: {
             ownerId: {

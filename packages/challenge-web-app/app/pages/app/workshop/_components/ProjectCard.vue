@@ -2,7 +2,7 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Delete, Edit, HardDisk, Time } from '@icon-park/vue-next';
+import { Delete, Edit, HardDisk, LoadingFour, Time } from '@icon-park/vue-next';
 import { formatFileSize } from '~/utils/format-file-size';
 import type { WorkshopProject } from '~/composables/use-workshop-projects';
 
@@ -12,6 +12,9 @@ dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
 
 const props = defineProps<{ project: WorkshopProject }>();
+const canOpen = computed(() => props.project.importStatus === 'ready');
+const activityTime = computed(() => canOpen.value
+   ? props.project.updatedAt : props.project.createdAt);
 
 defineEmits<{
    rename: [];
@@ -26,13 +29,18 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
 
 <template>
    <!-- IDE 页面跨源隔离，响应头与主站不同，必须整页跳转 -->
-   <a
-      :href="`/workshop/${project.id}`"
-      target="_blank"
-      rel="noopener"
-      class="group h-full rounded-xl focus-visible:outline-2 focus-visible:outline-secondary">
+   <component
+      :is="canOpen ? 'a' : 'div'"
+      :href="canOpen ? `/workshop/${project.id}` : undefined"
+      :target="canOpen ? '_blank' : undefined"
+      :rel="canOpen ? 'noopener' : undefined"
+      :aria-busy="project.importStatus === 'importing'"
+      :aria-disabled="!canOpen"
+      class="group h-full rounded-xl focus-visible:outline-2 focus-visible:outline-secondary"
+      :class="{ 'cursor-not-allowed': !canOpen }">
       <StCard
-         class="h-full !rounded-xl !p-3 transition-all hover:ring-secondary/50 active:scale-[0.99] md:active:scale-100">
+         class="h-full !rounded-xl !p-3 transition-all"
+         :class="canOpen ? 'hover:ring-secondary/50 active:scale-[0.99] md:active:scale-100' : 'cursor-not-allowed'">
          <template #header>
             <span class="sr-only">{{ project.name }}</span>
          </template>
@@ -57,9 +65,15 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
                   GitHub · {{ project.githubImport.ownerLogin }}/{{ project.githubImport.repositoryName }}
                </p>
                <p
-                  v-if="project.description"
+                  v-if="canOpen && project.description"
                   class="st-font-caption line-clamp-1 text-accent-300">
                   {{ project.description }}
+               </p>
+               <p
+                  v-if="project.importStatus === 'failed'"
+                  class="st-font-caption line-clamp-2 text-error"
+                  :title="project.importError ?? undefined">
+                  导入失败：{{ project.importError || '请删除后重新导入' }}
                </p>
                <StSpace
                   align="center"
@@ -69,13 +83,21 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
                   <StSpace
                      align="center"
                      gap="0.375rem"
-                     :title="dayjs(project.updatedAt).format('YYYY-MM-DD HH:mm')">
+                     :title="dayjs(activityTime).format('YYYY-MM-DD HH:mm')">
                      <Time aria-hidden="true" />
-                     <span>{{ dayjs(project.updatedAt).fromNow() }}更新</span>
+                     <span>{{ dayjs(activityTime).fromNow() }}{{ canOpen ? '更新' : '创建' }}</span>
                   </StSpace>
-                  <StSpace align="center" gap="0.375rem">
+                  <StSpace v-if="canOpen" align="center" gap="0.375rem">
                      <HardDisk aria-hidden="true" />
                      <span>{{ formatFileSize(project.sizeBytes) }}</span>
+                  </StSpace>
+                  <StSpace
+                     v-else-if="project.importStatus === 'importing'"
+                     role="status"
+                     align="center"
+                     gap="0.375rem">
+                     <LoadingFour class="animate-spin" aria-hidden="true" />
+                     <span>正在导入中</span>
                   </StSpace>
                </StSpace>
             </StSpace>
@@ -104,5 +126,5 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
             </StPopover>
          </StSpace>
       </StCard>
-   </a>
+   </component>
 </template>
