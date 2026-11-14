@@ -49,7 +49,7 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
                </h3>
             </StSpace>
             <!-- 下：描述 + 更新时间 / 大小 -->
-            <StSpace fill-x direction="vertical" gap="0.5rem" class="min-w-0">
+            <StSpace fill-x direction="vertical" gap="0.5rem" class="min-w-0 flex-1">
                <p
                   v-if="project.githubImport"
                   class="st-font-caption truncate text-accent-300"
@@ -65,7 +65,7 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
                   align="center"
                   gap="0.875rem"
                   wrap
-                  class="st-font-caption text-accent-400 max-md:text-xs">
+                  class="mt-auto st-font-caption text-accent-400 max-md:text-xs">
                   <StSpace
                      align="center"
                      gap="0.375rem"
