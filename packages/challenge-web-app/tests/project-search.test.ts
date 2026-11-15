@@ -156,6 +156,17 @@ test('walks unopened files, follows gitignore exclusions and skips git metadata'
    assert.equal(result.groups.length, 2);
 });
 
+test('skips node_modules at every depth even without gitignore or with exclusions disabled', async () => {
+   const fs = filesystem({
+      '/project/src/index.ts': 'target',
+      '/project/node_modules/pkg/index.js': 'target',
+      '/project/packages/app/node_modules/pkg/index.js': 'target',
+   });
+   assert.deepEqual(await listProjectFiles(fs), ['/project/src/index.ts']);
+   const result = await searchProjectFiles(fs, 'target', { respectGitignore: false });
+   assert.deepEqual(result.groups.map((group) => group.path), ['/project/src/index.ts']);
+});
+
 test('matches literal punctuation and multiple occurrences with exact CRLF and UTF-16 positions', () => {
    const matches = findProjectMatches('prefix\r\n🙂 a.b A.B\r\nend', 'a.b');
    assert.deepEqual(matches.map(({ line, column, length, match }) => ({ line, column, length, match })), [

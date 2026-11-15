@@ -39,8 +39,8 @@ export const listProjectFiles = async (
       for (const entry of entries) {
          signal?.throwIfAborted();
          const path = `${directory}/${entry.name}`;
-         // Git metadata is never part of the searchable working tree.
-         if (entry.name === '.git' && entry.isDirectory()) continue;
+         // Dependencies and Git metadata are never part of the searchable working tree.
+         if (entry.isDirectory() && ['.git', 'node_modules'].includes(entry.name)) continue;
          const relative = path.slice('/project/'.length) + (entry.isDirectory() ? '/' : '');
          if (gitignore.ignores(relative) || additional.ignores(relative)) continue;
          if (entry.isDirectory()) {
