@@ -2,6 +2,7 @@ import tailwindcss from '@tailwindcss/vite';
 import { existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_FILE_SYNC_MAX_CHANGES, FILE_SYNC_MAX_REQUEST_BYTES } from './shared/file-sync';
 
 const devCertPath = fileURLToPath(
    new URL('./.dev-certs/cert.pem', import.meta.url),
@@ -33,6 +34,7 @@ const problemUploadMaxRequestBytes = envInt(
  * 调大此值时需同步调整 server/trpc/services/file-assets.ts。
  */
 const workshopMaxFileBytes = envInt('WORKSHOP_MAX_FILE_BYTES', 20 * 1024 * 1024);
+const fileSyncMaxChanges = envInt('FILE_SYNC_MAX_CHANGES', DEFAULT_FILE_SYNC_MAX_CHANGES);
 
 const envSecret = (key: string) => {
    const value = process.env[key];
@@ -223,6 +225,16 @@ export default defineNuxtConfig({
             },
          },
       },
+      '/api/trpc/protected.fileSync.syncFileChanges': {
+         security: {
+            requestSizeLimiter: { maxRequestSizeInBytes: FILE_SYNC_MAX_REQUEST_BYTES },
+         },
+      },
+      '/api/trpc/protected.workshop.sync': {
+         security: {
+            requestSizeLimiter: { maxRequestSizeInBytes: FILE_SYNC_MAX_REQUEST_BYTES },
+         },
+      },
       '/api/trpc/admin.problem.reupload': {
          security: {
             requestSizeLimiter: {
@@ -371,6 +383,9 @@ export default defineNuxtConfig({
             maxProjectBytes: envInt('WORKSHOP_MAX_PROJECT_BYTES', 100 * 1024 * 1024),
             maxProjectsPerUser: envInt('WORKSHOP_MAX_PROJECTS_PER_USER', 20),
          },
+         fileSync: {
+            maxChangesPerSync: fileSyncMaxChanges,
+         },
          // 快照镜像体积上限（前后端共用：前端上传前预检、服务端与 routeRules 校验）
          imageBuild: {
             maxCompressedBytes: imageBuildMaxCompressedBytes,
@@ -432,7 +447,7 @@ export default defineNuxtConfig({
          globalCacheTTL: envInt('GLOBAL_RANKING_CACHE_TTL', 60),
       },
       fileSync: {
-         maxChangesPerSync: envInt('FILE_SYNC_MAX_CHANGES', 50),
+         maxChangesPerSync: fileSyncMaxChanges,
       },
       openapi: {
          webhookSecret: env('OPENAPI_WEBHOOK_SECRET', ''),

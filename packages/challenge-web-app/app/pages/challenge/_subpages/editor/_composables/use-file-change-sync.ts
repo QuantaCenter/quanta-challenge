@@ -2,6 +2,7 @@ import { useMessage } from '~/components/st/Message/use-message';
 import { DEFAULT_FILE_SYSTEM_SYNC_INTERVAL } from '../_configs';
 import { minimatch } from 'minimatch';
 import { normalizePath } from '~/utils/path-utils';
+import { takeFileSyncBatch, type FileSyncChange } from '~~/shared/file-sync';
 
 export interface IUseFileChangeSyncOptions {
    /** 做题项目的题目 id；传入 send 时可省略 */
@@ -19,11 +20,7 @@ export interface IUseFileChangeSyncOptions {
    conflictMessage?: string;
 }
 
-export type Change =
-   | { type: 'rm'; path: string }
-   | { type: 'mv'; oldPath: string; newPath: string }
-   | { type: 'change'; path: string; content: string }
-   | { type: 'create'; path: string; content: string };
+export type Change = FileSyncChange;
 
 /**
  * 监听文件系统变化，同步到云端
@@ -37,6 +34,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       conflictMessage = '题目已被重置，本地未同步的修改已丢弃，请刷新页面',
    } = options;
    const { $trpc } = useNuxtApp();
+   const maxChanges = useRuntimeConfig().public.fileSync.maxChangesPerSync;
    const send =
       options.send ??
       ((changes: Change[], revision: number | undefined) =>
@@ -126,6 +124,19 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
    let statusTimer: ReturnType<typeof setTimeout> | null = null;
 
    const syncChangeToServer = async (changes: Change[]) => {
+      const pending = [...changes];
+      let batch: Change[] = [];
+      const revision = getRevision?.();
+      const sendBatches = async () => {
+         let processedCount = 0;
+         while (pending.length) {
+            batch = takeFileSyncBatch(pending, maxChanges);
+            const result = await send(batch, revision);
+            processedCount += result.processedCount;
+            pending.splice(0, batch.length);
+         }
+         return processedCount;
+      };
       // 清除之前的状态恢复定时器
       if (statusTimer) {
          clearTimeout(statusTimer);
@@ -136,12 +147,9 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       syncStatus.value = 'syncing';
 
       try {
-         const result = await atLeastTime(
-            1000,
-            send(changes, getRevision?.())
-         );
+         const processedCount = await atLeastTime(1000, sendBatches());
          console.info(
-            `[SYNC] Successfully synced ${result.processedCount} changes to server`
+            `[SYNC] Successfully synced ${processedCount} changes to server`
          );
          failedTime = 0;
          lastSyncTime.value = new Date();
@@ -171,6 +179,8 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
             return;
          }
          if (code === 'BAD_REQUEST' || code === 'PAYLOAD_TOO_LARGE') {
+            // Only discard the rejected batch; later operations were never sent.
+            changeList.unshift(...pending.slice(batch.length));
             // 服务端拒绝的变更（非法内容、超出空间配额）重试也不会通过，直接丢弃
             console.warn('[SYNC] Changes rejected by server, discarding');
             message.error(
@@ -190,7 +200,7 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
          }
 
          failedTime++;
-         changeList.unshift(...changes);
+         changeList.unshift(...pending);
          console.error('[SYNC ERROR]', error);
          message.error('同步文件变化到服务器失败，请检查网络连接');
          syncStatus.value = 'error';
@@ -206,28 +216,32 @@ export const useFileChangeSync = (options: IUseFileChangeSyncOptions) => {
       }
    };
 
+   let currentSync: Promise<void> | undefined;
    const forceSync = async () => {
+      while (currentSync) await currentSync;
       if (changeList.length === 0) return;
       const changesToSync = [...changeList];
       changeList.length = 0;
 
       // 调用同步函数
-      await syncChangeToServer(changesToSync);
+      currentSync = syncChangeToServer(changesToSync);
+      try {
+         await currentSync;
+      } finally {
+         currentSync = undefined;
+      }
    };
 
    let alive = true;
    const startSync = () => {
       setTimeout(async () => {
+         if (!alive) return;
          if (changeList.length === 0) {
             startSync();
             return;
          }
 
-         const changesToSync = [...changeList];
-         changeList.length = 0;
-
-         // 调用同步函数
-         await syncChangeToServer(changesToSync);
+         await forceSync();
 
          // 继续下一个周期的同步
          if (failedTime < maxFailedTime) {

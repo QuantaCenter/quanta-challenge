@@ -432,10 +432,13 @@ export default defineNuxtPlugin(() => {
          splitLink({
             condition: (operation) =>
                isQuantaProcedure(operation.path) ||
+               operation.path === 'protected.fileSync.syncFileChanges' ||
+               operation.path === 'protected.workshop.sync' ||
                isNonJsonSerializable(operation.input),
             // Cookie-changing and one-time OAuth actions must not share batches
             // or be replayed by the regular authentication refresh transport.
             // Non-JSON-serializable inputs (e.g. FormData) use httpLink.
+            // File sync has its own size budget and must retain its exact route.
             true: httpLink(linkOptions),
             false: httpBatchLink(linkOptions),
          }),
