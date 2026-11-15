@@ -19,7 +19,9 @@ import {
 
 export type MonacoEditor = typeof import('monaco-editor');
 
+let highlighterRegistered = false;
 const registerHighligher = (monaco: MonacoEditor) => {
+   if (highlighterRegistered) return;
    const highlighter = createHighlighterCoreSync({
       themes: [editorThemeRegistration],
       langs: langRegistrations,
@@ -29,6 +31,7 @@ const registerHighligher = (monaco: MonacoEditor) => {
       monaco.languages.register(lang);
    });
    shikiToMonaco(highlighter, monaco);
+   highlighterRegistered = true;
 };
 
 /** 切换 model 时保存 / 恢复各文件的视图状态（滚动、光标、折叠等）。 */
@@ -71,9 +74,7 @@ const autoRemeasureFont = (monaco: MonacoEditor, interval = 2000) => {
       monaco.editor.remeasureFonts();
    }, interval);
 
-   onBeforeUnmount(() => {
-      clearInterval(timer);
-   });
+   return () => clearInterval(timer);
 };
 
 interface IUseMonacoEditorOptions {
@@ -97,6 +98,9 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
    let disposeLanguageWorkers: (() => void) | null = null;
    let disposeViewStatePreserver: (() => void) | null = null;
    let mobileTouchSupportDisposable: IDisposable | null = null;
+   let stopRemeasureFont: (() => void) | undefined;
+   let disposed = false;
+   const disposables: IDisposable[] = [];
 
    // 编辑器准备回调
    const monacoReadyCallbacks = new Set<MonacoReadyCallback>();
@@ -193,9 +197,11 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       }
       const entries = Array.isArray(dts) ? dts : Object.entries(dts);
       entries.forEach(([filePath, content]) => {
-         monaco!.languages.typescript.typescriptDefaults.addExtraLib(
-            content,
-            filePath
+         disposables.push(
+            monaco!.languages.typescript.typescriptDefaults.addExtraLib(
+               content,
+               filePath
+            )
          );
       });
    };
@@ -209,22 +215,25 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
          console.error('[ERROR]', 'Failed to load monaco editor');
          throw error;
       });
+      if (disposed) return;
       monaco = monacoModule;
       monacoReadyCallbacks.forEach((callback) => callback(monaco!));
 
       // 监听所有模型的修改
-      monaco.editor.onDidCreateModel((model) => {
-         model.onDidChangeContent(() => {
-            const content = model.getValue();
-            const path = model.uri.path;
-            generalContentChangeListener.forEach((callback) =>
-               callback(path, content)
-            );
-            contentChangeListeners
-               .get(path)
-               ?.forEach((callback) => callback(content));
-         });
-      });
+      disposables.push(
+         monaco.editor.onDidCreateModel((model) => {
+            model.onDidChangeContent(() => {
+               const content = model.getValue();
+               const path = model.uri.path;
+               generalContentChangeListener.forEach((callback) =>
+                  callback(path, content)
+               );
+               contentChangeListeners
+                  .get(path)
+                  ?.forEach((callback) => callback(content));
+            });
+         })
+      );
 
       // 附加高亮器
       registerHighligher(monaco);
@@ -236,7 +245,7 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       );
 
       // 自动重新测量字体
-      autoRemeasureFont(monaco);
+      stopRemeasureFont = autoRemeasureFont(monaco);
 
       // 创建编辑器实例（触屏设备追加移动端默认选项）
       const isTouch = isTouchDevice();
@@ -261,10 +270,13 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       );
 
       // 自定义编辑器打开器
-      editorActions.customizeEditorOpener(monaco, instance, emitterKey);
+      disposables.push(editorActions.customizeEditorOpener(monaco, instance, emitterKey));
    });
 
    onUnmounted(() => {
+      disposed = true;
+      stopRemeasureFont?.();
+      disposables.forEach((disposable) => disposable.dispose());
       // 销毁
       editorInstance &&
          editorBeforeDisposedCallbacks.forEach((callback) =>
@@ -275,6 +287,11 @@ export const useMonacoEditor = (options?: IUseMonacoEditorOptions) => {
       monaco && monaco.editor.getModels().forEach((model) => model.dispose());
       editorInstance?.dispose();
       disposeLanguageWorkers?.();
+      monacoReadyCallbacks.clear();
+      editorInstanceReadyCallbacks.clear();
+      editorBeforeDisposedCallbacks.clear();
+      contentChangeListeners.clear();
+      generalContentChangeListener.clear();
    });
 
    return {

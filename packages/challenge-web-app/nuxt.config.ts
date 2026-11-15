@@ -10,6 +10,10 @@ const devCertPath = fileURLToPath(
 const devKeyPath = fileURLToPath(
    new URL('./.dev-certs/key.pem', import.meta.url),
 );
+const browserDisabledLanguageService = fileURLToPath(new URL(
+   './app/pages/challenge/_composables/use-monaco-editor/browser-disabled-service.ts',
+   import.meta.url,
+));
 const devServerHttps =
    existsSync(devCertPath) && existsSync(devKeyPath)
       ? { cert: devCertPath, key: devKeyPath }
@@ -116,6 +120,9 @@ export default defineNuxtConfig({
       resolve: {
          alias: {
             path: 'path-browserify',
+            // 上游浏览器入口只是打印警告的空插件，显式禁用后由 worker 过滤。
+            'volar-service-emmet': browserDisabledLanguageService,
+            'volar-service-pug': browserDisabledLanguageService,
          },
       },
    },
@@ -370,7 +377,10 @@ export default defineNuxtConfig({
          // 前端监控（@sentry/nuxt）：事件经 tunnel 同源代理进入 observation 服务， 不直连 Sentry SaaS。DSN 仅作事件元数据（publicKey = app 标识）。 初始化见根目录 sentry.client.config.ts
          sentry: {
             // publicKey 不能含连字符：@sentry/core 的 DSN_REGEX 对 publicKey 只认 \w，带 "-" 会让 DSN 解析失败、SDK 静默禁用（错误处理器也不安装）
-            dsn: env('SENTRY_DSN', 'http://challenge_web_app@localhost:9310/1'),
+            // 开发环境通常不启动 observation，显式配置 DSN 后才上报。
+            dsn: env('SENTRY_DSN', process.env.NODE_ENV === 'production'
+               ? 'http://challenge_web_app@localhost:9310/1'
+               : ''),
             tunnel: env('SENTRY_TUNNEL', '/api/observation/sentry-tunnel'),
             release: env('RELEASE_VERSION', 'dev'),
             environment: env('SENTRY_ENVIRONMENT', ''),

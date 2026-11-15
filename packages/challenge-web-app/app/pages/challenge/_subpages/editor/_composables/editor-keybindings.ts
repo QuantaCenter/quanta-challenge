@@ -44,11 +44,13 @@ export const useEditorKeybindings = () => {
    const bindings = useLocalStorage<Record<string, string>>(
       'editor-keybindings',
       { ...defaultKeybindings },
-      { mergeDefaults: true },
+      { mergeDefaults: true, initOnMounted: true },
    );
    // Migrate the former default so it does not shadow project search for existing users.
-   if (bindings.value.format === 'Mod+Shift+F' && bindings.value.search === 'Mod+Shift+F') {
-      bindings.value.format = defaultKeybindings.format;
-   }
+   onMounted(() => {
+      if (bindings.value.format === 'Mod+Shift+F' && bindings.value.search === 'Mod+Shift+F') {
+         bindings.value.format = defaultKeybindings.format;
+      }
+   });
    return bindings;
 };

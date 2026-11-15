@@ -49,7 +49,7 @@ useSeoMeta({
 
 <template>
    <StSpace fill class="relative">
-      <TransitionGroup name="fade" mode="out-in">
+      <TransitionGroup name="fade">
          <LazyEditor
             v-if="componentLoaded.editor"
             v-show="currentComponent === 'editor'"

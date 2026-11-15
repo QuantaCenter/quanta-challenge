@@ -14,19 +14,18 @@ interface IUseEditorConfigOptions {
 export const useEditorConfig = (options: IUseEditorConfigOptions) => {
    const { onEditorInstanceReady } = options;
 
-   // 编辑器配置（使用默认值）
-   const editorConfig = useLocalStorage<EditorConfig>('editor-config', {
-      ...DEFAULT_EDITOR_CONFIG,
-   });
+   // SSR 和客户端水合使用相同默认值，挂载后再恢复本地偏好。
+   const editorConfig = useLocalStorage<EditorConfig>(
+      'editor-config',
+      { ...DEFAULT_EDITOR_CONFIG },
+      { initOnMounted: true, mergeDefaults: true }
+   );
 
    // 触屏设备且用户未自定义字号时，保留移动端默认字号
    const resolveFontSize = (fontSize: number) =>
       isTouchDevice() && fontSize === DEFAULT_EDITOR_CONFIG.fontSize
          ? MOBILE_DEFAULT_FONT_SIZE
          : fontSize;
-
-   // 旧版本只保存了字号，合并默认值以兼容已有配置。
-   editorConfig.value = { ...DEFAULT_EDITOR_CONFIG, ...editorConfig.value };
 
    let instance: monaco.editor.IStandaloneCodeEditor | undefined;
    let listener: monaco.IDisposable | undefined;

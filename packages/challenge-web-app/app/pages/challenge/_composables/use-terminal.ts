@@ -107,9 +107,10 @@ export const useTerminal = (options?: IUseTerminalOptions) => {
       };
    };
 
-   onMounted(async () => {
-      await initializeTerminal();
-   });
+   // 动态终端由调用方显式初始化，只有 setup 内使用时才注册挂载钩子。
+   if (getCurrentInstance()) {
+      onMounted(initializeTerminal);
+   }
 
    return {
       containerKey,

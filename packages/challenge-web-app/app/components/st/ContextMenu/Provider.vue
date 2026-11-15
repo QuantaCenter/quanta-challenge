@@ -8,13 +8,13 @@ import {
 
 const props = defineProps<{
    mouseButton?: ContextMenuButton;
-   key?: string | symbol;
+   contextKey?: string | symbol;
 }>();
 
 const menuStatus = ref<ContextMenuStatus>('closed');
 const menuPosition = ref<ContextMenuPosition>({ x: 0, y: 0 });
 const targetElement = ref<HTMLElement | null>(null);
-provide<ContextMenuProvideValue>(props.key ?? '__clickMenu', {
+provide<ContextMenuProvideValue>(props.contextKey ?? '__clickMenu', {
    status: menuStatus,
    position: menuPosition,
    targetElement,
@@ -50,16 +50,18 @@ onMounted(() => {
    const onClickGlobal = () => {
       menuStatus.value = 'closed';
    };
+   const onContextMenuGlobal = (event: MouseEvent) => event.preventDefault();
 
    area.value.addEventListener('mousedown', onMouseDown);
    area.value.addEventListener('contextmenu', onContextMenu);
    document.addEventListener('click', onClickGlobal);
-   document.addEventListener('contextmenu', (e) => e.preventDefault());
+   document.addEventListener('contextmenu', onContextMenuGlobal);
 
    onBeforeUnmount(() => {
       area.value!.removeEventListener('mousedown', onMouseDown);
       area.value!.removeEventListener('contextmenu', onContextMenu);
       document.removeEventListener('click', onClickGlobal);
+      document.removeEventListener('contextmenu', onContextMenuGlobal);
    });
 });
 const teleported = useClientTeleport();

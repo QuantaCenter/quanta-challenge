@@ -2,11 +2,11 @@
 import type { ContextMenuProvideValue } from './type';
 
 const props = defineProps<{
-   key?: string | symbol;
+   contextKey?: string | symbol;
 }>();
 
 const { position, status, targetElement } = inject<ContextMenuProvideValue>(
-   props.key ?? '__clickMenu'
+   props.contextKey ?? '__clickMenu'
 )!;
 </script>
 

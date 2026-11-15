@@ -1,7 +1,9 @@
 <script setup lang="ts"></script>
 
 <template>
-   <NuxtLayout name="workshop-layout">
-      <NuxtPage />
-   </NuxtLayout>
+   <div class="h-full w-full">
+      <NuxtLayout name="workshop-layout">
+         <NuxtPage />
+      </NuxtLayout>
+   </div>
 </template>

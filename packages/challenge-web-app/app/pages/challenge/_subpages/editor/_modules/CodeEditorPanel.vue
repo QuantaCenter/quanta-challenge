@@ -136,7 +136,6 @@ const props = defineProps<{
 
 const {
    containerKey,
-   createModels,
    onEditorInstanceReady,
    onModelChange,
    onModelContentChange,
@@ -237,25 +236,15 @@ onUnmounted(() => {
 
 onEditorInstanceReady(() => {
    hasEditorReady.value = true;
-   const disposeWatcher = watch(
-      () => props.defaultFs,
-      (fs) => {
-         if (!fs) return;
-         const models = objectMap(fs, ({ value }) => value.content);
-         Object.keys(models)
-            .filter((k) =>
-               k.endsWith('.svg') || snapshotBinaryBytes(k, models[k])
-            )
-            .forEach((key) => delete models[key]);
+});
 
-         createModels(models);
-         currentFilePath.value && setModel(currentFilePath.value);
-         setTimeout(() => {
-            disposeWatcher();
-         }, 0);
-      },
-      { immediate: true }
-   );
+// 只为当前文件创建模型；未打开的文件由搜索直接读取文件系统。
+watch([hasEditorReady, () => props.defaultFs], ([ready]) => {
+   const path = currentFilePath.value;
+   if (!ready || !path || searchTabActive.value) return;
+   if (!monacoInstance?.editor.getModel(monacoInstance.Uri.file(normalizePath(path)))) {
+      setModel(path);
+   }
 });
 
 onModelChange((path) => {

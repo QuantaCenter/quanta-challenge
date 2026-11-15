@@ -10,10 +10,11 @@ export const customizeEditorOpener = (
    emitterKey: symbol
 ) => {
    const opener = new CustomCodeEditorOpener(monaco, instance);
-   monaco.editor.registerEditorOpener(opener);
+   const registration = monaco.editor.registerEditorOpener(opener);
    const { emit } = useEventEmitter<{ path: string }>(
       emitterKey,
       'model-change'
    );
    opener.subscribeChange((path: string) => emit({ path }));
+   return registration;
 };

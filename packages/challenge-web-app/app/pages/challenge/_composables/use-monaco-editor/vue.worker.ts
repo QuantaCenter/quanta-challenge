@@ -109,7 +109,9 @@ const createLanguageService = (ctx: monaco.worker.IWorkerContext) => {
             asFileName
          ),
       ],
-      languageServicePlugins: [...getFullLanguageServicePlugins(typescript)],
+      languageServicePlugins: getFullLanguageServicePlugins(typescript).filter(
+         (plugin) => plugin.name !== 'browser-disabled' && plugin.name !== 'vue-template (pug)'
+      ),
       // Vue 的模板 / HTML 补全等插件依赖 project.vue，缺失时会直接跳过
       setup: ({ project }) => {
          project.vue = { compilerOptions: vueCompilerOptions };
