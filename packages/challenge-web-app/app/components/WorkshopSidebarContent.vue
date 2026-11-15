@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Download, SettingOne, Upload } from '@icon-park/vue-next';
+import { Download, SettingOne, LoadingFour } from '@icon-park/vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import useAuthStore from '~/stores/auth-store';
 
@@ -8,9 +8,20 @@ import useAuthStore from '~/stores/auth-store';
 const isMobile = useIsMobile();
 const store = useEditorStore();
 
-const { emit: emitUpload } = useEventEmitter<{ at: number }>('workshop', 'upload');
+const downloading = ref(false);
+
 const { emit: emitDownload } = useEventEmitter<{ at: number }>('workshop', 'download');
 const { emit: emitSettings } = useEventEmitter<{ at: number }>('workshop', 'settings');
+const { event: downloadDone } = useEventEmitter('workshop', 'download-done');
+
+watch(downloadDone, () => {
+  downloading.value = false;
+});
+
+const downloadAction = () => {
+  emitDownload({ at: Date.now() });
+  downloading.value = true;
+}
 
 const authStore = useAuthStore();
 const avatarUrl = computed(() => {
@@ -34,18 +45,13 @@ const avatarUrl = computed(() => {
       <EditorSidebarTools section="search" />
 
       <StMiniSidebarButton
-         name="上传文件"
-         aria-label="上传文件"
-         class="!text-success"
-         @click="emitUpload({ at: Date.now() })">
-         <Upload class="text-[1.1rem]" />
-      </StMiniSidebarButton>
-
-      <StMiniSidebarButton
          name="下载项目（zip）"
          aria-label="下载项目"
-         @click="emitDownload({ at: Date.now() })">
-         <Download class="text-[1.1rem]" />
+         @click="!downloading && downloadAction()">
+         <LoadingFour
+            v-if="downloading"
+            class="animate-spin text-[1.1rem]" />
+         <Download v-else class="text-[1.1rem]" />
       </StMiniSidebarButton>
 
       <ChallengeLayoutMenu v-if="!isMobile" />

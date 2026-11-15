@@ -115,14 +115,7 @@ const itemClass =
                </StRippleEffect>
             </NuxtLink>
          </StSidebarSidePopper>
-      </template>
-   </StSpace>
 
-   <template v-if="mode === 'problem'">
-      <StMiniSidebarDivider />
-
-      <StSpace direction="vertical" align="center" gap="0.5rem">
-         <EditorSidebarTools section="search" />
          <StMiniSidebarButton
             @click="handleCommitClick"
             :name="
@@ -139,6 +132,14 @@ const itemClass =
          </StMiniSidebarButton>
 
          <TimerWidget v-if="!embedded" :toolbar="true" />
+      </template>
+   </StSpace>
+
+   <template v-if="mode === 'problem'">
+      <StMiniSidebarDivider />
+
+      <StSpace direction="vertical" align="center" gap="0.5rem">
+         <EditorSidebarTools section="search" />
 
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
