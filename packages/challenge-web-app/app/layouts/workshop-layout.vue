@@ -10,6 +10,7 @@ import { HamburgerButton, Redo, Undo } from '@icon-park/vue-next';
  */
 
 const store = useEditorStore();
+const layoutStore = useLayoutStore();
 const route = useRoute();
 
 watch(
@@ -60,7 +61,8 @@ onUnmounted(() => detachDrawerTouchLock?.());
 <template>
    <StMessageProvider>
       <div
-         class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden">
+         class="flex h-screen w-full bg-[#111111] p-3 gap-3 max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden"
+         :class="{ 'ide-compact': layoutStore.compact }">
          <StMiniSidebar class="max-md:hidden">
             <WorkshopSidebarContent />
          </StMiniSidebar>

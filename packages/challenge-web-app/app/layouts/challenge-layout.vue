@@ -9,6 +9,7 @@ import {
 } from '@icon-park/vue-next';
 
 const store = useEditorStore();
+const layoutStore = useLayoutStore();
 
 // 提交记录页：移动端顶栏只保留一个「返回」按钮（回到做题页）
 const route = useRoute();
@@ -70,7 +71,7 @@ onUnmounted(() => detachDrawerTouchLock?.());
    <StMessageProvider>
       <div
          class="flex h-screen w-full bg-[#111111] max-md:h-dvh max-md:flex-col max-md:p-1 max-md:gap-1 max-md:overflow-hidden"
-         :class="embedded ? 'p-1.5 gap-1.5' : 'p-3 gap-3'">
+         :class="[embedded ? 'p-1.5 gap-1.5' : 'p-3 gap-3', { 'ide-compact': layoutStore.compact }]">
          <StMiniSidebar class="max-md:hidden" :compact="embedded" :hide-header="embedded">
             <ChallengeSidebarContent />
          </StMiniSidebar>

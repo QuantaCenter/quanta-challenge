@@ -16,6 +16,7 @@ import {
    Text,
 } from '@icon-park/vue-next';
 import type { WebContainer } from '@webcontainer/api';
+import { useLayoutStore } from '~/stores/layout-store';
 import { useMessage } from '~/components/st/Message/use-message';
 import { useViewTransition } from '~/composables/use-view-transition';
 import EditorEnvError from '../_components/EditorEnvError.vue';
@@ -57,6 +58,7 @@ const props = defineProps<{
    writeFile: (path: string, content: string) => Promise<void>;
 }>();
 
+const layoutStore = useLayoutStore();
 const message = useMessage();
 const { startViewTransition } = useViewTransition({ delay: 150 });
 
@@ -310,6 +312,7 @@ const leaveFullScreenMode = () => {
          <div
             style="view-transition-name: requestPanel"
             :class="{
+               'ide-compact': layoutStore.compact && fullScreenMode,
                'size-full': !fullScreenMode,
                'absolute w-[calc(100vw-4rem)] h-[calc(100vh-4rem)] left-8 top-8 rounded-xl overflow-hidden z-[10000] border border-accent-500 bg-[#1F1F1F]':
                   fullScreenMode,

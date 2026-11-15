@@ -1,0 +1,82 @@
+/* 仅 IDE 外框和面板使用紧凑样式，保留控件自身的圆角。 */
+.ide-compact {
+   --ide-divider-size: 1px;
+   --ide-divider-color: color-mix(in srgb, var(--color-accent-600) 90%, white);
+   padding: 0 !important;
+   gap: 1px !important;
+}
+
+.ide-compact > aside,
+.ide-compact > .h-11,
+.ide-compact .editor-board-pager,
+.ide-compact .editor-board-pager :is(.rounded-xl, .rounded-t-xl, .rounded-b-xl, [data-board]) {
+   border-radius: 0 !important;
+}
+
+.ide-compact .ide-divider {
+   position: relative;
+   margin: 0;
+   border-radius: 0;
+   z-index: 30;
+}
+
+.ide-compact .ide-divider:not(:hover):not(:focus-visible):not(.\!bg-secondary) {
+   background-color: var(--ide-divider-color);
+}
+
+/* 去掉分隔线相邻的旧面板边框，避免叠成深色粗边。 */
+.ide-compact .ide-preview-surface {
+   border-bottom-width: 0;
+}
+
+.ide-compact .ide-response-surface {
+   border-top-width: 0;
+}
+
+.ide-compact .ide-divider[aria-orientation='vertical'] {
+   width: var(--ide-divider-size);
+}
+
+.ide-compact .ide-divider[aria-orientation='horizontal'] {
+   height: var(--ide-divider-size);
+}
+
+/* 扩大命中区，悬停时显现；不改变面板占位，避免布局跳动。 */
+.ide-compact .ide-divider::before {
+   content: '';
+   position: absolute;
+   inset: 0 -4px;
+}
+
+.ide-compact .ide-divider[aria-orientation='horizontal']::before {
+   inset: -4px 0;
+}
+
+.ide-compact .ide-divider > div {
+   opacity: 0;
+   pointer-events: none;
+}
+
+.ide-compact .ide-divider > div,
+.ide-compact .ide-board-handle > span > span {
+   background-image: linear-gradient(rgb(255 255 255 / 20%), rgb(255 255 255 / 20%));
+}
+
+.ide-compact .ide-divider:is(:hover, :focus-visible, .\!bg-secondary) > div {
+   opacity: 1;
+}
+
+.ide-compact .ide-board-handle {
+   width: 2rem;
+   height: 4px;
+   padding-top: 0;
+}
+
+.ide-compact .ide-board-handle:hover,
+.ide-compact .ide-board-handle:active {
+   height: 12px;
+}
+
+.ide-compact .ide-board-handle:not(:hover):not(:active) > span {
+   opacity: 0;
+}

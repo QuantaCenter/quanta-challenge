@@ -22,6 +22,7 @@ export const EDITOR_BOARD_DEFAULT_SIZES: number[] = [23, 42, 35];
 const LAYOUT_COOKIE = 'challenge-layout';
 
 type StoredLayout = {
+   compact?: boolean;
    panelSizes: Record<string, number>;
    locked: boolean;
    filesVisible?: boolean;
@@ -30,6 +31,7 @@ type StoredLayout = {
 };
 
 const defaultLayout = (): StoredLayout => ({
+   compact: true,
    panelSizes: {},
    locked: false,
    filesVisible: true,
@@ -68,6 +70,11 @@ export const useLayoutStore = defineStore('layout', () => {
 
    /** 通用分隔条比例：storageKey -> start 侧百分比（SplitPanel 用） */
    const panelSizes = computed(() => layout.value.panelSizes ?? {});
+
+   const compact = computed({
+      get: () => layout.value.compact ?? true,
+      set: (value: boolean) => write({ compact: value }),
+   });
 
    /** 全局锁定：锁住后所有面板分隔条不可拖动（防误触） */
    const locked = computed({
@@ -139,6 +146,7 @@ export const useLayoutStore = defineStore('layout', () => {
    };
 
    return {
+      compact,
       panelSizes,
       locked,
       filesVisible,

@@ -347,9 +347,9 @@ const teleported = useClientTeleport();
       <div ref="split" class="flex flex-col flex-1 min-h-0 w-full">
          <StSpace
             fill
-            class="min-h-0 bg-[#1F1F1F] rounded-b-xl overflow-hidden border border-t-0 border-accent-600"
+            class="ide-preview-surface min-h-0 bg-[#1F1F1F] rounded-b-xl overflow-hidden border border-t-0 border-accent-600"
             :class="consoleOpen ? '' : 'max-md:rounded-b-none'"
-            :style="consoleOpen ? { flex: `0 0 calc(${100 - consolePercent}% - 0.75rem)` } : undefined">
+            :style="consoleOpen ? { flex: `0 0 calc(${100 - consolePercent}% - var(--ide-divider-size, 0.75rem))` } : undefined">
             <StSpace
                v-if="!props.previewUrl"
                direction="vertical"
@@ -413,7 +413,7 @@ const teleported = useClientTeleport();
                aria-orientation="horizontal"
                aria-label="预览与控制台分隔条"
                title="拖动调整控制台高度；双击恢复默认"
-               class="flex items-center justify-center w-full h-1 my-1 shrink-0 rounded-full hover:bg-secondary group transition-colors cursor-row-resize"
+               class="ide-divider flex items-center justify-center w-full h-1 my-1 shrink-0 rounded-full hover:bg-secondary group transition-colors cursor-row-resize"
                :class="{ '!bg-secondary': consoleDragging }"
                style="touch-action: none"
                @pointerdown.left="startConsoleResize"

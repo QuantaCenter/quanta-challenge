@@ -5,6 +5,7 @@
 @import url('../fonts/Manrope-Light/result.css');
 @import url('../fonts/FiraCode-Regular/result.css');
 @import url('../fonts/Manrope-Bold/result.css');
+@import './ide-compact.css';
 
 @import 'tailwindcss';
 @source "../../pages/app/learning";

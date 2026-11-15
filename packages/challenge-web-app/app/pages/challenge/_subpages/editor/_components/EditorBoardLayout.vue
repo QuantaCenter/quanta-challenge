@@ -324,7 +324,7 @@ watch(
                   ? '布局已锁定'
                   : `拖动这里把「${BOARD_LABEL[id]}」移到另一个板块的位置`
             "
-            class="absolute left-1/2 top-0 z-20 w-40 -translate-x-1/2 max-md:hidden h-5 pt-2 items-start justify-center"
+            class="ide-board-handle absolute left-1/2 top-0 z-20 w-40 -translate-x-1/2 max-md:hidden h-5 pt-2 items-start justify-center"
             :class="
                layoutStore.locked
                   ? 'cursor-not-allowed'
@@ -361,7 +361,7 @@ watch(
          :aria-label="`第 ${index + 1} 条面板分隔条`"
          :aria-disabled="layoutStore.locked"
          :tabindex="layoutStore.locked ? -1 : 0"
-         class="group/divider hidden md:flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         class="ide-divider group/divider hidden md:flex w-1 h-full mx-1 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-secondary cursor-col-resize focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          style="touch-action: none"
          :class="{
             'opacity-0 hover:!cursor-default': layoutStore.locked,

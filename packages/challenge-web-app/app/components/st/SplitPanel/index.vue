@@ -279,7 +279,7 @@ const methodsToProvide = {
          @dblclick="applyPercent(defaultPercent(), true)"
          @keydown="handleResizeKeydown"
          style="touch-action: none"
-         class="flex items-center justify-center hover:bg-secondary group transition-colors shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+         class="ide-divider flex items-center justify-center hover:bg-secondary group transition-colors shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
          :class="{
             'w-1 h-full mx-1 hover:cursor-col-resize':
                direction === 'horizontal',
@@ -300,7 +300,7 @@ const methodsToProvide = {
          ref="endPanel"
          v-show="!hideEnd"
          :style="{
-            flexBasis: basis.end,
+            flexBasis: `calc(${100 - startPercentage}% - var(--ide-divider-size, 0.75rem))`,
             pointerEvents: isDragging ? 'none' : 'auto',
          }"
          class="min-w-0 min-h-0 flex-shrink-0">
