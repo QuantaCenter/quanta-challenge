@@ -16,6 +16,7 @@ import type { IUploadItem } from '../_utils/upload-item';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
+import { isChildPath, normalizePath } from '~/utils/path-utils';
 
 dayjs.extend(relativeTime);
 dayjs.locale('zh-cn');
@@ -36,6 +37,57 @@ const props = defineProps<{
 }>();
 
 const selectedPath = defineModel<string>('selectedPath');
+const treeViewport = useTemplateRef<HTMLElement>('tree-viewport');
+
+watch(
+   [selectedPath, () => props.fsTree],
+   async ([path, directory], _, onCleanup) => {
+      if (!path || !directory) return;
+      let cancelled = false;
+      onCleanup(() => { cancelled = true; });
+      const normalizedPath = normalizePath(path);
+      let items = directory;
+
+      try {
+         // 只加载目标文件的祖先目录，不触发文件点击或改变上传目标。
+         for (;;) {
+            const folder = items.find((item) =>
+               item.type === 'folder' && isChildPath(normalizedPath, item.path),
+            );
+            if (!folder) break;
+            if (folder.suspense && props.dirLoader) {
+               const children = await props.dirLoader(folder.path);
+               if (cancelled) return;
+               folder.children = children.map((item) => ({
+                  ...item,
+                  path: `${normalizePath(folder.path)}/${item.name}`,
+                  suspense: true,
+               }));
+               folder.suspense = false;
+            }
+            items = folder.children ?? [];
+         }
+
+         // 等待各级折叠目录展开并完成渲染，再在文件树视口内定位。
+         await nextTick();
+         if (cancelled || !treeViewport.value) return;
+         const viewport = treeViewport.value;
+         const row = Array.from(viewport.querySelectorAll<HTMLElement>('[data-type="file"]'))
+            .find((item) => normalizePath(item.dataset.path ?? '') === normalizedPath);
+         if (!row || !row.getClientRects().length) return;
+         const rowRect = row.getBoundingClientRect();
+         const viewportRect = viewport.getBoundingClientRect();
+         if (rowRect.top < viewportRect.top) {
+            viewport.scrollTop += rowRect.top - viewportRect.top;
+         } else if (rowRect.bottom > viewportRect.top + viewport.clientHeight) {
+            viewport.scrollTop += rowRect.bottom - viewportRect.top - viewport.clientHeight;
+         }
+      } catch (error) {
+         if (!cancelled) console.error('[editor] 文件树定位失败:', error);
+      }
+   },
+   { immediate: true, flush: 'post' },
+);
 
 const emits = defineEmits<{
    addFile: [];
@@ -234,9 +286,9 @@ const getSyncDisplayText = (
             class="hidden"
             @change="onUploadInputChange" />
       </StSpace>
-      <StSpace
-         fill-x
-         class="relative flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden">
+      <div
+         ref="tree-viewport"
+         class="relative w-full flex-1 min-h-0 overflow-y-auto overscroll-y-contain overflow-x-hidden">
          <StSkeleton :loading="!fsTree">
             <template #loading>
                <FsTreeSkeleton />
@@ -251,11 +303,12 @@ const getSyncDisplayText = (
                   :dir-loader="dirLoader"
                   :file-loader="fileLoader"
                   :current-file-path="selectedPath"
+                  auto-reveal
                   :default-opened="true"
                   :directory="fsTree" />
             </RightClickMenuProvider>
          </StSkeleton>
-      </StSpace>
+      </div>
 
       <!-- 同步状态显示：复用方（如工坊）可通过 footer 插槽替换为自己的状态 -->
       <slot name="footer">

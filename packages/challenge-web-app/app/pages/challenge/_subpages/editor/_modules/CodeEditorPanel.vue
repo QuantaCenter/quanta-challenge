@@ -20,6 +20,8 @@ import {
 import { useEditorConfig } from '../_composables/use-editor-config';
 import { useListenFileChanges } from '../_composables/use-listen-file-changes';
 import { useMessage } from '~/components/st/Message/use-message';
+import { getProjectModelPaths } from '~/utils/project-model-files';
+import { IGNORE_FILE_PATTERNS } from '../_configs';
 
 const currentFilePath = defineModel<string>('currentFilePath');
 
@@ -34,24 +36,56 @@ const searchTabActive = ref(false);
 const filePickerOpened = ref(false);
 const searchPanel = ref<InstanceType<typeof ProjectSearchPanel>>();
 const draggedTabPath = ref<string | null>(null);
+const tabDragThreshold = 8;
+let pendingTabDrag: { path: string; x: number; y: number; pointerId: number } | null = null;
+let suppressTabClick = false;
 
-const startTabDrag = (event: DragEvent, path: string) => {
-   if (!event.dataTransfer) return;
-   draggedTabPath.value = path;
-   event.dataTransfer.effectAllowed = 'move';
-   event.dataTransfer.setData('application/x-quanta-editor-tab', path);
+const scrollTabs = (event: WheelEvent) => {
+   if (event.ctrlKey || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return;
+
+   const container = event.currentTarget as HTMLElement;
+   if (container.scrollWidth <= container.clientWidth) return;
+
+   event.preventDefault();
+   const unit = event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? 16
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+         ? container.clientWidth
+         : 1;
+   container.scrollLeft += event.deltaY * unit;
 };
 
-const reorderTabOnDrag = (event: DragEvent, path: string) => {
-   if (!draggedTabPath.value || !event.currentTarget) return;
-   event.preventDefault();
-   if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+const prepareTabDrag = (event: PointerEvent, path: string) => {
+   if (event.button !== 0 || event.pointerType !== 'mouse') return;
+   suppressTabClick = false;
+   if ((event.target as HTMLElement).closest('[data-tab-close]')) return;
+   pendingTabDrag = { path, x: event.clientX, y: event.clientY, pointerId: event.pointerId };
+};
 
+const moveTabDrag = (event: PointerEvent) => {
+   if (!pendingTabDrag || event.pointerId !== pendingTabDrag.pointerId) return;
+   if (!(event.buttons & 1)) {
+      endTabDrag();
+      return;
+   }
+   if (!draggedTabPath.value) {
+      const distance = Math.hypot(event.clientX - pendingTabDrag.x, event.clientY - pendingTabDrag.y);
+      if (distance < tabDragThreshold) return;
+      draggedTabPath.value = pendingTabDrag.path;
+      suppressTabClick = true;
+   }
+
+   event.preventDefault();
+   const targetElement = document.elementFromPoint(event.clientX, event.clientY)
+      ?.closest<HTMLElement>('[data-editor-tab]');
+   const key = targetElement?.dataset.editorTab;
+   if (!targetElement || !key?.startsWith('file:')) return;
+   const path = key.slice('file:'.length);
    const from = openedTabs.value.findIndex((tab) => tab.path === draggedTabPath.value);
    const target = openedTabs.value.findIndex((tab) => tab.path === path);
    if (from === -1 || target === -1 || from === target) return;
 
-   const rect = (event.currentTarget as HTMLElement).getBoundingClientRect();
+   const rect = targetElement.getBoundingClientRect();
    const pastMiddle = event.clientX >= rect.left + rect.width / 2;
    if ((from < target && !pastMiddle) || (from > target && pastMiddle)) return;
 
@@ -60,14 +94,21 @@ const reorderTabOnDrag = (event: DragEvent, path: string) => {
 };
 
 const endTabDrag = () => {
+   pendingTabDrag = null;
    draggedTabPath.value = null;
 };
 
-const dropTab = (event: DragEvent) => {
-   if (!draggedTabPath.value) return;
+const preventTabClickAfterDrag = (event: MouseEvent) => {
+   if (!suppressTabClick) return;
+   suppressTabClick = false;
    event.preventDefault();
-   endTabDrag();
+   event.stopImmediatePropagation();
 };
+
+useEventListener('pointermove', moveTabDrag, { passive: false });
+useEventListener('pointerup', endTabDrag);
+useEventListener('pointercancel', endTabDrag);
+useEventListener('blur', endTabDrag);
 
 watch(
    currentFilePath,
@@ -85,40 +126,52 @@ watch(
 );
 
 const onCloseTab = (tab: ITab) => {
-   const idx = openedTabs.value.indexOf(tab);
-   const keepSearchActive = searchTabActive.value;
+   closeTabs([`file:${tab.path}`]);
+};
 
-   // 先确定目标路径
-   let targetPath: string | null = null;
-   if (tab.path === currentFilePath.value) {
-      if (idx > 0) {
-         targetPath = openedTabs.value[idx - 1]!.path;
-      } else if (openedTabs.value.length > 1) {
-         targetPath = openedTabs.value[idx + 1]!.path;
-      }
-   }
+const editorTabKeys = computed(() => [
+   ...(searchTabOpened.value ? ['search'] : []),
+   ...openedTabs.value.map((tab) => `file:${tab.path}`),
+]);
 
-   // 先删除 tab
-   openedTabs.value.splice(idx, 1);
+const closeTabs = (keys: string[]) => {
+   const closing = new Set(keys);
+   const previousTabs = openedTabs.value;
+   const currentIndex = previousTabs.findIndex((tab) => tab.path === currentFilePath.value);
+   const currentFileClosed = closing.has(`file:${currentFilePath.value}`);
+   const keepSearchActive = searchTabActive.value && !closing.has('search');
 
-   // 然后设置新的当前文件
-   if (targetPath !== null) {
-      // 使用 nextTick 确保在下一个 tick 设置，避免 watch 冲突
+   openedTabs.value = previousTabs.filter((tab) => !closing.has(`file:${tab.path}`));
+   if (closing.has('search')) searchTabOpened.value = false;
+
+   if (currentFileClosed) {
+      const previous = previousTabs
+         .slice(0, currentIndex)
+         .reverse()
+         .find((tab) => !closing.has(`file:${tab.path}`));
+      const nextPath = previous?.path ?? openedTabs.value[0]?.path ?? '';
+      // 批量关闭后只切换一次模型，避免逐个关闭时重新打开已关闭的标签。
       nextTick(() => {
-         currentFilePath.value = targetPath!;
-         setModel(targetPath!);
-         if (keepSearchActive) searchTabActive.value = true;
+         currentFilePath.value = nextPath;
+         setModel(nextPath || null);
+         searchTabActive.value = keepSearchActive || (!nextPath && searchTabOpened.value);
       });
-   } else if (
-      tab.path === currentFilePath.value &&
-      openedTabs.value.length === 0
-   ) {
-      nextTick(() => {
-         currentFilePath.value = '';
-         setModel(null);
-         if (keepSearchActive) searchTabActive.value = true;
-      });
+   } else {
+      searchTabActive.value = keepSearchActive;
    }
+};
+
+const tabMenuCommands = (target: HTMLElement | null) => {
+   const key = target?.closest<HTMLElement>('[data-editor-tab]')?.dataset.editorTab;
+   const keys = editorTabKeys.value;
+   const index = key ? keys.indexOf(key) : -1;
+   return [
+      { label: '关闭', keys: index < 0 ? [] : [key!] },
+      { label: '关闭其他标签页', keys: index < 0 ? [] : keys.filter((item) => item !== key) },
+      { label: '关闭左侧标签页', keys: index < 0 ? [] : keys.slice(0, index) },
+      { label: '关闭右侧标签页', keys: index < 0 ? [] : keys.slice(index + 1) },
+      { label: '关闭全部标签页', keys },
+   ];
 };
 
 const onClickTab = (tab: ITab) => {
@@ -136,6 +189,7 @@ const props = defineProps<{
 
 const {
    containerKey,
+   createModels,
    onEditorInstanceReady,
    onModelChange,
    onModelContentChange,
@@ -238,17 +292,47 @@ onEditorInstanceReady(() => {
    hasEditorReady.value = true;
 });
 
-// 只为当前文件创建模型；未打开的文件由搜索直接读取文件系统。
-watch([hasEditorReady, () => props.defaultFs], ([ready]) => {
+const projectModelPaths = computed(() => getProjectModelPaths(
+   Object.keys(props.defaultFs ?? {}),
+   props.defaultFs?.['/project/.gitignore']?.content ?? '',
+   IGNORE_FILE_PATTERNS,
+));
+const preloadedModels = new Map<string, editor.ITextModel>();
+
+// 预加载未打开的项目文件，使语言服务可以解析跨文件引用和跳转。
+// 只监听路径和忽略规则，避免每次输入都重新扫描整个项目的文件内容。
+watch([hasEditorReady, projectModelPaths], ([ready, paths]) => {
+   if (!ready || !monacoInstance) return;
+   const included = new Set(paths);
+   for (const [path, model] of preloadedModels) {
+      if (model.isDisposed()) {
+         preloadedModels.delete(path);
+      } else if (!included.has(path) && !openedTabs.value.some((tab) => tab.path === path)) {
+         model.dispose();
+         preloadedModels.delete(path);
+      }
+   }
+   const files: Record<string, string> = {};
+   for (const path of paths) {
+      if (monacoInstance.editor.getModel(monacoInstance.Uri.file(path))) continue;
+      const content = props.defaultFs?.[path]?.content;
+      if (content === undefined || snapshotBinaryBytes(path, content)) continue;
+      files[path] = content;
+   }
+   createModels(files);
+   for (const path of Object.keys(files)) {
+      const model = monacoInstance.editor.getModel(monacoInstance.Uri.file(path));
+      if (model) preloadedModels.set(path, model);
+   }
+
    const path = currentFilePath.value;
-   if (!ready || !path || searchTabActive.value) return;
-   if (!monacoInstance?.editor.getModel(monacoInstance.Uri.file(normalizePath(path)))) {
+   if (path && !searchTabActive.value && !editorInstance?.getModel()) {
       setModel(path);
    }
 });
 
 onModelChange((path) => {
-   currentFilePath.value = path;
+   currentFilePath.value = normalizePath(path);
 });
 
 useListenFileChanges({
@@ -459,41 +543,57 @@ defineExpose({
          justify="between"
          align="center"
          gap="0">
-         <StSpace
-            fill-x
-            class="h-[2rem] relative overflow-x-auto overflow-y-hidden mini-scrollbar">
-            <StSpace fill-x align="center" gap="0.5rem" class="absolute left-0 top-0 h-full px-1">
-               <StSkeleton :loading="!hasEditorReady">
-                  <template #loading>
-                     <TabSkeleton :count="3" />
-                  </template>
-                  <TransitionGroup tag="div" class="flex gap-2" move-class="editor-tab-move">
-                     <Tab
-                        v-if="searchTabOpened"
-                        key="project-search"
-                        content="全局搜索"
-                        :class="{ '!bg-primary !text-white': searchTabActive }"
-                        @click="openProjectSearch"
-                        @remove="closeSearchTab" />
-                     <Tab
-                        v-for="item in openedTabs"
-                        :key="item.path"
-                        :content="item.name"
-                        draggable="true"
-                        :class="{
-                           '!bg-primary !text-white': !searchTabActive && currentFilePath === item.path,
-                           'opacity-50': draggedTabPath === item.path,
-                        }"
-                        @dragstart="startTabDrag($event, item.path)"
-                        @dragover="reorderTabOnDrag($event, item.path)"
-                        @drop="dropTab"
-                        @dragend="endTabDrag"
-                        @click="onClickTab(item)"
-                        @remove="onCloseTab(item)" />
-                  </TransitionGroup>
-               </StSkeleton>
+         <StContextMenuProvider class="flex-1 min-w-0">
+            <template #menu>
+               <StContextMenuRoot v-slot="{ target }" class="min-w-[11rem]">
+                  <StContextMenuList class="text-accent-100">
+                     <StContextMenuItem
+                        v-for="command in tabMenuCommands(target)"
+                        :key="command.label"
+                        :disabled="command.keys.length === 0"
+                        @action="closeTabs(command.keys)">
+                        {{ command.label }}
+                     </StContextMenuItem>
+                  </StContextMenuList>
+               </StContextMenuRoot>
+            </template>
+            <StSpace
+               fill-x
+               class="h-[2rem] relative overflow-x-auto overflow-y-hidden hide-scrollbar"
+               @wheel="scrollTabs">
+               <StSpace fill-x align="center" gap="0.5rem" class="absolute left-0 top-0 h-full px-1">
+                  <StSkeleton :loading="!hasEditorReady">
+                     <template #loading>
+                        <TabSkeleton :count="3" />
+                     </template>
+                     <TransitionGroup tag="div" class="flex gap-2" move-class="editor-tab-move">
+                        <Tab
+                           v-if="searchTabOpened"
+                           key="project-search"
+                           data-editor-tab="search"
+                           content="全局搜索"
+                           :class="{ '!bg-primary !text-white': searchTabActive }"
+                           @click="openProjectSearch"
+                           @remove="closeSearchTab" />
+                        <Tab
+                           v-for="item in openedTabs"
+                           :key="item.path"
+                           :content="item.name"
+                           :data-editor-tab="`file:${item.path}`"
+                           draggable="false"
+                           :class="{
+                              '!bg-primary !text-white': !searchTabActive && currentFilePath === item.path,
+                              'opacity-50': draggedTabPath === item.path,
+                           }"
+                           @pointerdown="prepareTabDrag($event, item.path)"
+                           @click.capture="preventTabClickAfterDrag"
+                           @click="onClickTab(item)"
+                           @remove="onCloseTab(item)" />
+                     </TransitionGroup>
+                  </StSkeleton>
+               </StSpace>
             </StSpace>
-         </StSpace>
+         </StContextMenuProvider>
          <StPopover content="格式化当前文件" placement="bottom" class="shrink-0">
             <StButton
                size="sm"

@@ -8,6 +8,7 @@ defineSlots<{
 const props = defineProps<{
    directory: IFileSystemItem[];
    currentFilePath?: string;
+   autoReveal?: boolean;
    deep?: number;
    defaultOpened?: boolean;
    readOnly?: boolean;
@@ -150,6 +151,7 @@ const handleDrop = (
             :folder="item"
             :read-only="props.readOnly"
             :current-file-path="props.currentFilePath"
+            :auto-reveal="props.autoReveal"
             :deep="deep ?? 0"
             @file-or-folder-click="handleFileOrFolderClick"
             @drag-start="handleDragStart"

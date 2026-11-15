@@ -46,7 +46,8 @@ onMounted(() => {
          menuStatus.value = 'closed';
       }
    };
-   // 关闭菜单时保留文件选择器、链接等控件的默认点击行为。
+   // 捕获阶段关闭菜单，避免文件树等子节点的 click.stop 阻断关闭逻辑。
+   // 不阻止默认行为，保留文件选择器、链接等控件的正常点击。
    const onClickGlobal = () => {
       menuStatus.value = 'closed';
    };
@@ -54,13 +55,13 @@ onMounted(() => {
 
    area.value.addEventListener('mousedown', onMouseDown);
    area.value.addEventListener('contextmenu', onContextMenu);
-   document.addEventListener('click', onClickGlobal);
+   document.addEventListener('click', onClickGlobal, true);
    document.addEventListener('contextmenu', onContextMenuGlobal);
 
    onBeforeUnmount(() => {
       area.value!.removeEventListener('mousedown', onMouseDown);
       area.value!.removeEventListener('contextmenu', onContextMenu);
-      document.removeEventListener('click', onClickGlobal);
+      document.removeEventListener('click', onClickGlobal, true);
       document.removeEventListener('contextmenu', onContextMenuGlobal);
    });
 });

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { FolderClose, FolderOpen } from '@icon-park/vue-next';
 import type { IFileSystemItem } from './type';
+import { isChildPath } from '~/utils/path-utils';
 
 defineSlots<{
    extra?: () => unknown;
@@ -12,10 +13,21 @@ const props = defineProps<{
    deep: number;
    defaultOpened?: boolean;
    currentFilePath?: string;
+   autoReveal?: boolean;
    readOnly?: boolean;
 }>();
 
 const opened = ref(props.defaultOpened ?? false);
+
+watch(
+   () => [props.autoReveal, props.currentFilePath, props.folder.path] as const,
+   ([autoReveal, path]) => {
+      if (autoReveal && path && isChildPath(path, props.folder.path)) {
+         opened.value = true;
+      }
+   },
+   { immediate: true },
+);
 
 const emits = defineEmits<{
    'file-or-folder-click': [
@@ -155,6 +167,7 @@ const handleChildDrop = (
          @drag-end="handleChildDragEnd"
          @drop="handleChildDrop"
          :current-file-path="props.currentFilePath"
+         :auto-reveal="props.autoReveal"
          :read-only="props.readOnly"
          :directory="folder.children ?? []"
          :deep="deep + 1">
