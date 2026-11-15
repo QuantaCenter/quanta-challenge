@@ -1,7 +1,6 @@
-<script setup lang="tsx">
-import { FileCode } from '@icon-park/vue-next';
+<script setup lang="ts">
+import FileIcon from './FileIcon.vue';
 import type { IFileSystemItem } from './type';
-import { extensionIconMapping } from './config';
 
 const props = defineProps<{
    file: IFileSystemItem;
@@ -16,31 +15,6 @@ const emits = defineEmits<{
    ];
    dragEnd: [];
 }>();
-
-const FileIcon = () => {
-   const name = props.file.name;
-   const segments = name.split('.');
-   for (let i = -1; i < segments.length; i++) {
-      const ext = i === -1 ? name : '.' + segments.slice(i).join('.');
-      const iconPath =
-         extensionIconMapping.get(ext) || extensionIconMapping.get(name);
-      if (iconPath) {
-         return (
-            <img
-               src={iconPath}
-               alt={name}
-               class="size-4 shrink-0"
-            />
-         );
-      }
-   }
-   return (
-      <FileCode
-         theme="filled"
-         size="1rem"
-      />
-   );
-};
 
 const handleDragStart = (e: DragEvent) => {
    if (props.readOnly) {
@@ -70,7 +44,7 @@ const handleDragEnd = () => {
       }"
       @dragstart="handleDragStart"
       @dragend="handleDragEnd">
-      <FileIcon class="pointer-events-none" />
+      <FileIcon :name="file.name" class="pointer-events-none" />
       <div
          class="pointer-events-none text-sm text-nowrap whitespace-nowrap"
          :class="{ 'min-w-0 truncate': $slots.extra }">

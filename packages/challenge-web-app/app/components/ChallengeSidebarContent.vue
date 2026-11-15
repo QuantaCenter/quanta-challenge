@@ -9,7 +9,6 @@ import { useEventEmitter } from '~/composables/use-event-emitter';
 import { useParam } from '~/composables/use-param';
 import useAuthStore from '~/stores/auth-store';
 import { useMessageOutsideVue } from '~/components/st/Message/use-message';
-import { PanelLeft, SquareTerminal } from 'lucide-vue-next';
 
 /** 移动端隐藏「题目详情」（题面已是分页板块）与「布局设置」（桌面专属功能）按钮。
  *  水合安全判定：SSR 与客户端首帧恒为 false，mounted 后才隐藏 */
@@ -19,7 +18,6 @@ const isMobile = useIsMobile();
 const { embedded, withEmbed } = useChallengeEmbed();
 
 const store = useEditorStore();
-const layoutStore = useLayoutStore();
 const toggleDetailWindow = () => {
    store.detailWindowOpened = !store.detailWindowOpened;
 };
@@ -79,6 +77,11 @@ const itemClass =
 <template>
    <StMiniSidebarDivider v-if="!embedded" />
 
+   <template v-if="mode === 'problem'">
+      <EditorSidebarTools section="panels" />
+      <StMiniSidebarDivider />
+   </template>
+
    <StSpace direction="vertical" align="center" gap="0.5rem">
       <template v-if="mode === 'record'">
          <StSidebarSidePopper content="返回题目">
@@ -119,6 +122,7 @@ const itemClass =
       <StMiniSidebarDivider />
 
       <StSpace direction="vertical" align="center" gap="0.5rem">
+         <EditorSidebarTools section="search" />
          <StMiniSidebarButton
             @click="handleCommitClick"
             :name="
@@ -139,28 +143,6 @@ const itemClass =
          <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
 
          <ChallengeLayoutMenu v-if="!isMobile && !embedded" />
-      </StSpace>
-
-      <!-- 终端按钮在移动端也可见，分隔线应始终保留。 -->
-      <StMiniSidebarDivider />
-      <StSpace direction="vertical" align="center" gap="0.5rem">
-         <StMiniSidebarButton
-            v-if="!isMobile"
-            name="文件栏"
-            :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
-            :aria-pressed="layoutStore.filesVisible"
-            :class="{ '!text-primary': layoutStore.filesVisible }"
-            @click="layoutStore.filesVisible = !layoutStore.filesVisible">
-            <PanelLeft :size="18" />
-         </StMiniSidebarButton>
-         <StMiniSidebarButton
-            name="终端"
-            :aria-label="store.terminalVisible ? '隐藏终端' : '显示终端'"
-            :aria-pressed="store.terminalVisible"
-            :class="{ '!text-primary': store.terminalVisible }"
-            @click="store.terminalVisible = !store.terminalVisible">
-            <SquareTerminal :size="18" />
-         </StMiniSidebarButton>
       </StSpace>
    </template>
 

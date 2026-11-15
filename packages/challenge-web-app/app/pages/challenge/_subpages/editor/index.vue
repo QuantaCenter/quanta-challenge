@@ -164,13 +164,13 @@ watch(selectedPath, (newPath) => {
    if (!newPath) return;
    const normalizedPath = normalizePath(newPath);
    const segments = splitPath(normalizedPath).slice(1); // 跳过第一级 (project)
-   let currentNode = fsTree.value?.[0]!;
+   let currentNode: IFileSystemItem | undefined = fsTree.value?.[0];
    segments.forEach((segment) => {
-      currentNode = currentNode.children!.find(
+      currentNode = currentNode?.children?.find(
          (child) => child.name === segment,
       )!;
    });
-   if (currentNode.type === 'file') {
+   if (currentNode?.type === 'file') {
       selectedFilePath.value = normalizedPath;
    }
 });
@@ -211,6 +211,14 @@ onMounted(() => {
    const debounceCallback = useDebounceFn(contentChangeCallback, 300);
    codeEditor.value?.onModelContentChange(debounceCallback);
 });
+
+const saveSearchReplacement = async (path: string, content: string) => {
+   const normalizedPath = normalizePath(path);
+   await writeFile(normalizedPath, content);
+   if (pathContentMap.value?.[normalizedPath]) pathContentMap.value[normalizedPath].content = content;
+   if (pathTreeNodeMap.value?.[normalizedPath]) pathTreeNodeMap.value[normalizedPath].content = content;
+   fileChangeSync.change(normalizedPath, content);
+};
 
 // terminal
 const {
@@ -430,8 +438,13 @@ const fileLoader = async (filePath: string) => {
       };
 
       const node = findNode(fsTree.value, filePath);
-      if (node && !pathTreeNodeMap.value[filePath]) {
-         pathTreeNodeMap.value[filePath] = node;
+      if (!pathTreeNodeMap.value[filePath]) {
+         pathTreeNodeMap.value[filePath] = node ?? {
+            name: splitPath(filePath).at(-1)!,
+            path: filePath,
+            type: 'file',
+            content,
+         };
       }
    }
 
@@ -466,6 +479,8 @@ useEditorShortcuts({
       editorStore.terminalVisible = !editorStore.terminalVisible;
    },
    onFormat: () => codeEditor.value?.formatDocument(),
+   onProjectSearch: () => codeEditor.value?.openProjectSearch(),
+   onQuickOpen: () => codeEditor.value?.openQuickOpen(),
 });
 
 // 版本校验：进入做题页时，若题目不是母题（BaseProblem）的当前版本，
@@ -736,7 +751,8 @@ useSeoMeta({
                   :start-percent="65">
                   <template #start>
                      <CodeEditorPanel ref="code-editor" v-model:current-file-path="selectedFilePath"
-                        :get-wc-instance="getInstance" :default-fs="pathContentMap" />
+                        :get-wc-instance="getInstance" :default-fs="pathContentMap" :load-file="fileLoader"
+                        :save-replacement="saveSearchReplacement" />
                   </template>
                   <template #end="panelMethods">
                      <TerminalPanel ref="terminal" v-bind="panelMethods" @add-terminal="addTerminal" />

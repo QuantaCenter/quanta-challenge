@@ -4,6 +4,9 @@ import { normalizePath, getBaseName } from '~/utils/path-utils';
 import Tab from '../_components/Tab.vue';
 import { Setting } from '@icon-park/vue-next';
 import { FileCode2 } from 'lucide-vue-next';
+import ProjectFilePicker from '../_components/ProjectFilePicker.vue';
+import ProjectSearchPanel from '../_components/ProjectSearchPanel.vue';
+import { listProjectFiles, readProjectText, replaceProjectSearchResults, searchProjectFiles, type ProjectMatch, type ProjectSearchPreferences, type ProjectSearchResult } from '~/utils/project-search';
 import TabSkeleton from '../_skeletons/TabSkeleton.vue';
 import EditorSkeleton from '../_skeletons/EditorSkeleton.vue';
 import EditorSettingsModal from '../_components/EditorSettingsModal.vue';
@@ -26,6 +29,10 @@ interface ITab {
 }
 
 const openedTabs = ref<ITab[]>([]);
+const searchTabOpened = ref(false);
+const searchTabActive = ref(false);
+const filePickerOpened = ref(false);
+const searchPanel = ref<InstanceType<typeof ProjectSearchPanel>>();
 const draggedTabPath = ref<string | null>(null);
 
 const startTabDrag = (event: DragEvent, path: string) => {
@@ -79,6 +86,7 @@ watch(
 
 const onCloseTab = (tab: ITab) => {
    const idx = openedTabs.value.indexOf(tab);
+   const keepSearchActive = searchTabActive.value;
 
    // 先确定目标路径
    let targetPath: string | null = null;
@@ -99,6 +107,7 @@ const onCloseTab = (tab: ITab) => {
       nextTick(() => {
          currentFilePath.value = targetPath!;
          setModel(targetPath!);
+         if (keepSearchActive) searchTabActive.value = true;
       });
    } else if (
       tab.path === currentFilePath.value &&
@@ -107,11 +116,13 @@ const onCloseTab = (tab: ITab) => {
       nextTick(() => {
          currentFilePath.value = '';
          setModel(null);
+         if (keepSearchActive) searchTabActive.value = true;
       });
    }
 };
 
 const onClickTab = (tab: ITab) => {
+   searchTabActive.value = false;
    setModel(tab.path);
    currentFilePath.value = tab.path;
 };
@@ -119,6 +130,8 @@ const onClickTab = (tab: ITab) => {
 const props = defineProps<{
    getWcInstance: () => Promise<WebContainer>;
    defaultFs?: Record<string, { vid: string; content: string }>;
+   loadFile: (path: string) => Promise<string>;
+   saveReplacement: (path: string, content: string) => Promise<void>;
 }>();
 
 const {
@@ -139,9 +152,11 @@ const { editorConfig } = useEditorConfig({ onEditorInstanceReady });
 
 const message = useMessage();
 let editorInstance: editor.IStandaloneCodeEditor | undefined;
+let monacoInstance: typeof import('monaco-editor') | undefined;
 
-onEditorInstanceReady((instance) => {
+onEditorInstanceReady((instance, monaco) => {
    editorInstance = instance;
+   monacoInstance = monaco;
 });
 
 const formatDocument = async () => {
@@ -256,6 +271,7 @@ useListenFileChanges({
 });
 
 const setModel = (path: string | null, forceRecreate = false) => {
+   searchTabActive.value = false;
    onEditorInstanceReady((instance, monaco) => {
       if (!path) {
          instance.setModel(null);
@@ -329,10 +345,105 @@ const binarySize = computed(() => {
 });
 
 const closeCurrentTab = () => {
+   if (searchTabActive.value) {
+      closeSearchTab();
+      return;
+   }
    const tab = openedTabs.value.find(
       (item) => item.path === currentFilePath.value
    );
    tab && onCloseTab(tab);
+};
+
+const closeSearchTab = () => {
+   searchTabOpened.value = false;
+   searchTabActive.value = false;
+   nextTick(() => editorInstance?.focus());
+};
+
+const openProjectSearch = () => {
+   filePickerOpened.value = false;
+   searchTabOpened.value = true;
+   searchTabActive.value = true;
+   useEditorStore().mobileBoardJump = { board: 'code', at: Date.now() };
+   nextTick(() => searchPanel.value?.focus());
+};
+
+const openQuickOpen = () => { filePickerOpened.value = true; };
+useEventBus<'files' | 'content'>('editor-project-search').on((kind) => {
+   useEditorStore().mobileFileDrawerOpened = false;
+   if (kind === 'files') openQuickOpen();
+   else openProjectSearch();
+});
+const loadProjectPaths = async (signal: AbortSignal) => {
+   const wc = await props.getWcInstance();
+   return listProjectFiles(wc.fs, signal);
+};
+const searchProject = async (query: string, signal: AbortSignal, preferences: ProjectSearchPreferences) => {
+   const wc = await props.getWcInstance();
+   const editedContents = new Map<string, string>();
+   onEditorInstanceReady((_, monaco) => {
+      for (const model of monaco.editor.getModels()) {
+         // Unsaved edits win over the filesystem; unchanged models may be stale after terminal writes.
+         if (model.getAlternativeVersionId() > 1) {
+            editedContents.set(model.uri.path, model.getValue());
+         }
+      }
+   });
+   return searchProjectFiles(wc.fs, query, {
+      ...preferences,
+      signal,
+      getEditedContent: (path) => editedContents.get(path),
+   });
+};
+
+const replaceProject = async (result: ProjectSearchResult, replacement: string) => {
+   const wc = await props.getWcInstance();
+   const getModel = (path: string) => monacoInstance?.editor.getModel(monacoInstance.Uri.file(path));
+   return replaceProjectSearchResults(result, replacement, {
+      readFile: async (path) => {
+         const model = getModel(path);
+         return model && model.getAlternativeVersionId() > 1 ? model.getValue() : readProjectText(wc.fs, path);
+      },
+      writeFile: async (path, content) => {
+         await props.saveReplacement(path, content);
+         const model = getModel(path);
+         if (model && model.getValue() !== content) {
+            model.pushStackElement();
+            model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
+            model.pushStackElement();
+         }
+      },
+   });
+};
+
+let openRequest = 0;
+onUnmounted(() => { openRequest++; });
+const openProjectFile = async (path: string, match?: ProjectMatch) => {
+   const request = ++openRequest;
+   try {
+      await props.loadFile(path);
+      if (request !== openRequest) return;
+      setModel(path);
+      currentFilePath.value = path;
+      useEditorStore().mobileBoardJump = { board: 'code', at: Date.now() };
+      await nextTick();
+      onEditorInstanceReady((instance) => {
+         if (match) {
+            const range = {
+               startLineNumber: match.line,
+               startColumn: match.column,
+               endLineNumber: match.line,
+               endColumn: match.column + match.length,
+            };
+            instance.setSelection(range);
+            instance.revealRangeInCenter(range);
+         }
+         instance.focus();
+      });
+   } catch {
+      message.error('无法打开文件', '文件可能已移动或删除，请重新搜索');
+   }
 };
 
 defineExpose({
@@ -342,6 +453,8 @@ defineExpose({
    addExtraLibs,
    onEditorInstanceReady,
    formatDocument,
+   openProjectSearch,
+   openQuickOpen,
 });
 </script>
 
@@ -367,12 +480,19 @@ defineExpose({
                   </template>
                   <TransitionGroup tag="div" class="flex gap-2" move-class="editor-tab-move">
                      <Tab
+                        v-if="searchTabOpened"
+                        key="project-search"
+                        content="全局搜索"
+                        :class="{ '!bg-primary !text-white': searchTabActive }"
+                        @click="openProjectSearch"
+                        @remove="closeSearchTab" />
+                     <Tab
                         v-for="item in openedTabs"
                         :key="item.path"
                         :content="item.name"
                         draggable="true"
                         :class="{
-                           '!bg-primary !text-white': currentFilePath === item.path,
+                           '!bg-primary !text-white': !searchTabActive && currentFilePath === item.path,
                            'opacity-50': draggedTabPath === item.path,
                         }"
                         @dragstart="startTabDrag($event, item.path)"
@@ -411,11 +531,11 @@ defineExpose({
       <StSpace fill class="relative bg-[#1C1C1C] border border-[#1F1F1F]">
          <EditorSkeleton v-if="!hasEditorReady" />
          <main
-            v-show="hasEditorReady"
+            v-show="hasEditorReady && !searchTabActive"
             :ref="containerKey"
             class="absolute top-0 left-0 size-full"></main>
          <StSpace
-            v-if="hasEditorReady && isBinaryFile"
+            v-if="hasEditorReady && isBinaryFile && !searchTabActive"
             fill
             center
             class="absolute top-0 left-0 size-full p-4 bg-[#1C1C1C]">
@@ -435,8 +555,18 @@ defineExpose({
                   class="text-primary">下载文件</a>
             </StSpace>
          </StSpace>
+         <ProjectSearchPanel
+            v-if="searchTabOpened"
+            v-show="searchTabActive"
+            ref="searchPanel"
+            class="absolute inset-0"
+            :search="searchProject"
+            :replace="replaceProject"
+            @select="openProjectFile" />
       </StSpace>
    </StSpace>
+
+   <ProjectFilePicker v-model:opened="filePickerOpened" :load-files="loadProjectPaths" @select="openProjectFile" />
 
    <!-- 编辑器设置 Modal -->
    <EditorSettingsModal

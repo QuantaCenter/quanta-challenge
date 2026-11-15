@@ -129,6 +129,13 @@ const fileChangeSync = useFileChangeSync({
 // ————————————————— 文件状态 —————————————————
 const pathContentMap = ref<Record<string, { vid: string; content: string }>>();
 const pathTreeNodeMap = ref<Record<string, IFileSystemItem>>();
+const saveSearchReplacement = async (path: string, content: string) => {
+   const normalizedPath = normalizePath(path);
+   await writeFile(normalizedPath, content);
+   if (pathContentMap.value?.[normalizedPath]) pathContentMap.value[normalizedPath].content = content;
+   if (pathTreeNodeMap.value?.[normalizedPath]) pathTreeNodeMap.value[normalizedPath].content = content;
+   fileChangeSync.change(normalizedPath, content);
+};
 const fsTree = ref<IFileSystemItem[]>();
 const selectedPath = ref<string>();
 const selectedFilePath = ref<string>();
@@ -391,6 +398,14 @@ const fileLoader = async (filePath: string) => {
       pathContentMap.value[normalizedPath] = {
          content,
          vid: pathContentMap.value[normalizedPath]?.vid ?? '',
+      };
+   }
+   if (pathTreeNodeMap.value && !pathTreeNodeMap.value[normalizedPath]) {
+      pathTreeNodeMap.value[normalizedPath] = {
+         name: splitPath(normalizedPath).at(-1)!,
+         path: normalizedPath,
+         type: 'file',
+         content,
       };
    }
    return content;
@@ -744,10 +759,13 @@ useEditorShortcuts({
       editorStore.terminalVisible = !editorStore.terminalVisible;
    },
    onFormat: () => codeEditor.value?.formatDocument(),
+   onProjectSearch: () => codeEditor.value?.openProjectSearch(),
+   onQuickOpen: () => codeEditor.value?.openQuickOpen(),
 });
 
 // ————————————————— 侧边栏：下载 / 重置 —————————————————
 const { event: downloadEvent } = useEventEmitter<{ at: number }>('workshop', 'download');
+const { emit: downloadDone } = useEventEmitter('workshop', 'download-done');
 watch(downloadEvent, async (value) => {
    if (!value) return;
    if (!projectReady.value) {
@@ -771,6 +789,8 @@ watch(downloadEvent, async (value) => {
    } catch (error: any) {
       console.error('[workshop] 导出项目失败:', error);
       message.error('下载失败', error?.message ?? String(error));
+   } finally {
+      downloadDone(0);
    }
 });
 
@@ -905,6 +925,8 @@ useSeoMeta({
                         ref="code-editor"
                         v-model:current-file-path="selectedFilePath"
                         :get-wc-instance="getInstance"
+                        :load-file="fileLoader"
+                        :save-replacement="saveSearchReplacement"
                         :default-fs="pathContentMap" />
                   </template>
                   <template #end="panelMethods">

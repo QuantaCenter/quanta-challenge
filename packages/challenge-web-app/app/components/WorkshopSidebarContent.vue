@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Download, SettingOne, Upload } from '@icon-park/vue-next';
-import { PanelLeft, SquareTerminal } from 'lucide-vue-next';
 import { useEventEmitter } from '~/composables/use-event-emitter';
 import useAuthStore from '~/stores/auth-store';
 
@@ -8,7 +7,6 @@ import useAuthStore from '~/stores/auth-store';
 
 const isMobile = useIsMobile();
 const store = useEditorStore();
-const layoutStore = useLayoutStore();
 
 const { emit: emitUpload } = useEventEmitter<{ at: number }>('workshop', 'upload');
 const { emit: emitDownload } = useEventEmitter<{ at: number }>('workshop', 'download');
@@ -28,7 +26,13 @@ const avatarUrl = computed(() => {
 <template>
    <StMiniSidebarDivider />
 
+   <EditorSidebarTools section="panels" />
+
+   <StMiniSidebarDivider />
+
    <StSpace direction="vertical" align="center" gap="0.5rem">
+      <EditorSidebarTools section="search" />
+
       <StMiniSidebarButton
          name="上传文件"
          aria-label="上传文件"
@@ -45,28 +49,6 @@ const avatarUrl = computed(() => {
       </StMiniSidebarButton>
 
       <ChallengeLayoutMenu v-if="!isMobile" />
-   </StSpace>
-
-   <StMiniSidebarDivider />
-
-   <StSpace direction="vertical" align="center" gap="0.5rem">
-      <StMiniSidebarButton
-         v-if="!isMobile"
-         name="文件栏"
-         :aria-label="layoutStore.filesVisible ? '隐藏文件栏' : '显示文件栏'"
-         :aria-pressed="layoutStore.filesVisible"
-         :class="{ '!text-primary': layoutStore.filesVisible }"
-         @click="layoutStore.filesVisible = !layoutStore.filesVisible">
-         <PanelLeft :size="18" />
-      </StMiniSidebarButton>
-      <StMiniSidebarButton
-         name="终端"
-         :aria-label="store.terminalVisible ? '隐藏终端' : '显示终端'"
-         :aria-pressed="store.terminalVisible"
-         :class="{ '!text-primary': store.terminalVisible }"
-         @click="store.terminalVisible = !store.terminalVisible">
-         <SquareTerminal :size="18" />
-      </StMiniSidebarButton>
    </StSpace>
 
    <div class="flex-1" />

@@ -102,3 +102,15 @@ export const extensionIconMapping = new Map(
       return exts.map((ext) => [ext, icon]);
    })
 );
+
+/** Shared by the explorer, quick open and Monaco search result headers. */
+export const getFileIconPath = (path: string) => {
+   const name = path.split('/').at(-1) ?? path;
+   const segments = name.split('.');
+   for (let index = -1; index < segments.length; index++) {
+      const extension = index === -1 ? name : `.${segments.slice(index).join('.')}`;
+      const icon = extensionIconMapping.get(extension) || extensionIconMapping.get(name);
+      if (icon) return icon;
+   }
+   return undefined;
+};

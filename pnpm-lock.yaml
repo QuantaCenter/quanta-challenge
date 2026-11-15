@@ -429,6 +429,9 @@ importers:
       highlight.js:
         specifier: ^11.11.1
         version: 11.11.1
+      ignore:
+        specifier: ^7.0.12
+        version: 7.0.12
       ioredis:
         specifier: ^5.6.1
         version: 5.6.1
@@ -4361,10 +4364,6 @@ packages:
 
   ignore@7.0.12:
     resolution: {integrity: sha512-/8UvqAPU9DGTI9k4mxtf49U37Isfwr8Uts96+SBHIkFxPJnHS0Ew4f00sM4Scd8V8EjM0jUNtVDdv1kPdt35lg==}
-    engines: {node: '>= 4'}
-
-  ignore@7.0.5:
-    resolution: {integrity: sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg==}
     engines: {node: '>= 4'}
 
   image-meta@0.3.0:
@@ -8308,7 +8307,7 @@ snapshots:
       destr: 2.0.5
       errx: 0.1.0
       exsolve: 1.0.7
-      ignore: 7.0.5
+      ignore: 7.0.12
       jiti: 2.5.1
       klona: 2.0.6
       knitwork: 1.2.0
@@ -8335,7 +8334,7 @@ snapshots:
       destr: 2.0.5
       errx: 0.1.0
       exsolve: 1.0.7
-      ignore: 7.0.5
+      ignore: 7.0.12
       jiti: 2.5.1
       klona: 2.0.6
       mlly: 1.7.4
@@ -11051,8 +11050,6 @@ snapshots:
   ieee754@1.2.1: {}
 
   ignore@7.0.12: {}
-
-  ignore@7.0.5: {}
 
   image-meta@0.3.0: {}
 

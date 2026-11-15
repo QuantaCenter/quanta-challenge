@@ -11,10 +11,12 @@ export interface IUseEditorShortcutsOptions {
    onToggleFiles: () => void;
    onToggleTerminal: () => void;
    onFormat: () => void;
+   onProjectSearch: () => void;
+   onQuickOpen: () => void;
 }
 
 /**
- * 做题页快捷键：Ctrl/⌘ + S / R / W / B / J。
+ * 工坊与做题页共用快捷键，包括项目搜索、文件搜索、格式化及面板操作。
  *
  * 在 window 捕获阶段监听，抢在 Monaco、xterm 之前拦下浏览器默认行为。
  * 焦点在跨源的预览 iframe 内时事件到不了这里；Ctrl+W 在多数浏览器里属于保留快捷键，
@@ -29,6 +31,8 @@ export const useEditorShortcuts = (options: IUseEditorShortcutsOptions) => {
       b: options.onToggleFiles,
       j: options.onToggleTerminal,
       format: options.onFormat,
+      search: options.onProjectSearch,
+      quickOpen: options.onQuickOpen,
    };
 
    useEventListener(

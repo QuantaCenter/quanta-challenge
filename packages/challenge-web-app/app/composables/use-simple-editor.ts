@@ -101,6 +101,7 @@ const setEnvironment = () => {
 };
 
 export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
+   let disposed = false;
    let editor: monaco.editor.IStandaloneCodeEditor | null = null;
    let monacoInstance: typeof import('monaco-editor') | null = null;
    let mobileTouchSupportDisposable: monaco.IDisposable | null = null;
@@ -136,6 +137,7 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
    onMounted(async () => {
       if (!container.value) return;
       const monaco = await import('monaco-editor');
+      if (disposed || !container.value) return;
       monacoInstance = monaco;
 
       setEnvironment();
@@ -195,6 +197,7 @@ export const useSimpleEditor = (options: IUseSimpleEditorOptions) => {
    });
 
    onUnmounted(() => {
+      disposed = true;
       editorBeforeDisposedCallbacks.forEach((callback) => callback(editor!));
       mobileTouchSupportDisposable?.dispose();
       editor?.dispose();
