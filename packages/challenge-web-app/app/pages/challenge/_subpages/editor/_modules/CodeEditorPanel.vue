@@ -194,7 +194,7 @@ const {
    onModelChange,
    onModelContentChange,
    addExtraLibs,
-} = useMonacoEditor();
+} = useMonacoEditor({ options: { model: null } });
 
 const hasEditorReady = ref(false);
 
@@ -324,11 +324,6 @@ watch([hasEditorReady, projectModelPaths], ([ready, paths]) => {
       const model = monacoInstance.editor.getModel(monacoInstance.Uri.file(path));
       if (model) preloadedModels.set(path, model);
    }
-
-   const path = currentFilePath.value;
-   if (path && !searchTabActive.value && !editorInstance?.getModel()) {
-      setModel(path);
-   }
 });
 
 onModelChange((path) => {
@@ -391,6 +386,19 @@ const setModel = (path: string | null, forceRecreate = false) => {
       }
    });
 };
+
+// 文件选择、快照和 Monaco 可能以任意顺序就绪，不能依赖父组件的一次 setModel 调用。
+// 只监听内容是否已加载，避免输入时重复绑定模型或关闭搜索面板。
+watch([
+   hasEditorReady,
+   currentFilePath,
+   () => {
+      const path = currentFilePath.value;
+      return !!path && props.defaultFs?.[normalizePath(path)]?.content !== undefined;
+   },
+], ([ready, path, available]) => {
+   if (ready && path && available) setModel(path);
+});
 
 const isBinaryFile = computed(() => {
    if (!currentFilePath.value) return false;
