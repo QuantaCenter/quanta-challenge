@@ -474,7 +474,7 @@ const create = async () => {
          aria-modal="true"
          aria-label="从 GitHub 导入"
          :aria-busy="pending || importing"
-         class="relative flex h-full w-full min-h-0 flex-col overflow-hidden bg-black text-white">
+         class="relative flex h-full w-full min-h-0 flex-col overflow-hidden rounded-t-[inherit] bg-black text-white">
          <div
             :inert="pending || importing"
             class="flex h-full min-h-0 flex-col">

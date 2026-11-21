@@ -194,7 +194,7 @@ const submit = async () => {
          aria-modal="true"
          aria-label="从本地文件夹导入"
          :aria-busy="importing"
-         class="flex h-full min-h-0 w-full flex-col overflow-hidden bg-black text-white">
+         class="flex h-full min-h-0 w-full flex-col overflow-hidden rounded-t-[inherit] bg-black text-white">
          <StSpace
             justify="between"
             align="center"

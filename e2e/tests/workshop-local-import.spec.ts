@@ -4,6 +4,54 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { expect, test } from '@playwright/test';
 
+test('移动端导入菜单与模板标题同排，两个抽屉都有顶部圆角', async ({ page }) => {
+   await page.setViewportSize({ width: 320, height: 840 });
+   await page.goto('/app/workshop', { waitUntil: 'networkidle' });
+
+   const heading = page.getByRole('heading', { name: '从模板创建' });
+   const trigger = page.getByRole('button', { name: '导入', exact: true });
+   await expect(heading).toBeVisible();
+   await expect(trigger).toBeVisible();
+   const titleBox = (await heading.boundingBox())!;
+   const triggerBox = (await trigger.boundingBox())!;
+   expect(titleBox.x + titleBox.width).toBeLessThan(triggerBox.x);
+   expect(titleBox.y).toBeLessThan(triggerBox.y + triggerBox.height);
+   expect(triggerBox.y).toBeLessThan(titleBox.y + titleBox.height);
+   expect(triggerBox.x + triggerBox.width).toBeLessThanOrEqual(320);
+
+   const menu = page.getByRole('menu', { name: '导入' });
+   await trigger.press('ArrowDown');
+   await expect(menu).toBeVisible();
+   await page.keyboard.press('Escape');
+   await expect(menu).toBeHidden();
+   await expect(trigger).toBeFocused();
+
+   for (const [option, title] of [['从本地', '从本地文件夹导入'], ['从 GitHub', '从 GitHub 导入']]) {
+      await trigger.click();
+      await menu.getByRole('menuitem', { name: option, exact: true }).click();
+      await expect(menu).toBeHidden();
+      const drawer = page.getByRole('dialog', { name: title });
+      await expect(drawer).toBeVisible();
+      await expect(drawer).toHaveCSS('border-top-left-radius', '16px');
+      await expect(drawer).toHaveCSS('border-top-right-radius', '16px');
+      if (option === '从 GitHub') {
+         const connection = drawer.getByRole('region', { name: 'GitHub 账号连接' });
+         await expect(connection.getByRole('button').first()).toBeVisible();
+         const [account, action] = await connection.evaluate((card) =>
+            ['h3', 'button'].map((selector) => {
+               const { top, right, bottom, left } = card.querySelector(selector)!.getBoundingClientRect();
+               return { top, right, bottom, left };
+            }),
+         );
+         expect(account.right).toBeLessThan(action.left);
+         expect(account.top).toBeLessThan(action.bottom);
+         expect(action.top).toBeLessThan(account.bottom);
+      }
+      await drawer.getByRole('button', { name: '关闭' }).click();
+      await expect(drawer).toBeHidden();
+   }
+});
+
 test('从本地文件夹导入保留目录结构和二进制文件', async ({ page }) => {
    const folder = await mkdtemp(join(tmpdir(), 'quanta-workshop-'));
    const name = `本地导入 ${randomUUID().slice(0, 8)}`;

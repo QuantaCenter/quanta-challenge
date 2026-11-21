@@ -86,7 +86,7 @@ const visibleTemplates = computed(() => {
 
 <template>
    <StSpace fill-x direction="vertical" gap="1rem">
-      <StSpace fill-x align="center" justify="between" gap="0.75rem" class="max-md:flex-wrap">
+      <StSpace fill-x align="center" justify="between" gap="0.75rem">
          <h2 class="shrink-0 text-xl font-bold max-md:text-base">从模板创建</h2>
          <slot name="header-actions" />
       </StSpace>

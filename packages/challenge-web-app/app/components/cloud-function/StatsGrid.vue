@@ -9,6 +9,8 @@ export interface ICloudFunctionStat {
    value: number | string;
    /** Tailwind 文本色类名，如 `text-success` */
    color?: string;
+   /** 让带单位的数值在卡片中使用紧凑字号并保持单行。 */
+   compactValue?: boolean;
 }
 
 defineProps<{
@@ -29,7 +31,11 @@ defineProps<{
          </div>
          <div
             class="st-font-secondary-bold mt-1"
-            :class="[item.color, { 'font-family-manrope tabular-nums': numericFont }]">
+            :class="[item.color, {
+               'font-family-manrope tabular-nums': numericFont,
+               'truncate text-xl leading-12 max-md:text-sm': item.compactValue,
+            }]"
+            :title="item.compactValue ? String(item.value) : undefined">
             {{ item.value }}
          </div>
       </div>

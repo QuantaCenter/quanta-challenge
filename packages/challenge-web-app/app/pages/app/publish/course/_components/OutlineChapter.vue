@@ -85,14 +85,14 @@ const locked = computed(() => !!props.busyId);
             class="shrink-0 rounded-md bg-primary/15 px-2 py-0.5 st-font-caption font-bold text-primary max-sm:hidden">
             {{ chapterLabel }}
          </span>
-         <StSpace direction="vertical" gap="0.125rem" class="min-w-0 flex-1">
-            <h3 class="st-font-body-bold truncate text-white">{{ chapter.title }}</h3>
+         <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h3 :title="chapter.title" class="st-font-body-bold truncate text-white">{{ chapter.title }}</h3>
             <span class="st-font-caption truncate text-accent-400">
                <span class="font-bold text-primary sm:hidden">{{ chapterLabel }} · </span>
                {{ chapter.stages.length }} 个阶段 · {{ sectionCount }} 个小节
                <template v-if="chapter.introduction"> · 含导读</template>
             </span>
-         </StSpace>
+         </div>
          <StSpace align="center" gap="0.125rem" class="shrink-0" @click.stop>
             <OutlineIconButton
                :icon="ArrowUp"
@@ -161,20 +161,20 @@ const locked = computed(() => !!props.busyId);
                      <DocDetail v-if="section.type === 'article'" />
                      <Code v-else />
                   </span>
-                  <StSpace direction="vertical" gap="0.125rem" class="min-w-0 flex-1">
-                     <StSpace align="center" gap="0.5rem" class="min-w-0">
-                        <span class="st-font-body-normal truncate text-white">{{ section.title }}</span>
+                  <div class="flex min-w-0 flex-1 flex-col gap-0.5">
+                     <div class="flex min-w-0 items-center gap-2">
+                        <span :title="section.title" class="st-font-body-normal min-w-0 truncate text-white">{{ section.title }}</span>
                         <Attention
                            v-if="issueSectionIds.has(section.id)"
                            class="shrink-0 text-warning"
                            title="发布检查未通过" />
-                     </StSpace>
+                     </div>
                      <span
                         class="st-font-caption truncate"
                         :class="issueSectionIds.has(section.id) ? 'text-warning' : 'text-accent-400'">
                         {{ section.type === 'article' ? '图文' : '实践题' }} · {{ sectionMeta(section) }}
                      </span>
-                  </StSpace>
+                  </div>
                   <span
                      v-if="section._count.progress"
                      class="flex shrink-0 items-center gap-1 st-font-caption text-accent-300 max-md:hidden"

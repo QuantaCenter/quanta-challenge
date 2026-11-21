@@ -179,7 +179,7 @@ const coverUrl = computed(() => (data.value?.coverImage ? `/api/static/${data.va
                </StSpace>
             </StSpace>
 
-            <CloudFunctionStatsGrid :items="stats" numeric-font />
+            <CloudFunctionStatsGrid :items="stats" numeric-font class="items-stretch!" />
 
             <CoursePublishChecklist :issues="issues" :status="data.status" />
 

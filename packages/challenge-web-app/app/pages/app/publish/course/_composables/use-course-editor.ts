@@ -111,7 +111,7 @@ export const useCourseEditor = (courseId: Ref<string>) => {
          { label: '章节', value: data.value?.chapters.length ?? 0, color: 'text-white' },
          { label: '小节', value: sections.length, color: 'text-white' },
          { label: '学员', value: data.value?._count.enrollments ?? 0, color: 'text-secondary' },
-         { label: '预计学时', value: formatStudyMinutes(minutes), color: 'text-accent-100' },
+         { label: '预计学时', value: formatStudyMinutes(minutes), color: 'text-accent-100', compactValue: true },
       ];
    });
 

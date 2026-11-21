@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { dialog } from '~/composables/use-dialog';
-import { LoadingFour } from '@icon-park/vue-next';
-import { Link2, Settings, RefreshCw, Unplug } from 'lucide-vue-next';
+import { Settings, RefreshCw, Unplug } from 'lucide-vue-next';
 const props = withDefaults(
    defineProps<{
       target?: 'workshop' | 'settings';
@@ -20,6 +19,21 @@ const { data, error, refresh } = await useAsyncData('github-connection', () =>
 const pending = ref(false);
 const failure = ref('');
 const route = useRoute();
+const connected = computed(() => data.value?.enabled && data.value.connected);
+const status = computed(() => {
+   if (!data.value) return '';
+   if (!data.value.enabled) return '授权未启用';
+   if (connected.value) return '已连接';
+   return data.value.login ? '已失效' : '未连接';
+});
+const notice = computed(() => {
+   if (failure.value) return failure.value;
+   if (route.query.github === 'failed') return '授权未完成，请重试。';
+   return error.value ? '连接状态加载失败。' : '';
+});
+const iconButtonClass =
+   '!size-8 !rounded-lg !bg-transparent !p-0 !text-accent-300 hover:!bg-accent-500 max-md:!size-9';
+
 let redirecting = false;
 const resetPending = () => {
    pending.value = false;
@@ -75,136 +89,75 @@ const run = async (action: 'connect' | 'install' | 'disconnect') => {
 
 <template>
    <StCard
-      class="!h-auto !rounded-xl border gap-3"
-      :class="data?.connected ? '!border-success/40 !bg-success/5' : 'border-accent-500'">
-      <template #header><span class="sr-only">GitHub 账号连接</span></template>
-      <div class="flex items-center justify-between gap-3 flex-wrap">
-         <div>
-            <h3 class="font-bold">GitHub</h3>
-            <p
-               class="flex items-center gap-1.5 text-sm"
-               :class="data?.connected ? 'text-success' : 'text-accent-300'">
-               <Link2
-                  v-if="data?.connected"
-                  :size="14"
-                  class="shrink-0 translate-y-0.5"
-                  aria-hidden="true" />
-               {{
-                  data?.connected
-                     ? `已连接 · @${data.login}`
-                     : data?.login
-                       ? `@${data.login} 需要重新授权`
-                       : '连接 GitHub，选择已授权的公开或私有仓库导入。'
-               }}
-            </p>
-         </div>
-         <div class="flex flex-wrap items-center gap-1">
-            <StButton
-               v-if="!data?.connected"
-               size="sm"
-               class="gap-2 border-2 border-transparent !bg-accent-100 !text-black"
-               :disabled="pending || !data?.enabled"
-               :loading="pending"
-               @click="run('connect')">
-               <template #icon="{ loading }">
-                  <LoadingFour
-                     v-if="loading"
-                     class="size-4 animate-spin"
-                     aria-hidden="true" />
-                  <img
-                     v-else
-                     src="/icons/github.png"
-                     alt=""
-                     aria-hidden="true"
-                     class="size-4 object-contain">
-               </template>
-               连接 GitHub
-            </StButton>
-            <StPopover
-               v-if="data?.connected"
-               content="安装 / 管理仓库授权"
-               placement="top"
-               :z-index="10002">
-               <template #popper>
-                  <div
-                     class="px-2 py-1 rounded-lg bg-black text-white border border-accent-500 shadow-lg">
-                     安装 / 管理仓库授权
-                  </div>
-               </template>
+      role="region"
+      aria-label="GitHub 账号连接"
+      class="!h-auto min-w-0 !rounded-xl border gap-2 max-md:!p-3"
+      :class="connected ? '!border-success/40 !bg-success/5' : 'border-accent-500'">
+      <template #header>
+         <div class="flex min-w-0 items-center gap-2.5">
+            <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent-500 max-md:size-8">
+               <img src="/icons/github-white.png" alt="" class="size-5 object-contain" />
+            </div>
+            <div class="min-w-0 flex-1">
+               <h3 class="font-bold leading-tight">GitHub</h3>
+               <p
+                  v-if="status"
+                  class="mt-0.5 flex min-w-0 items-center gap-1 whitespace-nowrap text-sm max-md:text-xs"
+                  :class="connected ? 'text-success' : 'text-accent-300'">
+                  <span class="shrink-0">{{ status }}</span>
+                  <span v-if="data?.login" class="min-w-0 truncate" :title="`@${data.login}`">
+                     <span aria-hidden="true">· </span>@{{ data.login }}
+                  </span>
+               </p>
+            </div>
+            <div class="flex shrink-0 items-center gap-1">
                <StButton
+                  v-if="!data?.connected"
                   size="sm"
-                  aria-label="安装 / 管理仓库授权"
-                  class="!size-8 !p-0 !bg-transparent !text-accent-300"
-                  :disabled="pending"
-                  @click="run('install')">
-                  <Settings
-                     :size="18"
-                     aria-hidden="true" />
-               </StButton>
-            </StPopover>
-            <StPopover
-               v-if="data?.connected"
-               content="重新授权"
-               placement="top"
-               :z-index="10002">
-               <template #popper>
-                  <div
-                     class="px-2 py-1 rounded-lg bg-black text-white border border-accent-500 shadow-lg">
-                     重新授权
-                  </div>
-               </template>
-               <StButton
-                  size="sm"
-                  aria-label="重新授权"
-                  class="!size-8 !p-0 !bg-transparent !text-accent-300"
-                  :disabled="pending || !data?.enabled"
+                  :aria-label="data?.login ? '重新授权' : '连接 GitHub'"
+                  class="whitespace-nowrap !rounded-lg !bg-accent-100 !px-3 !text-black text-sm"
+                  :disabled="!data?.enabled"
+                  :loading="pending"
                   @click="run('connect')">
-                  <RefreshCw
-                     :size="18"
-                     aria-hidden="true" />
+                  {{ data?.login ? '重新授权' : '连接' }}
                </StButton>
-            </StPopover>
-            <StPopover
-               v-if="data?.login"
-               content="解绑 GitHub"
-               placement="top"
-               :z-index="10002">
-               <template #popper>
-                  <div
-                     class="px-2 py-1 rounded-lg bg-black text-white border border-accent-500 shadow-lg">
-                     解绑 GitHub
-                  </div>
+               <template v-else>
+                  <StPopover content="仓库授权" placement="top" :z-index="10002">
+                     <StButton
+                        size="sm"
+                        aria-label="管理仓库授权"
+                        :class="iconButtonClass"
+                        :disabled="pending || !data?.enabled"
+                        @click="run('install')">
+                        <Settings :size="18" aria-hidden="true" />
+                     </StButton>
+                  </StPopover>
+                  <StPopover content="重新授权" placement="top" :z-index="10002">
+                     <StButton
+                        size="sm"
+                        aria-label="重新授权"
+                        :class="iconButtonClass"
+                        :disabled="pending || !data?.enabled"
+                        @click="run('connect')">
+                        <RefreshCw :size="18" aria-hidden="true" />
+                     </StButton>
+                  </StPopover>
                </template>
-               <StButton
-                  size="sm"
-                  aria-label="解绑 GitHub"
-                  class="!size-8 !p-0 !bg-transparent !text-accent-300"
-                  :disabled="pending"
-                  @click="run('disconnect')">
-                  <Unplug
-                     :size="18"
-                     aria-hidden="true" />
-               </StButton>
-            </StPopover>
+               <StPopover v-if="data?.login" content="解绑 GitHub" placement="top" :z-index="10002">
+                  <StButton
+                     size="sm"
+                     aria-label="解绑 GitHub"
+                     :class="iconButtonClass"
+                     :disabled="pending"
+                     @click="run('disconnect')">
+                     <Unplug :size="18" aria-hidden="true" />
+                  </StButton>
+               </StPopover>
+            </div>
          </div>
-      </div>
-      <p
-         v-if="data && !data.enabled"
-         class="text-sm text-accent-300">
-         管理员尚未配置 GitHub App，仍可通过公开仓库链接导入。
-      </p>
-      <p
-         v-if="route.query.github === 'failed'"
-         role="alert"
-         class="text-sm text-red-400">
-         GitHub 授权未完成，请确认仍登录 Challenge
-         后重试；若账号已绑定其他用户，请先解绑。
-      </p>
-      <p
-         v-if="failure || error"
-         role="alert"
-         class="text-sm text-red-400">
-         {{ failure || '连接状态加载失败' }}
+      </template>
+      <p v-if="notice" role="alert" class="wrap-break-word text-sm text-red-400 max-md:text-xs">
+         {{ notice }}
       </p>
    </StCard>
 </template>
