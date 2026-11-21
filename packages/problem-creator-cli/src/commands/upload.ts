@@ -178,10 +178,10 @@ export const runUpload = async (
          designMode === null || config.type === 'backend_service'
             ? '不提供'
             : designMode === 'hierarchical'
-               ? '层级模式'
-               : designMode === 'flat' || targetProblemId === undefined
-                  ? '平铺模式'
-                  : '<沿用平台当前版本>',
+              ? '层级模式'
+              : designMode === 'flat' || targetProblemId === undefined
+                ? '平铺模式'
+                : '<沿用平台当前版本>',
       ],
       ['启动命令', config.runtime.initCommand ?? '<默认>'],
       ['答案模板', `${report.stats.template.fileCount} 个文件`],

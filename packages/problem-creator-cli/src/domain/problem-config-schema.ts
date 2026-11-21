@@ -64,7 +64,7 @@ export const coverSchema = z.union([
    }),
 ]);
 
-export const problemConfigSchema = z.object({
+const problemConfigFields = z.object({
    title: z.string().min(1, 'title 不能为空'),
    /** 平台题目 id（qpc upload 返回的 pid）：填了它就在该题目下追加新版本，否则每次新建 */
    problemId: z.number().int().positive().optional(),
@@ -119,7 +119,9 @@ export const problemConfigSchema = z.object({
          judge: z.string().min(1).default('judge.js'),
       })
       .default({ template: 'template', answer: 'answer', judge: 'judge.js' }),
-}).refine(
+});
+
+export const problemConfigSchema = problemConfigFields.refine(
    (config) => config.type !== 'backend_service' || config.designMode == null,
    { path: ['designMode'], message: '后端服务题型不支持生成设计稿' },
 );
