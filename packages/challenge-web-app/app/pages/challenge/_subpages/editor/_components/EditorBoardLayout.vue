@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onUnmounted, ref, useSlots, useTemplateRef, watch } from 'vue';
+import { computed, onMounted, onUnmounted, ref, useSlots, useTemplateRef, watch } from 'vue';
 import { useMediaQuery } from '@vueuse/core';
 import { useLayoutStore, type EditorBoardId } from '~/stores/layout-store';
 import { useEditorStore } from '~/stores/editor-store';
@@ -14,6 +14,8 @@ const props = withDefaults(
       previewLabel?: string;
       /** 移动端详情板块的 Tab 文案 */
       detailLabel?: string;
+      /** 题目设计稿可用时才提供移动端设计稿板块。 */
+      hasDesign?: boolean;
    }>(),
    { previewLabel: '实时预览', detailLabel: '题目' },
 );
@@ -69,23 +71,45 @@ onMounted(() => {
    tabsReady.value = true;
 });
 
-/** 移动端分页的板块 id：题面默认位于代码编辑器左侧 */
-type MobileBoardId = 'detail' | 'code' | 'preview';
+type MobileBoardId = 'design' | 'detail' | 'code' | 'preview';
 
-/** 文件树移入「更多」抽屉；提供详情插槽时，详情排在最左侧。 */
-const mobileBoardIds = computed<MobileBoardId[]>(() =>
-   slots['board-detail'] ? ['detail', 'code', 'preview'] : ['code', 'preview'],
-);
+const showDesignBoard = computed(() => tabsReady.value && props.hasDesign);
+const defaultMobileBoard: MobileBoardId = slots['board-detail'] ? 'detail' : 'code';
+const mobileSideBoardClass = 'relative hidden h-full w-full shrink-0 snap-center overflow-x-hidden px-0.5 max-md:block';
+const mobileBoardIds = computed<MobileBoardId[]>(() => [
+   ...(showDesignBoard.value ? ['design' as const] : []),
+   ...(slots['board-detail'] ? ['detail' as const] : []),
+   'code',
+   'preview',
+]);
 
 /** 移动端 Tab 文案（顶栏空间有限，用短标签） */
 const MOBILE_TAB_LABEL = computed<Record<MobileBoardId, string>>(() => ({
+   design: '设计稿',
    detail: props.detailLabel,
    code: '代码',
    preview: '预览',
 }));
 
 /** 当前展示的板块（移动端顶栏 Tab 与滑动位置双向同步） */
-const activeBoard = ref<MobileBoardId>(mobileBoardIds.value[0]!);
+const activeBoard = ref<MobileBoardId>(defaultMobileBoard);
+const designVisited = ref(false);
+
+const activateBoard = (id: MobileBoardId) => {
+   activeBoard.value = id;
+   if (id === 'design') designVisited.value = true;
+};
+
+// 设计稿板块插入在题面之前，挂载和断点切换时保留当前板块的位置。
+watch([showDesignBoard, isDesktop], () => {
+   if (!showDesignBoard.value) {
+      designVisited.value = false;
+      if (activeBoard.value === 'design') activeBoard.value = defaultMobileBoard;
+   }
+   const el = container.value;
+   if (isDesktop.value || !el) return;
+   el.scrollLeft = mobileBoardIds.value.indexOf(activeBoard.value) * el.clientWidth;
+}, { flush: 'post' });
 
 const handleBoardScroll = () => {
    if (isDesktop.value) return;
@@ -93,16 +117,18 @@ const handleBoardScroll = () => {
    if (!el || el.clientWidth === 0) return;
    const index = Math.round(el.scrollLeft / el.clientWidth);
    const id = mobileBoardIds.value[index];
-   if (id && id !== activeBoard.value) activeBoard.value = id;
+   if (id && id !== activeBoard.value) activateBoard(id);
 };
 
 const scrollToBoard = (id: MobileBoardId) => {
-   activeBoard.value = id;
+   const index = mobileBoardIds.value.indexOf(id);
+   if (index < 0) return;
+   activateBoard(id);
    if (isDesktop.value) return;
    const el = container.value;
    if (!el) return;
    el.scrollTo({
-      left: mobileBoardIds.value.indexOf(id) * el.clientWidth,
+      left: index * el.clientWidth,
       behavior: 'smooth',
    });
 };
@@ -268,13 +294,14 @@ watch(
 <template>
    <div class="w-full h-full flex flex-col max-md:min-h-0">
       <Teleport v-if="tabsReady && !isDesktop" to="#challenge-mobile-board-tabs">
-         <div role="tablist" aria-label="板块切换" class="flex items-center gap-1">
+         <div role="tablist" aria-label="板块切换" class="flex items-center gap-1 max-[375px]:gap-0.5">
             <button
                v-for="id in mobileBoardIds"
                :key="`tab-${id}`"
+               type="button"
                role="tab"
                :aria-selected="activeBoard === id"
-               class="h-7 px-2.5 rounded-md text-xs whitespace-nowrap transition-colors cursor-pointer"
+               class="h-7 shrink-0 rounded-md px-2.5 text-xs whitespace-nowrap transition-colors hover:cursor-pointer max-[375px]:px-1.5"
                :class="
                   activeBoard === id
                      ? 'bg-accent-600 text-white'
@@ -291,9 +318,19 @@ watch(
          class="relative w-full h-full flex flex-row min-h-0 max-md:flex-1 max-md:overflow-x-auto max-md:overflow-y-hidden max-md:snap-x max-md:snap-mandatory max-md:overscroll-x-contain max-md:rounded-lg editor-board-pager"
          @scroll.passive="handleBoardScroll">
          <div
+            v-if="showDesignBoard"
+            data-board="design"
+            :inert="activeBoard !== 'design'"
+            :class="mobileSideBoardClass">
+            <div class="h-full overflow-hidden rounded-lg bg-[#1F1F1F]">
+               <slot v-if="designVisited" name="board-design" />
+            </div>
+         </div>
+
+         <div
             v-if="$slots['board-detail']"
             data-board="detail"
-            class="relative h-full w-full shrink-0 snap-center hidden max-md:block max-md:overflow-x-hidden max-md:px-0.5">
+            :class="mobileSideBoardClass">
             <slot name="board-detail" />
          </div>
 

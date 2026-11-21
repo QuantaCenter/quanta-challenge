@@ -36,7 +36,7 @@ const zoomOut = () => {
 </script>
 
 <template>
-   <StFloatWindow v-model:is-active="editorStore.detailWindowOpened">
+   <StFloatWindow v-model:is-active="editorStore.detailWindowOpened" raise-on-interact>
       <template #tools>
          <StSpace
             align="center"

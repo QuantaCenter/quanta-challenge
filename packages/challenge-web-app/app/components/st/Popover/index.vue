@@ -7,6 +7,8 @@ const props = defineProps<{
    zIndex?: number;
    /** 触屏上改为点击切换显示，点击外部收起；默认触屏不显示 */
    tapToggle?: boolean;
+   /** 用于按钮提示，支持键盘焦点，且不拦截指针事件。 */
+   tooltip?: boolean;
 }>();
 
 const { containerKey, popperKey, container, popper, popperInstance } = usePopper({
@@ -18,22 +20,42 @@ const { containerKey, popperKey, container, popper, popperInstance } = usePopper
 defineOptions({ inheritAttrs: false });
 const attrs = useAttrs();
 
-const triggered = ref(false);
+const pointerActive = ref(false);
+const focusActive = ref(false);
+const tooltipMounted = ref(false);
+const triggered = computed(() => pointerActive.value || focusActive.value);
 
 // 服务端与水合期间内联渲染，挂载后再传送到 body（规避 teleport 水合错位）
 const teleported = useClientTeleport();
 
-// 用 pointer 事件区分输入类型：触屏点击会模拟 mouseenter 且没有对应的 leave，
-// 提示会残留并可能撑大移动端布局视口，因此只响应鼠标 / 触控笔的悬停
-const onPointerEnter = async (event: PointerEvent) => {
-   if (event.pointerType === 'touch') return;
-   triggered.value = true;
+const show = async () => {
+   if (props.tooltip) tooltipMounted.value = true;
    await nextTick();
    popperInstance.value?.update();
 };
+
+const onFocusIn = (event: FocusEvent) => {
+   if (!(event.target instanceof HTMLElement) || !event.target.matches(':focus-visible')) return;
+   focusActive.value = true;
+   void show();
+};
+const onFocusOut = () => {
+   focusActive.value = false;
+};
+watch(() => props.content, () => {
+   if (props.tooltip && triggered.value) void show();
+});
+
+// 用 pointer 事件区分输入类型：触屏点击会模拟 mouseenter 且没有对应的 leave，
+// 提示会残留并可能撑大移动端布局视口，因此只响应鼠标 / 触控笔的悬停
+const onPointerEnter = (event: PointerEvent) => {
+   if (event.pointerType === 'touch') return;
+   pointerActive.value = true;
+   void show();
+};
 const onPointerLeave = (event: PointerEvent) => {
    if (event.pointerType === 'touch') return;
-   triggered.value = false;
+   pointerActive.value = false;
 };
 
 // tapToggle：click 事件不一定带 pointerType，用最近一次 pointerdown 判断是否触屏点击
@@ -41,18 +63,16 @@ let lastPointerType = '';
 const onPointerDown = (event: PointerEvent) => {
    lastPointerType = event.pointerType;
 };
-const onTap = async () => {
+const onTap = () => {
    if (lastPointerType !== 'touch') return;
-   triggered.value = !triggered.value;
-   if (!triggered.value) return;
-   await nextTick();
-   popperInstance.value?.update();
+   pointerActive.value = !pointerActive.value;
+   if (pointerActive.value) void show();
 };
 const onOutsidePointerDown = (event: PointerEvent) => {
    if (!triggered.value || event.pointerType !== 'touch') return;
    const target = event.target as Node | null;
    if (container.value?.contains(target) || popper.value?.contains(target)) return;
-   triggered.value = false;
+   pointerActive.value = false;
 };
 
 let observer: MutationObserver;
@@ -64,6 +84,11 @@ onMounted(() => {
       container.value.addEventListener('pointerdown', onPointerDown);
       container.value.addEventListener('click', onTap);
       document.addEventListener('pointerdown', onOutsidePointerDown, true);
+   }
+   if (props.tooltip) {
+      container.value.addEventListener('focusin', onFocusIn);
+      container.value.addEventListener('focusout', onFocusOut);
+      return;
    }
    observer = new MutationObserver(() => {
       popperInstance.value?.update();
@@ -88,6 +113,8 @@ onUnmounted(() => {
    container.value.removeEventListener('pointerleave', onPointerLeave);
    container.value.removeEventListener('pointerdown', onPointerDown);
    container.value.removeEventListener('click', onTap);
+   container.value.removeEventListener('focusin', onFocusIn);
+   container.value.removeEventListener('focusout', onFocusOut);
    document.removeEventListener('pointerdown', onOutsidePointerDown, true);
    observer?.disconnect();
 });
@@ -95,12 +122,16 @@ onUnmounted(() => {
 
 <template>
    <Teleport to="body">
-      <template v-if="teleported">
+      <template v-if="teleported && (!tooltip || tooltipMounted)">
          <div
             :ref="popperKey"
             v-show="triggered"
+            :role="tooltip ? 'tooltip' : undefined"
             class="absolute z-[10001] transition-opacity !w-fit"
-            :class="[triggered ? 'opacity-100' : 'opacity-0 pointer-events-none']"
+            :class="[
+               triggered ? 'opacity-100' : 'opacity-0 pointer-events-none',
+               { 'pointer-events-none text-sm/5 data-[popper-reference-hidden]:invisible': tooltip },
+            ]"
             :style="{ zIndex: props.zIndex ?? 9998 }">
             <slot name="popper" :triggered>
                <div class="px-2 py-1 rounded-lg bg-accent-600 text-white">

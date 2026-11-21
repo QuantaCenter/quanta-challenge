@@ -50,6 +50,8 @@ export interface UploadOptions {
    new?: boolean;
    /** 把本次使用的题目 id 写回配置 */
    write?: boolean;
+   /** false 表示不生成设计稿，省略时由服务端默认设置决定。 */
+   design?: boolean;
 }
 
 export const registerUploadCommand = (registry: CommandRegistry): void => {
@@ -68,6 +70,7 @@ export const registerUploadCommand = (registry: CommandRegistry): void => {
          '在该题目下追加新版本（覆盖配置里的 problemId）',
       )
       .option('--new', '强制新建题目（忽略配置里的 problemId）')
+      .option('--no-design', '不提供设计稿')
       .option('--write', '把本次使用的题目 id 写回配置')
       .option('--timeout <seconds>', '审计等待超时（秒）', '300')
       .option('--interval <seconds>', '审计状态轮询间隔（秒）', '2')
@@ -127,6 +130,7 @@ export const runUpload = async (
       answerTemplateSnapshot: report.templateSnapshot,
       referenceAnswerSnapshot: report.answerSnapshot,
       coverMode: config.cover.mode,
+      designMode: options.design === false ? null : undefined,
       ...(config.cover.mode === 'custom'
          ? { coverImageId: config.cover.imageId }
          : {}),

@@ -11,6 +11,7 @@ import {
 import type { ISelectOption } from '~/components/st/Select/type';
 import type { IRule } from '~/components/st/Form/type';
 import type { ISlideRadioGroupOption } from '~/components/st/SlideRadioGroup/type';
+import { DEFAULT_PROBLEM_DESIGN_MODE } from '~~/shared/problem-design';
 import {
    isJudgeScriptTemplate,
    judgeScriptTemplateOf,
@@ -45,7 +46,7 @@ export const problemTypeOptions: ISlideRadioGroupOption[] = [
    { label: '后端题型', value: 'backend_service', color: '#17BF63' },
 ];
 
-export const useProblemPublicationForm = (storageName: string) => {
+export const useProblemPublicationForm = (storageName: string, isEditing: boolean) => {
    const formdata = useLocalStorage(storageName, {
       title: '',
       detail: '',
@@ -62,6 +63,7 @@ export const useProblemPublicationForm = (storageName: string) => {
       referenceAnswer: {} as Record<string, string>,
       coverMode: 'default' as 'default' | 'custom',
       coverImageId: undefined as string | undefined,
+      designMode: (isEditing ? null : DEFAULT_PROBLEM_DESIGN_MODE) as 'flat' | 'hierarchical' | null,
       bootCommand: '',
       initCommand: '',
       buildCommand: '',
@@ -77,7 +79,7 @@ export const useProblemPublicationForm = (storageName: string) => {
       taskStartAt: '' as string,
       taskEndAt: '' as string,
       scheduledPublishAt: '' as string,
-   });
+   }, { mergeDefaults: true });
    const draft = useDebounce(formdata, 200);
 
    /** 后端题的挂载目录（启动命令要相对它写 `cd ./<dir> && ...`）。 */

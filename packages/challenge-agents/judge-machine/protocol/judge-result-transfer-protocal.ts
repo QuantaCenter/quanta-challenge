@@ -135,7 +135,14 @@ export class JRTP {
 
    /** 打包数据：序列化 JSON 并将 Buffer 附加到结果 Buffer。 */
    pack(data: Record<string, any>) {
-      const { tranferedData, buffers } = this.extractBuffer(data);
+      const { designDocument, ...payload } = data;
+      const { tranferedData, buffers } = this.extractBuffer(payload);
+      // 设计稿是独立 JSON，保留任意层级的数组和属性值，避开附件标记的递归解码。
+      if (designDocument) {
+         tranferedData.designDocument = JSON.stringify(designDocument, (_key, value) =>
+            typeof value === 'string' ? value.toWellFormed().replaceAll('\0', '\uFFFD') : value,
+         );
+      }
 
       const transferDataBuffer = Buffer.from(
          JSON.stringify(tranferedData),
@@ -192,6 +199,10 @@ export class JRTP {
          bufferOffset += info.length;
       });
 
-      return this.reassembleBuffer(tranferedData, buffers);
+      const data = this.reassembleBuffer(tranferedData, buffers);
+      if (typeof data.designDocument === 'string') {
+         data.designDocument = JSON.parse(data.designDocument);
+      }
+      return data;
    }
 }

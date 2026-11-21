@@ -83,6 +83,9 @@ importers:
       '@hono/node-ws':
         specifier: ^1.2.0
         version: 1.2.0(@hono/node-server@1.18.1(hono@4.8.12))(hono@4.8.12)
+      '@quantacenter/page2design':
+        specifier: 1.0.0
+        version: 1.0.0
       hono:
         specifier: ^4.8.12
         version: 4.8.12
@@ -360,6 +363,9 @@ importers:
       '@prisma/client':
         specifier: ^6.12.0
         version: 6.12.0(prisma@6.12.0(typescript@5.8.3))(typescript@5.8.3)
+      '@quantacenter/page2design':
+        specifier: 1.0.0
+        version: 1.0.0
       '@sentry/nuxt':
         specifier: ^11.8.0
         version: 11.8.0(270ecc0ddf64a6ffbc7b3a866d3fabce)
@@ -2248,6 +2254,10 @@ packages:
 
   '@protobufjs/utf8@1.1.0':
     resolution: {integrity: sha512-Vvn3zZrhQZkkBE8LSuW3em98c0FwgO4nxzv6OdSxPKJIEKY2bGbHn+mhGIPerzI4twdxaP8/0+06HBpwf345Lw==}
+
+  '@quantacenter/page2design@1.0.0':
+    resolution: {integrity: sha512-1RMHjGlU3I9BneAX99chHhSWuUS16M/2Gz3xHf+UYvAJMCvsTnQkA71XmWzkuYPj0peKN4bZC4duVfQEXtgbNA==}
+    engines: {node: '>=20'}
 
   '@rolldown/binding-android-arm-eabi@1.2.14':
     resolution: {integrity: sha512-aWR+XKH9+rW7m5fWq/5360J3mHycrx/o6xZM2DQFdJnTMdyP7/WzxPjhtLbVWdKo2y612/4U1bWqb3HQhiF7vg==}
@@ -8771,6 +8781,8 @@ snapshots:
   '@protobufjs/pool@1.1.0': {}
 
   '@protobufjs/utf8@1.1.0': {}
+
+  '@quantacenter/page2design@1.0.0': {}
 
   '@rolldown/binding-android-arm-eabi@1.2.14':
     optional: true

@@ -67,7 +67,11 @@ test('upload and reupload preserve assets and enforce the CLI version', async ()
 
       const uploaded = await caller('1.2.3').upload(input);
       problemId = uploaded.problemId;
-      const problem = await prisma.problems.findUniqueOrThrow({ where: { pid: problemId } });
+      const problem = await prisma.problems.findUniqueOrThrow({
+         where: { pid: problemId },
+         include: { ProblemDesign: true },
+      });
+      assert.equal(problem.ProblemDesign?.mode, 'flat');
       baseId = problem.baseId;
       const file = await prisma.virtualFiles.findFirstOrThrow({
          where: { FileSystem: { project: { problemId, isTemplate: true } } },
@@ -87,7 +91,7 @@ test('upload and reupload preserve assets and enforce the CLI version', async ()
       const image = await prisma.image.create({ data: { name: `${userId}.png` } });
       imageId = image.id;
       await prisma.problemDefaultCovers.create({ data: { problemId, imageId } });
-      const reuploadInput = { ...input, baseId };
+      const reuploadInput = { ...input, baseId, referenceAnswerSnapshot: undefined };
       const assetCount = await prisma.fileAsset.count({ where: { uploadedById: userId } });
       const diskFiles = new Set(await readdir(assetsPath));
       await assert.rejects(caller('1.2.2').reupload(reuploadInput), /版本过低/);

@@ -33,6 +33,8 @@ export const getProblemRuntimeInfo = async (problemId: number) => {
          bootCommand: true,
          initCommand: true,
          judgeUploadPath: true,
+         totalScore: true,
+         ProblemDesign: { select: { mode: true } },
       },
    });
 };

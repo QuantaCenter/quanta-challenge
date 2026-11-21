@@ -15,13 +15,49 @@ import { buildBackendInitCommand } from '@challenge/shared/backend-service-image
 import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
 import * as db from './db';
 import { JudgeJob } from './types';
-import { $Enums } from '@prisma/client';
+import { $Enums, type Prisma } from '@prisma/client';
 import { TimingService } from '../../services/timing';
+import { logger } from '../../utils/logger';
 import {
    judgeResultsTotal,
    judgeTaskDurationSeconds,
    judgeTaskPendingSeconds,
 } from '../../metrics';
+
+type DesignCapture = { structure: $Enums.ProblemDesignMode; expectedScore: number };
+
+async function saveProblemDesign(
+   problemId: number,
+   structure: $Enums.ProblemDesignMode,
+   result: Extract<JudgeResultType, { type: 'done' }>,
+) {
+   const where = { problemId, mode: structure };
+   if (result.designDocument?.structure === structure) {
+      try {
+         await prisma.problemDesign.updateMany({
+            where: { ...where, status: { not: 'ready' } },
+            data: {
+               status: 'ready',
+               document: result.designDocument as unknown as Prisma.InputJsonObject,
+            },
+         });
+         return;
+      } catch {
+         // 设计稿写入失败不能回滚已经通过的审核。
+         logger.warn({ problemId }, '通过审核后未能保存设计稿');
+      }
+   }
+
+   try {
+      const { count } = await prisma.problemDesign.updateMany({
+         where: { ...where, status: 'pending' },
+         data: { status: 'failed' },
+      });
+      if (count) logger.warn({ problemId, code: result.designError }, '通过审核后未能生成设计稿');
+   } catch {
+      logger.warn({ problemId }, '未能保存设计稿生成失败状态');
+   }
+}
 
 const firstCommandOf = (raw: string | null | undefined): string => {
    if (!raw) return '';
@@ -40,8 +76,9 @@ const sendTaskToJudgeMachine = async (options: {
    networkUrl: string;
    /** 目标判题机的 WebSocket。前端 / 后端用各自的连接，但信封与回包格式一致。 */
    ws: WebSocket;
+   designCapture?: DesignCapture;
 }) => {
-   const { job, networkUrl, ws } = options;
+   const { job, networkUrl, ws, designCapture } = options;
 
    const cacheFiles =
       job.data.mode === 'audit'
@@ -56,6 +93,8 @@ const sendTaskToJudgeMachine = async (options: {
          mode: job.data.mode,
          url: networkUrl,
          info: cacheFiles,
+         designStructure: designCapture?.structure,
+         designExpectedScore: designCapture?.expectedScore,
       } satisfies TaskType)
    );
 
@@ -79,7 +118,7 @@ const sendTaskToJudgeMachine = async (options: {
       const timer = setTimeout(() => {
          off();
          reject(new Error('Judge Machine response timeout'));
-      }, 30 * 1000); // 超时处理
+      }, designCapture ? 60_000 : 30_000);
    });
 
    return result;
@@ -91,10 +130,11 @@ const processResult = async (
       pendingTime: number;
       startTime: number;
       job: Job<JobType>;
+      designCapture?: DesignCapture;
    },
    store: IStoreService
 ) => {
-   const { result, pendingTime, startTime, job } = options;
+   const { result, pendingTime, startTime, job, designCapture } = options;
 
    if (result.type === 'error') {
       throw new Error(result.message || 'Unknown error from Judge Machine');
@@ -152,9 +192,11 @@ const processResult = async (
 
    // 返回是否通过审核
    const allPass = result.results.every((item) => item.status === 'pass');
-   return job.data.mode === 'audit'
-      ? allPass && result.totalScore === score
-      : allPass;
+   const auditPassed = allPass && result.totalScore === score;
+   if (designCapture && auditPassed) {
+      await saveProblemDesign(problemId, designCapture.structure, result);
+   }
+   return job.data.mode === 'audit' ? auditPassed : allPass;
 };
 
 export const judgeProcessor: Processor<JobType> = async (job) =>
@@ -182,6 +224,10 @@ const runJudgeJob: Processor<JobType> = async (job) => {
       const runtime = await timer.measure(timingId, '获取题目运行时信息', () =>
          db.getProblemRuntimeInfo(job.data.problemId)
       );
+      const designCapture =
+         job.data.mode === 'audit' && runtime.problemType === 'frontend' && runtime.ProblemDesign
+            ? { structure: runtime.ProblemDesign.mode, expectedScore: runtime.totalScore }
+            : undefined;
 
       let networkUrl: string;
       let judgeWs: WebSocket;
@@ -248,13 +294,13 @@ const runJudgeJob: Processor<JobType> = async (job) => {
 
       // 发送任务到判题机（前端 / 后端同一套信封），等待返回结果
       const result = await timer.measure(timingId, '判题执行', () =>
-         sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs })
+         sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs, designCapture })
       );
 
       // 处理 Judge Machine 返回的结果
       const pass = await timer.measure(timingId, '判题结果入库', () =>
          processResult(
-            { result, pendingTime, startTime, job },
+            { result, pendingTime, startTime, job, designCapture },
             LocalStoreService.instance
          )
       );

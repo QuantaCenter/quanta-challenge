@@ -2,10 +2,11 @@
 import useAuthStore from './stores/auth-store';
 import { isQuantaLoginPath } from './utils/quanta-login';
 
-// 做题模块与工坊均为全屏 IDE 布局，不参与主站桌面的 1440px 最小宽度
+// 做题、设计稿与工坊使用全屏布局，不参与主站桌面的 1440px 最小宽度
 const isImmersivePath = (path: string) =>
    isQuantaLoginPath(path) ||
    path.startsWith('/challenge') ||
+   path.startsWith('/design/') ||
    path.startsWith('/workshop/');
 
 const authStore = useAuthStore();

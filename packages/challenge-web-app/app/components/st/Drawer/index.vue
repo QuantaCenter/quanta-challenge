@@ -5,6 +5,12 @@ import { useHistoryLayer } from '~/composables/use-history-layer';
 const props = defineProps<{
    global?: boolean;
    width?: string;
+   backgroundColor?: string;
+   panelClass?: string;
+   /** 为移动端底部抽屉设置固定高度。 */
+   mobileHeight?: string;
+   /** 抽屉可从 pointerup 打开时，忽略没有对应按下事件的遮罩 click。 */
+   requireBackdropPress?: boolean;
    /**
     * 移动端（<md 底部抽屉）高度随内容自适应（不低于 40dvh、不超过 90dvh），
     * 桌面右侧抽屉不受影响。
@@ -100,6 +106,8 @@ onActivated(() => {
 
 const rendered = ref(opened.value);
 const shown = ref(opened.value);
+let backdropPointerId: number | undefined;
+let backdropTapCompleted = false;
 
 // 历史栈管理（composables/use-history-layer）：支持返回键逐层关闭弹层
 const {
@@ -114,13 +122,15 @@ onHistoryClose(() => {
 });
 
 watch(opened, (value) => {
+   backdropPointerId = undefined;
+   backdropTapCompleted = false;
    if (value) {
       rendered.value = true;
       acquireHistory();
       nextTick(() => {
          requestAnimationFrame(() => {
             requestAnimationFrame(() => {
-               shown.value = true;
+               if (opened.value) shown.value = true;
             });
          });
       });
@@ -177,9 +187,25 @@ watch(opened, () => {
 // 点击遮罩关闭：阻止事件继续冒泡。非 global 模式下抽屉内联在页面 DOM 树中，
 // 遮罩的 click 会穿过背后的页面容器；global 模式下也会传到 body/document
 // 上的全局监听，这里统一在遮罩处截断
+const recordBackdropPress = (event: PointerEvent) => {
+   if (!props.requireBackdropPress) return;
+   backdropPointerId = event.target === event.currentTarget ? event.pointerId : undefined;
+   backdropTapCompleted = false;
+};
+
+const recordBackdropRelease = (event: PointerEvent) => {
+   if (backdropPointerId !== event.pointerId) return;
+   backdropTapCompleted = event.type === 'pointerup' && event.target === event.currentTarget;
+   backdropPointerId = undefined;
+};
+
 const onMaskClick = (event: MouseEvent) => {
+   const canClose = !props.requireBackdropPress || backdropTapCompleted;
+   backdropPointerId = undefined;
+   backdropTapCompleted = false;
+   if (event.target !== event.currentTarget) return;
    event.stopPropagation();
-   opened.value = false;
+   if (canClose) opened.value = false;
 };
 </script>
 
@@ -190,7 +216,10 @@ const onMaskClick = (event: MouseEvent) => {
       :class="{ 'pointer-events-none': !opened }"
       class="w-full h-full z-[9999]">
       <div
-         @click.self="onMaskClick"
+         @pointerdown.capture="recordBackdropPress"
+         @pointerup.capture="recordBackdropRelease"
+         @pointercancel.capture="recordBackdropRelease"
+         @click.capture="onMaskClick"
          :data-st-drawer-root="true"
          :class="[
             global
@@ -207,18 +236,22 @@ const onMaskClick = (event: MouseEvent) => {
          <div
             class="st-drawer-panel relative h-dvh w-[var(--drawer-width)] bg-black border-l border-accent-600 text-white max-md:w-full max-md:rounded-t-[1rem] max-md:border-l-0 max-md:border-t"
             :class="[
+               props.panelClass,
                shown
                   ? 'right-0'
                   : 'md:translate-x-full max-md:translate-y-full',
                dragging ? 'transition-none' : 'transition-all duration-300',
-               // 移动端高度：默认固定 90dvh；fit 模式随内容自适应，
-               // 不低于 40dvh，cap 到 90dvh
-               props.fit
-                  ? 'max-md:h-auto max-md:min-h-[40dvh] max-md:max-h-[90dvh]'
-                  : 'max-md:h-[90dvh]',
+               // 未指定移动端高度时，默认 90dvh；fit 模式随内容自适应到 40–90dvh。
+               props.mobileHeight
+                  ? 'max-md:h-(--drawer-mobile-height)'
+                  : props.fit
+                    ? 'max-md:h-auto max-md:min-h-[40dvh] max-md:max-h-[90dvh]'
+                    : 'max-md:h-[90dvh]',
             ]"
             :style="{
                '--drawer-width': props.width || 'fit-content',
+               '--drawer-mobile-height': props.mobileHeight,
+               backgroundColor: props.backgroundColor,
                transform:
                   dragOffset > 0 ? `translateY(${dragOffset}px)` : undefined,
             }">
@@ -227,7 +260,7 @@ const onMaskClick = (event: MouseEvent) => {
                @touchmove="onHandleTouchMove"
                @touchend="onHandleTouchEnd"
                @touchcancel="onHandleTouchEnd"
-               class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 bg-black max-md:rounded-t-[1rem] touch-none select-none">
+               class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 bg-inherit max-md:rounded-t-[1rem] touch-none select-none">
                <div class="h-1 w-10 rounded-full bg-accent-400"></div>
             </div>
             <slot :rendered="rendered"></slot>

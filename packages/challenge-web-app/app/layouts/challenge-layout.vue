@@ -19,11 +19,12 @@ const problemId = computed(() => Number(path.value?.[1] ?? 0));
 
 const { embedded, withEmbed } = useChallengeEmbed();
 
-// 路由变化后自动收起抽屉
+// 路由变化后收起当前题目的浮窗和抽屉。
 watch(
    () => route.path,
    () => {
       store.mobileFileDrawerOpened = false;
+      store.designWindowOpened = false;
    }
 );
 
