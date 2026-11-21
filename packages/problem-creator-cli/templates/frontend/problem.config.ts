@@ -16,10 +16,13 @@ export default defineProblemConfig({
       '',
       '题面支持 Markdown，会原样展示给学生。',
    ].join('\n'),
+   // 按题目总分选择难度，四档分数标准见 qpc agent config。
    difficulty: '{{difficulty}}',
    tagIds: [{{tagIds}}],
    // totalScore 留空时以检查点之和为准，填写则必须与之相等，否则审计失败（见 CFG001）。
    cover: { mode: 'default' },
+   // 新题省略 designMode 时默认平铺。可设为 'flat'（平铺）、'hierarchical'（层级）或 null（不提供）。
+   // designMode: null,
    // 后端题型需自定义封面：cover: { mode: 'custom', generate: { bg: '#0F172A', bgTo: '#14432A', subtitle: 'GET /health' } }，再跑 qpc cover --upload --write。
    runtime: {
       // 判题打包目录，同时决定快照键前缀（/project/...）

@@ -6,6 +6,7 @@ export default defineProblemConfig({
    type: 'backend_service',
    // 题面单独放一个 markdown：后端题通常要列接口清单，写在配置里太长
    detailFile: 'detail.md',
+   // 按题目总分选择难度，四档分数标准见 qpc agent config。
    difficulty: '{{difficulty}}',
    tagIds: [{{tagIds}}], // TODO: 换成后端相关的标签 id
    // 后端题没有首屏可截图：init 已渲染 cover.png，跑 qpc cover --upload --write 上传并把 imageId 写回这里（否则 IMG001 拦下）。

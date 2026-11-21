@@ -120,6 +120,7 @@ export const runUpload = async (
    }
 
    const judgeScript = await readText(config.paths.judge);
+   const designMode = options.design === false ? null : config.designMode;
    const payload = {
       title: config.title,
       detail: config.detail,
@@ -130,7 +131,7 @@ export const runUpload = async (
       answerTemplateSnapshot: report.templateSnapshot,
       referenceAnswerSnapshot: report.answerSnapshot,
       coverMode: config.cover.mode,
-      designMode: options.design === false ? null : undefined,
+      ...(designMode !== undefined ? { designMode } : {}),
       ...(config.cover.mode === 'custom'
          ? { coverImageId: config.cover.imageId }
          : {}),
@@ -172,6 +173,16 @@ export const runUpload = async (
       ],
       ['判题打包目录', config.runtime.judgeUploadPath],
       ['题型', config.type],
+      [
+         '设计稿',
+         designMode === null || config.type === 'backend_service'
+            ? '不提供'
+            : designMode === 'hierarchical'
+               ? '层级模式'
+               : designMode === 'flat' || targetProblemId === undefined
+                  ? '平铺模式'
+                  : '<沿用平台当前版本>',
+      ],
       ['启动命令', config.runtime.initCommand ?? '<默认>'],
       ['答案模板', `${report.stats.template.fileCount} 个文件`],
       ['参考解', `${report.stats.answer.fileCount} 个文件`],

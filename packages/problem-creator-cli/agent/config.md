@@ -20,12 +20,22 @@ export default defineProblemConfig({ /* 字段如下 */ });
 | `totalScore` | 否 | 不写则取各检查点之和；写了必须相等（CFG001） |
 | `problemId` | 否 | `qpc upload --write` 写回的 pid；有它时上传会追加新版本 |
 | `cover` | 否 | `{ mode: 'default' }`（参考解首屏截图）或 `{ mode: 'custom', imageId, generate }` |
+| `designMode` | 否 | 前端题可选 `flat`（平铺）、`hierarchical`（层级）或 `null`（不提供）。省略时，新题默认平铺，更新已有题目时沿用平台当前设置 |
 | `runtime.judgeUploadPath` | 否 | 默认 `project`：快照键前缀与站点根 |
 | `runtime.initCommand` | 否 | 学生浏览器里（WebContainer）的启动命令；前端默认静态服务器，后端默认 `cd ./project && npm start` |
 | `runtime.buildCommand` | 否 | 后端题建议 `node -e ""` |
 | `runtime.serviceImage` | 后端 | 目前只有 `node-24` |
 | `runtime.servicePort` | 后端 | 服务端口，默认 3000 |
 | `paths.template` / `paths.answer` / `paths.judge` | 否 | 默认 `template` / `answer` / `judge.js` |
+
+## 难度与总分标准
+
+| 难度 | `difficulty` | 题目总分 |
+| --- | --- | --- |
+| 简单 | `easy` | 50–100 分 |
+| 中等 | `medium` | 100–150 分 |
+| 困难 | `hard` | 150–200 分 |
+| 非常困难 | `very_hard` | 200 分以上 |
 
 ## 最小可用 JSON 示例（前端）
 
@@ -42,6 +52,8 @@ export default defineProblemConfig({ /* 字段如下 */ });
 ```
 
 ## 注意
+
+- 前端参考答案通过审核后会按所选模式生成设计稿。`qpc upload --no-design` 只关闭本次上传的设计稿。后端服务题可省略 `designMode` 或填 `null`。
 
 - `initCommand` 跑在学生浏览器的 WebContainer 里，**本地和 `qpc check` 都测不到**。不要随手改；必须改时一次只改一个参数，并在真实浏览器里确认预览能起来。判题用的不是它，而是判题容器里的静态服务器 / `npm start`。
 - 站点根必须等于 `judgeUploadPath`（RUN001），否则页面 404、判题一直等选择器直到超时。

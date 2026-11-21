@@ -127,6 +127,7 @@ export default defineProblemConfig({
    tagIds: [1],                // 必须是已有标签 id（qpc tag 查看）
    // snapshotImageId: 'cm…',  // 启动命令用到的依赖在某个快照镜像里时必填（qpc snapshot-image 查看）
    // totalScore: 20,          // 留空取检查点之和
+   // designMode: null,        // null 不提供，'flat' 平铺，'hierarchical' 层级
    cover: { mode: 'default' }, // 后端题用 { mode: 'custom', generate: {...} }
    runtime: {
       judgeUploadPath: 'project',               // = 快照挂载路径
@@ -138,6 +139,10 @@ export default defineProblemConfig({
 ```
 
 配置由 [jiti](https://github.com/unjs/jiti) 加载，支持 `.ts` / `.mts` / `.js` / `.json`。CLI 将 `@challenge/problem-creator-cli` 别名到自身模块，仓库外目录同样可用（IDE 补全需安装该包，或用普通对象 + `import type`）。
+
+前端题可以通过 `designMode` 设置设计稿。省略时，新题默认使用平铺模式，更新已有题目时沿用平台当前设置。`qpc upload --no-design` 可以临时关闭本次上传的设计稿。
+
+填写 `difficulty` 和题目总分时，可运行 `qpc agent config` 查看四档分数标准。参见 [出题指南](../../docs/PROBLEM_AUTHORING.md#难度与总分标准)。
 
 ## 预检规则
 

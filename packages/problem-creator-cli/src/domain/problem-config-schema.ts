@@ -70,6 +70,8 @@ export const problemConfigSchema = z.object({
    problemId: z.number().int().positive().optional(),
    /** 题型；缺省为前端，老题目不需要改配置 */
    type: z.enum(PROBLEM_TYPES).default('frontend'),
+   /** null 表示不提供。省略时，新建前端题默认平铺，更新题目时沿用当前设置。 */
+   designMode: z.enum(['flat', 'hierarchical']).nullable().optional(),
    /** 题面正文；与 detailFile 二选一 */
    detail: z.string().min(1).optional(),
    /** 题面文件（相对题目目录），便于把长题面单独放一个 markdown */
@@ -117,7 +119,10 @@ export const problemConfigSchema = z.object({
          judge: z.string().min(1).default('judge.js'),
       })
       .default({ template: 'template', answer: 'answer', judge: 'judge.js' }),
-});
+}).refine(
+   (config) => config.type !== 'backend_service' || config.designMode == null,
+   { path: ['designMode'], message: '后端服务题型不支持生成设计稿' },
+);
 
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;
