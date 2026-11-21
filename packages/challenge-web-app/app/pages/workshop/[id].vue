@@ -67,13 +67,14 @@ const PROJECT_ROOT = `/${PROJECT_DIR}`;
 const hasPackageJson = data.value.files.some(
    (file) => file.path === `${PROJECT_ROOT}/package.json`,
 );
-/** 模板被删除时按项目内容推断启动方式 */
-const installCommand = project.value.source === 'github' ? undefined : template
+/** 导入项目由用户主动启动，模板被删除时按项目内容推断启动方式。 */
+const importedProject = project.value.source !== 'template';
+const installCommand = importedProject ? undefined : template
    ? template.installCommand || undefined
    : hasPackageJson
      ? 'npm install'
      : undefined;
-const defaultStartCommand = project.value.source === 'github' ? '' : template
+const defaultStartCommand = importedProject ? '' : template
    ? template.startCommand
    : hasPackageJson
      ? 'npm run dev'
@@ -943,7 +944,7 @@ useSeoMeta({
                   ref="preview"
                   :steps="steps"
                   :current-step="currentStep"
-                  :single-step="project.source === 'github'"
+                  :single-step="importedProject"
                   :empty-hint="previewEmptyHint"
                   :preview-url="previewUrl"
                   :servers="servers"

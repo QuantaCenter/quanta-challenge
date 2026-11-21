@@ -19,7 +19,7 @@ const writeFile = (
    const dir = pathSegments.shift()!;
    if (!fs[dir]) {
       fs[dir] = {
-         directory: {},
+         directory: Object.create(null),
       };
    }
    writeFile(
@@ -32,7 +32,8 @@ const writeFile = (
 
 /** 将路径内容映射转换为 FileSystemTree，路径会自动规范化。 */
 export const convertToFsTree = (pathContentMap: Record<string, string>) => {
-   const fsTree: FileSystemTree = {};
+   // 文件和目录名称可以与 Object.prototype 上的属性同名。
+   const fsTree: FileSystemTree = Object.create(null);
    Object.entries(pathContentMap).forEach(([path, content]) => {
       // 规范化路径并分割
       const normalizedPath = normalizePath(path);

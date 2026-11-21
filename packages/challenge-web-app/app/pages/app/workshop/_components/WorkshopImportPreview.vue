@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import type { inferRouterOutputs } from '@trpc/server';
-import type { AppRouter } from '~~/server/trpc/routes';
 import type { IFileSystemItem } from '~/components/st/FileSystemTree/type';
 import { LoadingFour, Refresh } from '@icon-park/vue-next';
 import { formatFileSize } from '~/utils/format-file-size';
 
-type Preview = inferRouterOutputs<AppRouter>['protected']['github']['preview'];
+type Preview = {
+   entries: { path: string; kind: 'file' | 'directory'; sizeBytes: number | null; excluded?: boolean }[];
+   sizeBytes: number | null;
+   fileCount: number;
+   maxProjectBytes: number;
+   canImport: boolean;
+   reason?: string;
+};
 
 const props = defineProps<{
    preview: Preview | null;
-   pending: boolean;
-   failure: string;
+   label: string;
+   treeKey?: string;
+   refreshable?: boolean;
+   pending?: boolean;
+   failure?: string;
+   emptyText?: string;
 }>();
 
 const emit = defineEmits<{
@@ -26,22 +35,19 @@ const entriesByPath = computed(() => {
    );
 });
 
-const entrySize = (path: string) => {
-   const sizeBytes = entriesByPath.value.get(path)?.sizeBytes;
-
-   return sizeBytes == null ? '未知' : formatFileSize(sizeBytes);
-};
-
-const directory = computed(() => {
+const tree = computed(() => {
    const root: IFileSystemItem[] = [];
    const folders = new Map<string, IFileSystemItem>();
+   const folderSizes = new Map<string, number | null>();
 
    for (const entry of props.preview?.entries ?? []) {
       const parts = entry.path.split('/');
       let siblings = root;
+      let path = '';
 
       for (let index = 0; index < parts.length; index++) {
-         const path = parts.slice(0, index + 1).join('/');
+         const name = parts[index]!;
+         path = path ? `${path}/${name}` : name;
          const isFolder =
             index < parts.length - 1 || entry.kind === 'directory';
 
@@ -50,7 +56,7 @@ const directory = computed(() => {
 
             if (!folder) {
                folder = {
-                  name: parts[index]!,
+                  name,
                   path,
                   type: 'folder',
                   children: [],
@@ -59,10 +65,17 @@ const directory = computed(() => {
                siblings.push(folder);
             }
 
+            // 本地文件列表只提供文件路径与大小，父目录的大小由子文件累加。
+            if (entry.kind === 'file' && !entriesByPath.value.has(path)) {
+               const previousSize = folderSizes.get(path);
+               folderSizes.set(path, previousSize === null || entry.sizeBytes === null
+                  ? null
+                  : (previousSize ?? 0) + entry.sizeBytes);
+            }
             siblings = folder.children!;
          } else {
             siblings.push({
-               name: parts[index]!,
+               name,
                path,
                type: 'file',
             });
@@ -70,8 +83,13 @@ const directory = computed(() => {
       }
    }
 
-   return root;
+   return { directory: root, folderSizes };
 });
+
+const entrySize = (path: string) => {
+   const sizeBytes = entriesByPath.value.get(path)?.sizeBytes ?? tree.value.folderSizes.get(path);
+   return sizeBytes == null ? '未知' : formatFileSize(sizeBytes);
+};
 
 const capacityPercent = computed(() => {
    if (props.preview?.sizeBytes == null || !props.preview.maxProjectBytes) {
@@ -98,11 +116,12 @@ const capacityColor = computed(() => {
 
 <template>
    <section
-      aria-label="仓库目录预览"
+      :aria-label="label"
       class="min-w-0 overflow-hidden rounded-xl border border-accent-400">
       <div class="flex items-center justify-between gap-3 px-4 pt-4">
          <h3 class="text-sm font-medium">目录与大小</h3>
          <StButton
+            v-if="refreshable"
             size="sm"
             aria-label="刷新预览"
             title="刷新预览"
@@ -196,8 +215,8 @@ const capacityColor = computed(() => {
                class="max-h-64 overflow-auto p-2"
                aria-label="文件和目录大小">
                <StFileSystemTree
-                  :key="preview.commitSha"
-                  :directory="directory"
+                  :key="treeKey"
+                  :directory="tree.directory"
                   read-only>
                   <template #item-extra="{ item }">
                      <span
@@ -213,15 +232,15 @@ const capacityColor = computed(() => {
             </div>
          </template>
          <p
-            v-else-if="preview.canImport"
+            v-else-if="preview.canImport && emptyText"
             class="px-4 pb-4 text-sm text-accent-300">
-            该分支没有文件。
+            {{ emptyText }}
          </p>
       </template>
 
       <p
          class="border-t border-accent-400 px-4 py-3 text-xs leading-relaxed text-accent-300">
-         按文件原始大小统计，排除 .git 和 node_modules。目录大小包含全部子文件。
+         <slot name="note">按文件原始大小统计，排除 .git 和 node_modules。目录大小包含全部子文件。</slot>
       </p>
    </section>
 </template>

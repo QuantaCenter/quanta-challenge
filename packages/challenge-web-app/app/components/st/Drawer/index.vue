@@ -230,7 +230,7 @@ const onMaskClick = (event: MouseEvent) => {
                class="absolute top-0 right-0 left-0 z-20 hidden max-md:flex justify-center pt-2 pb-1 bg-black max-md:rounded-t-[1rem] touch-none select-none">
                <div class="h-1 w-10 rounded-full bg-accent-400"></div>
             </div>
-            <slot></slot>
+            <slot :rendered="rendered"></slot>
          </div>
       </div>
    </Component>

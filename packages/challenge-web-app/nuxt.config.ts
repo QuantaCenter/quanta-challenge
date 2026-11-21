@@ -225,6 +225,10 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 本地目录导入在路由内按项目配额限制请求体大小，包括无 Content-Length 的请求。
+      '/api/workshop/import/local': {
+         security: { requestSizeLimiter: false },
+      },
       '/api/trpc/admin.problem.upload': {
          security: {
             requestSizeLimiter: {

@@ -1,6 +1,12 @@
+import { createHash } from 'node:crypto';
 import { TRPCError } from '@trpc/server';
 import type { Prisma } from '@prisma/client';
 import prisma from '~~/lib/prisma';
+import {
+   isIgnoredWorkshopPath,
+   isLocalImportPath,
+   WORKSHOP_LOCAL_IMPORT_MAX_FILES,
+} from '~~/shared/workshop-local-import';
 import { logger } from '~~/server/utils/logger';
 import { prepareAssets, releaseUnreferencedAssets } from './file-assets';
 import { applyFileChanges, toProjectPath, type FileChange } from './file-changes';
@@ -8,7 +14,7 @@ import { observer } from './achievement';
 import { findWorkshopTemplate, listWorkshopTemplates } from './workshop-template';
 
 /**
- * 工坊项目：用户从模板创建、长期保存在服务端的个人项目。
+ * 工坊项目：用户创建或导入、长期保存在服务端的个人项目。
  * 文件存储复用做题项目的 FileSystems / VirtualFiles / FileAsset，
  * 区别在于文件系统挂在 WorkshopProject 上，且有项目级的空间配额。
  */
@@ -19,10 +25,6 @@ const PROJECT_ROOT = '/project';
 
 const formatMB = (bytes: number | bigint) =>
    `${(Number(bytes) / 1024 / 1024).toFixed(1)}MB`;
-
-/** 不允许写入的路径：依赖与构建产物可以随时重新生成，不占用项目空间 */
-const isIgnoredPath = (path: string) =>
-   /(^|\/)(node_modules|\.git)(\/|$)/.test(path);
 
 /** 校验并规范化客户端传入的项目内路径（统一为 /project/...） */
 export const normalizeWorkshopFilePath = (raw: string) => {
@@ -37,7 +39,7 @@ export const normalizeWorkshopFilePath = (raw: string) => {
    ) {
       throw new TRPCError({ code: 'BAD_REQUEST', message: '非法的文件路径' });
    }
-   if (isIgnoredPath(path)) {
+   if (isIgnoredWorkshopPath(path)) {
       throw new TRPCError({
          code: 'BAD_REQUEST',
          message: 'node_modules 与 .git 目录不会保存到项目中',
@@ -143,13 +145,27 @@ const list = async (userId: string) => {
    });
 };
 
+// 与 GitHub 导入共用同一把锁，保证各种创建方式并发时仍遵守项目数量上限。
+const lockProjectCreation = (tx: Prisma.TransactionClient, userId: string) =>
+   tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`workshop-create:${userId}`}, 0))`;
+
+const checkProjectQuota = async (tx: Prisma.TransactionClient, userId: string) => {
+   const { maxProjectsPerUser } = getWorkshopLimits();
+   const count = await tx.workshopProject.count({ where: { ownerId: userId } });
+   if (count >= maxProjectsPerUser) {
+      throw new TRPCError({
+         code: 'FORBIDDEN',
+         message: `每位用户最多创建 ${maxProjectsPerUser} 个项目，请先删除不再需要的项目`,
+      });
+   }
+};
+
 const create = async (options: {
    userId: string;
    templateId: string;
    name: string;
    description?: string;
 }) => {
-   const { maxProjectsPerUser } = getWorkshopLimits();
    const files = await templateFiles(options.templateId, { requireEnabled: true });
    const sizeBytes = files.reduce(
       (sum, file) => sum + Buffer.byteLength(file.content),
@@ -157,17 +173,8 @@ const create = async (options: {
    );
 
    const project = await prisma.$transaction(async (tx) => {
-      // 串行化同一用户的创建请求，保证数量上限不被并发穿透
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`workshop-create:${options.userId}`}, 0))`;
-      const count = await tx.workshopProject.count({
-         where: { ownerId: options.userId },
-      });
-      if (count >= maxProjectsPerUser) {
-         throw new TRPCError({
-            code: 'FORBIDDEN',
-            message: `每位用户最多创建 ${maxProjectsPerUser} 个项目，请先删除不再需要的项目`,
-         });
-      }
+      await lockProjectCreation(tx, options.userId);
+      await checkProjectQuota(tx, options.userId);
       const created = await tx.workshopProject.create({
          data: {
             ownerId: options.userId,
@@ -191,6 +198,96 @@ const create = async (options: {
    });
    observer.manualMarkDirty(['file_systems', 'virtual_files']);
    return { id: project.id };
+};
+
+const importLocal = async ({ userId, importId, name, files }: {
+   userId: string;
+   importId: string;
+   name: string;
+   files: { path: string; blob: Blob }[];
+}) => {
+   if (!files.length || files.length > WORKSHOP_LOCAL_IMPORT_MAX_FILES) {
+      throw new TRPCError({
+         code: 'BAD_REQUEST',
+         message: `请选择包含文件的文件夹，最多导入 ${WORKSHOP_LOCAL_IMPORT_MAX_FILES} 个文件`,
+      });
+   }
+
+   const { maxFileBytes, maxProjectBytes } = getWorkshopLimits();
+   const paths = new Set(files.map((file) => file.path));
+   if (paths.size !== files.length) {
+      throw new TRPCError({ code: 'BAD_REQUEST', message: '文件夹中包含重复路径' });
+   }
+   let sizeBytes = 0;
+   const uploads = files.map(({ path, blob }) => {
+      if (!isLocalImportPath(path)) {
+         throw new TRPCError({ code: 'BAD_REQUEST', message: '文件夹中包含非法路径' });
+      }
+      for (let slash = path.indexOf('/'); slash !== -1; slash = path.indexOf('/', slash + 1)) {
+         if (paths.has(path.slice(0, slash))) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '文件与子文件夹的路径冲突' });
+         }
+      }
+      const projectPath = normalizeWorkshopFilePath(`${PROJECT_ROOT}/${path}`);
+      if (blob.size > maxFileBytes) {
+         throw new TRPCError({
+            code: 'PAYLOAD_TOO_LARGE',
+            message: `文件「${path}」超过单文件上限 ${formatMB(maxFileBytes)}`,
+         });
+      }
+      sizeBytes += blob.size;
+      if (sizeBytes > maxProjectBytes) {
+         throw new TRPCError({
+            code: 'PAYLOAD_TOO_LARGE',
+            message: `项目文件总大小不能超过 ${formatMB(maxProjectBytes)}`,
+         });
+      }
+      return { path: projectPath, blob };
+   });
+
+   // 同一个用户重试同一次导入时返回已创建的项目。
+   const id = createHash('sha256').update(userId).update('\0').update(importId).digest('hex').slice(0, 32);
+   const assets = await prepareAssets(uploads, userId);
+   let committed = false;
+   try {
+      const project = await prisma.$transaction(async (tx) => {
+         await lockProjectCreation(tx, userId);
+         const existing = await tx.workshopProject.findUnique({
+            where: { id, ownerId: userId, source: 'local' },
+            select: { id: true },
+         });
+         if (existing) return existing;
+         await checkProjectQuota(tx, userId);
+         const files = await assets.bind(tx);
+         return tx.workshopProject.create({
+            data: {
+               id,
+               ownerId: userId,
+               name,
+               source: 'local',
+               sizeBytes: BigInt(sizeBytes),
+               fileSystem: {
+                  create: {
+                     ownerId: userId,
+                     files: {
+                        createMany: {
+                           data: files.map(({ path, content, assetId }) => ({
+                              path, content, assetId, ownerId: userId,
+                           })),
+                        },
+                     },
+                  },
+               },
+            },
+            select: { id: true },
+         });
+      }, { timeout: 30_000 });
+      committed = true;
+      observer.manualMarkDirty(['file_systems', 'virtual_files']);
+      return project;
+   } finally {
+      await assets.cleanup(committed);
+   }
 };
 
 /** 读取项目及其文件：文本文件直接返回内容，二进制文件只返回资产 id，由客户端按需下载 */
@@ -315,8 +412,8 @@ const sync = async (options: {
    const changes = options.changes
       .filter((change) =>
          change.type === 'mv'
-            ? !isIgnoredPath(change.oldPath) && !isIgnoredPath(change.newPath)
-            : !isIgnoredPath(change.path),
+            ? !isIgnoredWorkshopPath(change.oldPath) && !isIgnoredWorkshopPath(change.newPath)
+            : !isIgnoredWorkshopPath(change.path),
       )
       .map(normalizeChange);
    if (changes.length === 0) {
@@ -401,7 +498,7 @@ const reset = async (userId: string, projectId: string) => {
    await prisma.$transaction(async (tx) => {
       const locked = await lockProject(tx, userId, projectId);
       // 已停用的模板仍允许重置，只有模板被删除时才无法重置
-      if (!locked.templateId) throw new TRPCError({ code: 'BAD_REQUEST', message: 'GitHub 导入项目不支持重置为模板' });
+      if (!locked.templateId) throw new TRPCError({ code: 'BAD_REQUEST', message: '导入项目不支持重置为模板' });
       const files = await templateFiles(locked.templateId, { requireEnabled: false });
       previousAssetIds = await listAssetIds(tx, projectId);
       const fileSystem = await tx.fileSystems.findUniqueOrThrow({
@@ -436,6 +533,7 @@ const reset = async (userId: string, projectId: string) => {
 export const workshopProjectService = {
    list,
    create,
+   importLocal,
    get,
    update,
    remove,

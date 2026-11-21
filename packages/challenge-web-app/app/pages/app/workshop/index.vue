@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { FolderOpen } from '@icon-park/vue-next';
 import Divider from '../problems/_components/Divider.vue';
 import ProjectSection from './_components/ProjectSection.vue';
 import TemplateSection from './_components/TemplateSection.vue';
 import TemplateDetailDrawer from './_components/TemplateDetailDrawer.vue';
 import GitHubImportDrawer from './_components/GitHubImportDrawer.vue';
+import LocalFolderImportDrawer from './_components/LocalFolderImportDrawer.vue';
 import { useWorkshopProjects, type WorkshopTemplateItem } from '~/composables/use-workshop-projects';
 
 useSeoMeta({
@@ -15,6 +17,8 @@ useSeoMeta({
 const { $trpc } = useNuxtApp();
 const route = useRoute();
 const importOpened = ref(route.query.githubImport === '1');
+const localImportOpened = ref(false);
+const importButtonClass = 'shrink-0 whitespace-nowrap gap-2 !border-0 !bg-accent-100 !text-black !px-3 !py-2 !rounded-lg text-sm max-md:gap-1.5 max-md:!px-2.5 max-md:!py-1.5 max-md:text-xs';
 
 const {
    projects,
@@ -88,16 +92,28 @@ const openTemplate = (template: WorkshopTemplateItem) => {
             @retry="retryTemplates()"
             @select="openTemplate">
             <template #header-actions>
-               <StButton
-                  size="sm"
-                  aria-label="从 GitHub 导入"
-                  class="shrink-0 whitespace-nowrap gap-2 !border-0 !bg-accent-100 !text-black !px-3 !py-2 !rounded-lg text-sm max-md:gap-1.5 max-md:!px-2.5 max-md:!py-1.5 max-md:text-xs"
-                  @click="importOpened = true">
-                  <template #icon>
-                     <img src="/icons/github.png" alt="" aria-hidden="true" class="size-4 object-contain" />
-                  </template>
-                  <span><span class="max-md:hidden">从 </span>GitHub 导入</span>
-               </StButton>
+               <div class="ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+                  <StButton
+                     size="sm"
+                     aria-label="从本地文件夹导入"
+                     :class="importButtonClass"
+                     @click="localImportOpened = true">
+                     <template #icon>
+                        <FolderOpen size="1rem" aria-hidden="true" />
+                     </template>
+                     <span>从本地文件夹导入</span>
+                  </StButton>
+                  <StButton
+                     size="sm"
+                     aria-label="从 GitHub 导入"
+                     :class="importButtonClass"
+                     @click="importOpened = true">
+                     <template #icon>
+                        <img src="/icons/github.png" alt="" aria-hidden="true" class="size-4 object-contain" />
+                     </template>
+                     <span><span class="max-md:hidden">从 </span>GitHub 导入</span>
+                  </StButton>
+               </div>
             </template>
          </TemplateSection>
          <StSpacer fill flex no-shrink height="1rem" />
@@ -107,6 +123,10 @@ const openTemplate = (template: WorkshopTemplateItem) => {
          v-model:opened="templateOpened"
          :template="activeTemplate"
          :categories="categories ?? []"
+         :project-count="projects?.length ?? 0"
+         @created="refresh()" />
+      <LocalFolderImportDrawer
+         v-model:opened="localImportOpened"
          :project-count="projects?.length ?? 0"
          @created="refresh()" />
       <GitHubImportDrawer

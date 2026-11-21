@@ -2,7 +2,7 @@
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
 import 'dayjs/locale/zh-cn';
-import { Delete, Edit, HardDisk, LoadingFour, Time } from '@icon-park/vue-next';
+import { Delete, Edit, FolderOpen, HardDisk, LoadingFour, Time } from '@icon-park/vue-next';
 import { formatFileSize } from '~/utils/format-file-size';
 import type { WorkshopProject } from '~/composables/use-workshop-projects';
 
@@ -47,7 +47,13 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
          <StSpace fill-x direction="vertical" gap="0.75rem" class="min-w-0 flex-1">
             <!-- 上：图标 + 名称（右侧留出操作按钮位置） -->
             <StSpace fill-x align="center" gap="0.75rem" class="min-w-0 pr-16">
+               <FolderOpen
+                  v-if="project.source === 'local'"
+                  size="1.75rem"
+                  class="shrink-0 text-accent-200"
+                  aria-hidden="true" />
                <img
+                  v-else
                   :src="icon"
                   :alt="templateName"
                   class="size-7 shrink-0 object-contain"
@@ -64,6 +70,7 @@ const templateName = computed(() => props.project.source === 'github' ? 'GitHub 
                   :title="`${project.githubImport.ownerLogin}/${project.githubImport.repositoryName} · ${project.githubImport.branchName}`">
                   GitHub · {{ project.githubImport.ownerLogin }}/{{ project.githubImport.repositoryName }}
                </p>
+               <p v-else-if="project.source === 'local'" class="st-font-caption text-accent-300">本地文件夹</p>
                <p
                   v-if="canOpen && project.description"
                   class="st-font-caption line-clamp-1 text-accent-300">

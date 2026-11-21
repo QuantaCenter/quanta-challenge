@@ -66,7 +66,7 @@ const limits = useRuntimeConfig().public.workshop;
             <StSpace direction="vertical" gap="0.25rem">
                <span class="font-bold text-accent-100">还没有项目</span>
                <span class="st-font-caption">
-                  从下方选择一个模板，查看介绍与目录结构后即可创建，项目会长期保存在云端。
+                  从模板创建或导入已有项目，项目会长期保存在云端。
                </span>
             </StSpace>
          </StSpace>

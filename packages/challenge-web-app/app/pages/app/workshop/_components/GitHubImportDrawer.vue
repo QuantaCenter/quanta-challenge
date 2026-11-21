@@ -8,7 +8,7 @@ import { formatFileSize } from '~/utils/format-file-size';
 import { atLeastTime } from '~/utils/wait';
 import { parseRepository } from '~~/lib/github-repository';
 import { useMessage } from '~/components/st/Message/use-message';
-import GitHubRepositoryPreview from './GitHubRepositoryPreview.vue';
+import WorkshopImportPreview from './WorkshopImportPreview.vue';
 type Output = inferRouterOutputs<AppRouter>['protected']['github'];
 const opened = defineModel<boolean>('opened', {
    default: false,
@@ -675,8 +675,12 @@ const create = async () => {
                         @click="run(moreBranches)"
                         >更多分支</StButton
                      >
-                     <GitHubRepositoryPreview
+                     <WorkshopImportPreview
+                        label="仓库目录预览"
+                        empty-text="该分支没有文件。"
+                        refreshable
                         :preview="preview"
+                        :tree-key="preview?.commitSha"
                         :pending="previewPending"
                         :failure="previewFailure"
                         @refresh="loadPreview" />

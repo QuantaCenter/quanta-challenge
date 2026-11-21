@@ -507,10 +507,10 @@ model FileSystems {
   @@map("file_systems")
 }
 
-/// 工坊项目：用户从模板创建、长期保存的个人项目（不关联题目）
 enum WorkshopProjectSource {
   template
   github
+  local
 }
 
 model GitHubConnection {
@@ -556,6 +556,7 @@ enum WorkshopImportStatus {
   failed
 }
 
+/// 工坊项目：用户创建或导入、长期保存的个人项目（不关联题目）
 model WorkshopProject {
   id           String   @id @default(cuid())
   ownerId      String

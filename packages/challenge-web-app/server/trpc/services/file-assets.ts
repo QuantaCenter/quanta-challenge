@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import {
    decodeSnapshotContent,
+   decodeSnapshotText,
+   hasBinarySnapshotExtension,
    parseSnapshotBase64DataUrl,
 } from '@challenge/shared/snapshot-content';
 import { TRPCError } from '@trpc/server';
@@ -28,9 +30,10 @@ type Candidate = {
 };
 type PreparedFile = {
    path: string;
-   content: string;
+   content: string | null;
    candidate?: Candidate;
 };
+type InputFile = { path: string } & ({ content: string } | { blob: Blob });
 type BoundFile = {
    path: string;
    name: string;
@@ -66,6 +69,13 @@ const binaryContent = (path: string, content: string): Buffer | undefined => {
    }
    const decoded = decodeSnapshotContent(path, content);
    return typeof decoded === 'string' ? undefined : Buffer.from(decoded);
+};
+
+const readAssetInput = async (file: InputFile) => {
+   if ('content' in file) return binaryContent(file.path, file.content) ?? file.content;
+   const bytes = Buffer.from(await file.blob.arrayBuffer());
+   if (hasBinarySnapshotExtension(file.path)) return bytes;
+   return decodeSnapshotText(bytes) ?? bytes;
 };
 
 const verify = async (asset: Asset, size: number) => {
@@ -119,7 +129,7 @@ export const collectOrphanAssetFiles = async (before: Date, limit = 100) => {
 };
 
 export const prepareAssets = async (
-   files: { path: string; content: string }[],
+   files: InputFile[],
    userId: string,
    options?: { deferExistingVerification?: boolean },
 ) => {
@@ -131,8 +141,8 @@ export const prepareAssets = async (
          if (!file.path || file.path.includes('\0') || file.path.split('/').includes('..')) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid file path' });
          }
-         const bytes = binaryContent(file.path, file.content);
-         const size = bytes?.length ?? Buffer.byteLength(file.content);
+         const content = await readAssetInput(file);
+         const size = typeof content === 'string' ? Buffer.byteLength(content) : content.length;
          total += size;
          if (size > MAX_FILE_BYTES) {
             throw new TRPCError({
@@ -146,13 +156,14 @@ export const prepareAssets = async (
                message: `单次写入的内容不能超过 ${MAX_SNAPSHOT_BYTES / 1024 / 1024}MB`,
             });
          }
-         if (!bytes) {
-            if (file.content.includes('\0')) {
+         if (typeof content === 'string') {
+            if (content.includes('\0')) {
                throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid text content' });
             }
-            prepared.push(file);
+            prepared.push({ path: file.path, content });
             continue;
          }
+         const bytes = content;
          const sha256 = createHash('sha256').update(bytes).digest('hex');
          let candidate = candidates.get(sha256);
          if (!candidate) {
@@ -173,7 +184,7 @@ export const prepareAssets = async (
                await store.saveAsset(candidate.storageKey, bytes);
             }
          }
-         prepared.push({ ...file, candidate });
+         prepared.push({ path: file.path, content: null, candidate });
       }
    } catch (error) {
       await cleanupCandidates([...candidates.values()].filter((candidate) => !candidate.asset));
@@ -219,7 +230,7 @@ export const prepareAssets = async (
          return prepared.map((file) => ({
             path: file.path,
             name: file.path.split('/').pop() || 'unknown',
-            content: file.candidate ? null : file.content,
+            content: file.content,
             assetId: file.candidate?.asset!.id ?? null,
          }));
       },

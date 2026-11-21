@@ -99,26 +99,28 @@ export const parseSnapshotBase64DataUrl = (
 
 const INVALID_TEXT_CHARACTERS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 
-/** 将原始字节编码为无损快照内容。 */
-export const encodeSnapshotBytes = (
-   bytes: Uint8Array,
-   forceBinary = false
-): string => {
+/** 可直接存为快照文本的 UTF-8 内容，其余字节需保留为二进制。 */
+export const decodeSnapshotText = (bytes: Uint8Array): string | undefined => {
    try {
       const text = new TextDecoder('utf-8', {
          fatal: true,
          ignoreBOM: true,
       }).decode(bytes);
-      if (
-         !forceBinary &&
-         !INVALID_TEXT_CHARACTERS.test(text) &&
-         !text.startsWith('data:')
-      ) {
+      if (!INVALID_TEXT_CHARACTERS.test(text) && !text.startsWith('data:')) {
          return text;
       }
    } catch {
-      // 非 UTF-8 内容使用二进制编码。
+      // 非 UTF-8 内容需保留为二进制。
    }
+};
+
+/** 将原始字节编码为无损快照内容。 */
+export const encodeSnapshotBytes = (
+   bytes: Uint8Array,
+   forceBinary = false
+): string => {
+   const text = forceBinary ? undefined : decodeSnapshotText(bytes);
+   if (text !== undefined) return text;
    let binary = '';
    for (let i = 0; i < bytes.length; i += 8192) {
       binary += String.fromCharCode(...bytes.subarray(i, i + 8192));
