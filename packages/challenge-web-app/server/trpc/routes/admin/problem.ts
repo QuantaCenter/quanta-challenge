@@ -1,6 +1,8 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import {
+   BACKEND_DESIGN_UNSUPPORTED_MESSAGE,
+   DESIGN_REFERENCE_REQUIRED_MESSAGE,
    hasEntries,
    REFERENCE_ANSWER_REQUIRED_MESSAGE,
    ReuploadSchema,
@@ -54,7 +56,8 @@ type AuditReason =
    | 'answerTemplate'
    | 'totalScore'
    | 'runtime'
-   | 'cover';
+   | 'cover'
+   | 'design';
 
 /** 版本的运行时配置。后端题的 bootCommand / 镜像 / 云函数由这里收敛（前端题保持原样） */
 const resolveVersionRuntime = (input: UploadInput) => {
@@ -152,6 +155,9 @@ const handleCreateVersion = async (options: {
          JudgeFile: {
             create: { judgeScript },
          },
+         ProblemDesign: input.designMode
+            ? { create: { mode: input.designMode } }
+            : undefined,
          JudgeStatus: {
             create: {},
          },
@@ -302,6 +308,7 @@ const getAuditDetailProcedure = protectedAdminProcedure
             taskStartAt: true,
             taskEndAt: true,
             scheduledPublishAt: true,
+            ProblemDesign: { select: { mode: true, status: true } },
             QualityReviews: {
                orderBy: { createdAt: 'desc' },
                take: 5,
@@ -367,9 +374,12 @@ const getAuditDetailProcedure = protectedAdminProcedure
       }
 
       const defaultCover = result.ProblemDefaultCover[0]?.image;
+      const { ProblemDesign, ...problem } = result;
 
       return {
-         ...result,
+         ...problem,
+         designMode: ProblemDesign?.mode ?? null,
+         designStatus: ProblemDesign?.status ?? null,
          imageName: result.CoverImage?.name || defaultCover?.name,
       };
    });
@@ -654,6 +664,7 @@ const getDetailProcedure = protectedAdminProcedure
             taskStartAt: true,
             taskEndAt: true,
             scheduledPublishAt: true,
+            ProblemDesign: { select: { mode: true } },
             tags: {
                select: {
                   tid: true,
@@ -702,8 +713,10 @@ const getDetailProcedure = protectedAdminProcedure
          },
       });
 
+      const { ProblemDesign, ...problemDetails } = problem;
       return {
-         ...problem,
+         ...problemDetails,
+         designMode: ProblemDesign?.mode ?? null,
          Project: await Promise.all(problem.Project.map(async (project) => {
             const FileSystem = await Promise.all(project.FileSystem.map(async (fs) => ({
                ...fs,
@@ -746,6 +759,7 @@ const reuploadProcedure = protectedAdminProcedure
                      serviceImage: true,
                      servicePort: true,
                      snapshotImageId: true,
+                     ProblemDesign: { select: { mode: true } },
                      JudgeFile: { select: { judgeScript: true }, take: 1 },
                      ProblemDefaultCover: { select: { imageId: true }, take: 1 },
                   },
@@ -753,6 +767,12 @@ const reuploadProcedure = protectedAdminProcedure
             },
          });
       const currentPid = current?.pid ?? null;
+      const currentDesignMode = current?.ProblemDesign?.mode ?? null;
+      const designMode =
+         input.designMode === undefined ? currentDesignMode : input.designMode;
+      if (input.problemType === 'backend_service' && designMode) {
+         throw new TRPCError({ code: 'BAD_REQUEST', message: BACKEND_DESIGN_UNSUPPORTED_MESSAGE });
+      }
 
       // 转化判题脚本；当前版本的脚本也重新提取一遍，用于判断脚本是否变化
       const currentScript = current?.JudgeFile[0]?.judgeScript;
@@ -836,6 +856,12 @@ const reuploadProcedure = protectedAdminProcedure
          ) {
             auditReasons.push('cover');
          }
+         if (
+            designMode !== currentDesignMode ||
+            (designMode && hasEntries(input.referenceAnswerSnapshot))
+         ) {
+            auditReasons.push('design');
+         }
       }
 
       if (current && auditReasons.length === 0) {
@@ -888,6 +914,9 @@ const reuploadProcedure = protectedAdminProcedure
             message: REFERENCE_ANSWER_REQUIRED_MESSAGE,
          });
       }
+      if (designMode && !hasEntries(input.referenceAnswerSnapshot)) {
+         throw new TRPCError({ code: 'BAD_REQUEST', message: DESIGN_REFERENCE_REQUIRED_MESSAGE });
+      }
 
       // 创建新问题版本
       const { problemId } = await withAssetTransaction(
@@ -896,7 +925,7 @@ const reuploadProcedure = protectedAdminProcedure
          async (tx, templateFiles) => {
             const version = await handleCreateVersion({
                tx,
-               input: { ...input, snapshotImageId },
+               input: { ...input, designMode, snapshotImageId },
                userId,
                baseProblemId: baseId,
                judgeScript,

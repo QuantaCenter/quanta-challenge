@@ -130,6 +130,7 @@ const getProblemDetailProcedure = protectedProcedure
             isDeprecated: false,
          },
          include: {
+            ProblemDesign: { select: { status: true } },
             CoverImage: {
                select: { name: true },
             },
@@ -167,7 +168,12 @@ const getProblemDetailProcedure = protectedProcedure
          problem.CoverImage?.name ??
          problem.ProblemDefaultCover?.[0]?.image.name ??
          null;
-      return { ...problem, coverImageName: imageName };
+      const { ProblemDesign, ...details } = problem;
+      return {
+         ...details,
+         coverImageName: imageName,
+         hasDesign: ProblemDesign?.status === 'ready',
+      };
    });
 
 // 提交答案

@@ -17,6 +17,7 @@ import PreviewPanel from './_modules/PreviewPanel.vue';
 import RequestPanel from './_modules/RequestPanel.vue';
 import { useWebContainer } from '../../_composables/use-web-container';
 import DetailWindow from './_components/DetailWindow.vue';
+import DesignWindow from './_components/DesignWindow.vue';
 import MobileProblemDetail from './_components/MobileProblemDetail.vue';
 import CommitModal from './_components/CommitModal.vue';
 import EditorBoardLayout from './_components/EditorBoardLayout.vue';
@@ -552,6 +553,17 @@ watch(
    },
    { immediate: true },
 );
+watchEffect(() => {
+   editorStore.designProblemId = problem.value?.hasDesign && !isOutdatedVersion.value
+      ? props.id
+      : null;
+});
+onScopeDispose(() => {
+   if (editorStore.designProblemId === props.id) {
+      editorStore.designWindowOpened = false;
+      editorStore.designProblemId = null;
+   }
+});
 const appBaseUrl = useRuntimeConfig().public.appBaseUrl;
 
 // command for right-click menu
@@ -726,11 +738,20 @@ useSeoMeta({
 <template>
    <StSpace fill>
       <DetailWindow :markdown="problem?.detail" />
+      <DesignWindow v-if="editorStore.designProblemId === id" :problem-id="id" :problem-title="problem?.title" />
       <CommitModal :run-commands="runCommand" :get-wc-instance="getInstance"
          :build-command="problem?.buildCommand ?? void 0" :upload-dir="problem?.judgeUploadPath ?? void 0"
          :problem-id="id!" />
       <StSpace fill>
-         <EditorBoardLayout :preview-label="previewBoardLabel">
+         <EditorBoardLayout :preview-label="previewBoardLabel" :has-design="editorStore.designProblemId === id">
+            <template #board-design>
+               <iframe
+                  :src="`/design/${id}?embed=1`"
+                  title="设计稿查看器"
+                  allow="clipboard-write"
+                  class="block size-full border-0" />
+            </template>
+
             <template #board-detail>
                <MobileProblemDetail :markdown="problem?.detail" />
             </template>

@@ -7,6 +7,7 @@ import {
 } from '@challenge/shared/backend-service-image';
 import { Difficulty } from '@prisma/client';
 import z from 'zod';
+import { DEFAULT_PROBLEM_DESIGN_MODE } from '~~/shared/problem-design';
 
 export const difficulties: Difficulty[] = [
    'easy',
@@ -20,6 +21,11 @@ export const hasEntries = (snapshot?: Record<string, string>) =>
 
 export const REFERENCE_ANSWER_REQUIRED_MESSAGE =
    '使用首屏截图作为封面时必须提供参考答案，请重新上传参考答案文件夹（服务端不会保存它，因此无法自动回填）';
+
+export const DESIGN_REFERENCE_REQUIRED_MESSAGE =
+   '生成设计稿时必须上传参考答案文件夹';
+
+export const BACKEND_DESIGN_UNSUPPORTED_MESSAGE = '后端服务题型不支持生成设计稿';
 
 const uploadShape = {
    title: z.string().min(1, '题目名称不能为空'),
@@ -38,6 +44,7 @@ const uploadShape = {
       .optional(),
    coverMode: z.enum(['default', 'custom']),
    coverImageId: z.string().optional(),
+   designMode: z.enum(['flat', 'hierarchical']).nullable().optional(),
    bootCommand: z.string().optional(),
    initCommand: z.string().trim().min(1, '初始化命令不能为空'),
    buildCommand: z.string().optional(),
@@ -63,14 +70,16 @@ const uploadShape = {
 };
 
 const withReferenceAnswerRefinement = <T extends z.ZodType>(schema: T) =>
-   schema.refine(
-      (data: any) => {
-         return data.coverMode === 'default'
-            ? hasEntries(data.referenceAnswerSnapshot)
-            : true;
-      },
-      { error: REFERENCE_ANSWER_REQUIRED_MESSAGE }
-   );
+   schema
+      .refine(
+         (data: any) =>
+            data.coverMode !== 'default' || hasEntries(data.referenceAnswerSnapshot),
+         { error: REFERENCE_ANSWER_REQUIRED_MESSAGE }
+      )
+      .refine(
+         (data: any) => !data.designMode || hasEntries(data.referenceAnswerSnapshot),
+         { path: ['referenceAnswerSnapshot'], error: DESIGN_REFERENCE_REQUIRED_MESSAGE }
+      );
 
 const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
    schema
@@ -91,6 +100,10 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
                : true;
          },
          { error: '后端服务题型必须使用自定义封面（没有首屏可截图）' }
+      )
+      .refine(
+         (data: any) => data.problemType !== 'backend_service' || !data.designMode,
+         { path: ['designMode'], error: BACKEND_DESIGN_UNSUPPORTED_MESSAGE }
       )
       .refine(
          (data: any) => {
@@ -119,7 +132,11 @@ export const resolveBackendServiceRuntime = (input: {
 
 /** 上传新题目 */
 export const UploadSchema = withReferenceAnswerRefinement(
-   withUploadRefinements(z.object(uploadShape))
+   withUploadRefinements(z.object(uploadShape).transform((data): typeof data =>
+      data.designMode === undefined && data.problemType !== 'backend_service'
+         ? { ...data, designMode: DEFAULT_PROBLEM_DESIGN_MODE }
+         : data,
+   ))
 );
 
 /**

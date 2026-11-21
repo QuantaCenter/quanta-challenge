@@ -272,6 +272,7 @@ model Problems {
   JudgeFile                   JudgeFiles[]
   Project                     Projects[]
   ProblemDefaultCover         ProblemDefaultCovers[]
+  ProblemDesign               ProblemDesign?
   JudgeRecord                 JudgeRecords[]
   TemplateJudgeRecord         TemplateJudgeRecords[]
   CoverImage                  Image?                      @relation(fields: [coverImageId], references: [id])
@@ -315,6 +316,27 @@ model ProblemDefaultCovers {
   image   Image    @relation(fields: [imageId], references: [id])
 
   @@map("problem_default_covers")
+}
+
+enum ProblemDesignMode {
+  flat
+  hierarchical
+}
+
+enum ProblemDesignStatus {
+  pending
+  ready
+  failed
+}
+
+model ProblemDesign {
+  problemId Int                 @id
+  mode      ProblemDesignMode
+  status    ProblemDesignStatus @default(pending)
+  document  Json?
+  problem   Problems            @relation(fields: [problemId], references: [pid], onDelete: Cascade)
+
+  @@map("problem_designs")
 }
 
 enum Difficulty {

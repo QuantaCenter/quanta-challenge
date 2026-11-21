@@ -7,6 +7,7 @@ import { TaskSchema } from '../schemas/task.js';
 import { Singleton } from '../utils/singleton.js';
 import { EventEmitterService } from './event-emitter.js';
 import { PlaywrightService } from './playwright.js';
+import { captureProblemDesign } from './problem-design.js';
 import { VM } from 'vm2';
 import type { JudgeSuccessResultSchema } from '../schemas/judge-result.js';
 
@@ -89,6 +90,7 @@ export class JudgeService extends Singleton {
             payload.url
          );
          cleanupFns.push(() => close());
+         const viewport = page.viewportSize() ?? undefined;
 
          const firstScreenshot = await (async () => {
             if (payload.mode === 'judge') return undefined;
@@ -143,6 +145,21 @@ export class JudgeService extends Singleton {
             if (timer) clearTimeout(timer);
          }
 
+         let design: Pick<JudgeSuccessResult, 'designDocument' | 'designError'> = {};
+         if (
+            payload.mode === 'audit' && payload.designStructure &&
+            result.totalScore === payload.designExpectedScore &&
+            result.results.every(({ status }) => status === 'pass')
+         ) {
+            try {
+               const context = await PlaywrightService.instance.newContext({ viewport });
+               design = { designDocument: await captureProblemDesign(context, payload.url, payload.designStructure) };
+            } catch (error) {
+               console.warn('Problem design capture failed:', error);
+               design = { designError: 'capture_failed' };
+            }
+         }
+
          ws.send(
             this.jrtp.pack({
                ...result,
@@ -151,6 +168,7 @@ export class JudgeService extends Singleton {
                judgeTime: Date.now() - startTime,
                firstScreen: firstScreenshot,
                judgeRecordId: payload.judgeRecordId,
+               ...design,
             } satisfies JudgeSuccessResult)
          );
       } catch (error: any) {

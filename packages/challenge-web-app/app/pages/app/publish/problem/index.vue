@@ -6,6 +6,7 @@ import TagsPicker from './_modules/TagsPicker.vue';
 import { ignores } from '~/components/st/DropUploader/default-ignore';
 import { normalizeBackendServiceImageId } from '@challenge/shared/backend-service-image';
 import type { StForm } from '#components';
+import { DEFAULT_PROBLEM_DESIGN_MODE } from '~~/shared/problem-design';
 import {
    useProblemPublicationForm,
    cloudFunctionOptions,
@@ -41,7 +42,7 @@ const {
    rules,
    serviceImageOptions,
    applyProblemTypeConstraints,
-} = useProblemPublicationForm(storageName);
+} = useProblemPublicationForm(storageName, !!fromId);
 
 const enableCloudFunction = computed<boolean>({
    get: () => draft.value.enableCloudFunction === true,
@@ -105,6 +106,21 @@ const problemType = computed<'frontend' | 'backend_service'>({
       draft.value.problemType = value;
    },
 });
+const provideDesignOptions = [
+   { label: '提供', value: true, color: '#FA7C0E' },
+   { label: '不提供', value: false, color: '#C267FF' },
+];
+const designModeOptions = [
+   { label: '平铺模式', value: 'flat', color: '#FA7C0E' },
+   { label: '层级模式', value: 'hierarchical', color: '#C267FF' },
+];
+const providesDesign = computed<boolean>({
+   get: () => draft.value.designMode != null,
+   set: (enabled) => {
+      draft.value.designMode = enabled ? draft.value.designMode ?? DEFAULT_PROBLEM_DESIGN_MODE : null;
+   },
+});
+const activeDesignMode = computed(() => problemType.value === 'frontend' ? draft.value.designMode ?? null : null);
 
 const detailLoading = ref(false);
 
@@ -113,6 +129,7 @@ interface IEditBaseline {
    isCurrent: boolean;
    status: string;
    hasDefaultCover: boolean;
+   designMode: 'flat' | 'hierarchical' | null;
    judgeScript: string;
    score?: number;
    answerTemplate: Record<string, string>;
@@ -136,6 +153,7 @@ const auditReasonLabels = {
    totalScore: '题目总分',
    runtime: '题型 / 命令 / 镜像 / 端口 / 云函数',
    cover: '首屏截图封面（需由审核生成）',
+   design: '设计稿设置',
 } as const;
 type AuditReason = keyof typeof auditReasonLabels;
 
@@ -177,6 +195,10 @@ const auditReasons = computed<AuditReason[]>(() => {
    if (value.coverMode === 'default' && !base.hasDefaultCover) {
       reasons.push('cover');
    }
+   if (activeDesignMode.value !== base.designMode ||
+      (activeDesignMode.value && Object.keys(value.referenceAnswer).length > 0)) {
+      reasons.push('design');
+   }
    return reasons;
 });
 // 新建题目总是需要审核；编辑时只改基本信息可直接发布
@@ -185,6 +207,9 @@ const needsAudit = computed(
 );
 const isPublishedBaseline = computed(
    () => !!fromId && baseline.value?.status === 'published',
+);
+const requiresReferenceAnswer = computed(
+   () => needsAudit.value && (draft.value.coverMode === 'default' || !!activeDesignMode.value),
 );
 
 const imageName = ref('');
@@ -210,6 +235,7 @@ const fetchProblemDetail = async () => {
       draft.value.judgeScript = problem.JudgeFile[0]?.judgeScript ?? '';
       draft.value.coverMode = problem.CoverImage ? 'custom' : 'default';
       draft.value.coverImageId = problem.CoverImage?.id;
+      draft.value.designMode = problem.designMode;
       draft.value.answerTemplate = {};
       draft.value.referenceAnswer = {};
 
@@ -246,6 +272,7 @@ const fetchProblemDetail = async () => {
          isCurrent: problem.BaseProblem.currentPid === fromId,
          status: problem.status,
          hasDefaultCover: problem.ProblemDefaultCover.length > 0,
+         designMode: activeDesignMode.value,
          judgeScript: draft.value.judgeScript,
          score: draft.value.score,
          answerTemplate: { ...draft.value.answerTemplate },
@@ -288,6 +315,10 @@ const handleSubmit = async () => {
       message.error('题目详情加载中', '请稍候再提交');
       return;
    }
+   if (requiresReferenceAnswer.value && !Object.keys(draft.value.referenceAnswer).length) {
+      message.error('请上传参考答案', '上传页面构建产物，审核通过后即可生成封面或设计稿。');
+      return;
+   }
    const upload = async () => {
       const uploadMethod = fromId ? 'reupload' : 'upload';
       return await $trpc.admin.problem[uploadMethod].mutate({
@@ -302,6 +333,7 @@ const handleSubmit = async () => {
          referenceAnswerSnapshot: removeRootDir(draft.value.referenceAnswer),
          coverMode: draft.value.coverMode,
          coverImageId: draft.value.coverImageId,
+         designMode: activeDesignMode.value,
          bootCommand: draft.value.bootCommand,
          buildCommand: draft.value.buildCommand,
          initCommand: draft.value.initCommand,
@@ -488,6 +520,26 @@ const handleSubmit = async () => {
                      :image-url="imageUrl"
                      placeholder="请选择封面图片" />
                </StFormItem>
+               <StFormItem v-if="problemType === 'frontend'" name="designMode" label="设计稿">
+                  <StSpace direction="vertical" gap="0.5rem" fill-x>
+                     <StSlideRadioGroup
+                        v-model:value="providesDesign"
+                        :options="provideDesignOptions"
+                        role="group"
+                        aria-label="是否提供设计稿" />
+                     <template v-if="providesDesign">
+                        <StSlideRadioGroup
+                           v-model:value="draft.designMode"
+                           :options="designModeOptions"
+                           role="group"
+                           aria-label="设计稿模式"
+                           aria-describedby="problem-design-mode-description" />
+                        <p id="problem-design-mode-description" class="st-font-caption text-accent-300">
+                           参考答案通过审核后生成设计稿。层级模式保留父子图层，平铺模式将图层展开为绝对定位。
+                        </p>
+                     </template>
+                  </StSpace>
+               </StFormItem>
                <StFormItem name="answerTemplate" label="作答模板" required>
                   <UploadProject
                      placeholder="上传答题初始化模板文件夹"
@@ -496,7 +548,7 @@ const handleSubmit = async () => {
                <StFormItem
                   name="referenceAnswer"
                   label="参考答案"
-                  :required="draft.coverMode === 'default' && needsAudit">
+                  :required="requiresReferenceAnswer">
                   <UploadProject
                      :ignore-directories="
                         ignores.directories.filter((i) => i !== 'dist')

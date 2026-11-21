@@ -16,6 +16,7 @@
    "dependencies": {
       "@hono/node-server": "^1.18.1",
       "@hono/node-ws": "^1.2.0",
+      "@quantacenter/page2design": "1.0.0",
       "hono": "^4.8.12",
       "jimp": "^1.6.0",
       "playwright": "1.54.1",

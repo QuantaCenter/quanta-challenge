@@ -9,6 +9,7 @@ import FixedButton from './_components/FixedButton.vue';
 import dayjs from 'dayjs';
 import { useIntervalFn } from '@vueuse/core';
 import { useMessage } from '~/components/st/Message/use-message';
+import { openProblemDesignWindow } from '~/utils/open-problem-design-window';
 import { NotPassed, Published, Unpublished } from './_components/PublishStatus';
 import VersionPreviewDrawer from './_drawers/VersionPreviewDrawer.vue';
 import SidePopper from './_components/SidePopper.vue';
@@ -24,6 +25,7 @@ import {
 
 const route = useRoute();
 const id = route.params.id as string;
+const designPath = `/design/${id}`;
 if (!id) {
    navigateTo('/app/publish/problem');
 }
@@ -36,6 +38,12 @@ type DataType = Awaited<
    ReturnType<typeof $trpc.admin.problem.getAuditDetail.query>
 >;
 const detail = ref<DataType | null>(null);
+const designStatusText = computed(() => {
+   if (detail.value?.designStatus === 'ready') return '已生成';
+   if (detail.value?.designStatus === 'failed') return '生成失败，请重新提交参考答案。';
+   if (detail.value?.status === 'invalid') return '等待参考答案通过审核';
+   return '审核通过后生成';
+});
 
 const fetchPublishDetails = async () => {
    try {
@@ -420,6 +428,24 @@ const handlerViewVersion = () => {
             gap="2rem"
             fill-x
             class="p-4 rounded-lg border border-secondary">
+            <DataItem v-if="detail?.designMode" title="设计稿" class="w-full">
+               <div aria-live="polite" class="flex flex-wrap items-center gap-x-3 text-sm">
+                  <span>{{ detail.designMode === 'flat' ? '平铺模式' : '层级模式' }}</span>
+                  <span :class="detail.designStatus === 'failed' ? 'text-error' : 'text-accent-200'">
+                     {{ designStatusText }}
+                  </span>
+                  <NuxtLink
+                     v-if="detail.designStatus === 'ready' && detail.status === 'published'"
+                     :to="designPath"
+                     target="_blank"
+                     rel="noopener"
+                     class="text-primary hover:underline"
+                     title="在新窗口打开设计稿"
+                     @click.prevent="openProblemDesignWindow(designPath)">
+                     打开设计稿
+                  </NuxtLink>
+               </div>
+            </DataItem>
             <!-- Raw 0 -->
             <StSpace
                fill-x

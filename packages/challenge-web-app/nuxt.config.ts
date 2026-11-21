@@ -172,6 +172,14 @@ export default defineNuxtConfig({
             },
          },
       },
+      // 设计稿可在跨源隔离的做题页中同源嵌入。
+      '/design/**': {
+         security: {
+            headers: {
+               crossOriginEmbedderPolicy: 'require-corp',
+            },
+         },
+      },
       // 工坊 IDE 同样运行在 WebContainer 中，需要跨源隔离
       '/workshop/**': {
          headers: { 'Cache-Control': 'private, no-cache' },

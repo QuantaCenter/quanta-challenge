@@ -18,6 +18,7 @@ export interface UploadProblemInput {
    referenceAnswerSnapshot: Record<string, string>;
    coverMode: 'default' | 'custom';
    coverImageId?: string;
+   designMode?: 'flat' | 'hierarchical' | null;
    bootCommand?: string;
    initCommand?: string;
    buildCommand?: string;

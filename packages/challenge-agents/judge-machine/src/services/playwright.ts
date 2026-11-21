@@ -3,6 +3,7 @@ import {
    chromium,
    type Browser,
    type BrowserContext,
+   type BrowserContextOptions,
    type Page,
 } from 'playwright';
 
@@ -57,6 +58,11 @@ export class PlaywrightService extends Singleton {
       process.env.JUDGE_NAVIGATE_TIMEOUT_MS ?? 10_000
    );
 
+   async newContext(options?: BrowserContextOptions): Promise<BrowserContext> {
+      const browser = await this.pickAliveBrowser();
+      return browser.newContext(options);
+   }
+
    async openPage(
       url: string,
       maxRetries: number = 2
@@ -68,8 +74,7 @@ export class PlaywrightService extends Singleton {
       url = this.sanitizeUrl(url);
 
       try {
-         const browser = await this.pickAliveBrowser();
-         const context = await browser.newContext();
+         const context = await this.newContext();
          const page = await context.newPage();
          // 显式设置导航与默认操作超时，避免继承 Playwright 的 30s 默认值
          page.setDefaultTimeout(this.navigateTimeoutMs);
