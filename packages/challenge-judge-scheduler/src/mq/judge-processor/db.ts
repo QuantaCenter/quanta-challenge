@@ -22,21 +22,33 @@ export const getProblemInfoByRecordId = async (judgeRecordId: number) => {
    };
 };
 
-/** 题目的运行时配置，决定判题链路；刻意由调度器从 DB 反查而非相信任务创建方的 problemType，避免错配。 */
-export const getProblemRuntimeInfo = async (problemId: number) => {
-   return await prisma.problems.findUniqueOrThrow({
-      where: { pid: problemId },
+/** 以待判记录为准加载题目版本，云函数的绑定也来自这条记录。 */
+export const getPendingJudgeRuntimeInfo = async (job: JudgeJob['data']) => {
+   const record = await prisma.judgeRecords.findUnique({
+      where: {
+         id: job.judgeRecordId,
+         problemId: job.problemId,
+         userId: job.userId,
+         type: job.mode,
+         result: 'pending',
+      },
       select: {
-         problemType: true,
-         serviceImage: true,
-         servicePort: true,
-         bootCommand: true,
-         initCommand: true,
-         judgeUploadPath: true,
-         totalScore: true,
-         ProblemDesign: { select: { mode: true } },
+         problem: {
+            select: {
+               problemType: true,
+               serviceImage: true,
+               servicePort: true,
+               bootCommand: true,
+               initCommand: true,
+               judgeUploadPath: true,
+               totalScore: true,
+               cloudFunctionName: true,
+               ProblemDesign: { select: { mode: true } },
+            },
+         },
       },
    });
+   return record?.problem;
 };
 
 export const getTemplateJudgeRecordCacheFiles = async (problemId: number) => {

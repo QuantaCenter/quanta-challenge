@@ -57,6 +57,7 @@ export const runCheck = async (
 
    const report = await validateProblem(config, {
       maxUploadBytes: ctx.env.maxUploadBytes,
+      checkCloudFunctionSource: true,
    });
 
    renderFindings(ctx.logger, report.findings, {

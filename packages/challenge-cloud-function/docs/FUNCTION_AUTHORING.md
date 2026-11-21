@@ -23,33 +23,10 @@ export default async function (ctx) {
 
 ## 2. `ctx` 能力总览
 
-```ts
-interface CloudFunctionContext {
-   /** 调用方传入的输入（JSON），只读。 */
-   readonly input: unknown;
+`CloudFunctionContext<TInput>` 包含 JSON 输入 `input`、调用者 `user`、KV 存储 `kv`、服务端日志 `log` 和执行版本 `fn`。用 `requireUser()` 检查调用者身份，用 `requireInput()` 检查输入对象是否包含所需字段。字段值的类型由函数校验。[网页编辑器与 CLI 共用的类型声明](../../challenge-web-app/public/cloud-function.dts)
 
-   /** 调用者身份；无用户（如系统/判题调用）时为 null。 */
-   readonly user: { id: string; name: string; role: 'USER' | 'ADMIN' | 'SUPER_ADMIN' } | null;
-
-   /** 受限 KV，见第 3 节。 */
-   readonly kv: CloudFunctionKV;
-
-   /** 结构化日志，自动带上 traceId / 函数名与版本。 */
-   readonly log: {
-      debug(msg: string, data?: Record<string, unknown>): void;
-      info(msg: string, data?: Record<string, unknown>): void;
-      warn(msg: string, data?: Record<string, unknown>): void;
-      error(msg: string, data?: Record<string, unknown>): void;
-   };
-
-   readonly fn: { name: string; version: number };
-
-   /** 无用户时抛 INVALID_INPUT。 */
-   requireUser(): { id: string; name: string; role: string };
-
-   /** 校验 input 是对象且包含指定字段，否则抛 INVALID_INPUT。 */
-   requireInput<T extends Record<string, unknown>>(keys: string[]): T;
-}
+```bash
+qpc agent dts --type cloud-function > cloud-function.d.ts
 ```
 
 **没有** `fetch` / `require` / `process` / `fs` / `setTimeout` / `eval` / 环境变量。
@@ -57,23 +34,7 @@ interface CloudFunctionContext {
 
 ## 3. 受限 KV
 
-```ts
-interface CloudFunctionKV {
-   get<T = unknown>(key: string): Promise<T | null>;
-   set(key: string, value: unknown, opts?: { ttlSeconds?: number }): Promise<void>;
-   del(key: string): Promise<boolean>;
-   has(key: string): Promise<boolean>;
-   incr(key: string, by?: number): Promise<number>;
-   expire(key: string, ttlSeconds: number): Promise<boolean>;
-   ttl(key: string): Promise<number>;
-   keys(pattern?: string): Promise<string[]>; // 最多返回 scanLimit 条
-   mget<T = unknown>(keys: string[]): Promise<(T | null)[]>;
-   mset(entries: { key: string; value: unknown; ttlSeconds?: number }[]): Promise<void>;
-   clear(): Promise<number>; // 清空当前隔离域
-}
-```
-
-值会以 JSON 存储。`incr` 把当前值当数字累加（非数字视作 0）。
+`CloudFunctionKv` 的完整签名包含在上面的类型声明里。值以 JSON 存储。`incr` 把当前值当数字累加（非数字视作 0）。`keys` 最多返回配置的 `scanLimit` 条，`clear` 清空当前隔离域。
 
 ### 用户隔离
 
@@ -101,6 +62,8 @@ interface CloudFunctionKV {
 `keys(pattern)` 的 pattern 不能以 `/` 或 `:` 开头，且只在自己隔离域内匹配。
 
 ## 4. 发布与调试
+
+在本地编写源码后，可以用 `qpc cloud-function publish <name> <file>` 发布。用 `qpc agent cloud-function` 查看命令选项与题目绑定步骤。
 
 1. 后台"云函数"页面创建函数（名字、描述、是否用户隔离、超时）。
 2. 在编辑器里写源码 → 保存为一个版本 → 激活。

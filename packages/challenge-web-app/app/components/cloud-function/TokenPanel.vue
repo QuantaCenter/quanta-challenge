@@ -11,6 +11,7 @@ import { useMessage } from '~/components/st/Message/use-message';
 const props = defineProps<{
    /** 弹层是否打开；打开时才签发/复用令牌 */
    active: boolean;
+   functionName?: string | null;
 }>();
 
 const message = useMessage();
@@ -39,11 +40,16 @@ const baseUrl = computed(() => {
    return origin.replace(/\/+$/, '');
 });
 
-const endpoint = computed(() => `${baseUrl.value}/api/cloud-function/<函数名>`);
+const endpoint = computed(() => {
+   const name = props.functionName
+      ? encodeURIComponent(props.functionName)
+      : '<函数名>';
+   return `${baseUrl.value}/api/cloud-function/invoke/${name}`;
+});
 
 const example = computed(
    () => `// 完整地址 + 令牌
-await fetch('${baseUrl.value}/api/cloud-function/<函数名>', {
+await fetch('${endpoint.value}', {
    method: 'POST',
    headers: {
       'content-type': 'application/json',
@@ -91,7 +97,7 @@ onUnmounted(() => {
 
       <StSpace direction="vertical" fill-x gap="0.375rem" class="mb-4">
          <span class="text-xs text-accent-300">
-            调用地址（替换 &lt;函数名&gt;）
+            {{ functionName ? '调用地址' : '调用地址（替换 <函数名>）' }}
          </span>
          <StSpace
             fill-x

@@ -1,11 +1,11 @@
-# @challenge/problem-creator-cli
+# @quantacenter/quanta-problem-cli
 
 出题 CLI：脚手架生成、离线预检、上传、审计等待、发布。
 
 ## 快速开始
 
 ```bash
-pnpm --filter @challenge/problem-creator-cli build   # 仓库根执行
+pnpm --filter @quantacenter/quanta-problem-cli build   # 仓库根执行
 
 pnpm qpc --help                                      # 从仓库根调用
 cd packages/problem-creator-cli && pnpm dev --help   # tsx 直跑源码
@@ -41,7 +41,7 @@ qpc upload --wait
 
 | 命令 | 作用 | 需要登录 |
 |---|---|---|
-| `qpc agent [topic]` | 给 Agent 的使用手册：题目目录外是 CLI 手册，题目目录内是判题脚本编写手册；`--list` 列章节，`dts` 输出完整类型声明 | 否 |
+| `qpc agent [topic]` | 给 Agent 的使用手册；`--list` 列章节，`cloud-function` 查看云函数指南，`dts` 输出完整类型声明 | 否 |
 | `qpc init [dir]` | 生成题目骨架（含 `AGENTS.md`）；`--type` 选题型，不传时交互选择 | 否 |
 | `qpc tag [dir]` | 查看平台标签；`--write` 交互多选，`--write 1,2`（或 `--set`）直接写回 tagIds | 否 |
 | `qpc snapshot-image [dir]` | 查看平台快照镜像；`--write` 交互单选，`--write <id>`（或 `--set`）直接写回 snapshotImageId，`none` 表示不使用 | 是 |
@@ -51,7 +51,8 @@ qpc upload --wait
 | `qpc check [dir]` | ① 基础信息静态预检 ② 本地微判题（answer 须满分）；`--no-run` 只做 ①，`--strict` 使警告也算失败 | 否 |
 | `qpc upload [dir]` | 上传题目：配置了 `problemId` 追加新版本，否则新建；默认等待审计 | 是 |
 | `qpc status <pid>` | 查看状态与最近一次审计的检查点明细；`--watch` 持续刷新 | 是 |
-| `qpc publish <pid>` | 发布（`ready → published`）；`--unpublish` 下架 | 是 |
+| `qpc cloud-function publish <name> <file>` | 从本地 TS / JS 发布云函数版本，默认激活 | 是 |
+| `qpc publish <pid>` | 发布已审核的题目版本，`--unpublish` 下架 | 是 |
 | `qpc login` | 登录并保存凭据；默认设备码授权，密码登录用 `--email` / `--password-stdin` | 否 |
 | `qpc doctor` | 自检：Node 版本、凭据权限、API 可达性、登录角色 | 否 |
 
@@ -126,6 +127,8 @@ export default defineProblemConfig({
    difficulty: 'easy',         // easy | medium | hard | very_hard
    tagIds: [1],                // 必须是已有标签 id（qpc tag 查看）
    // snapshotImageId: 'cm…',  // 启动命令用到的依赖在某个快照镜像里时必填（qpc snapshot-image 查看）
+   // cloudFunctionName: 'cart-total', // 前端题使用的云函数名
+   // cloudFunctionSource: './cart-total.ts', // qpc check 使用的本地云函数源码
    // totalScore: 20,          // 留空取检查点之和
    // designMode: null,        // null 不提供，'flat' 平铺，'hierarchical' 层级
    cover: { mode: 'default' }, // 后端题用 { mode: 'custom', generate: {...} }
@@ -206,6 +209,39 @@ qpc upload           # 之后：追加新版本
 | `--write` | 写回题目 id |
 
 追加版本前按 `problemId` 查基础题 id，该 id 须属于当前账号。任意版本的 pid 均可定位基础题。
+
+## 发布云函数
+
+云函数使用单个自包含的 TypeScript 或 JavaScript 文件，源码以 `export default` 导出处理函数。运行以下命令，把与网页编辑器一致的类型声明保存到本地项目。
+
+```bash
+qpc agent dts --type cloud-function > cloud-function.d.ts
+```
+
+```ts
+// cart-total.ts
+export default function ({ input }: CloudFunctionContext<{ amounts: number[] }>) {
+   return { total: input.amounts.reduce((sum, amount) => sum + amount, 0) };
+}
+```
+
+在前端题的 `problem.config.ts` 里填写 `cloudFunctionName: 'cart-total'` 和 `cloudFunctionSource: './cart-total.ts'`。运行 `qpc check`，参考解可以直接请求 `/api/cloud-function/invoke/cart-total` 或平台的完整调用地址。`qpc` 会在本地运行源码，请求使用模拟登录用户，参考解与模板各自使用独立的内存 KV。`judge.js` 可以直接检查页面行为。
+
+本地检查通过后，用管理员账号登录目标平台，先发布并激活云函数，再上传题目审核。
+
+```bash
+qpc cloud-function publish cart-total ./cart-total.ts --description '计算购物车合计'
+qpc upload --write
+qpc publish 123  # 使用 upload 输出的已审核版本 pid
+```
+
+首次发布会创建函数，后续发布会追加版本。重复提交相同的最新源码会复用版本。`--description` 在创建时写入。默认激活提交的版本，使用 `--no-activate` 则保留当前生效版本。
+
+`qpc upload` 会保存 `cloudFunctionName`，线上审核和正式判题将同样的请求转给已启用的绑定函数。判题调度器负责认证，参考解和提交使用相同的 `fetch` 代码即可。判题调用使用模拟用户，每个任务各有一份临时 KV。
+
+更新题目时，省略 `cloudFunctionName` 会沿用当前绑定。添加、换绑或清除绑定时，更新配置并重新上传参考解审核。清除绑定用 `cloudFunctionName: null`，同时删掉 `cloudFunctionSource`。
+
+命名规则、发布选项、调用格式和排查步骤见 `qpc agent cloud-function`。
 
 ## 封面生成（`qpc cover`）
 

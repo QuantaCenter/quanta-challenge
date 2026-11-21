@@ -549,7 +549,10 @@ const backendServicePort = computed(
 watch(
    problem,
    (value) => {
-      editorStore.cloudFunctionEnabled = !!value?.enableCloudFunction;
+      editorStore.problemCloudFunction =
+         value && (value.enableCloudFunction || value.cloudFunctionName)
+            ? { problemId: value.pid, name: value.cloudFunctionName }
+            : null;
    },
    { immediate: true },
 );

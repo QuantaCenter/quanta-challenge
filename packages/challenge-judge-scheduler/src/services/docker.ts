@@ -19,6 +19,7 @@ import {
    PROBLEM_CONTAINER_STORE_PATH,
 } from './pnpm-cache';
 import { TimingService } from './timing';
+import { judgeCloudFunctions } from './judge-cloud-function';
 
 /** 调度器启动阶段的固定计时 ID。 */
 const STARTUP_TIMING_ID = 'scheduler-boot';
@@ -522,15 +523,24 @@ export class DockerService extends Singleton {
 
       const jrtp = new JRTP();
       type JudgeResultType = z.infer<typeof JudgeResultSchema>;
+      ws.addEventListener('close', () => judgeCloudFunctions.close(ws));
       ws.addEventListener('message', async (event) => {
          const raw = event.data as unknown;
-         const buffer = Buffer.isBuffer(raw)
-            ? raw
-            : raw instanceof ArrayBuffer
-              ? Buffer.from(raw)
-              : Buffer.from(await (raw as Blob).arrayBuffer());
-         const data = jrtp.unpack(buffer) as JudgeResultType;
-         EventEmitterService.instance.emit(EventType.JUDGE_FINISHED, data);
+         try {
+            if (typeof raw === 'string') {
+               await judgeCloudFunctions.handle(ws, raw);
+               return;
+            }
+            const buffer = Buffer.isBuffer(raw)
+               ? raw
+               : raw instanceof ArrayBuffer
+                 ? Buffer.from(raw)
+                 : Buffer.from(await (raw as Blob).arrayBuffer());
+            const result = jrtp.unpack(buffer) as JudgeResultType;
+            EventEmitterService.instance.emit(EventType.JUDGE_FINISHED, { socket: ws, result });
+         } catch (error) {
+            logger.warn({ err: error }, '读取判题机消息失败');
+         }
       });
 
       return ws;

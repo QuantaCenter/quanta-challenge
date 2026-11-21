@@ -31,6 +31,18 @@ export interface UploadProblemInput {
    servicePort?: number;
    /** 快照镜像 id；null 表示不使用，不传时追加版本沿用原值 */
    snapshotImageId?: string | null;
+   /** 前端题使用的云函数名；null 清除绑定，不传则沿用 */
+   cloudFunctionName?: string | null;
+}
+
+interface PublishCloudFunctionResult {
+   name: string;
+   version: number;
+   versionId: string;
+   activated: boolean;
+   reused: boolean;
+   compiledBytes: number;
+   created: boolean;
 }
 
 export interface AuditCheckpointResult {
@@ -61,6 +73,7 @@ export interface QualityReview {
 export interface AuditDetail {
    pid: number;
    title: string;
+   cloudFunctionName?: string | null;
    totalScore: number;
    /** 审计完成前是 draft，成功是 ready，失败是 invalid */
    status: 'draft' | 'ready' | 'invalid' | 'published';
@@ -136,7 +149,17 @@ export interface AdminApi {
       auditReasons?: string[];
    }>;
    getAuditDetail(problemId: number): Promise<AuditDetail>;
-   setStatus(problemId: number, publish: boolean): Promise<{ message: string }>;
+   setStatus(
+      problemId: number,
+      publish: boolean,
+      cloudFunctionName?: string | null,
+   ): Promise<{ message: string; cloudFunctionName?: string | null }>;
+   publishCloudFunction(input: {
+      name: string;
+      source: string;
+      activate: boolean;
+      description?: string;
+   }): Promise<PublishCloudFunctionResult>;
    listProblems(tagIds?: number[]): Promise<ProblemListItem[]>;
    /** 平台全部标签（public.tag.list，无需登录） */
    listTags(): Promise<Tag[]>;
@@ -199,9 +222,18 @@ export const createAdminApi = (client: HttpClient): AdminApi => ({
          method: 'GET',
       }),
 
-   setStatus: (problemId, publish) =>
-      client.call<{ message: string }>('admin.problem.setStatus', {
-         input: { problemId, publish },
+   setStatus: (problemId, publish, cloudFunctionName) =>
+      client.call<{ message: string; cloudFunctionName?: string | null }>(
+         'admin.problem.setStatus',
+         {
+            input: { problemId, publish, cloudFunctionName },
+            method: 'POST',
+         },
+      ),
+
+   publishCloudFunction: (input) =>
+      client.call<PublishCloudFunctionResult>('admin.cloudFunction.publish', {
+         input,
          method: 'POST',
       }),
 

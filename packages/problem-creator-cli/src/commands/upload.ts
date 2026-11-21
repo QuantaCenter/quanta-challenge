@@ -151,6 +151,9 @@ export const runUpload = async (
       ...(config.snapshotImageId !== undefined
          ? { snapshotImageId: config.snapshotImageId }
          : {}),
+      ...(config.cloudFunctionName !== undefined
+         ? { cloudFunctionName: config.cloudFunctionName }
+         : {}),
    };
 
    const payloadBytes =
@@ -170,6 +173,14 @@ export const runUpload = async (
                ? '<不使用>'
                : '<沿用平台当前版本>'
             : (config.snapshotImageId ?? '不使用'),
+      ],
+      [
+         '云函数',
+         config.cloudFunctionName === undefined
+            ? targetProblemId === undefined
+               ? '<未指定>'
+               : '<沿用平台当前版本>'
+            : (config.cloudFunctionName ?? '清除绑定'),
       ],
       ['判题打包目录', config.runtime.judgeUploadPath],
       ['题型', config.type],

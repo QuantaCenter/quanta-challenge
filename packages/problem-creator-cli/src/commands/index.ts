@@ -1,5 +1,6 @@
 import { registerAgentCommand } from './agent';
 import { registerCheckCommand } from './check';
+import { registerCloudFunctionCommand } from './cloud-function';
 import { registerCoverCommand } from './cover';
 import { registerDoctorCommand } from './doctor';
 import { registerGenImgCommand } from './gen-img';
@@ -27,6 +28,7 @@ export const registerCommands = (registry: CommandRegistry): void => {
    registerCheckCommand(registry);
    registerUploadCommand(registry);
    registerStatusCommand(registry);
+   registerCloudFunctionCommand(registry);
    registerPublishCommand(registry);
    registerLoginCommand(registry);
    registerDoctorCommand(registry);

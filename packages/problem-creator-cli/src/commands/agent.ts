@@ -7,12 +7,16 @@ import {
    AGENT_GUIDES,
    AGENT_TOPICS,
    type AgentGuide,
+   DTS_FILES,
+   type DtsType,
    findTopic,
    readDts,
    readTopic,
 } from '../domain/agent-docs';
 import { findConfigFile, type ProblemType } from '../domain/problem-config';
 import type { CommandRegistry } from './registry';
+
+const DTS_TYPE_OPTIONS = Object.keys(DTS_FILES);
 
 export interface AgentOptions {
    list?: boolean;
@@ -36,7 +40,7 @@ export const registerAgentCommand = (registry: CommandRegistry): void => {
       .option('--dir <dir>', '题目目录（默认当前目录），用于判断题型', '.')
       .option(
          '--type <type>',
-         'dts 章节的题型：frontend | backend（默认按题目配置）',
+         `dts 声明类型：${DTS_TYPE_OPTIONS.join(' | ')}（默认按题目配置）`,
       )
       .action(async (topic: string | undefined, options: AgentOptions) => {
          const ctx = await context();
@@ -141,13 +145,13 @@ const orderTopics = (
 const resolveDtsType = (
    flag: string | undefined,
    type: ProblemType | undefined,
-): 'frontend' | 'backend' => {
+): DtsType => {
    if (flag === undefined)
       return type === 'backend_service' ? 'backend' : 'frontend';
-   if (flag === 'frontend' || flag === 'backend') return flag;
+   if (Object.hasOwn(DTS_FILES, flag)) return flag as DtsType;
    if (flag === 'backend_service') return 'backend';
    throw new UsageError(`--type 不合法：${flag}`, {
-      hint: '可选值：frontend | backend',
+      hint: `可选值：${DTS_TYPE_OPTIONS.join(' | ')}`,
    });
 };
 
@@ -183,7 +187,7 @@ const renderIndex = (type: ProblemType | undefined): string => {
       lines.push(`| \`${topic.id}\` | ${topic.title} |`);
    }
    lines.push(
-      `| \`dts\` | 完整 .d.ts 类型声明（\`--type frontend\\|backend\`，默认 ${type === 'backend_service' ? 'backend' : 'frontend'}），可重定向到 judge.d.ts |`,
+      `| \`dts\` | 完整 .d.ts 类型声明（\`--type ${DTS_TYPE_OPTIONS.join('\\|')}\`，默认 ${type === 'backend_service' ? 'backend' : 'frontend'}） |`,
    );
    return lines.join('\n');
 };

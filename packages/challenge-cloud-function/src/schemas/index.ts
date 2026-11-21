@@ -36,6 +36,10 @@ export const PublishVersionSchema = z.object({
    activate: z.boolean().optional().default(true),
 });
 
+export const PublishFunctionSchema = PublishVersionSchema.extend(
+   CreateFunctionSchema.pick({ name: true, description: true }).shape,
+);
+
 export const TestFunctionSchema = z.object({
    source: z.string().min(1).max(200_000),
    input: z.unknown().optional(),
@@ -46,6 +50,11 @@ export const InvokeSchema = z.object({
    options: z
       .object({ timeoutMs: z.number().int().min(1).max(30_000) })
       .optional(),
+});
+
+export const JudgeInvokeSchema = InvokeSchema.pick({ input: true }).extend({
+   judgeRecordId: z.number().int().positive(),
+   runId: z.uuid(),
 });
 
 export const CreateKeySchema = z.object({

@@ -1,7 +1,8 @@
 import type { Job, Processor } from 'bullmq';
-import type { JobType, JudgeResultType } from '../../events/index';
+import type { JobType, JudgeMachineResult, JudgeResultType, ProcessResultType } from '../../events/index';
 import type z from 'zod';
 import { DockerService } from '../../services/docker';
+import { judgeCloudFunctions } from '../../services/judge-cloud-function';
 import type { TaskSchema } from '@challenge/judge-machine-agent/schemas';
 import { EventEmitterService } from '../../utils/event-emitter';
 import { EventType } from '../../events/index';
@@ -12,7 +13,7 @@ import { ignoreError } from '../../utils/ignore-error';
 import prisma from '../../utils/prisma';
 import { generateThumbhashFromBuffer } from '@challenge/shared/thumbhash/server';
 import { buildBackendInitCommand } from '@challenge/shared/backend-service-image';
-import { createTraceId, runWithRequestContext } from '@challenge/shared/trace';
+import { createTraceId, getRequestContext, runWithRequestContext } from '@challenge/shared/trace';
 import * as db from './db';
 import { JudgeJob } from './types';
 import { $Enums, type Prisma } from '@prisma/client';
@@ -77,51 +78,66 @@ const sendTaskToJudgeMachine = async (options: {
    /** 目标判题机的 WebSocket。前端 / 后端用各自的连接，但信封与回包格式一致。 */
    ws: WebSocket;
    designCapture?: DesignCapture;
+   cloudFunctionName?: string;
 }) => {
-   const { job, networkUrl, ws, designCapture } = options;
+   const { job, networkUrl, ws, designCapture, cloudFunctionName } = options;
+   const { judgeRecordId, judgeScript, mode } = job.data;
 
    const cacheFiles =
-      job.data.mode === 'audit'
+      mode === 'audit'
          ? undefined
          : await db.getTemplateJudgeRecordCacheFiles(job.data.problemId);
 
    type TaskType = z.infer<typeof TaskSchema>;
-   ws.send(
-      JSON.stringify({
-         judgeRecordId: job.data.judgeRecordId,
-         judgeScript: job.data.judgeScript,
-         mode: job.data.mode,
-         url: networkUrl,
-         info: cacheFiles,
-         designStructure: designCapture?.structure,
-         designExpectedScore: designCapture?.expectedScore,
-      } satisfies TaskType)
-   );
+   const task = JSON.stringify({
+      judgeRecordId,
+      judgeScript,
+      mode,
+      url: networkUrl,
+      info: cacheFiles,
+      cloudFunctionName,
+      designStructure: designCapture?.structure,
+      designExpectedScore: designCapture?.expectedScore,
+   } satisfies TaskType);
+   const release = cloudFunctionName
+      ? judgeCloudFunctions.register(ws, {
+           judgeRecordId,
+           name: cloudFunctionName,
+           traceId: getRequestContext()?.traceId,
+           designCapture: Boolean(designCapture),
+        })
+      : undefined;
 
-   const result = await new Promise<JudgeResultType>((resolve, reject) => {
-      const off = () => {
-         EventEmitterService.instance.off(
+   try {
+      return await new Promise<JudgeResultType>((resolve, reject) => {
+         const cleanUp = () => {
+            EventEmitterService.instance.off(EventType.JUDGE_FINISHED, judgeFinished);
+            clearTimeout(timer);
+         };
+         const judgeFinished = ({ socket, result }: JudgeMachineResult) => {
+            if (socket !== ws || result.judgeRecordId !== judgeRecordId) return;
+            cleanUp();
+            resolve(result);
+         };
+         EventEmitterService.instance.on<JudgeMachineResult>(
             EventType.JUDGE_FINISHED,
-            judgeFinished
+            judgeFinished,
          );
-      };
-      const judgeFinished = async (payload: JudgeResultType) => {
-         if (payload.judgeRecordId !== job.data.judgeRecordId) return;
-         off();
-         clearTimeout(timer);
-         resolve(payload);
-      };
-      EventEmitterService.instance.on<JudgeResultType>(
-         EventType.JUDGE_FINISHED,
-         judgeFinished
-      );
-      const timer = setTimeout(() => {
-         off();
-         reject(new Error('Judge Machine response timeout'));
-      }, designCapture ? 60_000 : 30_000);
-   });
-
-   return result;
+         const timer = setTimeout(() => {
+            cleanUp();
+            reject(new Error('Judge Machine response timeout'));
+         }, designCapture ? 60_000 : 30_000);
+         try {
+            if (ws.readyState !== WebSocket.OPEN) throw new Error('Judge machine is disconnected');
+            ws.send(task);
+         } catch (error) {
+            cleanUp();
+            reject(error);
+         }
+      });
+   } finally {
+      release?.();
+   }
 };
 
 const processResult = async (
@@ -199,7 +215,7 @@ const processResult = async (
    return job.data.mode === 'audit' ? auditPassed : allPass;
 };
 
-export const judgeProcessor: Processor<JobType> = async (job) =>
+export const judgeProcessor: Processor<JobType, ProcessResultType> = async (job) =>
    runWithRequestContext(
       {
          traceId: job.data.traceId ?? createTraceId(),
@@ -208,7 +224,7 @@ export const judgeProcessor: Processor<JobType> = async (job) =>
       () => runJudgeJob(job),
    );
 
-const runJudgeJob: Processor<JobType> = async (job) => {
+const runJudgeJob: Processor<JobType, ProcessResultType> = async (job) => {
    const pendingTime = Date.now() - job.data.queueTimestamp;
    const startTime = Date.now();
    const mode = String(job.data.mode);
@@ -222,8 +238,20 @@ const runJudgeJob: Processor<JobType> = async (job) => {
 
    try {
       const runtime = await timer.measure(timingId, '获取题目运行时信息', () =>
-         db.getProblemRuntimeInfo(job.data.problemId)
+         db.getPendingJudgeRuntimeInfo(job.data)
       );
+      if (!runtime) {
+         logger.warn({ judgeRecordId: job.data.judgeRecordId }, '判题任务与待判记录不匹配或记录已结束');
+         return {
+            judgeRecordId: job.data.judgeRecordId,
+            jobId: job.id,
+            status: 'skipped',
+            message: 'Judge task does not match a pending record',
+         };
+      }
+      const cloudFunctionName = runtime.problemType === 'frontend'
+         ? runtime.cloudFunctionName ?? undefined
+         : undefined;
       const designCapture =
          job.data.mode === 'audit' && runtime.problemType === 'frontend' && runtime.ProblemDesign
             ? { structure: runtime.ProblemDesign.mode, expectedScore: runtime.totalScore }
@@ -294,7 +322,7 @@ const runJudgeJob: Processor<JobType> = async (job) => {
 
       // 发送任务到判题机（前端 / 后端同一套信封），等待返回结果
       const result = await timer.measure(timingId, '判题执行', () =>
-         sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs, designCapture })
+         sendTaskToJudgeMachine({ job, networkUrl, ws: judgeWs, designCapture, cloudFunctionName })
       );
 
       // 处理 Judge Machine 返回的结果

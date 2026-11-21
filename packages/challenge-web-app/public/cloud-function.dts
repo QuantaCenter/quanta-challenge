@@ -63,7 +63,7 @@ interface CloudFunctionKv {
    clear(): Promise<number>;
 }
 
-/** 日志；会随调用结果回传，方便在平台上排查。 */
+/** 写入服务端日志，供排查调用问题。 */
 interface CloudFunctionLog {
    debug(message: unknown, data?: unknown): void;
    info(message: unknown, data?: unknown): void;
@@ -99,12 +99,13 @@ interface CloudFunctionContext<TInput = any> {
    kv: CloudFunctionKv;
    /** 日志。 */
    log: CloudFunctionLog;
-   /** 当前函数信息（名称与生效版本号）。 */
+   /** 函数名与本次执行的版本号。网页试运行时版本号为 -1。 */
    fn: { name: string; version: number };
    /** 断言存在登录用户并返回；否则抛错（等价于手写 if (!user) throw ...）。 */
    requireUser(): CloudFunctionUser;
    /**
     * 断言 input 是「对象」且包含指定字段，返回该对象；否则抛错。
+    * 字段值的类型需要在函数中校验。
     * @example const { orderId } = ctx.requireInput<{ orderId: string }>(['orderId']);
     */
    requireInput<T = Record<string, any>>(requiredKeys: string[]): T;

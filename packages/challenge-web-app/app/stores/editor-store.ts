@@ -21,7 +21,9 @@ export const useEditorStore = defineStore('editor', () => {
    /** 启动流程是否已经开始（用于区分"进行中"与"从未触发"） */
    const initStarted = ref(false);
 
-   const cloudFunctionEnabled = ref(false);
+   const problemCloudFunction = ref<{ problemId: number; name: string | null } | null>(
+      null,
+   );
 
    /**
     * 移动端「更多」抽屉（PC 侧边栏按钮 + 文件树）是否展开。
@@ -61,7 +63,7 @@ export const useEditorStore = defineStore('editor', () => {
       terminalVisible,
       initFailureReason,
       initStarted,
-      cloudFunctionEnabled,
+      problemCloudFunction,
       canCommit,
       commitBlockedReason,
       mobileFileDrawerOpened,

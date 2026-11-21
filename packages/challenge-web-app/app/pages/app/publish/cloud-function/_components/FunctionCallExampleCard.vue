@@ -10,7 +10,7 @@ const appBaseUrl = useRuntimeConfig().public.appBaseUrl;
 const callExample = computed(
    () => `// 在题目代码里调用：用平台的完整地址 + 调用令牌
 // 令牌在左侧边栏的钥匙图标「云函数调用凭证」里查看
-const res = await fetch('${appBaseUrl}/api/cloud-function/${props.name}', {
+const res = await fetch('${appBaseUrl}/api/cloud-function/invoke/${props.name}', {
    method: 'POST',
    headers: {
       'content-type': 'application/json',

@@ -45,11 +45,68 @@ const {
 } = useProblemPublicationForm(storageName, !!fromId);
 
 const enableCloudFunction = computed<boolean>({
-   get: () => draft.value.enableCloudFunction === true,
+   get: () => draft.value.enableCloudFunction || !!draft.value.cloudFunctionName,
    set: (value) => {
-      draft.value.enableCloudFunction = value;
+      if (!value) draft.value.cloudFunctionName = '';
+      if (!draft.value.cloudFunctionName) draft.value.enableCloudFunction = value;
    },
 });
+
+const cloudFunctionName = computed({
+   get: () => draft.value.cloudFunctionName,
+   set: (name: string) => {
+      if (!name) draft.value.enableCloudFunction = true;
+      draft.value.cloudFunctionName = name;
+   },
+});
+
+const cloudFunctions = ref<Array<{ name: string; description: string }>>();
+const cloudFunctionListLoading = ref(false);
+const cloudFunctionListFailed = ref(false);
+const refreshCloudFunctions = async () => {
+   if (cloudFunctionListLoading.value) return;
+   cloudFunctionListLoading.value = true;
+   cloudFunctionListFailed.value = false;
+   try {
+      const functions = await $trpc.protected.cloudFunction.list.query();
+      cloudFunctions.value = functions.filter(
+         (item) => item.enabled && item.activeVersion,
+      );
+   } catch (error) {
+      cloudFunctionListFailed.value = true;
+      console.error('[publish] 获取云函数列表失败:', error);
+   } finally {
+      cloudFunctionListLoading.value = false;
+   }
+};
+onMounted(() => {
+   watch(
+      enableCloudFunction,
+      (enabled) => {
+         if (enabled && !cloudFunctions.value) {
+            void refreshCloudFunctions();
+         }
+      },
+      { immediate: true },
+   );
+});
+
+const cloudFunctionNameOptions = computed(() => [
+   { label: '使用通用调用凭证', value: '' },
+   ...(cloudFunctions.value ?? []).map((item) => ({
+      label: item.name,
+      value: item.name,
+      description: item.description || undefined,
+   })),
+]);
+const isSelectedCloudFunctionUnavailable = computed(
+   () =>
+      !!cloudFunctionName.value &&
+      !cloudFunctionListLoading.value &&
+      cloudFunctions.value?.some(
+         (item) => item.name === cloudFunctionName.value,
+      ) === false,
+);
 
 interface SnapshotImageItem {
    id: string;
@@ -138,6 +195,7 @@ interface IEditBaseline {
    buildCommand: string;
    judgeUploadPath: string;
    enableCloudFunction: boolean;
+   cloudFunctionName: string;
    problemType: 'frontend' | 'backend_service';
    serviceImage: string;
    servicePort: number;
@@ -185,6 +243,7 @@ const auditReasons = computed<AuditReason[]>(() => {
       value.buildCommand !== base.buildCommand ||
       value.judgeUploadPath !== base.judgeUploadPath ||
       value.enableCloudFunction !== base.enableCloudFunction ||
+      value.cloudFunctionName !== base.cloudFunctionName ||
       value.problemType !== base.problemType ||
       (value.problemType === 'backend_service' &&
          (value.serviceImage !== base.serviceImage ||
@@ -208,8 +267,15 @@ const needsAudit = computed(
 const isPublishedBaseline = computed(
    () => !!fromId && baseline.value?.status === 'published',
 );
+const needsCloudFunctionAudit = computed(() =>
+   Boolean(cloudFunctionName.value || baseline.value?.cloudFunctionName),
+);
 const requiresReferenceAnswer = computed(
-   () => needsAudit.value && (draft.value.coverMode === 'default' || !!activeDesignMode.value),
+   () => needsAudit.value && (
+      draft.value.coverMode === 'default' ||
+      !!activeDesignMode.value ||
+      needsCloudFunctionAudit.value
+   ),
 );
 
 const imageName = ref('');
@@ -244,6 +310,7 @@ const fetchProblemDetail = async () => {
       draft.value.buildCommand = problem.buildCommand ?? '';
       draft.value.judgeUploadPath = problem.judgeUploadPath ?? '';
       draft.value.enableCloudFunction = problem.enableCloudFunction ?? false;
+      draft.value.cloudFunctionName = problem.cloudFunctionName ?? '';
       draft.value.problemType = problem.problemType ?? 'frontend';
       draft.value.serviceImage = problem.serviceImage ?? '';
       draft.value.servicePort = problem.servicePort ?? 3000;
@@ -281,6 +348,7 @@ const fetchProblemDetail = async () => {
          buildCommand: draft.value.buildCommand,
          judgeUploadPath: draft.value.judgeUploadPath,
          enableCloudFunction: draft.value.enableCloudFunction,
+         cloudFunctionName: draft.value.cloudFunctionName,
          problemType: draft.value.problemType,
          serviceImage: draft.value.serviceImage,
          servicePort: draft.value.servicePort,
@@ -316,7 +384,12 @@ const handleSubmit = async () => {
       return;
    }
    if (requiresReferenceAnswer.value && !Object.keys(draft.value.referenceAnswer).length) {
-      message.error('请上传参考答案', '上传页面构建产物，审核通过后即可生成封面或设计稿。');
+      message.error(
+         '请上传参考答案',
+         needsCloudFunctionAudit.value
+            ? '上传页面构建产物以审核云函数绑定。'
+            : '上传页面构建产物，审核通过后即可生成封面或设计稿。',
+      );
       return;
    }
    const upload = async () => {
@@ -339,6 +412,10 @@ const handleSubmit = async () => {
          initCommand: draft.value.initCommand,
          judgeUploadPath: draft.value.judgeUploadPath,
          enableCloudFunction: draft.value.enableCloudFunction ?? false,
+         cloudFunctionName:
+            problemType.value === 'frontend'
+               ? cloudFunctionName.value || null
+               : undefined,
          problemType: draft.value.problemType,
          serviceImage:
             draft.value.problemType === 'backend_service'
@@ -472,6 +549,37 @@ const handleSubmit = async () => {
                   <StSlideRadioGroup
                      v-model:value="enableCloudFunction"
                      :options="cloudFunctionOptions" />
+               </StFormItem>
+               <StFormItem
+                  v-if="problemType === 'frontend' && enableCloudFunction"
+                  name="cloudFunctionName"
+                  label="指定云函数">
+                  <template #header-right>
+                     <StTextButton
+                        :text="cloudFunctionListLoading ? '刷新中…' : '刷新列表'"
+                        @click="refreshCloudFunctions" />
+                  </template>
+                  <StSpace direction="vertical" gap="0.5rem" fill-x>
+                     <StSelect
+                        v-model:value="cloudFunctionName"
+                        placeholder="使用通用调用凭证"
+                        attach-to-body
+                        :max-container-height="320"
+                        options-container-class="overflow-y-auto!"
+                        :outer-class
+                        :loading="cloudFunctionListLoading"
+                        :options="cloudFunctionNameOptions" />
+                     <p
+                        v-if="cloudFunctionListFailed"
+                        class="st-font-caption text-error">
+                        云函数列表加载失败，请刷新后重试。
+                     </p>
+                     <p
+                        v-else-if="isSelectedCloudFunctionUnavailable"
+                        class="st-font-caption text-error">
+                        所选云函数不可用，请选择已启用且有生效版本的云函数。
+                     </p>
+                  </StSpace>
                </StFormItem>
                <StFormItem name="snapshotImageId" label="快照镜像（做题环境，可选）">
                   <template #header-right>

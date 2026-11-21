@@ -7,6 +7,7 @@ import {
 } from '@challenge/shared/backend-service-image';
 import { z } from 'zod';
 
+import { cloudFunctionNameSchema } from './cloud-function';
 import { COVER_DEFAULTS } from './cover';
 
 /** 与 packages/challenge-web-app/server/trpc/schemas/publish-schema.ts 保持一致 */
@@ -92,6 +93,10 @@ const problemConfigFields = z.object({
       )
       .nullable()
       .optional(),
+   /** 前端做题页提供调用示例的云函数。null 清除绑定，省略则沿用当前版本。 */
+   cloudFunctionName: cloudFunctionNameSchema.nullable().optional(),
+   /** 本地 `qpc check` 执行的云函数源码路径，相对题目目录。 */
+   cloudFunctionSource: z.string().min(1).optional(),
    /** 留空表示"以判题脚本里各检查点之和为准"；填写则必须与之和相等 */
    totalScore: z.number().int().positive().optional(),
    cover: coverSchema.default({ mode: 'default' }),
@@ -121,10 +126,26 @@ const problemConfigFields = z.object({
       .default({ template: 'template', answer: 'answer', judge: 'judge.js' }),
 });
 
-export const problemConfigSchema = problemConfigFields.refine(
-   (config) => config.type !== 'backend_service' || config.designMode == null,
-   { path: ['designMode'], message: '后端服务题型不支持生成设计稿' },
-);
+export const problemConfigSchema = problemConfigFields
+   .refine(
+      (config) =>
+         config.type !== 'backend_service' || config.designMode == null,
+      { path: ['designMode'], message: '后端服务题型不支持生成设计稿' },
+   )
+   .refine(
+      (config) =>
+         config.type !== 'backend_service' || config.cloudFunctionName == null,
+      { path: ['cloudFunctionName'], message: '后端服务题型不支持绑定云函数' },
+   )
+   .refine(
+      (config) =>
+         config.cloudFunctionSource === undefined ||
+         (config.type === 'frontend' && config.cloudFunctionName != null),
+      {
+         path: ['cloudFunctionSource'],
+         message: '云函数源码需要在前端题配置中同时指定 cloudFunctionName',
+      },
+   );
 
 export type ProblemConfigInput = z.input<typeof problemConfigSchema>;
 export type ProblemConfig = z.output<typeof problemConfigSchema>;

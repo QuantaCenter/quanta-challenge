@@ -41,7 +41,8 @@ AGENTS.md           给 Agent 的入口说明
 | `qpc check [--strict]` | ① 基础信息静态预检 ② 本地微判题 | 否 |
 | `qpc upload --write` | 上传并等待线上审核，成功后把 pid 写回配置 | 是 |
 | `qpc status <pid>` | 查看某版本的审核结果 | 是 |
-| `qpc publish <pid>` | 发布（只能发布当前版本） | 是 |
+| `qpc cloud-function publish <name> <file>` | 发布并激活本地 TS / JS 云函数 | 是 |
+| `qpc publish <pid>` | 发布已审核的当前版本 | 是 |
 | `qpc doctor` | 环境自检 | 否 |
 
 ## 给 Agent 的约定
@@ -54,4 +55,5 @@ AGENTS.md           给 Agent 的入口说明
 ## 继续阅读
 
 - `qpc agent workflow`：出题流程，每步的命令和验收条件
+- `qpc agent cloud-function` 查看云函数编写与发布指南，`qpc agent dts --type cloud-function` 导出类型声明
 - 在题目目录里运行 `qpc agent`：判题脚本编写手册（前端 / 后端 / Type Schema）

@@ -8,6 +8,7 @@ import {
 import { Difficulty } from '@prisma/client';
 import z from 'zod';
 import { DEFAULT_PROBLEM_DESIGN_MODE } from '~~/shared/problem-design';
+import { FunctionNameSchema } from './cloud-function-schema';
 
 export const difficulties: Difficulty[] = [
    'easy',
@@ -26,6 +27,7 @@ export const DESIGN_REFERENCE_REQUIRED_MESSAGE =
    '生成设计稿时必须上传参考答案文件夹';
 
 export const BACKEND_DESIGN_UNSUPPORTED_MESSAGE = '后端服务题型不支持生成设计稿';
+export const BACKEND_CLOUD_FUNCTION_UNSUPPORTED_MESSAGE = '后端服务题型不支持指定云函数';
 
 const uploadShape = {
    title: z.string().min(1, '题目名称不能为空'),
@@ -50,6 +52,7 @@ const uploadShape = {
    buildCommand: z.string().optional(),
    judgeUploadPath: z.string().min(1, '必须填写打包上传路径'),
    enableCloudFunction: z.boolean().optional(),
+   cloudFunctionName: FunctionNameSchema.nullable().optional(),
    /** 题型：前端（默认）或后端服务 */
    problemType: z.enum(['frontend', 'backend_service']).optional(),
    /** 后端服务：初始镜像 id（不是 docker 镜像名，取值见 @challenge/shared/backend-service-image） */
@@ -104,6 +107,10 @@ const withUploadRefinements = <T extends z.ZodType>(schema: T) =>
       .refine(
          (data: any) => data.problemType !== 'backend_service' || !data.designMode,
          { path: ['designMode'], error: BACKEND_DESIGN_UNSUPPORTED_MESSAGE }
+      )
+      .refine(
+         (data: any) => data.problemType !== 'backend_service' || !data.cloudFunctionName,
+         { path: ['cloudFunctionName'], error: BACKEND_CLOUD_FUNCTION_UNSUPPORTED_MESSAGE }
       )
       .refine(
          (data: any) => {

@@ -12,16 +12,20 @@ export enum EventType {
 
 export type JobType = z.infer<typeof JobSchema>;
 export type JudgeResultType = z.infer<typeof JudgeResultSchema>;
+export interface JudgeMachineResult {
+   socket: WebSocket;
+   result: JudgeResultType;
+}
 export type ProcessResultType = {
-   judgeRecordId: string;
-   jobId: string;
+   judgeRecordId: number;
+   jobId?: string;
    message: string;
-   status: 'completed' | 'failed';
+   status: 'completed' | 'failed' | 'skipped';
 };
 
 export interface ITaskCompletedPayload {
    job: Job<JobType>;
-   result: JudgeResultType;
+   result: ProcessResultType;
 }
 
 export interface ITaskFailedPayload {

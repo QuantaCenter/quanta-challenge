@@ -7,6 +7,13 @@ import {
    type Page,
 } from 'playwright';
 
+type PrepareContext = (context: BrowserContext) => Promise<void>;
+
+interface OpenPageOptions {
+   contextOptions?: BrowserContextOptions;
+   prepareContext?: PrepareContext;
+}
+
 export class PlaywrightService extends Singleton {
    static get instance() {
       return this.getInstance<PlaywrightService>();
@@ -58,13 +65,24 @@ export class PlaywrightService extends Singleton {
       process.env.JUDGE_NAVIGATE_TIMEOUT_MS ?? 10_000
    );
 
-   async newContext(options?: BrowserContextOptions): Promise<BrowserContext> {
+   async newContext(
+      options?: BrowserContextOptions,
+      prepare?: PrepareContext,
+   ): Promise<BrowserContext> {
       const browser = await this.pickAliveBrowser();
-      return browser.newContext(options);
+      const context = await browser.newContext(options);
+      try {
+         await prepare?.(context);
+         return context;
+      } catch (error) {
+         await context.close().catch(() => {});
+         throw error;
+      }
    }
 
    async openPage(
       url: string,
+      options: OpenPageOptions = {},
       maxRetries: number = 2
    ): Promise<{
       context: BrowserContext;
@@ -73,8 +91,10 @@ export class PlaywrightService extends Singleton {
    }> {
       url = this.sanitizeUrl(url);
 
+      let context: BrowserContext | undefined;
       try {
-         const context = await this.newContext();
+         const prepared = await this.newContext(options.contextOptions, options.prepareContext);
+         context = prepared;
          const page = await context.newPage();
          // 显式设置导航与默认操作超时，避免继承 Playwright 的 30s 默认值
          page.setDefaultTimeout(this.navigateTimeoutMs);
@@ -84,14 +104,12 @@ export class PlaywrightService extends Singleton {
             waitUntil: 'domcontentloaded',
          });
          return {
-            context,
+            context: prepared,
             page,
-            close: async () => {
-               await page.close();
-               await context.close();
-            },
+            close: () => prepared.close(),
          };
       } catch (error) {
+         await context?.close().catch(() => {});
          console.error(`Error occurred while opening page: ${error}`);
          if (maxRetries <= 0) {
             throw new Error(`Failed to open page after retries: ${url}`);
@@ -99,7 +117,7 @@ export class PlaywrightService extends Singleton {
          if (!(await this.healthCheck(0))) {
             this.browsers.shift();
          }
-         return await this.openPage(url, maxRetries - 1);
+         return await this.openPage(url, options, maxRetries - 1);
       }
    }
 

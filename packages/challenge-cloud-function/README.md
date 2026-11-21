@@ -9,8 +9,10 @@ Quanta Challenge 的云函数运行时（Hono + Node worker 线程池）。提�
 | GET | `/healthz` | 无（探针用） | 实际 ping Redis 与 Postgres，依赖未就绪返回 503 |
 | GET | `/metrics` | 无 | Prometheus 指标 |
 | POST | `/v1/invoke/:name` | `invoke` | 调用指定函数 |
+| POST | `/v1/invoke/:name/judge` | `judge` 内部密钥 + `invoke` | 审核和判题时调用题目绑定的生效函数 |
 | GET / POST | `/v1/functions` | `read` / `manage` | 列出 / 创建函数 |
 | GET / PATCH / DELETE | `/v1/functions/:name` | `read` / `manage` | 详情 / 更新 / 删除 |
+| POST | `/v1/functions/publish` | `manage` | 原子创建函数并发布版本，已有函数则发布新版本 |
 | GET / POST | `/v1/functions/:name/versions` | `read` / `manage` | 版本列表 / 发布新版本 |
 | GET / POST | `/v1/functions/:name/test…` | `read` / `manage` | 调用记录查询 / 在线测试 |
 | GET / POST | `/v1/keys`、PATCH / DELETE `/v1/keys/:keyId` | `read` / `manage` | 外部 API Key 管理 |
@@ -21,8 +23,10 @@ Quanta Challenge 的云函数运行时（Hono + Node worker 线程池）。提�
 
 两类身份：
 
-- **内部密钥**（`CF_INTERNAL_KEYS`，如 `web-app`、`judge`）：调用方用共享密钥对请求做 HMAC 签名（时间窗默认 5 分钟，`CF_SIGN_WINDOW_MS`）。`judge` 身份受 `CF_JUDGE_ALLOWED_FUNCTIONS` 白名单约束（空 = 判题不允许调用任何函数），scope 默认只有 `invoke`。
+- **内部密钥**（`CF_INTERNAL_KEYS`，如 `web-app`、`judge`）：调用方用共享密钥对请求做 HMAC 签名（时间窗默认 5 分钟，`CF_SIGN_WINDOW_MS`）。通过 `/v1/invoke/:name` 调用时，`judge` 身份受 `CF_JUDGE_ALLOWED_FUNCTIONS` 白名单约束，空名单会拒绝该身份的常规调用。`judge` 密钥默认具有 `invoke` scope。
 - **外部 API Key**（由 `CF_MASTER_SECRETS` 签发 / 校验）：供外部调用方使用，在 Web 应用管理页创建。
+
+判题专用入口只接受 `judge` 签名。请求携带任务记录 ID 和运行 ID，服务核验记录仍待判题、题型为前端且题目版本绑定了请求中的函数。执行时使用模拟 `USER`。KV 按运行 ID 隔离，数据及配额计数的剩余有效期最多 5 分钟。
 
 开发环境有 `dev_only_*` 兜底密钥开箱可用；**生产环境缺失 `CF_INTERNAL_KEYS` / `CF_MASTER_SECRETS` 时启动直接失败**，绝不静默降级。
 

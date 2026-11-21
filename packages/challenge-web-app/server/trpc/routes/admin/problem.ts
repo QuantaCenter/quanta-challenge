@@ -1,6 +1,7 @@
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
 import {
+   BACKEND_CLOUD_FUNCTION_UNSUPPORTED_MESSAGE,
    BACKEND_DESIGN_UNSUPPORTED_MESSAGE,
    DESIGN_REFERENCE_REQUIRED_MESSAGE,
    hasEntries,
@@ -9,6 +10,7 @@ import {
    resolveBackendServiceRuntime,
    UploadSchema,
 } from '../../schemas/publish-schema';
+import { FunctionNameSchema } from '../../schemas/cloud-function-schema';
 import { requireCliVersion } from '../../middlewares/require-cli-version';
 import { router } from '../../trpc';
 import type { IFile } from '../../services/project';
@@ -26,6 +28,7 @@ import { renderThumbhashDataUrls } from '~~/server/utils/thumbhash';
 import { TRPCError } from '@trpc/server';
 import { ensureSnapshotImageReady } from '../../../services/image-build';
 import { assertJudgeQuality, enqueueJudgeQuality } from '../../../services/judge-quality';
+import { assertProblemCloudFunctionAvailable } from '../../../services/problem-cloud-function';
 import { expandFile, withAssetTransaction } from '../../services/file-assets';
 
 type TX = Omit<
@@ -34,6 +37,9 @@ type TX = Omit<
 >;
 
 type UploadInput = z.infer<typeof UploadSchema>;
+
+const CLOUD_FUNCTION_REFERENCE_REQUIRED_MESSAGE =
+   '云函数绑定需要通过参考答案审核，请上传参考答案文件夹';
 
 /** 题目只能关联题目标签（工坊标签只用于工坊模板） */
 const ensureProblemTags = async (tagIds: number[]) => {
@@ -132,6 +138,13 @@ const handleCreateVersion = async (options: {
    templateFiles: IFile[];
 }) => {
    const { tx, input, userId, baseProblemId, judgeScript } = options;
+   if (input.cloudFunctionName && !hasEntries(input.referenceAnswerSnapshot)) {
+      throw new TRPCError({
+         code: 'BAD_REQUEST',
+         message: CLOUD_FUNCTION_REFERENCE_REQUIRED_MESSAGE,
+      });
+   }
+   await assertProblemCloudFunctionAvailable(tx, input.cloudFunctionName);
    // 创建问题版本
    const problem = await tx.problems.create({
       data: {
@@ -143,6 +156,7 @@ const handleCreateVersion = async (options: {
          status: 'draft',
          coverImageId: input.coverImageId,
          snapshotImageId: input.snapshotImageId ?? null,
+         cloudFunctionName: input.cloudFunctionName,
          ...resolveVersionRuntime(input),
          taskStartAt: input.taskStartAt,
          taskEndAt: input.taskEndAt,
@@ -305,6 +319,7 @@ const getAuditDetailProcedure = protectedAdminProcedure
             status: true,
             difficulty: true,
             createdAt: true,
+            cloudFunctionName: true,
             taskStartAt: true,
             taskEndAt: true,
             scheduledPublishAt: true,
@@ -385,57 +400,69 @@ const getAuditDetailProcedure = protectedAdminProcedure
    });
 
 // 设置问题的发布状态。
-const SetStatusSchema = z.object({
-   problemId: z.number('Problem ID must be a number').int(),
-   publish: z.boolean('Publish must be a boolean'),
-});
+const SetStatusSchema = z
+   .object({
+      problemId: z.number('Problem ID must be a number').int(),
+      publish: z.boolean('Publish must be a boolean'),
+      cloudFunctionName: FunctionNameSchema.nullable().optional(),
+   })
+   .refine((data) => data.publish || data.cloudFunctionName === undefined, {
+      path: ['cloudFunctionName'],
+      error: '下架时不能修改关联的云函数',
+   });
 
 const setStatusProcedure = protectedAdminProcedure
    .input(SetStatusSchema)
    .mutation(async ({ ctx, input }) => {
       const { userId } = ctx.user;
       const { problemId, publish } = input;
-
-      const problem = await prisma.problems.findUniqueOrThrow({
-         where: {
-            pid: problemId,
-            BaseProblem: {
-               authorId: userId,
-            },
-         },
-         select: {
-            status: true,
-            BaseProblem: {
-               select: {
-                  currentPid: true,
-               },
-            },
-         },
-      });
-
-      if (
-         problem.BaseProblem.currentPid &&
-         problem.BaseProblem.currentPid !== problemId
-      ) {
-         throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message:
-               'Cannot change publish status of a problem that is not the current version',
-         });
-      }
-
-      if (!['ready', 'published'].includes(problem.status)) {
-         throw new TRPCError({
-            code: 'BAD_REQUEST',
-            message:
-               'Only problems with status "ready" or "published" can change publish status',
-         });
-      }
-
       const newStatus = publish ? 'published' : 'ready';
 
-      await prisma.$transaction(async (tx) => {
+      const cloudFunctionName = await prisma.$transaction(async (tx) => {
+         const problem = await tx.problems.findUniqueOrThrow({
+            where: { pid: problemId, BaseProblem: { authorId: userId } },
+            select: {
+               status: true,
+               cloudFunctionName: true,
+               problemType: true,
+               BaseProblem: { select: { currentPid: true } },
+            },
+         });
+
+         if (
+            problem.BaseProblem.currentPid &&
+            problem.BaseProblem.currentPid !== problemId
+         ) {
+            throw new TRPCError({
+               code: 'BAD_REQUEST',
+               message:
+                  'Cannot change publish status of a problem that is not the current version',
+            });
+         }
+
+         if (!['ready', 'published'].includes(problem.status)) {
+            throw new TRPCError({
+               code: 'BAD_REQUEST',
+               message:
+                  'Only problems with status "ready" or "published" can change publish status',
+            });
+         }
+
+         const name = problem.cloudFunctionName;
          if (publish) {
+            if (input.cloudFunctionName !== undefined && input.cloudFunctionName !== name) {
+               throw new TRPCError({
+                  code: 'PRECONDITION_FAILED',
+                  message: '云函数绑定影响判题。请更新题目配置并重新上传参考答案审核，再发布新版本。',
+               });
+            }
+            if (name && problem.problemType === 'backend_service') {
+               throw new TRPCError({
+                  code: 'BAD_REQUEST',
+                  message: BACKEND_CLOUD_FUNCTION_UNSUPPORTED_MESSAGE,
+               });
+            }
+            await assertProblemCloudFunctionAvailable(tx, name);
             await assertJudgeQuality(problemId, tx);
          }
 
@@ -451,10 +478,11 @@ const setStatusProcedure = protectedAdminProcedure
                scheduledPublishAt: null,
             },
          });
+         return name;
       }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       await cancelPublishScheduledTask(problemId);
 
-      return { message: `Problem is now ${newStatus}` };
+      return { message: `Problem is now ${newStatus}`, cloudFunctionName };
    });
 
 // 设置/取消定时发布，到点由定时器模块自动发布
@@ -657,6 +685,7 @@ const getDetailProcedure = protectedAdminProcedure
             buildCommand: true,
             judgeUploadPath: true,
             enableCloudFunction: true,
+            cloudFunctionName: true,
             problemType: true,
             serviceImage: true,
             servicePort: true,
@@ -755,6 +784,7 @@ const reuploadProcedure = protectedAdminProcedure
                      buildCommand: true,
                      judgeUploadPath: true,
                      enableCloudFunction: true,
+                     cloudFunctionName: true,
                      problemType: true,
                      serviceImage: true,
                      servicePort: true,
@@ -773,6 +803,25 @@ const reuploadProcedure = protectedAdminProcedure
       if (input.problemType === 'backend_service' && designMode) {
          throw new TRPCError({ code: 'BAD_REQUEST', message: BACKEND_DESIGN_UNSUPPORTED_MESSAGE });
       }
+      const clearCloudFunction =
+         input.problemType === 'backend_service' || input.enableCloudFunction === false;
+      const cloudFunctionNameUpdate =
+         input.cloudFunctionName === undefined && clearCloudFunction
+            ? null
+            : input.cloudFunctionName;
+      const cloudFunctionName =
+         cloudFunctionNameUpdate === undefined
+            ? current?.cloudFunctionName ?? null
+            : cloudFunctionNameUpdate;
+      const cloudFunctionChanged = cloudFunctionName !== (current?.cloudFunctionName ?? null);
+      const versionInput: UploadInput = {
+         ...input,
+         designMode,
+         cloudFunctionName,
+         // 旧版通用凭证开关独立保留，指定函数时做题页也会展示调用凭证。
+         enableCloudFunction:
+            input.enableCloudFunction ?? current?.enableCloudFunction,
+      };
 
       // 转化判题脚本；当前版本的脚本也重新提取一遍，用于判断脚本是否变化
       const currentScript = current?.JudgeFile[0]?.judgeScript;
@@ -818,7 +867,7 @@ const reuploadProcedure = protectedAdminProcedure
       if (!current) {
          auditReasons.push('status');
       } else {
-         const runtime = resolveVersionRuntime(input);
+         const runtime = resolveVersionRuntime(versionInput);
          const sameText = (a?: string | null, b?: string | null) =>
             (a?.trim() || null) === (b?.trim() || null);
          if (!['ready', 'published'].includes(current.status)) {
@@ -844,6 +893,7 @@ const reuploadProcedure = protectedAdminProcedure
             !sameText(runtime.judgeUploadPath, current.judgeUploadPath) ||
             !sameText(runtime.serviceImage, current.serviceImage) ||
             runtime.enableCloudFunction !== current.enableCloudFunction ||
+            cloudFunctionChanged ||
             runtime.problemType !== current.problemType ||
             runtime.servicePort !== current.servicePort
          ) {
@@ -865,9 +915,10 @@ const reuploadProcedure = protectedAdminProcedure
       }
 
       if (current && auditReasons.length === 0) {
-         await prisma.$transaction([
-            prisma.problems.update({
-               where: { pid: current.pid },
+         await prisma.$transaction(async (tx) => {
+            await assertProblemCloudFunctionAvailable(tx, cloudFunctionNameUpdate);
+            await tx.problems.update({
+               where: { pid: current.pid, BaseProblem: { currentPid: current.pid } },
                data: {
                   title: input.title,
                   detail: input.detail,
@@ -888,13 +939,13 @@ const reuploadProcedure = protectedAdminProcedure
                      ? { connect: { id: snapshotImageId } }
                      : { disconnect: true },
                },
-            }),
+            });
             // 让「我的题目」列表按最近修改排序
-            prisma.baseProblems.update({
+            await tx.baseProblems.update({
                where: { id: baseId },
                data: { updatedAt: new Date() },
-            }),
-         ]);
+            });
+         });
          // 重新投递定时发布任务
          await dispatchPublishScheduledTask(current.pid);
          return {
@@ -917,6 +968,12 @@ const reuploadProcedure = protectedAdminProcedure
       if (designMode && !hasEntries(input.referenceAnswerSnapshot)) {
          throw new TRPCError({ code: 'BAD_REQUEST', message: DESIGN_REFERENCE_REQUIRED_MESSAGE });
       }
+      if (cloudFunctionChanged && !hasEntries(input.referenceAnswerSnapshot)) {
+         throw new TRPCError({
+            code: 'BAD_REQUEST',
+            message: CLOUD_FUNCTION_REFERENCE_REQUIRED_MESSAGE,
+         });
+      }
 
       // 创建新问题版本
       const { problemId } = await withAssetTransaction(
@@ -925,7 +982,7 @@ const reuploadProcedure = protectedAdminProcedure
          async (tx, templateFiles) => {
             const version = await handleCreateVersion({
                tx,
-               input: { ...input, designMode, snapshotImageId },
+               input: { ...versionInput, snapshotImageId },
                userId,
                baseProblemId: baseId,
                judgeScript,

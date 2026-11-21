@@ -1,7 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { Hono } from 'hono';
 import { assertFunctionAllowed, parseBody, requireScope } from '../middlewares';
-import { InvokeSchema } from '../schemas';
+import { InvokeSchema, JudgeInvokeSchema } from '../schemas';
 import { executor } from '../services/executor';
 import { recordInvocation, statusFromErrorCode } from '../services/invocations';
 import { CloudFunctionKv } from '../services/kv';
@@ -9,8 +9,16 @@ import { loadFunction } from '../services/registry';
 import { fail, isCloudFunctionError } from '../utils/errors';
 import prisma from '../utils/prisma';
 import type { CloudFunctionUser } from '../runtime/protocol';
+import type { Caller } from '../types';
 
 const invokeRoute = new Hono();
+const JUDGE_KV_TTL_SECONDS = 5 * 60;
+const JUDGE_TIMEOUT_MS = 5_000;
+const JUDGE_USER: CloudFunctionUser = {
+   id: 'qpc-local-user',
+   name: 'qpc-local-user',
+   role: 'USER',
+};
 
 const resolveUser = async (
    userId: string | null,
@@ -24,14 +32,21 @@ const resolveUser = async (
    return { id: row.id, name: row.name, role: row.role };
 };
 
-invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
-   const name = c.req.param('name');
-   const caller = c.get('caller');
-   const traceId = c.get('traceId');
-
-   assertFunctionAllowed(caller, name);
-   const body = parseBody(c, InvokeSchema);
-
+const invokeActiveFunction = async ({
+   name,
+   caller,
+   traceId,
+   input,
+   timeout,
+   judgeRun,
+}: {
+   name: string;
+   caller: Caller;
+   traceId: string;
+   input: unknown;
+   timeout?: number;
+   judgeRun?: { judgeRecordId: number; runId: string };
+}) => {
    const fn = await loadFunction(name);
    if (!fn) fail('FUNCTION_NOT_FOUND', `云函数「${name}」不存在`);
    if (!fn.enabled) fail('FUNCTION_DISABLED', `云函数「${name}」已停用`);
@@ -40,25 +55,23 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
    }
    const activeVersion = fn.activeVersion;
 
-   const user = await resolveUser(caller.userId);
+   const userId = judgeRun ? null : caller.userId;
+   const user = judgeRun ? JUDGE_USER : await resolveUser(userId);
 
    // 请求体只能把超时**调小**，不能超过函数配置。
-   const timeoutMs = Math.min(
-      body.options?.timeoutMs ?? fn.timeoutMs,
-      fn.timeoutMs,
-   );
+   const timeoutMs = Math.min(timeout ?? fn.timeoutMs, fn.timeoutMs);
 
    const kv = new CloudFunctionKv({
-      functionId: fn.id,
-      userIsolated: fn.kvUserIsolated,
-      userId: caller.userId,
+      functionId: judgeRun
+         ? `${fn.id}:judge:${judgeRun.judgeRecordId}:${judgeRun.runId}`
+         : fn.id,
+      userIsolated: !judgeRun && fn.kvUserIsolated,
+      userId,
       keyId: caller.keyId,
+      maxTtlSeconds: judgeRun ? JUDGE_KV_TTL_SECONDS : undefined,
    });
 
-   const inputBytes = Buffer.byteLength(
-      JSON.stringify(body.input ?? null),
-      'utf8',
-   );
+   const inputBytes = Buffer.byteLength(JSON.stringify(input), 'utf8');
    const startedAt = Date.now();
 
    let data: unknown;
@@ -68,7 +81,7 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
          name: fn.name,
          version: activeVersion.version,
          code: activeVersion.compiledCode,
-         input: body.input ?? null,
+         input,
          user,
          timeoutMs,
          kv,
@@ -80,7 +93,7 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
          versionId: activeVersion.id,
          callerType: caller.type,
          callerKeyId: caller.keyId,
-         userId: caller.userId,
+         userId,
          status: statusFromErrorCode(code),
          errorCode: code,
          durationMs: Date.now() - startedAt,
@@ -101,7 +114,7 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
          versionId: activeVersion.id,
          callerType: caller.type,
          callerKeyId: caller.keyId,
-         userId: caller.userId,
+         userId,
          status: 'error',
          errorCode: 'RUNTIME_ERROR',
          durationMs,
@@ -117,7 +130,7 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
       versionId: activeVersion.id,
       callerType: caller.type,
       callerKeyId: caller.keyId,
-      userId: caller.userId,
+      userId,
       status: 'success',
       errorCode: null,
       durationMs,
@@ -126,8 +139,8 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
       traceId,
    });
 
-   return c.json({
-      ok: true,
+   return {
+      ok: true as const,
       data: data ?? null,
       meta: {
          function: fn.name,
@@ -135,7 +148,55 @@ invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
          durationMs,
          traceId,
       },
+   };
+};
+
+invokeRoute.post('/:name', requireScope('invoke'), async (c) => {
+   const name = c.req.param('name');
+   const caller = c.get('caller');
+   assertFunctionAllowed(caller, name);
+
+   const body = parseBody(c, InvokeSchema);
+   return c.json(
+      await invokeActiveFunction({
+         name,
+         caller,
+         traceId: c.get('traceId'),
+         input: body.input ?? null,
+         timeout: body.options?.timeoutMs,
+      }),
+   );
+});
+
+invokeRoute.post('/:name/judge', requireScope('invoke'), async (c) => {
+   const name = c.req.param('name');
+   const caller = c.get('caller');
+   if (caller.type !== 'internal' || caller.keyId !== 'judge') {
+      fail('FORBIDDEN', '只有判题调度器可以调用判题云函数入口');
+   }
+
+   const { input, judgeRecordId, runId } = parseBody(c, JudgeInvokeSchema);
+   // 判题专用入口由任务记录和题目绑定授权。普通调用入口仍按白名单处理。
+   const record = await prisma.judgeRecords.findUnique({
+      where: {
+         id: judgeRecordId,
+         result: 'pending',
+         problem: { problemType: 'frontend', cloudFunctionName: name },
+      },
+      select: { id: true },
    });
+   if (!record) fail('FORBIDDEN', '该判题任务无权调用此云函数');
+
+   return c.json(
+      await invokeActiveFunction({
+         name,
+         caller,
+         traceId: c.get('traceId'),
+         input: input ?? null,
+         timeout: JUDGE_TIMEOUT_MS,
+         judgeRun: { judgeRecordId, runId },
+      }),
+   );
 });
 
 export default invokeRoute;

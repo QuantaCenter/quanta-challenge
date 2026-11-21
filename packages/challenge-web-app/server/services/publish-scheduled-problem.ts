@@ -3,6 +3,7 @@ import prisma from '~~/lib/prisma';
 import { logger } from '~~/server/utils/logger';
 import { dispatchTimerTask, registerTimerHandler } from '../utils/timer';
 import { assertJudgeQuality } from './judge-quality';
+import { assertProblemCloudFunctionAvailable } from './problem-cloud-function';
 
 const HANDLER_ID = 'publish-scheduled-problem';
 
@@ -12,6 +13,7 @@ const publishIfDue = async (problemId: number) => prisma.$transaction(async (tx)
       where: { pid: problemId },
       select: {
          status: true,
+         cloudFunctionName: true,
          scheduledPublishAt: true,
          BaseProblem: { select: { currentPid: true } },
       },
@@ -30,6 +32,7 @@ const publishIfDue = async (problemId: number) => prisma.$transaction(async (tx)
       !problem.BaseProblem.currentPid ||
       problem.BaseProblem.currentPid === problemId;
    if (isCurrentVersion) {
+      await assertProblemCloudFunctionAvailable(tx, problem.cloudFunctionName);
       await assertJudgeQuality(problemId, tx);
    }
 

@@ -25,6 +25,8 @@
 | 审计超时 | 300 秒内没出结果 | `qpc status <pid> --watch` 继续等；长时间无结果按平台故障处理 |
 | 写回失败（警告） | 上传已成功，只是 problemId 没写回配置 | **不要重传**，手动把 `problemId` 填进配置 |
 
+云函数编译与绑定错误的排查步骤见 `qpc agent cloud-function`。
+
 ## 预检 / 本地判题
 
 规则号（JUD / CFG / RUN / IMG / TPL / ANS / SNAP / LOC）见 `qpc agent check`，每条输出下面的缩进行就是修复建议。

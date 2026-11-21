@@ -17,6 +17,7 @@ export const AGENT_TOPICS: readonly AgentTopic[] = [
    { id: 'judge-frontend', title: '如何编写前端 Judge 脚本' },
    { id: 'judge-backend', title: '如何编写后端 Judge 脚本' },
    { id: 'types', title: 'Judge 脚本的 Type Schema' },
+   { id: 'cloud-function', title: '云函数源码、类型、发布与题目绑定' },
    { id: 'images', title: '题面插图（gen-img / image）与封面' },
    { id: 'check', title: 'qpc check：基础信息检查 + 本地微判题' },
    { id: 'errors', title: '错误码与下一步动作' },
@@ -39,7 +40,9 @@ export type AgentGuide = keyof typeof AGENT_GUIDES;
 export const DTS_FILES = {
    frontend: 'system.frontend.standalone.dts',
    backend: 'system.backend.standalone.dts',
+   'cloud-function': 'cloud-function.dts',
 } as const;
+export type DtsType = keyof typeof DTS_FILES;
 
 // 源码直跑取包根 agent/；打包后 dist/index.js 取 ../agent。
 const DOC_DIR_CANDIDATES = ['../../agent', '../agent'] as const;
@@ -67,9 +70,8 @@ export const readTopic = async (id: string): Promise<string> => {
    return (await readFile(`${dir}${id}.md`, 'utf8')).trimEnd();
 };
 
-export const readDts = async (
-   type: keyof typeof DTS_FILES,
-): Promise<string> => {
-   const dir = resolveDir(DTS_DIR_CANDIDATES, DTS_FILES.frontend);
-   return readFile(`${dir}${DTS_FILES[type]}`, 'utf8');
+export const readDts = async (type: DtsType): Promise<string> => {
+   const file = DTS_FILES[type];
+   const dir = resolveDir(DTS_DIR_CANDIDATES, file);
+   return readFile(`${dir}${file}`, 'utf8');
 };

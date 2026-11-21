@@ -22,6 +22,7 @@ async function snapshot(problemId: number, db: QualityDatabase = prisma) {
          buildCommand: true,
          judgeUploadPath: true,
          enableCloudFunction: true,
+         cloudFunctionName: true,
          serviceImage: true,
          servicePort: true,
          JudgeFile: { select: { judgeScript: true }, orderBy: { id: 'asc' } },
@@ -29,7 +30,10 @@ async function snapshot(problemId: number, db: QualityDatabase = prisma) {
    });
    if (input.JudgeFile.length !== 1) throw new Error('QUALITY_SCRIPT_COUNT');
 
-   return { input, script: input.JudgeFile[0]!.judgeScript, hash: qualityHash(input) };
+   const { cloudFunctionName, ...unboundInput } = input;
+   // 没有绑定的题目继续使用原来的审核哈希。
+   const hash = qualityHash(cloudFunctionName ? input : unboundInput);
+   return { input, script: input.JudgeFile[0]!.judgeScript, hash };
 }
 
 /** Recheck the exact content inside the same transaction that publishes it. */

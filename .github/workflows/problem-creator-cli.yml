@@ -7,11 +7,17 @@ on:
       - main
     paths:
       - 'packages/problem-creator-cli/**'
+      - 'packages/challenge-cloud-function/src/runtime/**'
+      - 'packages/challenge-web-app/public/cloud-function.dts'
+      - 'packages/shared/service/cloud-function/**'
       - '.github/workflows/problem-creator-cli.yml'
       - 'pnpm-lock.yaml'
   pull_request:
     paths:
       - 'packages/problem-creator-cli/**'
+      - 'packages/challenge-cloud-function/src/runtime/**'
+      - 'packages/challenge-web-app/public/cloud-function.dts'
+      - 'packages/shared/service/cloud-function/**'
       - '.github/workflows/problem-creator-cli.yml'
       - 'pnpm-lock.yaml'
   workflow_dispatch:
@@ -58,6 +64,9 @@ jobs:
       - name: Build (tsup)
         run: pnpm build
 
+      - name: Test local cloud functions
+        run: pnpm exec tsx --test --test-concurrency=1 --test-timeout=30000 tests/cloud-function-check.test.ts tests/local-cloud-function-kv.test.ts
+
       # 构建产物的冒烟测试：npm bin 与 jiti 加载 .ts 配置这两条路径
       # 在 tsup 改变输出布局时最容易悄悄坏掉，必须在 CI 里真的跑一次。
       # 脚手架必须能通过自己的预检；agent 手册与 .d.ts 必须随构建产物分发。
@@ -71,6 +80,9 @@ jobs:
           node dist/index.js check "$RUNNER_TEMP/qpc-frontend" --no-run
           node dist/index.js agent --list
           node dist/index.js agent dts --type backend > /dev/null
+          node dist/index.js agent cloud-function > /dev/null
+          node dist/index.js agent dts --type cloud-function > "$RUNNER_TEMP/qpc-cloud-function.d.ts"
+          cmp ../challenge-web-app/public/cloud-function.dts "$RUNNER_TEMP/qpc-cloud-function.d.ts"
 
       - name: Summary
         if: always()

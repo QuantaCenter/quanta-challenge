@@ -1,4 +1,5 @@
 import z from 'zod';
+import { JudgeCloudFunctionNameSchema } from './cloud-function.js';
 
 export const TaskSchema = z
    .object({
@@ -10,6 +11,7 @@ export const TaskSchema = z
          'Mode must be either "audit" or "judge"'
       ),
       info: z.record(z.string(), z.string()).optional(),
+      cloudFunctionName: JudgeCloudFunctionNameSchema.optional(),
       designStructure: z.enum(['flat', 'hierarchical']).optional(),
       designExpectedScore: z.number().optional(),
    })

@@ -10,7 +10,7 @@ import CloudFunctionTokenPanel from '~/components/cloud-function/TokenPanel.vue'
  * 这样在做题预览页和判题环境里都能调通。这里用和「计时器」一样的侧边弹层，
  * 具体内容见 `cloud-function/TokenPanel.vue`。
  */
-const props = defineProps<{ toolbar?: boolean }>();
+const props = defineProps<{ toolbar?: boolean; functionName?: string | null }>();
 
 const opened = ref(false);
 
@@ -65,7 +65,9 @@ const toggle = () => {
                   ? 'top-1/2 -translate-y-1/2 left-[calc(100%+0.5rem)]'
                   : 'top-full right-0 mt-2',
             ]">
-            <CloudFunctionTokenPanel :active="opened" />
+            <CloudFunctionTokenPanel
+               :active="opened"
+               :function-name="props.functionName" />
          </div>
       </Transition>
    </div>

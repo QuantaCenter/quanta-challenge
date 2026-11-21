@@ -83,7 +83,7 @@ export interface CloudFunctionConfig {
    internalKeys: Record<string, string>;
    internalKeyScopes: Record<string, Scope[]>;
    masterSecrets: Record<string, string>;
-   /** 判题环境可调用的函数白名单；空数组 = 不允许判题调用任何函数。 */
+   /** 判题密钥使用常规调用入口时的函数白名单。 */
    judgeAllowedFunctions: string[];
    worker: {
       poolSize: number;

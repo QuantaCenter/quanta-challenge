@@ -80,16 +80,12 @@ export const initTaskResultHandlers = () => {
             );
             return;
          }
+         if (result.status === 'skipped') return;
          logger.info(
             { 'quanta.judge.record_id': String(job.data.judgeRecordId) },
             `Task completed for job ${job.id}`
          );
-         const status =
-            result.type === 'error'
-               ? 'invalid'
-               : result.status === 'completed'
-               ? 'ready'
-               : 'invalid';
+         const status = result.status === 'completed' ? 'ready' : 'invalid';
          await setStatus(job.data.judgeRecordId, status, job.data.mode);
          requestWebhook(job.data);
       })

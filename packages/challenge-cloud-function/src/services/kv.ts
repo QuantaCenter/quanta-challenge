@@ -11,6 +11,8 @@ export interface KvScopeOptions {
    userId?: string | null;
    /** 调用方 keyId，用于无用户时的系统作用域。 */
    keyId: string;
+   /** 临时隔离域的数据与配额计数在相同时间窗口内失效。 */
+   maxTtlSeconds?: number;
 }
 
 /** 计算 KV 隔离域：开隔离且有用户 → `u:<userId>`；开隔离无用户 → `sys:<keyId>`；关隔离 → `s`（函数级共享）。 */
@@ -22,7 +24,7 @@ export const buildScope = (options: KvScopeOptions): string => {
 
 // ───────────────────────────────────────────────────────────────────────────── Lua 脚本：把"写 + 配额计数"变成原子操作，避免并发下计数漂移。 ARGV 约定见各脚本头部注释。 ─────────────────────────────────────────────────────────────────────────────
 
-// KEYS[1]=data KEYS[2]=meta ARGV[1]=value ARGV[2]=ttl ARGV[3]=maxKeys ARGV[4]=maxBytes 返回 {status, keys, bytes}，status: 1=ok, -1=key 超限, -2=字节超限
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=value ARGV[2]=ttl ARGV[3]=maxKeys ARGV[4]=maxBytes ARGV[5]=metaTtl 返回 {status, keys, bytes}
 const SET_SCRIPT = `
 local existing = redis.call('GET', KEYS[1])
 local existed = 0
@@ -37,10 +39,11 @@ if nextKeys > tonumber(ARGV[3]) then return {-1, keys, bytes} end
 if nextBytes > tonumber(ARGV[4]) then return {-2, keys, bytes} end
 redis.call('SET', KEYS[1], ARGV[1], 'EX', tonumber(ARGV[2]))
 redis.call('HSET', KEYS[2], 'keys', nextKeys, 'bytes', nextBytes)
+if tonumber(ARGV[5]) > 0 then redis.call('EXPIRE', KEYS[2], tonumber(ARGV[5])) end
 return {1, nextKeys, nextBytes}
 `;
 
-// KEYS[1]=data KEYS[2]=meta
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=metaTtl
 const DEL_SCRIPT = `
 local existing = redis.call('GET', KEYS[1])
 if not existing then return 0 end
@@ -48,10 +51,20 @@ redis.call('DEL', KEYS[1])
 local keys = tonumber(redis.call('HGET', KEYS[2], 'keys') or '0')
 local bytes = tonumber(redis.call('HGET', KEYS[2], 'bytes') or '0')
 redis.call('HSET', KEYS[2], 'keys', math.max(0, keys - 1), 'bytes', math.max(0, bytes - string.len(existing)))
+if tonumber(ARGV[1]) > 0 then redis.call('EXPIRE', KEYS[2], tonumber(ARGV[1])) end
 return 1
 `;
 
-// KEYS[1]=data KEYS[2]=meta ARGV[1]=by ARGV[2]=maxKeys ARGV[3]=maxBytes ARGV[4]=defaultTtl 返回 {status, value}，status: 1=ok, -1=key 超限, -2=字节超限
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=ttl ARGV[2]=metaTtl
+const EXPIRE_SCRIPT = `
+local result = redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+if result == 1 and tonumber(ARGV[2]) > 0 then
+  redis.call('EXPIRE', KEYS[2], tonumber(ARGV[2]))
+end
+return result
+`;
+
+// KEYS[1]=data KEYS[2]=meta ARGV[1]=by ARGV[2]=maxKeys ARGV[3]=maxBytes ARGV[4]=defaultTtl ARGV[5]=metaTtl 返回 {status, value}
 const INCR_SCRIPT = `
 local existing = redis.call('GET', KEYS[1])
 local existed = 0
@@ -75,6 +88,7 @@ if nextBytes > tonumber(ARGV[3]) then return {-2, 0} end
 redis.call('SET', KEYS[1], newVal, 'KEEPTTL')
 if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[4])) end
 redis.call('HSET', KEYS[2], 'keys', nextKeys, 'bytes', nextBytes)
+if tonumber(ARGV[5]) > 0 then redis.call('EXPIRE', KEYS[2], tonumber(ARGV[5])) end
 return {1, v}
 `;
 
@@ -122,8 +136,9 @@ export class CloudFunctionKv {
    }
 
    private normalizeTtl(ttlSeconds?: number): number {
+      const scopeLimit = this.scopeOptions.maxTtlSeconds ?? Infinity;
       if (ttlSeconds === undefined || ttlSeconds === null) {
-         return config.kv.defaultTtlSeconds;
+         return Math.min(config.kv.defaultTtlSeconds, scopeLimit);
       }
       if (
          typeof ttlSeconds !== 'number' ||
@@ -132,7 +147,11 @@ export class CloudFunctionKv {
       ) {
          fail('INVALID_INPUT', 'ttlSeconds 必须是正数');
       }
-      return Math.min(Math.floor(ttlSeconds), config.kv.maxTtlSeconds);
+      return Math.min(
+         Math.floor(ttlSeconds),
+         config.kv.maxTtlSeconds,
+         scopeLimit,
+      );
    }
 
    private async rateLimit(): Promise<void> {
@@ -189,6 +208,7 @@ export class CloudFunctionKv {
          String(ttl),
          String(config.kv.maxKeysPerScope),
          String(config.kv.maxBytesPerScope),
+         String(this.scopeOptions.maxTtlSeconds ?? 0),
       )) as [number, number, number];
 
       if (Number(result[0]) === -1) {
@@ -213,6 +233,7 @@ export class CloudFunctionKv {
          2,
          full,
          this.metaKey,
+         String(this.scopeOptions.maxTtlSeconds ?? 0),
       );
       return Number(result) > 0;
    }
@@ -238,7 +259,8 @@ export class CloudFunctionKv {
          String(by),
          String(config.kv.maxKeysPerScope),
          String(config.kv.maxBytesPerScope),
-         String(config.kv.defaultTtlSeconds),
+         String(this.normalizeTtl()),
+         String(this.scopeOptions.maxTtlSeconds ?? 0),
       )) as [number, number];
 
       if (Number(result[0]) === -1) {
@@ -254,7 +276,15 @@ export class CloudFunctionKv {
       this.tick();
       const full = this.fullKey(key);
       const ttl = this.normalizeTtl(ttlSeconds);
-      return (await getRedis().expire(full, ttl)) === 1;
+      const result = await getRedis().eval(
+         EXPIRE_SCRIPT,
+         2,
+         full,
+         this.metaKey,
+         String(ttl),
+         String(this.scopeOptions.maxTtlSeconds ?? 0),
+      );
+      return Number(result) === 1;
    }
 
    async ttl(key: string): Promise<number> {

@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import prisma from '~~/lib/prisma';
 import { protectedAdminProcedure } from '../../protected-trpc';
+import { FunctionNameSchema } from '../../schemas/cloud-function-schema';
 import { router } from '../../trpc';
 import {
    callCloudFunctionService,
@@ -12,12 +13,11 @@ import {
    type PublishVersionResult,
 } from '~~/server/utils/cloud-function-client';
 
-const FunctionNameSchema = z
-   .string()
-   .regex(
-      /^[a-z][a-z0-9-]{0,62}$/,
-      '函数名只能是小写字母、数字与连字符，且以字母开头，最长 63 字符',
-   );
+const PublishVersionInputSchema = z.object({
+   name: FunctionNameSchema,
+   source: z.string().min(1).max(200_000),
+   activate: z.boolean().optional(),
+});
 
 const ScopeSchema = z.enum(['invoke', 'read', 'manage']);
 
@@ -161,13 +161,7 @@ const removeProcedure = protectedAdminProcedure
    });
 
 const publishVersionProcedure = protectedAdminProcedure
-   .input(
-      z.object({
-         name: FunctionNameSchema,
-         source: z.string().min(1).max(200_000),
-         activate: z.boolean().optional(),
-      }),
-   )
+   .input(PublishVersionInputSchema)
    .mutation(async ({ ctx, input }) => {
       const { name, ...body } = input;
       try {
@@ -175,6 +169,27 @@ const publishVersionProcedure = protectedAdminProcedure
             method: 'POST',
             path: `/v1/functions/${name}/versions`,
             body,
+            userId: ctx.user.userId,
+         });
+      } catch (error) {
+         return rethrowAsTRPCError(error);
+      }
+   });
+
+const publishProcedure = protectedAdminProcedure
+   .input(
+      PublishVersionInputSchema.extend({
+         description: z.string().max(2000).optional(),
+      }),
+   )
+   .mutation(async ({ ctx, input }) => {
+      try {
+         return await callCloudFunctionService<
+            PublishVersionResult & { created: boolean }
+         >({
+            method: 'POST',
+            path: '/v1/functions/publish',
+            body: input,
             userId: ctx.user.userId,
          });
       } catch (error) {
@@ -334,6 +349,7 @@ export const cloudFunctionAdminRouter = router({
    create: createProcedure,
    update: updateProcedure,
    remove: removeProcedure,
+   publish: publishProcedure,
    publishVersion: publishVersionProcedure,
    listVersions: listVersionsProcedure,
    getVersion: getVersionProcedure,

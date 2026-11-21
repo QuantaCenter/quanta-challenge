@@ -6,3 +6,4 @@ export {
    type ProblemDesignNode,
 } from './judge-result.js';
 export { TaskSchema } from './task.js';
+export { CloudFunctionInvokeSchema, CloudFunctionResultSchema } from './cloud-function.js';

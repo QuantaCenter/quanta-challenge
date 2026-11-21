@@ -18,6 +18,7 @@ qpc check --json       # 机读结果（含 localJudge 明细）
 | JUD009 | 提示 | 断言消息没有"期望 vs 实际" |
 | JUD010~011 | 警告 | 没有任何 `$.expect` / 存在 default 之外的导出 |
 | CFG001 | 错误 | `totalScore` 与检查点之和不一致 |
+| CFG003 | 错误 | `cloudFunctionSource` 未指向存在的普通文件 |
 | RUN001~003 | 警告/错误 | 站点根不等于上传目录 / bootCommand 会被覆盖 / 后端缺锁文件 |
 | IMG001~002 | 错误 | custom 封面缺 imageId / 后端题没用自定义封面 |
 | IMG003 | 错误 | 题面引用了本地图片（`qpc image --write`） |
@@ -29,6 +30,8 @@ qpc check --json       # 机读结果（含 localJudge 明细）
 
 - 前端：本地静态服务器以目录为站点根，无头 Chromium 1280×720 打开页面后执行脚本。
 - 后端：在目录里 `npm start`（注入 `PORT` / `QUANTA_PORT`，优先用 `servicePort`），等端口可连后执行脚本。
+
+前端题同时配置 `cloudFunctionName` 和 `cloudFunctionSource` 时，`qpc check` 会在本地编译并执行云函数源码。参考解和模板照常请求 `/api/cloud-function/invoke/<name>`，`judge.js` 负责检查页面行为。配置与示例见 `qpc agent cloud-function`。
 
 | 规则 | 级别 | 含义 → 做法 |
 | --- | --- | --- |

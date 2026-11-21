@@ -69,6 +69,7 @@ export const useProblemPublicationForm = (storageName: string, isEditing: boolea
       buildCommand: '',
       judgeUploadPath: '',
       enableCloudFunction: false,
+      cloudFunctionName: '',
       problemType: 'frontend' as 'frontend' | 'backend_service',
       serviceImage: DEFAULT_BACKEND_SERVICE_IMAGE_ID as string,
       servicePort: getBackendServiceDefaultPort(
@@ -93,6 +94,7 @@ export const useProblemPublicationForm = (storageName: string, isEditing: boolea
       if (type !== 'backend_service') return;
       draft.value.coverMode = 'custom';
       draft.value.enableCloudFunction = false;
+      draft.value.cloudFunctionName = '';
       if (!draft.value.judgeUploadPath) {
          draft.value.judgeUploadPath = 'project';
       }

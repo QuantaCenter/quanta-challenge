@@ -49,6 +49,12 @@
       "./cloud-function": {
          "import": "./service/cloud-function/sign.ts"
       },
+      "./cloud-function-compiler": {
+         "import": "./service/cloud-function/compiler.ts"
+      },
+      "./cloud-function-errors": {
+         "import": "./service/cloud-function/errors.ts"
+      },
       "./oauth": {
          "import": "./service/oauth/device-flow.ts"
       },
@@ -65,6 +71,7 @@
    "license": "ISC",
    "dependencies": {
       "comlink": "^4.4.2",
+      "esbuild": "^0.25.5",
       "pino": "^10.3.1",
       "pino-pretty": "^13.1.3",
       "sharp": "^0.34.3",

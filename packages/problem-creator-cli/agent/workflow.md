@@ -92,7 +92,11 @@ qpc check
 验收：退出码 0；输出 "参考解本地满分"；模板明显低分；耗时远小于 20 秒。
 本地微判题需要无头浏览器（前端题）或已安装依赖（后端题有第三方依赖时），缺失时会提示如何安装。
 
+依赖云函数的前端题，在配置中填写 `cloudFunctionName` 和 `cloudFunctionSource`。`qpc check` 会把题目页面的云函数请求交给本地源码执行。见 `qpc agent cloud-function`。
+
 ## 8. 上传审核
+
+如果前端题在配置中填写了 `cloudFunctionName`，先发布并激活该函数。用 `qpc agent cloud-function` 查看步骤。
 
 ```bash
 qpc upload --write
@@ -117,4 +121,14 @@ qpc upload --write
 qpc publish <pid>      # 用 upload 最后输出的"当前版本" pid
 ```
 
-只有当前版本（最新一次上传）且状态为 `ready` 才能发布。
+将审核通过、状态为 `ready` 的当前版本发布。
+
+前端题需要云函数时，在配置中填写 `cloudFunctionName`，并在上传题目前发布和激活函数。线上审核和正式判题接管参考解的标准调用请求，由平台处理身份。绑定变化随题目版本重新审核。
+
+```bash
+qpc cloud-function publish cart-total ./cart-total.ts
+qpc upload --write
+qpc publish <pid>
+```
+
+源码类型与调用示例见 `qpc agent cloud-function`。

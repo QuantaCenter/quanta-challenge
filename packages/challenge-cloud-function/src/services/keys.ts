@@ -34,8 +34,8 @@ export const resolveKey = async (
          type: 'internal',
          secret: config.internalKeys[keyId]!,
          scopes: config.internalKeyScopes[keyId] ?? ['invoke'],
-         // 判题环境无论是否配置白名单，都**必须**受白名单约束：
-         // 未配置时白名单为空 = 判题不能调用任何函数（安全默认）。
+         // 判题密钥访问常规调用入口时必查白名单，空名单会拒绝调用。
+         // 判题专用入口单独校验任务记录与题目绑定。
          allowedFunctions: isJudge ? config.judgeAllowedFunctions : [],
          restricted: isJudge,
       };

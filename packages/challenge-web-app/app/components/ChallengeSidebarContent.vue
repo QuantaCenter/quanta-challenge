@@ -177,7 +177,11 @@ const designItemClass = `${sidebarItemClass} hover:cursor-pointer active:bg-acce
       <StSpace direction="vertical" align="center" gap="0.5rem">
          <EditorSidebarTools section="search" />
 
-         <CloudFunctionTokenWidget v-if="store.cloudFunctionEnabled" :toolbar="true" />
+         <CloudFunctionTokenWidget
+            v-if="mounted && store.problemCloudFunction?.problemId === id"
+            :key="id"
+            :function-name="store.problemCloudFunction.name"
+            :toolbar="true" />
 
          <ChallengeLayoutMenu v-if="!isMobile && !embedded" />
       </StSpace>

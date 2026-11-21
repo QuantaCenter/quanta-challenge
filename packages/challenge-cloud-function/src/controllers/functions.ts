@@ -1,8 +1,8 @@
-import { createHash } from 'node:crypto';
 import { Hono } from 'hono';
-import { parseBody, requireScope } from '../middlewares';
+import { assertFunctionAllowed, parseBody, requireScope } from '../middlewares';
 import {
    CreateFunctionSchema,
+   PublishFunctionSchema,
    PublishVersionSchema,
    TestFunctionSchema,
    UpdateFunctionSchema,
@@ -10,6 +10,7 @@ import {
 import { compileFunction } from '../services/compiler';
 import { executor } from '../services/executor';
 import { CloudFunctionKv } from '../services/kv';
+import { publishFunction } from '../services/publish-function';
 import {
    invalidateFunction,
    loadFunction,
@@ -18,9 +19,6 @@ import { fail } from '../utils/errors';
 import prisma from '../utils/prisma';
 
 const functionsRoute = new Hono();
-
-const sha256Hex = (value: string): string =>
-   createHash('sha256').update(value).digest('hex');
 
 const actorOf = (keyId: string, userId: string | null): string =>
    userId ?? `key:${keyId}`;
@@ -117,64 +115,24 @@ functionsRoute.post('/:name/versions', requireScope('manage'), async (c) => {
    const name = c.req.param('name');
    const caller = c.get('caller');
    const body = parseBody(c, PublishVersionSchema);
-
-   const fn = await prisma.cloudFunction.findUnique({ where: { name } });
-   if (!fn) fail('FUNCTION_NOT_FOUND', `云函数「${name}」不存在`);
-
-   const compiled = await compileFunction(body.source, name);
-   const sourceHash = sha256Hex(body.source);
-
-   const latest = await prisma.cloudFunctionVersion.findFirst({
-      where: { functionId: fn.id },
-      orderBy: { version: 'desc' },
-      select: { id: true, version: true, sourceHash: true },
+   const { created: _, ...data } = await publishFunction({
+      name,
+      ...body,
+      actor: actorOf(caller.keyId, caller.userId),
    });
+   return c.json({ ok: true, data }, 201);
+});
 
-   let versionId: string;
-   let version: number;
-
-   if (latest && latest.sourceHash === sourceHash) {
-      // 源码没变：复用现有版本，不产生噪音版本。
-      versionId = latest.id;
-      version = latest.version;
-   } else {
-      version = (latest?.version ?? 0) + 1;
-      const created = await prisma.cloudFunctionVersion.create({
-         data: {
-            functionId: fn.id,
-            version,
-            source: body.source,
-            compiledCode: compiled.code,
-            sourceHash,
-            createdBy: actorOf(caller.keyId, caller.userId),
-         },
-      });
-      versionId = created.id;
-   }
-
-   if (body.activate) {
-      await prisma.cloudFunction.update({
-         where: { id: fn.id },
-         data: { activeVersionId: versionId },
-      });
-   }
-
-   await invalidateFunction(name);
-
-   return c.json(
-      {
-         ok: true,
-         data: {
-            name,
-            version,
-            versionId,
-            activated: body.activate,
-            reused: latest?.sourceHash === sourceHash,
-            compiledBytes: compiled.bytes,
-         },
-      },
-      201,
-   );
+functionsRoute.post('/publish', requireScope('manage'), async (c) => {
+   const caller = c.get('caller');
+   const { description, ...body } = parseBody(c, PublishFunctionSchema);
+   assertFunctionAllowed(caller, body.name);
+   const data = await publishFunction({
+      ...body,
+      actor: actorOf(caller.keyId, caller.userId),
+      create: { description },
+   });
+   return c.json({ ok: true, data }, 201);
 });
 
 functionsRoute.get('/:name/versions', requireScope('read'), async (c) => {

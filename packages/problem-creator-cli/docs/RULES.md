@@ -31,6 +31,7 @@ CI 的豁免清单、文档、issue 都按编号引用，新增规则只能追�
 |---|---|---|---|
 | CFG001 | error | `totalScore` ≠ 各检查点分值之和 | 审计通过的条件是 `score === totalScore`，不等就线上失败 |
 | CFG002 | info | 未指定 `totalScore` | 提示将采用检查点之和 |
+| CFG003 | error | `cloudFunctionSource` 未指向存在的普通文件 | 本地微判题需要用该文件编译云函数 |
 
 ## 运行期（RUN / IMG）
 

@@ -255,6 +255,7 @@ model Problems {
   buildCommand        String?
   judgeUploadPath     String
   enableCloudFunction Boolean     @default(false)
+  cloudFunctionName   String?
   problemType         ProblemType @default(frontend)
   // 后端题判题容器的初始镜像（注册表 id）
   serviceImage        String?

@@ -3,10 +3,14 @@ import { readFile } from 'node:fs/promises';
 import { createConnection, createServer } from 'node:net';
 import { join } from 'node:path';
 
-import type { Browser } from 'playwright-core';
+import type { Browser, BrowserContext } from 'playwright-core';
 
 import type { ResolvedProblemConfig } from '../../domain/problem-config';
 import { pathExists, readText } from '../../utils/fs';
+import {
+   attachLocalCloudFunction,
+   prepareLocalCloudFunction,
+} from './cloud-function-route';
 import { launchHeadlessBrowser } from './headless-browser';
 import {
    type CheckPointResult,
@@ -69,6 +73,9 @@ export const runLocalJudge = async (
       return { runs };
    }
 
+   const cloudFunction = await prepareLocalCloudFunction(config);
+   if (cloudFunction) log(`本地云函数「${cloudFunction.name}」已编译`);
+
    let browser: Browser;
    try {
       browser = await launchHeadlessBrowser();
@@ -85,7 +92,15 @@ export const runLocalJudge = async (
       const runs: LocalJudgeRun[] = [];
       for (const { label, dir } of targets) {
          runs.push(
-            await runFrontend(label, dir, code, browser, totalScore, log),
+            await runFrontend(
+               label,
+               dir,
+               code,
+               browser,
+               totalScore,
+               log,
+               cloudFunction,
+            ),
          );
       }
       return { runs };
@@ -101,11 +116,18 @@ const runFrontend = async (
    browser: Browser,
    totalScore: number,
    log: (message: string) => void,
+   cloudFunction: Awaited<ReturnType<typeof prepareLocalCloudFunction>>,
 ): Promise<LocalJudgeRun> => {
    const site = await startStaticServer(dir);
-   const context = await browser.newContext();
+   let context: BrowserContext | undefined;
+   let cloud: Awaited<ReturnType<typeof attachLocalCloudFunction>> | undefined;
    const startedAt = Date.now();
    try {
+      context = await browser.newContext(
+         cloudFunction ? { serviceWorkers: 'block' } : undefined,
+      );
+      if (cloudFunction)
+         cloud = await attachLocalCloudFunction(context, cloudFunction, log);
       const page = await context.newPage();
       page.setDefaultTimeout(NAVIGATE_TIMEOUT_MS);
       page.setDefaultNavigationTimeout(NAVIGATE_TIMEOUT_MS);
@@ -128,7 +150,7 @@ const runFrontend = async (
    } catch (error) {
       return failedRun(label, totalScore, startedAt, error);
    } finally {
-      await context.close().catch(() => {});
+      await Promise.allSettled([cloud?.close(), context?.close()]);
       await site.close();
    }
 };

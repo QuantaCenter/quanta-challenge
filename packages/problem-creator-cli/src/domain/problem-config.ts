@@ -22,6 +22,8 @@ export interface ResolvedProblemConfig extends ProblemConfig {
    configFile: string;
    /** 解析后的题面正文 */
    detail: string;
+   /** 本地云函数源码（绝对路径）。 */
+   cloudFunctionSource?: string;
    /** 解析后的绝对路径 */
    paths: {
       template: string;
@@ -64,6 +66,9 @@ export const loadProblemConfig = async (
       detail,
       rootDir,
       configFile,
+      cloudFunctionSource: config.cloudFunctionSource
+         ? resolve(rootDir, config.cloudFunctionSource)
+         : undefined,
       overriddenByImage: parsedConfig.overridden,
       paths: {
          template: resolve(rootDir, config.paths.template),

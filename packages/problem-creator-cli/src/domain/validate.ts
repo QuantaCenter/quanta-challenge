@@ -1,3 +1,5 @@
+import { constants } from 'node:fs';
+import { access, stat } from 'node:fs/promises';
 import { pathExists, readText } from '../utils/fs';
 import { displayPath, formatBytes } from '../utils/paths';
 import { detailBaseDir, findLocalImageRefs } from './detail-images';
@@ -46,6 +48,8 @@ export interface ValidateOptions {
    /** 快照体积上限（字节），对齐 Web 端提交链路的实际承受能力 */
    maxUploadBytes?: number;
    maxFileCount?: number;
+   /** `qpc check` 本地需要源码文件，上传仅使用函数名。 */
+   checkCloudFunctionSource?: boolean;
 }
 
 /** 出题预检（离线）：覆盖 PROBLEM_AUTHORING 检查清单中可静态判定的部分；审不了的部分由 `qpc upload --wait` 拉回线上审计结果。 */
@@ -198,6 +202,25 @@ export const validateProblem = async (
          message: `未指定 totalScore，按检查点之和取 ${analysis.checkpointTotal}`,
          file: rel(config.configFile),
       });
+   }
+   if (options.checkCloudFunctionSource && config.cloudFunctionSource) {
+      const path = config.cloudFunctionSource;
+      const [info, readable] = await Promise.all([
+         stat(path).catch(() => undefined),
+         access(path, constants.R_OK).then(
+            () => true,
+            () => false,
+         ),
+      ]);
+      if (!info?.isFile() || !readable) {
+         push({
+            rule: 'CFG003',
+            severity: 'error',
+            message: `cloudFunctionSource 须指向可读的云函数源码文件：${rel(path)}`,
+            file: rel(config.configFile),
+            hint: '确认源码文件存在，路径相对题目目录。',
+         });
+      }
    }
 
    // ── 运行期配置 ─────────────────────────────────────────────
