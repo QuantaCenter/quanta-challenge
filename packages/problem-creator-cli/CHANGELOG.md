@@ -5,6 +5,19 @@
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-22
+
+### Added
+
+- `qpc cloud-function publish <name> <file>` 从本地 TypeScript 或 JavaScript 文件发布云函数版本，默认激活。
+- 前端题可在配置中填写 `cloudFunctionName`，上传时绑定已启用的云函数。填写 `cloudFunctionSource` 后，`qpc check` 会执行本地源码并接管题目页面的云函数请求。
+- `qpc agent cloud-function` 提供编写与发布指南，`qpc agent dts --type cloud-function` 导出与网页编辑器共用的类型声明。
+
+### Changed
+
+- 线上审核和正式判题通过服务端调用题目绑定的云函数。参考解可以沿用本地检查的请求代码，调用使用模拟用户和每个任务独立的临时 KV。
+- 云函数绑定随题目版本接受审核。添加、换绑或清除绑定时，更新配置并重新上传参考解。
+
 ## [1.2.3] - 2026-11-08
 
 ### Changed
