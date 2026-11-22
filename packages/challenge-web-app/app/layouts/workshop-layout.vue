@@ -95,7 +95,8 @@ onUnmounted(() => detachDrawerTouchLock?.());
 
             <div
                id="challenge-mobile-board-tabs"
-               class="flex items-center gap-1 min-w-0 overflow-hidden" />
+               class="flex items-center gap-1 min-w-0 overflow-x-auto [scrollbar-width:none]" />
+            <FeedbackButton variant="toolbar" />
          </div>
 
          <div class="flex-1 h-full overflow-hidden min-w-0 max-md:min-h-0">

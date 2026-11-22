@@ -11,6 +11,10 @@ const isImmersivePath = (path: string) =>
 
 const authStore = useAuthStore();
 const route = useRoute();
+// 主站和工作区在各自的工具栏内提供入口。
+const showFloatingFeedback = computed(
+   () => !/^\/(?:app|challenge|design|workshop)(?:\/|$)/.test(route.path),
+);
 onMounted(() => {
    authStore.initToken();
 });
@@ -23,6 +27,8 @@ onMounted(() => {
    >
       <NuxtPage />
       <StImageViewerProvider />
+      <FeedbackButton v-if="showFloatingFeedback" variant="floating" />
+      <FeedbackDialog />
    </div>
 </template>
 

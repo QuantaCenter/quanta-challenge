@@ -116,6 +116,7 @@ const mobileDrawerOpen = ref(false);
                         </div>
                      </div>
                   </StHeaderButton>
+                  <FeedbackButton variant="header" />
                   <StHeaderButton
                      v-if="isAdmin"
                      @click="handleMyPublish"

@@ -60,6 +60,7 @@ const avatarUrl = computed(() => {
    <div class="flex-1" />
 
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
+      <FeedbackButton v-if="!isMobile" variant="sidebar" />
       <StMiniSidebarButton
          name="项目设置"
          aria-label="项目设置"

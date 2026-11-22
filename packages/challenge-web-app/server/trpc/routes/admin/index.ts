@@ -3,6 +3,7 @@ import { achievementRouter } from './achievement';
 import { appealAdminRouter } from './appeal';
 import { cloudFunctionAdminRouter } from './cloud-function';
 import { courseAdminRouter } from './course';
+import { feedbackAdminRouter } from './feedback';
 import { imageBuildRouter } from './image-build';
 import { imageRouter } from './image';
 import { workshopTemplateAdminRouter } from './workshop-template';
@@ -28,5 +29,6 @@ export const adminRouter = router({
    course: courseAdminRouter,
    notification: notificationAdminRouter,
    appeal: appealAdminRouter,
+   feedback: feedbackAdminRouter,
    scheduledTask: scheduledTaskAdminRouter,
 });

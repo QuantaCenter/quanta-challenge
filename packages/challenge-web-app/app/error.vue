@@ -5,6 +5,8 @@ import { FingerprintThree } from '@icon-park/vue-next';
 const error = useError();
 const isDev = import.meta.dev;
 
+useHead({ meta: [{ name: 'viewport', content: 'width=device-width, initial-scale=1' }] });
+
 const message = computed(() => {
    if (isDev) {
       return [error.value?.message, error.value?.stack]
@@ -36,12 +38,12 @@ const traceId = computed(() => {
       align="center"
       justify="center"
       gap="2rem"
-      class="w-screen h-screen text-white translate-y-8">
+      class="min-h-dvh w-full px-4 py-8 text-white">
       <StGlitchText :glitchText="String(error?.statusCode ?? 404)" />
-      <StSpace direction="vertical" gap="10rem" align="center">
+      <StSpace direction="vertical" gap="clamp(2.5rem, 12dvh, 10rem)" align="center" class="max-w-full">
          <div
-            class="st-font-third-normal max-w-[50vw] text-center whitespace-pre-wrap"
-            :class="isDev ? 'text-left' : ''">
+            class="st-font-third-normal max-w-full text-center whitespace-pre-wrap [overflow-wrap:anywhere] sm:max-w-[50vw]"
+            :class="isDev ? 'st-selectable max-h-[32dvh] overflow-auto text-left max-sm:text-sm' : ''">
             {{ message }}
          </div>
          <div v-if="traceId" class="st-font-caption text-white/40">
@@ -55,4 +57,6 @@ const traceId = computed(() => {
          </NuxtLink>
       </StSpace>
    </StSpace>
+   <FeedbackButton variant="floating" :trace-id="traceId" />
+   <FeedbackDialog />
 </template>

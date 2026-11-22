@@ -45,6 +45,7 @@ model User {
   UserInfo                  UserInfo?
   UserSpaceConfig           UserSpaceConfig?
   notifications             Notification[]
+  feedback                  Feedback[]
   appeals                   Appeal[]
   scorePenalties            ScorePenalty[]
   courseEnrollments         CourseEnrollment[]
@@ -959,6 +960,34 @@ model Notification {
   scorePenalty ScorePenalty?
 
   @@map("notifications")
+}
+
+enum FeedbackCategory {
+  bug
+  suggestion
+  other
+}
+
+model Feedback {
+  id          String           @id @default(cuid())
+  category    FeedbackCategory
+  description String           @db.VarChar(2000)
+  contact     String?          @db.VarChar(254)
+  pagePath    String?          @db.VarChar(500)
+  traceId     String?          @db.VarChar(32)
+  userId      String?
+  createdAt   DateTime         @default(now())
+  reviewedAt  DateTime?
+  notifyOnResolve Boolean      @default(false)
+  resolvedAt  DateTime?
+  resolution  String?          @db.VarChar(1000)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt, id])
+  @@index([reviewedAt, createdAt, id])
+  @@index([userId])
+  @@map("feedback")
 }
 
 enum AppealStatus {

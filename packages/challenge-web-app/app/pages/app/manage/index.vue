@@ -3,6 +3,7 @@ import {
    BookOpen,
    Box,
    Code,
+   Comment,
    Experiment,
    GoldMedalTwo,
    Help,
@@ -94,6 +95,13 @@ const options: ProcessOption[] = [
       url: '/app/manage/appeal',
       icon: Help,
       iconColor: '#EF4444',
+   },
+   {
+      title: '用户反馈',
+      description: '查看用户报告的问题、功能建议和相关页面信息',
+      url: '/app/manage/feedback',
+      icon: Comment,
+      iconColor: '#FA7C0E',
    },
    {
       title: '定时任务管理',

@@ -117,7 +117,8 @@ onUnmounted(() => detachDrawerTouchLock?.());
             <div
                v-show="!isRecordMode"
                id="challenge-mobile-board-tabs"
-               class="flex items-center gap-1 min-w-0 overflow-hidden" />
+               class="flex items-center gap-1 min-w-0 overflow-x-auto [scrollbar-width:none]" />
+            <FeedbackButton v-if="!embedded" variant="toolbar" />
          </div>
 
          <!-- 主内容区 -->

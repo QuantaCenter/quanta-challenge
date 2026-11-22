@@ -23,6 +23,7 @@ const TOKEN_KEYS = {
    ACCESS: 'quanta_access_token',
    REFRESH: 'quanta_refresh_token',
 } as const;
+const FEEDBACK_PROCEDURE = 'public.feedback.submit';
 
 type RequestOptions = RequestInit & { headers: Record<string, string> };
 
@@ -354,6 +355,10 @@ export default defineNuxtPlugin(() => {
       },
       async fetch(url: RequestInfo | URL, options: RequestInit | undefined) {
          const oauthRequest = isQuantaRpcRequest(url);
+         const requestUrl = url instanceof Request ? url.url : String(url);
+         const feedbackRequest = requestUrl
+            .split('?')[0]
+            ?.endsWith(`/api/trpc/${FEEDBACK_PROCEDURE}`);
          // SSR 环境使用解析后的 cookies，客户端使用空对象
          const cookies = isServer ? ssrCookies : {};
 
@@ -387,12 +392,21 @@ export default defineNuxtPlugin(() => {
          });
 
          // 处理 401 未授权错误 - 尝试刷新 token
-         if (!oauthRequest && (res.status === 401 || res.status === 207)) {
+         if (
+            !oauthRequest &&
+            !feedbackRequest &&
+            (res.status === 401 || res.status === 207)
+         ) {
             res = await handleUnauthorized(url as RequestInfo, requestOptions);
          }
 
          // 客户端显示 5xx 服务器错误提示 必须读**克隆体**：直接 await res.text() 会把响应体消费掉， tRPC 之后再去 res.json() 只会抛 "Failed to execute 'json' on 'Response': body stream already read"， 把服务端真正的错误信息整个吞掉（排查时极具误导性）。
-         if (res.status >= 500 && !isServer && !oauthRequest) {
+         if (
+            res.status >= 500 &&
+            !isServer &&
+            !oauthRequest &&
+            !feedbackRequest
+         ) {
             showServerError(await res.clone().text());
          }
 
@@ -432,10 +446,11 @@ export default defineNuxtPlugin(() => {
          splitLink({
             condition: (operation) =>
                isQuantaProcedure(operation.path) ||
+               operation.path === FEEDBACK_PROCEDURE ||
                operation.path === 'protected.fileSync.syncFileChanges' ||
                operation.path === 'protected.workshop.sync' ||
                isNonJsonSerializable(operation.input),
-            // Cookie-changing and one-time OAuth actions must not share batches
+            // Feedback and one-time OAuth actions must not share batches
             // or be replayed by the regular authentication refresh transport.
             // Non-JSON-serializable inputs (e.g. FormData) use httpLink.
             // File sync has its own size budget and must retain its exact route.

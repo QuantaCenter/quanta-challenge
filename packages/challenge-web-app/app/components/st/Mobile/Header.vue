@@ -17,6 +17,7 @@ const { unreadCount } = useUnreadNotifications();
          <Logo class="scale-75 origin-left" />
       </NuxtLink>
       <StSpace gap="0.5rem" align="center">
+         <FeedbackButton variant="mobile" />
          <NuxtLink
             to="/app/notifications"
             aria-label="通知"

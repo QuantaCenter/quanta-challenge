@@ -56,11 +56,10 @@ const borderedClass = computed(() => {
 </script>
 
 <template>
-   <component
-      :is="type === 'button' ? 'button' : 'input'"
+   <button
       :value="text"
       :disabled="props.disabled || props.loading"
-      :type="type === 'button' ? 'button' : 'submit'"
+      :type="type"
       class="flex items-center justify-center hover:cursor-pointer hover:opacity-80 transition-all"
       :class="[
          textColorClass,
@@ -81,9 +80,10 @@ const borderedClass = computed(() => {
       <slot v-if="$slots.icon" name="icon" :loading="props.loading"></slot>
       <LoadingFour
          v-else-if="props.loading"
+         aria-hidden="true"
          class="mr-2 animate-spin text-lg" />
-      <slot></slot>
-   </component>
+      <slot>{{ text }}</slot>
+   </button>
 </template>
 
 <style scoped></style>

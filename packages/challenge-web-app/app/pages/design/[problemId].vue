@@ -33,12 +33,15 @@ useSeoMeta({ title });
          class="flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3 [@media(min-width:721px)]:h-14 [@media(min-width:721px)]:gap-3 [@media(min-width:721px)]:px-5">
          <DraftingCompass class="size-4 shrink-0 text-primary [@media(min-width:721px)]:size-[19px]" />
          <h1 class="min-w-0 truncate text-sm font-semibold" :title="title">{{ title }}</h1>
-         <StAvatar
-            v-if="data?.viewer"
-            :url="data.viewer.avatarUrl"
-            :title="data.viewer.name"
-            class="ml-auto shrink-0 [--design-avatar-size:1.5rem] [@media(min-width:721px)]:[--design-avatar-size:1.75rem]"
-            size="var(--design-avatar-size)" />
+         <div class="ml-auto flex shrink-0 items-center gap-2">
+            <FeedbackButton variant="toolbar" />
+            <StAvatar
+               v-if="data?.viewer"
+               :url="data.viewer.avatarUrl"
+               :title="data.viewer.name"
+               class="shrink-0 [--design-avatar-size:1.5rem] [@media(min-width:721px)]:[--design-avatar-size:1.75rem]"
+               size="var(--design-avatar-size)" />
+         </div>
       </header>
 
       <StMessageProvider v-if="data?.document">

@@ -190,6 +190,7 @@ const designItemClass = `${sidebarItemClass} hover:cursor-pointer active:bg-acce
    <div class="flex-1" />
 
    <StSpace direction="vertical" align="center" gap="0.5rem" class="mb-1">
+      <FeedbackButton v-if="!isMobile && !embedded" variant="sidebar" />
       <ChallengeSettingsMenu :problem-id="mode === 'problem' ? id : undefined" />
 
       <StAvatar v-if="!embedded" size="2.25rem" :url="avatarUrl" />
